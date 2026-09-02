@@ -9,11 +9,11 @@ updated: 2026-09-02
 
 ## Contents
 
-1. (Overview)[#overview]
-1. (Collating Samples)[#collating-samples]
-1. (Ensuring Access)[#ensuring-access]
-1. (Combining)[#combining]
-1. (Troubleshooting)[#troubleshooting]
+1. [Overview](#overview)
+1. [Collating Samples](#collating-samples)
+1. [Ensuring Access](#ensuring-access)
+1. [Combining](#combining)
+1. [Troubleshooting](#troubleshooting)
 
 ## Overview
 
@@ -80,7 +80,7 @@ from hailtop.aiotools.fs import AsyncFS
 from hailtop.utils import bounded_gather
 
 async def check_permissions(fs: AsyncFS, files: list[str]):
-    result = await bounded_gather(*(lambda: fs.statfile(file) for file in files),
+    result = await bounded_gather(*(lambda f=file: fs.statfile(f) for file in files),
                                   parallelism=50,
                                   return_exceptions=True)
     missing_permissions = [(file, exc) for file, (_, exc) in zip(files, result) if exc is not None]
