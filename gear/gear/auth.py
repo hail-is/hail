@@ -4,7 +4,7 @@ import logging
 import os
 import urllib.parse
 from functools import wraps
-from typing import Awaitable, Callable, Dict, Optional, Tuple, TypedDict, cast
+from typing import Awaitable, Callable, Dict, Optional, Sequence, Tuple, TypedDict, Union, cast
 
 import aiohttp
 import aiohttp_session
@@ -95,8 +95,10 @@ class Authenticator(abc.ABC):
         return wrapped
 
     def authenticated_users_with_permission(
-        self, permission: SystemPermission, redirect: bool = True
+        self, permission: Union[SystemPermission, Sequence[SystemPermission]], redirect: bool = True
     ) -> Callable[[AuthenticatedAIOHTTPHandler], AIOHTTPHandler]:
+        permissions = [permission] if isinstance(permission, SystemPermission) else permission
+
         def wrap(fun: AuthenticatedAIOHTTPHandler):
             @self.authenticated_users_only(redirect)
             @wraps(fun)
@@ -106,10 +108,11 @@ class Authenticator(abc.ABC):
                 request['api_info']['system_permission_check'] = True
                 if 'system_permissions_required' not in request['api_info']:
                     request['api_info']['system_permissions_required'] = []
-                request['api_info']['system_permissions_required'].append(permission.value)
-                if await self._check_system_permission(request, permission):
-                    return await fun(request, userdata, *args, **kwargs)
-                raise web.HTTPUnauthorized()
+                for required_permission in permissions:
+                    request['api_info']['system_permissions_required'].append(required_permission.value)
+                    if not await self._check_system_permission(request, required_permission):
+                        raise web.HTTPUnauthorized()
+                return await fun(request, userdata, *args, **kwargs)
 
             return wrapped
 

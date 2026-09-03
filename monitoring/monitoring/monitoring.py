@@ -463,7 +463,10 @@ async def on_cleanup(app):
 
 @routes.get('/cost-analysis')
 @web_security_headers_inline_styles
-@auth.authenticated_users_with_permission(SystemPermission.VIEW_MONITORING_DASHBOARDS)
+@auth.authenticated_users_with_permission([
+    SystemPermission.VIEW_MONITORING_DASHBOARDS,
+    SystemPermission.READ_ALL_BILLING_PROJECTS,
+])
 async def cost_analysis(request: web.Request, userdata) -> web.Response:
     return await render_template('monitoring', request, userdata, 'cost_analysis.html', {'use_tailwind': True})
 

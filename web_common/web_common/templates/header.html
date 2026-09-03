@@ -67,7 +67,9 @@
         <a target="_blank" class="header-dropdown-menu-link" href="https://console.cloud.google.com/logs/query;query=resource.labels.namespace_name%3D%22{{ k8s_namespace }}%22">
           Log Viewer<i class="material-icons text-icon">open_in_new</i></a>
         <a class="header-dropdown-menu-link" href="{{ monitoring_base_url }}/billing">Billing</a>
+        {% if userdata['system_permissions']['read_all_billing_projects'] %}
         <a class="header-dropdown-menu-link" href="{{ monitoring_base_url }}/cost-analysis">Cost Analysis</a>
+        {% endif %}
       </div>
     </div>
   </div>
