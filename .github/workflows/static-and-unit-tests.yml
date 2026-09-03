@@ -398,6 +398,10 @@ jobs:
     steps:
       - name: Verify all checks passed
         run: |
+          if [[ "${{ needs.should-run.result }}" != "success" ]]; then
+            echo "should-run job failed; cannot determine whether to run checks."
+            exit 1
+          fi
           [[ "${{ needs.should-run.outputs.run }}" != "true" ]] && exit 0
           results=( \
             "${{ needs.check-pip-requirements.result }}" \
