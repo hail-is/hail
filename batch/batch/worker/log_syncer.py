@@ -58,7 +58,7 @@ class LogSyncer:
                 while proc.returncode is None:
                     try:
                         with open(instruction_file, encoding='utf-8') as f:
-                            if 'trap_installed=1\n' in f.read():
+                            if 'log_created=1\n' in f.read():
                                 break
                     except FileNotFoundError:
                         pass
@@ -70,7 +70,7 @@ class LogSyncer:
             await proc.wait()
             with suppress(FileNotFoundError):
                 os.unlink(instruction_file)
-            raise RuntimeError('log syncer did not become ready within 30s') from exc
+            raise RuntimeError('log syncer did not create the remote log file within 30s') from exc
         log.info(f'started log syncer pid={proc.pid} {log_path} -> {remote_url}')
         syncer = cls(log_path, remote_url, instruction_file, proc)
         _active_log_syncers.add(syncer)
@@ -86,7 +86,7 @@ class LogSyncer:
             f.write(f'target_bytes_per_s={LOG_SYNC_TARGET_BYTES_PER_S}\n')
             f.write(f'min_interval={LOG_SYNC_MIN_INTERVAL}\n')
             f.write(f'max_interval={LOG_SYNC_MAX_INTERVAL}\n')
-            f.write('trap_installed=0\n')
+            f.write('log_created=0\n')
         os.replace(tmp, path)
 
     async def finish(self) -> None:

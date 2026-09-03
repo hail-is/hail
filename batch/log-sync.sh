@@ -11,6 +11,7 @@ INSTRUCTION_FILE=$1
 SLEEP_PID=""
 last_uploaded_size=-1
 wakeup_pending=0
+log_created=0
 
 _base=$(basename "$INSTRUCTION_FILE" .conf)
 _batch="${_base%%_*}"; _rest="${_base#*_}"; _job="${_rest%%_*}"; _attempt="${_rest#*_}"
@@ -27,7 +28,6 @@ wakeup() {
     [[ -n "${SLEEP_PID:-}" ]] && kill "$SLEEP_PID" 2>/dev/null || true
 }
 trap wakeup SIGUSR1
-sed -i "s|^trap_installed=.*|trap_installed=1|" "$INSTRUCTION_FILE"
 
 validate() {
     [[ "${log:-}"                =~ ^/              ]] || { echo "$PREFIX bad log: ${log:-unset}";                              exit 1; }
@@ -48,6 +48,10 @@ while true; do
         # Transient gcloud failure: skip this cycle and retry next iteration rather than aborting.
         if gcloud storage cp "$log" "$remote"; then
             last_uploaded_size=$file_size
+            if (( ! log_created )); then
+                log_created=1
+                sed -i "s|^log_created=.*|log_created=1|" "$INSTRUCTION_FILE"
+            fi
         else
             echo "$PREFIX upload failed, will retry next cycle"
         fi
