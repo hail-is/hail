@@ -94,8 +94,11 @@ Source files are organised by owning service under `src/<service>/`. For example
 cd services/ui
 npm ci           # install deps from lockfile (first time or after package changes)
 npm run build    # esbuild → dist/
+npm test         # vitest run
 npm run check    # tsc --noEmit — type-check only, no output
 ```
+
+`npm test`/`npm run check` must be run with `services/ui` as the working directory — running `vitest` from a subdirectory silently narrows which test files it picks up, with no error indicating anything was skipped.
 
 ### How artifacts get into a service
 
@@ -133,6 +136,28 @@ In `build.yaml`, two steps run before any service image that depends on compiled
 - If a value's field set is known and fixed at compile time, use a proper typed interface/class with named properties — not a dynamic collection at all.
 - If the field set is dynamic/unknown (e.g. keyed by external data like GCP service/SKU names, or billing project names), prefer `Map<string, T>` over `Record<string, T>`. Bracket access/assignment on a plain object with a computed key is what `eslint-plugin-security`'s `detect-object-injection` rule (wired into Codacy for this repo) flags — a key that ever equals `__proto__`/`constructor` can mutate `Object.prototype` via bracket-assignment on a `Record`, but `Map.set`/`.get` are immune to this regardless of key value.
 - **Gotcha when converting `Record` → `Map`:** `Object.entries`/`Object.values`/`Object.keys` on a `Map` instance do **not** raise a TypeScript error (they fall through to a loosely-typed `any`-returning overload) but silently return `[]` at runtime, since a `Map`'s entries aren't stored as the object's own enumerable string-keyed properties. Converting a field from `Record` to `Map` is only safe if you also grep the whole file for `Object.entries(field)` / `Object.values(field)` / `Object.keys(field)` and convert those to `[...field]` / `[...field.values()]` / `[...field.keys()]` (or direct `for...of` iteration — `Map` is natively iterable as `[k, v]` pairs). `tsc --noEmit` reliably catches stray bracket-access sites during this kind of migration, but it will not catch this one — check for it by hand.
+- Two cases where a computed-key access is fine as a plain `Record`/array and doesn't need converting: the value is handed directly to a library that requires a plain object (e.g. a recharts `data` row — though check what actually reaches the library first; a same-named intermediate variable often turns out never to reach it), or it's plain numeric array indexing inside a bounded loop (`arr[i]` in `.map((d, i) => ...)`) — there's no external key involved and no alternative to positional indexing for arrays. If a fix is possible there, it's usually restructuring to avoid needing the parallel index at all (fuse two arrays that were only correlated by position into one).
+
+### Button, label, and list-key hygiene
+
+- Every `<button>` needs an explicit `type="button"` unless it's meant to submit a form — a bare `<button>` inside a `<form>` defaults to `type="submit"`, which these dashboards never want.
+- Every `<label>` needs to be associated with its input, via matching `htmlFor`/`id` or by wrapping the input in the label.
+- A purely decorative `<svg>` icon needs `aria-hidden="true"`.
+- Use a stable field from the data as a list `key`, never the array index — an index key can cause React to misattribute rows across re-renders, especially once the list can be re-sorted (e.g. a tooltip re-sorting entries by value on every render).
+
+### A few small TypeScript/JS style preferences
+
+- `Number.isFinite`/`Number.isNaN`, not the global `isFinite`/`isNaN` — the global versions coerce their argument first, which can hide bugs.
+- Always pass a radix to `parseInt`: `parseInt(x, 10)`.
+- Prefer `??` over `||` — but only swap it in where the left side can't legitimately be `0`/`''`/`false` as a meaningful value; check case by case rather than blanket-replacing.
+- Give an arrow function's body braces rather than an implicit `void`-returning expression: `onClick={() => { setX(y); }}`, not `onClick={() => setX(y)}`.
+- A function *type* signature's parameter name (e.g. `format: (v: number) => string`) can be prefixed with `_` if it looks unused — that's not a real unused variable, since TypeScript never actually uses type-position parameter names for anything; it's just the naming convention for "must be named, never used."
+- After removing a dead value, check whether that made its own dependency newly unused too — dead code often cascades one removal at a time rather than showing up all at once.
+- Use `import type { Foo }` (or the inline `type` modifier) for anything only ever used as a type.
+
+### This is a plain React codebase, not Qwik
+
+If a lint suggestion asks you to wrap an expression in `$(...)` ("non-serializable expression"), ignore it — that's a Qwik-framework reactivity rule, this codebase doesn't use Qwik, and the suggested syntax isn't even valid here. Treat it as a misconfigured rule to flag for disabling, not something to restructure code around.
 
 ### CSP headers — pick the right decorator, in both places
 
