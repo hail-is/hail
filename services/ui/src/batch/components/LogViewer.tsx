@@ -1,5 +1,5 @@
-import { useState, useMemo, useEffect, useRef, Fragment } from 'react';
-import { ansiLineToNodes, type AnsiState } from '../../shared/ansi';
+import { useState, useMemo, useEffect, useRef } from 'react';
+import { ansiTextToNodes } from '../../shared/ansi';
 
 type Props = {
   text: string;
@@ -28,14 +28,7 @@ export function LogViewer({ text, downloadUrl, downloadName, hasPendingUpdate, o
     [lines, query]
   );
 
-  const renderedLines = useMemo(() => {
-    let state: AnsiState = {};
-    return filteredLines.map((line, i) => {
-      const { nodes, outgoingState } = ansiLineToNodes(line, state);
-      state = outgoingState;
-      return <Fragment key={i}>{nodes}{i < filteredLines.length - 1 ? '\n' : ''}</Fragment>;
-    });
-  }, [filteredLines]);
+  const renderedLines = useMemo(() => ansiTextToNodes(filteredLines.join('\n')), [filteredLines]);
 
   return (
     <div className="flex flex-col gap-2">
