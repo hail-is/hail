@@ -1,0 +1,149 @@
+from unittest.mock import patch
+
+from hailtop.hailctl.emr import emr
+
+
+def test_resolve_region_prefers_explicit(monkeypatch):
+    monkeypatch.setenv('AWS_DEFAULT_REGION', 'us-west-2')
+    with patch('hailtop.hailctl.emr.emr.configuration_of', return_value='eu-west-1'):
+        assert emr.resolve_region('us-east-1') == 'us-east-1'
+
+
+def test_resolve_region_falls_back_to_config(monkeypatch):
+    monkeypatch.delenv('AWS_DEFAULT_REGION', raising=False)
+    monkeypatch.delenv('AWS_REGION', raising=False)
+    with patch('hailtop.hailctl.emr.emr.configuration_of', return_value='eu-west-1'):
+        assert emr.resolve_region(None) == 'eu-west-1'
+
+
+def test_resolve_region_falls_back_to_env(monkeypatch):
+    monkeypatch.setenv('AWS_DEFAULT_REGION', 'us-west-2')
+    with patch('hailtop.hailctl.emr.emr.configuration_of', return_value=None):
+        assert emr.resolve_region(None) == 'us-west-2'
+
+
+def test_resolve_region_none_when_unset(monkeypatch):
+    monkeypatch.delenv('AWS_DEFAULT_REGION', raising=False)
+    monkeypatch.delenv('AWS_REGION', raising=False)
+    with patch('hailtop.hailctl.emr.emr.configuration_of', return_value=None):
+        assert emr.resolve_region(None) is None
+
+
+def _fake_iam(existing_roles, existing_instance_profiles):
+    from unittest.mock import MagicMock
+
+    from botocore.exceptions import ClientError
+
+    iam = MagicMock()
+
+    def get_role(RoleName):
+        if RoleName in existing_roles:
+            return {'Role': {'RoleName': RoleName, 'Arn': f'arn:aws:iam::123:role/{RoleName}'}}
+        raise ClientError({'Error': {'Code': 'NoSuchEntity', 'Message': 'not found'}}, 'GetRole')
+
+    def get_instance_profile(InstanceProfileName):
+        if InstanceProfileName in existing_instance_profiles:
+            return {
+                'InstanceProfile': {
+                    'InstanceProfileName': InstanceProfileName,
+                    'Roles': [{'RoleName': InstanceProfileName}],
+                }
+            }
+        raise ClientError({'Error': {'Code': 'NoSuchEntity', 'Message': 'not found'}}, 'GetInstanceProfile')
+
+    iam.get_role.side_effect = get_role
+    iam.get_instance_profile.side_effect = get_instance_profile
+    return iam
+
+
+def test_check_default_roles_present_prints_message(capsys):
+    iam = _fake_iam({'EMR_DefaultRole', 'EMR_EC2_DefaultRole'}, {'EMR_EC2_DefaultRole'})
+    emr.check_default_roles(iam)
+    out = capsys.readouterr().out
+    assert 'Using existing EMR defaults' in out
+    assert 'EMR_DefaultRole' in out and 'EMR_EC2_DefaultRole' in out
+
+
+def test_check_default_roles_can_check_only_service_role(capsys):
+    iam = _fake_iam({'EMR_DefaultRole'}, set())
+    emr.check_default_roles(iam, check_service_role=True, check_job_flow_role=False)
+    assert iam.get_instance_profile.call_count == 0
+    assert 'EMR_DefaultRole' in capsys.readouterr().out
+
+
+def test_check_default_roles_can_check_only_job_flow_role(capsys):
+    iam = _fake_iam({'EMR_EC2_DefaultRole'}, {'EMR_EC2_DefaultRole'})
+    emr.check_default_roles(iam, check_service_role=False, check_job_flow_role=True)
+    assert iam.get_role.call_count == 1
+    assert 'EMR_EC2_DefaultRole' in capsys.readouterr().out
+
+
+def test_check_default_roles_missing_role_raises():
+    import pytest
+
+    iam = _fake_iam({'EMR_DefaultRole'}, {'EMR_EC2_DefaultRole'})
+    with pytest.raises(ValueError, match=r'Missing EMR default IAM resource.*role.*EMR_EC2_DefaultRole'):
+        emr.check_default_roles(iam)
+
+
+def test_check_default_roles_missing_instance_profile_raises():
+    import pytest
+
+    iam = _fake_iam({'EMR_DefaultRole', 'EMR_EC2_DefaultRole'}, set())
+    with pytest.raises(ValueError, match=r'Missing EMR default IAM resource.*instance profile.*EMR_EC2_DefaultRole'):
+        emr.check_default_roles(iam)
+
+
+def test_check_default_roles_rejects_profile_without_expected_role():
+    from unittest.mock import MagicMock
+
+    import pytest
+
+    iam = MagicMock()
+    iam.get_role.return_value = {'Role': {'RoleName': 'present'}}
+    iam.get_instance_profile.return_value = {
+        'InstanceProfile': {'InstanceProfileName': 'EMR_EC2_DefaultRole', 'Roles': []}
+    }
+    with pytest.raises(ValueError, match=r'instance profile.*containing role EMR_EC2_DefaultRole'):
+        emr.check_default_roles(iam)
+
+
+def test_check_default_roles_propagates_unexpected_error():
+    from unittest.mock import MagicMock
+
+    import pytest
+    from botocore.exceptions import ClientError
+
+    iam = MagicMock()
+    iam.get_role.side_effect = ClientError({'Error': {'Code': 'AccessDenied', 'Message': 'nope'}}, 'GetRole')
+    with pytest.raises(ClientError):
+        emr.check_default_roles(iam)
+
+
+def test_check_default_roles_propagates_unexpected_instance_profile_error():
+    from unittest.mock import MagicMock
+
+    import pytest
+    from botocore.exceptions import ClientError
+
+    iam = MagicMock()
+    iam.get_role.return_value = {'Role': {'RoleName': 'present'}}
+    iam.get_instance_profile.side_effect = ClientError(
+        {'Error': {'Code': 'AccessDenied', 'Message': 'nope'}}, 'GetInstanceProfile'
+    )
+    with pytest.raises(ClientError):
+        emr.check_default_roles(iam)
+
+
+def test_upload_to_s3_writes_through_router_fs():
+    from unittest.mock import AsyncMock, MagicMock
+
+    fake_fs = MagicMock()
+    fake_fs.write = AsyncMock()
+    # RouterAsyncFS() is used as an async context manager: `async with RouterAsyncFS() as fs`.
+    fake_ctx = MagicMock()
+    fake_ctx.__aenter__ = AsyncMock(return_value=fake_fs)
+    fake_ctx.__aexit__ = AsyncMock(return_value=False)
+    with patch('hailtop.hailctl.emr.emr.RouterAsyncFS', return_value=fake_ctx):
+        emr.upload_to_s3('s3://bkt/key.sh', b'hello')
+    fake_fs.write.assert_awaited_once_with('s3://bkt/key.sh', b'hello')
