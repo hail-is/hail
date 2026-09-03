@@ -76,6 +76,7 @@ export type Job = {
 export type Attempt = {
   attempt_id: string;
   instance_name?: string;
+  location?: string;
   start_time?: string;
   start_time_ms?: number;
   end_time?: string;

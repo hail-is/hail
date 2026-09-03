@@ -2134,6 +2134,10 @@ components:
         instance_name:
           type: string
           description: "Name of the instance that ran the attempt"
+        location:
+          type: string
+          description: "Zone or region where the attempt ran (e.g. 'us-central1-a')"
+          nullable: true
         start_time:
           type: string
           format: date-time
