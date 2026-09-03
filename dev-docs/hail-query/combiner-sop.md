@@ -90,7 +90,7 @@ async def check_permissions(fs: AsyncFS, files: list[str]):
     for file, exc in missing_permissions:
         print(f"error reading {file}, exception =", exc, file=sys.stderr)
     msg = f"Missing permissions (or files don't exist) for {len(missing_permissions)} of {len(files)} files"
-    raise PermissionError(msg) from exc
+    raise PermissionError(msg) from missing_permissions[0][1]
 ```
 
 ## Combining
