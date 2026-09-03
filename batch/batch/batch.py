@@ -168,6 +168,11 @@ def job_record_to_dict(record: Dict[str, Any], name: Optional[str]) -> JobListEn
 async def cancel_job_group_in_db(db, batch_id, job_group_id):
     @transaction(db)
     async def cancel(tx):
+        # Quick sanity check for a nicer error message before calling the cancel_job_group stored procedure.
+        #
+        # No SELECT ... FOR UPDATE lock here: the stored procedure has its own checks and any lock would be
+        # released by the START TRANSACTION in the stored procedure anyway. The "worst case" of calling
+        # cancel on a deleted batch due to a race condition is harmless in practice.
         record = await tx.execute_and_fetchone(
             """
 SELECT 1
@@ -175,8 +180,7 @@ FROM job_groups
 LEFT JOIN batches ON batches.id = job_groups.batch_id
 LEFT JOIN batch_updates ON job_groups.batch_id = batch_updates.batch_id AND
   job_groups.update_id = batch_updates.update_id
-WHERE job_groups.batch_id = %s AND job_groups.job_group_id = %s AND NOT deleted AND (batch_updates.committed OR job_groups.job_group_id = %s)
-FOR UPDATE;
+WHERE job_groups.batch_id = %s AND job_groups.job_group_id = %s AND NOT deleted AND (batch_updates.committed OR job_groups.job_group_id = %s);
 """,
             (batch_id, job_group_id, ROOT_JOB_GROUP_ID),
         )
