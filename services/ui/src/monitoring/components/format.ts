@@ -5,7 +5,7 @@ export function fmt(dollars: number): string {
 export function fmtDelta(delta: number, base: number): string {
   const sign = delta >= 0 ? '+' : '−';
   const absFmt = fmt(Math.abs(delta));
-  if (base === 0 || !Number.isFinite(base / delta)) return `${sign}${absFmt}`;
+  if (base === 0 || !Number.isFinite(delta / base)) return `${sign}${absFmt}`;
   const pctVal = Math.abs(delta / base) * 100;
   const pctStr = pctVal < 10 ? pctVal.toFixed(1) : Math.round(pctVal).toString();
   return `${sign}${absFmt} / ${sign}${pctStr}%`;

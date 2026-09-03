@@ -31,6 +31,10 @@ describe('fmtDelta', () => {
   it('omits the percentage when base is zero', () => {
     expect(fmtDelta(10, 0)).toBe('+$10.00');
   });
+
+  it('shows a 0% change when delta is zero and base is nonzero', () => {
+    expect(fmtDelta(0, 100)).toBe('+$0.00 / +0.0%');
+  });
 });
 
 describe('pct', () => {
