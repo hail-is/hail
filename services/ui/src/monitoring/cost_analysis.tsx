@@ -373,6 +373,17 @@ const SCATTER_PRESETS: { label: string; x: string; y: string }[] = [
   { label: 'Compute (user-driven) vs Margin %',         x: 'cloud/user_compute', y: 'margin/margin_pct' },
 ];
 
+function Spinner() {
+  return (
+    <div className="flex items-center justify-center py-16">
+      <svg aria-hidden="true" className="w-6 h-6 animate-spin text-sky-500" viewBox="0 0 24 24" fill="none">
+        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+      </svg>
+    </div>
+  );
+}
+
 // --- Main component ---
 
 interface CostAnalysisProps { monitoringBaseUrl: string; batchBaseUrl: string }
@@ -400,6 +411,7 @@ export function CostAnalysis({ monitoringBaseUrl, batchBaseUrl }: CostAnalysisPr
   const [cloudShowPct, setCloudShowPct] = useState(false);
   const [billingShowPct, setBillingShowPct] = useState(false);
   const [timePeriod, setTimePeriod] = useState(() => new URLSearchParams(window.location.search).get('month') ?? currentMonthParam());
+  const [pendingTimePeriod, setPendingTimePeriod] = useState(timePeriod);
   const [cloudCosts, setCloudCosts] = useState<CloudCosts | null>(null);
   const [userBilling, setUserBilling] = useState<UserBilling | null>(null);
   const [cloudError, setCloudError] = useState<string | null>(null);
@@ -416,8 +428,10 @@ export function CostAnalysis({ monitoringBaseUrl, batchBaseUrl }: CostAnalysisPr
   const [trendsError, setTrendsError] = useState<string | null>(null);
   const [trendsStart, setTrendsStart] = useState(() => new URLSearchParams(window.location.search).get('trends_start') ?? shiftMonthParam(currentMonthParam(), -12));
   const [trendsEnd, setTrendsEnd] = useState(() => new URLSearchParams(window.location.search).get('trends_end') ?? shiftMonthParam(currentMonthParam(), -1));
+  const [appliedTrendsRange, setAppliedTrendsRange] = useState<{ start: string; end: string } | null>(null);
 
   const [compareTimePeriod, setCompareTimePeriod] = useState<string | null>(() => new URLSearchParams(window.location.search).get('comparison_month'));
+  const [pendingCompareTimePeriod, setPendingCompareTimePeriod] = useState(compareTimePeriod);
   const [compareCloudCosts, setCompareCloudCosts] = useState<CloudCosts | null>(null);
   const [compareUserBilling, setCompareUserBilling] = useState<UserBilling | null>(null);
   const [compareCloudError, setCompareCloudError] = useState<string | null>(null);
@@ -862,7 +876,55 @@ export function CostAnalysis({ monitoringBaseUrl, batchBaseUrl }: CostAnalysisPr
     setLoading(false);
   }, [api]);
 
-  useEffect(() => { void fetchData(timePeriod); }, [fetchData, timePeriod]);
+  const fetchCompareData = useCallback(async (period: string) => {
+    setCompareLoading(true);
+    setCompareCloudCosts(null);
+    setCompareUserBilling(null);
+    setCompareCloudError(null);
+    setCompareBillingError(null);
+
+    const [cloudResult, billingResult] = await Promise.allSettled([
+      fetchCloudCosts(api, period),
+      fetchUserBilling(api, period),
+    ]);
+
+    if (cloudResult.status === 'fulfilled') setCompareCloudCosts(cloudResult.value);
+    else setCompareCloudError(cloudResult.reason instanceof Error ? cloudResult.reason.message : 'Failed to load cloud costs.');
+
+    if (billingResult.status === 'fulfilled') setCompareUserBilling(billingResult.value);
+    else setCompareBillingError(billingResult.reason instanceof Error ? billingResult.reason.message : 'Failed to load user billing.');
+
+    setCompareLoading(false);
+  }, [api]);
+
+  // Deliberately not wired to a useEffect on timePeriod/compareTimePeriod: fetches must only
+  // ever start from an explicit Fetch click (applyPeriods), including the very first load, so
+  // there is never a moment where changing the date pickers alone triggers a network request.
+  const [hasFetched, setHasFetched] = useState(false);
+
+  const needsFetch =
+    !hasFetched ||
+    pendingTimePeriod !== timePeriod ||
+    pendingCompareTimePeriod !== compareTimePeriod ||
+    cloudError !== null || billingError !== null ||
+    compareCloudError !== null || compareBillingError !== null;
+
+  const displayStale = hasFetched && needsFetch;
+
+  const applyPeriods = useCallback(() => {
+    setTimePeriod(pendingTimePeriod);
+    setCompareTimePeriod(pendingCompareTimePeriod);
+    setHasFetched(true);
+    void fetchData(pendingTimePeriod);
+    if (pendingCompareTimePeriod !== null) {
+      void fetchCompareData(pendingCompareTimePeriod);
+    } else {
+      setCompareCloudCosts(null);
+      setCompareUserBilling(null);
+      setCompareCloudError(null);
+      setCompareBillingError(null);
+    }
+  }, [pendingTimePeriod, pendingCompareTimePeriod, fetchData, fetchCompareData]);
 
   useEffect(() => {
     const url = new URL(window.location.href);
@@ -874,30 +936,8 @@ export function CostAnalysis({ monitoringBaseUrl, batchBaseUrl }: CostAnalysisPr
     window.history.replaceState(null, '', url.toString());
   }, [timePeriod, compareTimePeriod, trendsStart, trendsEnd]);
 
-  useEffect(() => {
-    if (!compareTimePeriod) {
-      setCompareCloudCosts(null);
-      setCompareUserBilling(null);
-      setCompareCloudError(null);
-      setCompareBillingError(null);
-      return;
-    }
-    setCompareLoading(true);
-    setCompareCloudCosts(null);
-    setCompareUserBilling(null);
-    setCompareCloudError(null);
-    setCompareBillingError(null);
-    void Promise.allSettled([
-      fetchCloudCosts(api, compareTimePeriod),
-      fetchUserBilling(api, compareTimePeriod),
-    ]).then(([cloudResult, billingResult]) => {
-      if (cloudResult.status === 'fulfilled') setCompareCloudCosts(cloudResult.value);
-      else setCompareCloudError(cloudResult.reason instanceof Error ? cloudResult.reason.message : 'Failed to load cloud costs.');
-      if (billingResult.status === 'fulfilled') setCompareUserBilling(billingResult.value);
-      else setCompareBillingError(billingResult.reason instanceof Error ? billingResult.reason.message : 'Failed to load user billing.');
-      setCompareLoading(false);
-    });
-  }, [compareTimePeriod, api]);
+  const trendsStale = appliedTrendsRange !== null && (trendsStart !== appliedTrendsRange.start || trendsEnd !== appliedTrendsRange.end);
+  const trendsNeedFetch = appliedTrendsRange === null || trendsStale || trendsError !== null;
 
   const fetchTrendPoint = useCallback(async (m: string): Promise<MonthDataPoint> => {
     // Deliberately uses Promise.all (not allSettled): a failed fetch for any month must fail
@@ -940,6 +980,7 @@ export function CostAnalysis({ monitoringBaseUrl, batchBaseUrl }: CostAnalysisPr
   const fetchTrends = useCallback(async (start: string, end: string) => {
     setTrendsLoading(true);
     setTrendsError(null);
+    setAppliedTrendsRange({ start, end });
     const months = monthsBetween(start, end);
     // Fetch a bounded number of months concurrently at a time (2 requests/month) rather than
     // firing every request in the range at once, which could spike load on the backend APIs
@@ -1229,32 +1270,32 @@ export function CostAnalysis({ monitoringBaseUrl, batchBaseUrl }: CostAnalysisPr
 
       {tab === 'monthly' && (
         <>
-          {compareTimePeriod !== null ? (
+          {pendingCompareTimePeriod !== null ? (
             <div className="grid grid-cols-2 gap-4">
               <div className="flex items-center gap-2">
-                <button type="button" onClick={() => { setTimePeriod(p => shiftMonthParam(p, -1)); }} className="px-2 py-1 text-sm border border-zinc-300 rounded hover:bg-zinc-100">‹</button>
+                <button type="button" onClick={() => { setPendingTimePeriod(p => shiftMonthParam(p, -1)); }} className="px-2 py-1 text-sm border border-zinc-300 rounded hover:bg-zinc-100">‹</button>
                 <input
                   type="month"
                   className="border border-zinc-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400"
-                  value={monthParamToInputValue(timePeriod)}
-                  onChange={e => { if (e.target.value) setTimePeriod(inputValueToMonthParam(e.target.value)); }}
+                  value={monthParamToInputValue(pendingTimePeriod)}
+                  onChange={e => { if (e.target.value) setPendingTimePeriod(inputValueToMonthParam(e.target.value)); }}
                 />
-                <button type="button" onClick={() => { setTimePeriod(p => shiftMonthParam(p, 1)); }} className="px-2 py-1 text-sm border border-zinc-300 rounded hover:bg-zinc-100">›</button>
+                <button type="button" onClick={() => { setPendingTimePeriod(p => shiftMonthParam(p, 1)); }} className="px-2 py-1 text-sm border border-zinc-300 rounded hover:bg-zinc-100">›</button>
                 {loading && <span className="text-xs text-zinc-400 animate-pulse">Loading…</span>}
               </div>
               <div className="flex items-center gap-2">
-                <button type="button" onClick={() => { setCompareTimePeriod(p => p ? shiftMonthParam(p, -1) : p); }} className="px-2 py-1 text-sm border border-zinc-300 rounded hover:bg-zinc-100">‹</button>
+                <button type="button" onClick={() => { setPendingCompareTimePeriod(p => p ? shiftMonthParam(p, -1) : p); }} className="px-2 py-1 text-sm border border-zinc-300 rounded hover:bg-zinc-100">‹</button>
                 <input
                   type="month"
                   className="border border-zinc-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400"
-                  value={monthParamToInputValue(compareTimePeriod)}
-                  onChange={e => { if (e.target.value) setCompareTimePeriod(inputValueToMonthParam(e.target.value)); }}
+                  value={monthParamToInputValue(pendingCompareTimePeriod)}
+                  onChange={e => { if (e.target.value) setPendingCompareTimePeriod(inputValueToMonthParam(e.target.value)); }}
                 />
-                <button type="button" onClick={() => { setCompareTimePeriod(p => p ? shiftMonthParam(p, 1) : p); }} className="px-2 py-1 text-sm border border-zinc-300 rounded hover:bg-zinc-100">›</button>
+                <button type="button" onClick={() => { setPendingCompareTimePeriod(p => p ? shiftMonthParam(p, 1) : p); }} className="px-2 py-1 text-sm border border-zinc-300 rounded hover:bg-zinc-100">›</button>
                 {compareLoading && <span className="text-xs text-zinc-400 animate-pulse">Loading…</span>}
                 <button
                   type="button"
-                  onClick={() => { setCompareTimePeriod(null); }}
+                  onClick={() => { setCompareTimePeriod(null); setPendingCompareTimePeriod(null); }}
                   className="ml-1 p-1 rounded text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100"
                   title="Remove comparison"
                 >
@@ -1267,19 +1308,19 @@ export function CostAnalysis({ monitoringBaseUrl, batchBaseUrl }: CostAnalysisPr
           ) : (
             <div className="flex items-center gap-2">
               <label htmlFor="cost-analysis-month" className="text-sm text-zinc-500">Month</label>
-              <button type="button" onClick={() => { setTimePeriod(p => shiftMonthParam(p, -1)); }} className="px-2 py-1 text-sm border border-zinc-300 rounded hover:bg-zinc-100">‹</button>
+              <button type="button" onClick={() => { setPendingTimePeriod(p => shiftMonthParam(p, -1)); }} className="px-2 py-1 text-sm border border-zinc-300 rounded hover:bg-zinc-100">‹</button>
               <input
                 id="cost-analysis-month"
                 type="month"
                 className="border border-zinc-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400"
-                value={monthParamToInputValue(timePeriod)}
-                onChange={e => { if (e.target.value) setTimePeriod(inputValueToMonthParam(e.target.value)); }}
+                value={monthParamToInputValue(pendingTimePeriod)}
+                onChange={e => { if (e.target.value) setPendingTimePeriod(inputValueToMonthParam(e.target.value)); }}
               />
-              <button type="button" onClick={() => { setTimePeriod(p => shiftMonthParam(p, 1)); }} className="px-2 py-1 text-sm border border-zinc-300 rounded hover:bg-zinc-100">›</button>
+              <button type="button" onClick={() => { setPendingTimePeriod(p => shiftMonthParam(p, 1)); }} className="px-2 py-1 text-sm border border-zinc-300 rounded hover:bg-zinc-100">›</button>
               {loading && <span className="text-xs text-zinc-400 animate-pulse">Loading…</span>}
               <button
                 type="button"
-                onClick={() => { setCompareTimePeriod(shiftMonthParam(timePeriod, -1)); }}
+                onClick={() => { setPendingCompareTimePeriod(shiftMonthParam(pendingTimePeriod, -1)); }}
                 className="ml-2 flex items-center gap-1.5 text-sm text-sky-600 hover:text-sky-700 border border-sky-200 hover:border-sky-400 rounded px-3 py-1.5 bg-sky-50 hover:bg-sky-100 transition-colors"
               >
                 <svg aria-hidden="true" className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
@@ -1290,6 +1331,28 @@ export function CostAnalysis({ monitoringBaseUrl, batchBaseUrl }: CostAnalysisPr
             </div>
           )}
 
+          {needsFetch && (
+            <div className="flex items-center gap-2 -mt-2">
+              <button
+                type="button"
+                onClick={applyPeriods}
+                className="text-sm rounded px-3 py-1.5 border border-sky-300 bg-sky-600 text-white hover:bg-sky-700 transition-colors"
+              >
+                Fetch
+              </button>
+              {!hasFetched && (
+                <span className="text-xs text-zinc-400">Press Fetch to load data for the selected period.</span>
+              )}
+            </div>
+          )}
+
+          {hasFetched && (
+          <div className={displayStale ? 'opacity-40 pointer-events-none transition-opacity' : 'transition-opacity'}>
+          {loading ? (
+            <Spinner />
+          ) : (
+            <>
+          {(cloudCosts !== null || cloudError !== null) && (
           <Panel title="Cloud Costs" viewSelector={
             <select
               className="text-xs border border-zinc-300 rounded px-2 py-1 bg-white text-zinc-600 focus:outline-none focus:ring-2 focus:ring-sky-400"
@@ -1310,7 +1373,9 @@ export function CostAnalysis({ monitoringBaseUrl, batchBaseUrl }: CostAnalysisPr
               </div>
             ) : renderCloudBody(cloudCosts, cloudError, loading, timePeriod, false)}
           </Panel>
+          )}
 
+          {(userBilling !== null || billingError !== null) && (
           <Panel title="User Billing" viewSelector={
             <select
               className="text-xs border border-zinc-300 rounded px-2 py-1 bg-white text-zinc-600 focus:outline-none focus:ring-2 focus:ring-sky-400"
@@ -1329,6 +1394,7 @@ export function CostAnalysis({ monitoringBaseUrl, batchBaseUrl }: CostAnalysisPr
               </div>
             ) : renderBillingBody(userBilling, billingError, loading, timePeriod, false)}
           </Panel>
+          )}
 
           {(userBilling ?? compareTimePeriod !== null) && (
             <Panel title="Usage">
@@ -1408,6 +1474,10 @@ export function CostAnalysis({ monitoringBaseUrl, batchBaseUrl }: CostAnalysisPr
               </Panel>
             </>
           )}
+            </>
+          )}
+          </div>
+          )}
         </>
       )}
 
@@ -1429,26 +1499,28 @@ export function CostAnalysis({ monitoringBaseUrl, batchBaseUrl }: CostAnalysisPr
               value={monthParamToInputValue(trendsEnd)}
               onChange={e => { if (e.target.value) setTrendsEnd(inputValueToMonthParam(e.target.value)); }}
             />
-            <button
-              type="button"
-              onClick={() => void fetchTrends(trendsStart, trendsEnd)}
-              disabled={trendsLoading}
-              className="px-4 py-1.5 text-sm font-medium rounded border border-sky-500 bg-sky-500 text-white hover:bg-sky-600 hover:border-sky-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              {trendsLoading ? 'Loading…' : 'Compare'}
-            </button>
+            {trendsNeedFetch && (
+              <button
+                type="button"
+                onClick={() => void fetchTrends(trendsStart, trendsEnd)}
+                disabled={trendsLoading}
+                className="px-4 py-1.5 text-sm font-medium rounded border border-sky-500 bg-sky-500 text-white hover:bg-sky-600 hover:border-sky-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {trendsLoading ? 'Loading…' : 'Compare'}
+              </button>
+            )}
           </div>
       )}
 
       {tab === 'trends' && (
         trendsLoading ? (
-          <p className="text-zinc-400 text-sm py-4 text-center animate-pulse">Loading…</p>
+          <Spinner />
         ) : trendsError ? (
           <p className="text-red-400 text-sm py-8 text-center">Failed to load trend data ({trendsError}). Please try again.</p>
         ) : trendData.length === 0 ? (
           <p className="text-zinc-400 text-sm py-8 text-center">Select a date range above and press Compare to load data.</p>
         ) : (
-          <div>
+          <div className={trendsStale ? 'opacity-40 pointer-events-none transition-opacity' : 'transition-opacity'}>
             <Panel title="Cloud Costs" collapsible viewSelector={
               <div className="flex items-center gap-3">
                 <ToggleSwitch checked={cloudShowPct} onChange={setCloudShowPct} />
