@@ -6,6 +6,7 @@ import { RatioRow } from '../shared/RatioRow';
 import { ToggleSwitch } from '../shared/ToggleSwitch';
 import { MiniPieChart, type PieSlice } from '../shared/MiniPieChart';
 import { PresetChips, ScatterPresetChips } from '../shared/PresetChips';
+import { SpinnerIcon } from '../shared/SpinnerIcon';
 import { fmt, pct, makeYDollarFormatter } from './components/format';
 import { computeStats, computeRegression, toPctRows } from './components/statsUtils';
 import { CostRow } from './components/CostRow';
@@ -373,13 +374,10 @@ const SCATTER_PRESETS: { label: string; x: string; y: string }[] = [
   { label: 'Compute (user-driven) vs Margin %',         x: 'cloud/user_compute', y: 'margin/margin_pct' },
 ];
 
-function Spinner() {
+function LoadingSpinner() {
   return (
-    <div className="flex items-center justify-center py-16">
-      <svg aria-hidden="true" className="w-6 h-6 animate-spin text-sky-500" viewBox="0 0 24 24" fill="none">
-        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-      </svg>
+    <div aria-hidden="true" className="flex items-center justify-center py-16">
+      <SpinnerIcon className="text-sky-500" />
     </div>
   );
 }
@@ -1349,7 +1347,7 @@ export function CostAnalysis({ monitoringBaseUrl, batchBaseUrl }: CostAnalysisPr
           {hasFetched && (
           <div className={displayStale ? 'opacity-40 pointer-events-none transition-opacity' : 'transition-opacity'}>
           {loading ? (
-            <Spinner />
+            <LoadingSpinner />
           ) : (
             <>
           {(cloudCosts !== null || cloudError !== null) && (
@@ -1502,7 +1500,7 @@ export function CostAnalysis({ monitoringBaseUrl, batchBaseUrl }: CostAnalysisPr
             {trendsNeedFetch && (
               <button
                 type="button"
-                onClick={() => void fetchTrends(trendsStart, trendsEnd)}
+                onClick={() => { void fetchTrends(trendsStart, trendsEnd); }}
                 disabled={trendsLoading}
                 className="px-4 py-1.5 text-sm font-medium rounded border border-sky-500 bg-sky-500 text-white hover:bg-sky-600 hover:border-sky-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
@@ -1514,7 +1512,7 @@ export function CostAnalysis({ monitoringBaseUrl, batchBaseUrl }: CostAnalysisPr
 
       {tab === 'trends' && (
         trendsLoading ? (
-          <Spinner />
+          <LoadingSpinner />
         ) : trendsError ? (
           <p className="text-red-400 text-sm py-8 text-center">Failed to load trend data ({trendsError}). Please try again.</p>
         ) : trendData.length === 0 ? (
