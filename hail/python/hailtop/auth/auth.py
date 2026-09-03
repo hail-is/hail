@@ -22,6 +22,7 @@ from .tokens import Tokens, get_tokens
 class IdentityProvider(Enum):
     GOOGLE = 'Google'
     MICROSOFT = 'Microsoft'
+    AMAZON = 'Amazon'
 
 
 @dataclass
@@ -126,6 +127,9 @@ def get_cloud_credentials_scoped_for_hail(credentials_file: Optional[str] = None
         if credentials_file is not None:
             return GoogleCredentials.from_file(credentials_file)
         return GoogleCredentials.default_credentials(scopes=scopes, anonymous_ok=False)
+
+    if spec.idp == IdentityProvider.AMAZON:
+        return GoogleCredentials.default_credentials(anonymous_ok=True)
 
     assert spec.idp == IdentityProvider.MICROSOFT
     if spec.oauth2_credentials is not None:
