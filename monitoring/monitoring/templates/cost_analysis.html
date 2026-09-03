@@ -1,11 +1,12 @@
 {% extends "layout.html" %}
-{% block title %}Hello React{% endblock %}
+{% block title %}Cost Analysis{% endblock %}
 {% block head %}
 <script type="module" src="{{ base_path }}/monitoring/static/compiled-js/index.js"></script>
 {% endblock %}
 {% block content %}
-<h1 class="text-2xl font-light mb-4">Hello React (monitoring)</h1>
-<div id="monitoring-react-root">
+<div id="cost-analysis-root"
+  data-monitoring-base-url="{{ monitoring_base_url }}"
+  data-batch-base-url="{{ batch_base_url }}">
   <div class="flex items-center justify-center mt-24">
     <span class="text-5xl font-light text-sky-600">Loading&hellip;</span>
   </div>

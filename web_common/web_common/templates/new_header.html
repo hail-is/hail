@@ -56,6 +56,9 @@
       Log Viewer<i class="material-icons text-icon">open_in_new</i>
     </a>
     <a class="block hover:bg-slate-100 px-2 py-1" href="{{ monitoring_base_url }}/billing">Billing</a>
+    {% if userdata['system_permissions']['read_all_billing_projects'] %}
+    <a class="block hover:bg-slate-100 px-2 py-1" href="{{ monitoring_base_url }}/cost-analysis">Cost Analysis</a>
+    {% endif %}
     {% endcall %}
     {% endif %}
   </div>

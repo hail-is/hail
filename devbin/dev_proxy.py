@@ -75,6 +75,7 @@ for _svc, _svc_path in _SWAGGER_SVCPATHS:
     routes.get(f'/{_svc}/{_svc_path}/static/compiled-js/swagger.js')(_swagger_js_handler)
     routes.get(f'/{_svc}/{_svc_path}/static/compiled-js/swagger.css')(_swagger_css_handler)
 
+
 # common_static must also be service-prefixed
 _WEB_COMMON_STATIC = f'{WEB_COMMON_ROOT}/static'
 for _svc in ALL_SERVICES:
@@ -106,7 +107,7 @@ def _backend_url(service: str, raw_path: str) -> str:
 # Paths include the service prefix that matches the new URL model.
 # Tuple: (service, verb, path, template, extra_page_context)
 _LOCAL_REACT_ROUTES: list[tuple[str, str, str, str, dict]] = [
-    ('monitoring',   'GET', '/monitoring/helloreact', 'hello_react.html', {}),
+    ('monitoring',   'GET', '/monitoring/cost-analysis', 'cost_analysis.html', {}),
     ('auth',         'GET', '/auth/helloreact', 'hello_react.html', {}),
     ('batch-driver', 'GET', '/batch-driver/', 'index_react.html', {}),
     ('batch-driver', 'GET', '/batch-driver', 'index_react.html', {}),
@@ -128,7 +129,7 @@ for _service, _verb, _path, _template, _extra_ctx in _LOCAL_REACT_ROUTES:
         return await _render_html(request, _s, _FAKE_DEV_USERDATA, _t, {'use_tailwind': True, **_ctx})
     if _template.startswith('swagger/'):
         _decorator = web_security_headers_swagger
-    elif _template == 'index_react.html':
+    elif _template in ('index_react.html', 'cost_analysis.html'):
         _decorator = web_security_headers_inline_styles
     else:
         _decorator = web_security_headers

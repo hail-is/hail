@@ -3,6 +3,7 @@ import { AutoRefreshBar } from '../shared/AutoRefreshBar';
 import { SpinnerIcon } from '../shared/SpinnerIcon';
 import { formatDuration, formatTime } from '../shared/timeUtils';
 import { hasPermission } from '../shared/authUtils';
+import { hailApiFetch as apiFetch } from '../shared/hailApiFetch';
 
 const REFRESH_INTERVAL_MS = 30_000;
 
@@ -76,25 +77,6 @@ function formatAgo(ms: number | null): string {
 
 function pctFree(free: number, total: number): string {
   return total !== 0 ? `${((free * 100) / total).toFixed(1)}%` : '';
-}
-
-async function apiFetch<T>(url: string, init?: RequestInit): Promise<T> {
-  const method = (init?.method ?? 'GET').toUpperCase();
-  const csrfHeaders: Record<string, string> = {};
-  if (method !== 'GET' && method !== 'HEAD') {
-    const token = document.head.querySelector('meta[name="csrf"]')?.getAttribute('value');
-    if (token) csrfHeaders['X-CSRF-Token'] = token;
-  }
-  const resp = await fetch(url, {
-    credentials: 'same-origin',
-    ...init,
-    headers: { ...csrfHeaders, ...init?.headers },
-  });
-  if (!resp.ok) {
-    const text = await resp.text().catch(() => '');
-    throw new Error(`HTTP ${resp.status}${text ? ': ' + text : ''}`);
-  }
-  return resp.json() as Promise<T>;
 }
 
 // ── Instance state icon ───────────────────────────────────────────────────────
