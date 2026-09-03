@@ -129,6 +129,22 @@ In `build.yaml`, two steps run before any service image that depends on compiled
 - If the field set is dynamic/unknown (e.g. keyed by external data like GCP service/SKU names, or billing project names), prefer `Map<string, T>` over `Record<string, T>`. Bracket access/assignment on a plain object with a computed key is what `eslint-plugin-security`'s `detect-object-injection` rule (wired into Codacy for this repo) flags — a key that ever equals `__proto__`/`constructor` can mutate `Object.prototype` via bracket-assignment on a `Record`, but `Map.set`/`.get` are immune to this regardless of key value.
 - **Gotcha when converting `Record` → `Map`:** `Object.entries`/`Object.values`/`Object.keys` on a `Map` instance do **not** raise a TypeScript error (they fall through to a loosely-typed `any`-returning overload) but silently return `[]` at runtime, since a `Map`'s entries aren't stored as the object's own enumerable string-keyed properties. Converting a field from `Record` to `Map` is only safe if you also grep the whole file for `Object.entries(field)` / `Object.values(field)` / `Object.keys(field)` and convert those to `[...field]` / `[...field.values()]` / `[...field.keys()]` (or direct `for...of` iteration — `Map` is natively iterable as `[k, v]` pairs). `tsc --noEmit` reliably catches stray bracket-access sites during this kind of migration, but it will not catch this one — check for it by hand.
 
+### CSP headers — pick the right decorator, in both places
+
+Every route handler is wrapped in one of `web_security_headers` / `web_security_headers_inline_styles` / `web_security_headers_swagger` (from `web_common`), which controls the response's `Content-Security-Policy`. The default (`web_security_headers`) has no `style-src 'unsafe-inline'`, so **any page whose React tree emits an inline `style=` attribute must use `web_security_headers_inline_styles` instead**, or the browser silently drops those styles (broken chart sizing/layout, no error in the console). This bites recharts-heavy pages especially, since recharts computes a lot of its layout via inline styles.
+
+This has to be set in **two** places, and it's easy to fix one and forget the other:
+- The real route handler (e.g. `monitoring/monitoring/monitoring.py`).
+- The matching entry in `_LOCAL_REACT_ROUTES` in `devbin/dev_proxy.py`, which picks a decorator by template name (see the `_template == 'index_react.html'` check). If your new template isn't in that check, local dev silently gets the wrong CSP and won't reproduce the production bug — you have to add it explicitly.
+
+When adding a new React page, check what decorator the closest existing page of the same shape uses (e.g. `/billing` for anything chart-heavy) rather than defaulting to plain `web_security_headers`.
+
+### Fetching data: use the `hailApi` client objects
+
+When calling an API from a page, use the per-service `hailApi` client objects (e.g. `services/ui/src/monitoring/components/hailApi.ts`, built on `hailApiFetch` from `services/ui/src/shared/hailApiFetch.ts`) — not a raw `fetch()`. They handle the CSRF header, credentials, and JSON parsing/error handling for you, and type both the call and the response.
+
+If the endpoint you need isn't in the client yet, add it — write its signature and response type by reference to that service's `/openapi.yaml`, not by guessing from the Python handler. Only add endpoints a page actually calls; these clients are a mirror of current usage, not the full API surface.
+
 ## Local development with the dev-proxy
 
 You don't need a deployed environment to work on a React page. The dev-proxy (`devbin/dev_proxy.py`) runs a local aiohttp server that renders Jinja2 templates directly and either proxies API calls to a real deployed service or serves mock data locally.

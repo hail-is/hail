@@ -11,11 +11,16 @@ import { computeStats, computeRegression, toPctRows } from './components/statsUt
 import { CostRow } from './components/CostRow';
 import { ChartTooltip } from './components/ChartTooltip';
 import { StatsDisplay, RegressionStatsDisplay, statsReferenceLines } from './components/StatsDisplay';
+import { createHailApi, type HailApi } from './components/hailApi';
 
 // --- Types ---
 
 // GCP service name for the GKE cluster management fee line item
 const GKE_SERVICE_NAME = 'Kubernetes Engine';
+
+// Cap how many months' worth of trend data we fetch concurrently (2 requests/month) to avoid
+// spiking load on the monitoring/batch APIs when a wide date range is selected.
+const TRENDS_FETCH_BATCH_SIZE = 6;
 
 interface CloudCosts {
   user_compute: number;
@@ -35,12 +40,6 @@ interface CloudCosts {
   overhead_by_sku: Map<string, Map<string, number>>;
   // user_compute sub-breakdown by SKU product name
   user_compute_by_product: Map<string, number>;
-}
-
-interface BillingRow {
-  billing_project: string;
-  resource: string;
-  cost: number;
 }
 
 interface UserBilling {
@@ -223,7 +222,7 @@ function resolveMonthly(id: string, c: CloudCosts, b: UserBilling): number {
   if (id === 'billing/project_concentration') return b.billing_project_concentration;
   if (id.startsWith('billing/project/')) return b.billing_by_project.get(id.slice(16)) ?? 0;
   if (id === 'margin/profit') return b.total - c.total;
-  if (id === 'margin/margin_pct') return b.total === 0 ? 0 : ((b.total - c.total) / b.total) * 100;
+  if (id === 'margin/margin_pct') return c.total === 0 ? 0 : ((b.total - c.total) / c.total) * 100;
   if (id === 'derived/core_hours') return b.service_fee_cost * 100;
   return 0;
 }
@@ -253,23 +252,15 @@ function resolveTrend(id: string, p: MonthDataPoint): number {
   if (id === 'billing/project_concentration') return p.billing_project_concentration;
   if (id.startsWith('billing/project/')) return p.billing_by_project.get(id.slice(16)) ?? 0;
   if (id === 'margin/profit') return p.profit;
-  if (id === 'margin/margin_pct') return p.user_billing === 0 ? 0 : (p.profit / p.user_billing) * 100;
+  if (id === 'margin/margin_pct') return p.cloud_total === 0 ? 0 : (p.profit / p.cloud_total) * 100;
   if (id === 'derived/core_hours') return p.service_fees * 100;
   return 0;
 }
 
 // --- API fetchers ---
 
-interface CloudBillingResponse {
-  compute_cost_breakdown?: { source: string; cost: string }[];
-  cost_by_service?: { service: string; cost: string }[];
-  cost_by_sku_label?: { source: string | null; sku_description: string; service_description: string; cost: string }[];
-}
-
-async function fetchCloudCosts(monitoringBaseUrl: string, period: string): Promise<CloudCosts> {
-  const resp = await fetch(`${monitoringBaseUrl}/api/v1alpha/billing?time_period=${encodeURIComponent(period)}`);
-  if (!resp.ok) throw new Error(`Cloud billing fetch failed (HTTP ${resp.status})`);
-  const data = await resp.json() as CloudBillingResponse;
+async function fetchCloudCosts(api: HailApi, period: string): Promise<CloudCosts> {
+  const data = await api.monitoring.billing.get(period);
 
   const breakdown = data.compute_cost_breakdown ?? [];
   const byService = data.cost_by_service ?? [];
@@ -309,12 +300,9 @@ async function fetchCloudCosts(monitoringBaseUrl: string, period: string): Promi
   return costs;
 }
 
-async function fetchUserBilling(batchBaseUrl: string, period: string): Promise<UserBilling> {
+async function fetchUserBilling(api: HailApi, period: string): Promise<UserBilling> {
   const { start, end } = monthToDateRange(period);
-  const url = `${batchBaseUrl}/api/v1alpha/billing_breakdown?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`;
-  const resp = await fetch(url);
-  if (!resp.ok) throw new Error(`User billing fetch failed (HTTP ${resp.status})`);
-  const rows = await resp.json() as BillingRow[];
+  const rows = await api.batch.billingBreakdown.get(start, end);
 
   let total = 0;
   let service_fee_cost = 0;
@@ -390,6 +378,8 @@ const SCATTER_PRESETS: { label: string; x: string; y: string }[] = [
 interface CostAnalysisProps { monitoringBaseUrl: string; batchBaseUrl: string }
 
 export function CostAnalysis({ monitoringBaseUrl, batchBaseUrl }: CostAnalysisProps) {
+  const api = useMemo(() => createHailApi({ monitoring: monitoringBaseUrl, batch: batchBaseUrl }), [monitoringBaseUrl, batchBaseUrl]);
+
   const [tab, setTab] = useState<'monthly' | 'trends'>(() => {
     const p = new URLSearchParams(window.location.search).get('tab');
     return p === 'trends' ? 'trends' : 'monthly';
@@ -643,6 +633,10 @@ export function CostAnalysis({ monitoringBaseUrl, batchBaseUrl }: CostAnalysisPr
 
   const BILLING_PROJECT_PALETTE = ['#f97316', '#ea580c', '#fb923c', '#c2410c', '#fdba74', '#9a3412', '#fed7aa', '#d97706', '#fbbf24', '#b45309'];
   const billingProjectColor = (p: string) => p === '(Other)' ? '#9ca3af' : BILLING_PROJECT_PALETTE[billingProjects.indexOf(p) % BILLING_PROJECT_PALETTE.length];
+  // Literal Tailwind classes matching BILLING_PROJECT_PALETTE by index — a dynamic `text-[${hex}]`
+  // arbitrary-value class isn't discoverable by Tailwind's static content scan, so it never gets
+  // generated into the compiled CSS. Keep this in sync with BILLING_PROJECT_PALETTE above.
+  const BILLING_PROJECT_TEXT_CLASSES = ['text-orange-500', 'text-orange-600', 'text-orange-400', 'text-orange-700', 'text-orange-300', 'text-orange-800', 'text-orange-200', 'text-amber-600', 'text-amber-400', 'text-amber-700'];
 
   const billingProjectAllKeys = useMemo(
     () => [...billingProjects, ...(billingProjectsHasOther ? ['(Other)'] : [])],
@@ -854,8 +848,8 @@ export function CostAnalysis({ monitoringBaseUrl, batchBaseUrl }: CostAnalysisPr
     setBillingError(null);
 
     const [cloudResult, billingResult] = await Promise.allSettled([
-      fetchCloudCosts(monitoringBaseUrl, period),
-      fetchUserBilling(batchBaseUrl, period),
+      fetchCloudCosts(api, period),
+      fetchUserBilling(api, period),
     ]);
 
     if (cloudResult.status === 'fulfilled') setCloudCosts(cloudResult.value);
@@ -865,7 +859,7 @@ export function CostAnalysis({ monitoringBaseUrl, batchBaseUrl }: CostAnalysisPr
     else setBillingError(billingResult.reason instanceof Error ? billingResult.reason.message : 'Failed to load user billing.');
 
     setLoading(false);
-  }, [monitoringBaseUrl, batchBaseUrl]);
+  }, [api]);
 
   useEffect(() => { void fetchData(timePeriod); }, [fetchData, timePeriod]);
 
@@ -893,8 +887,8 @@ export function CostAnalysis({ monitoringBaseUrl, batchBaseUrl }: CostAnalysisPr
     setCompareCloudError(null);
     setCompareBillingError(null);
     void Promise.allSettled([
-      fetchCloudCosts(monitoringBaseUrl, compareTimePeriod),
-      fetchUserBilling(batchBaseUrl, compareTimePeriod),
+      fetchCloudCosts(api, compareTimePeriod),
+      fetchUserBilling(api, compareTimePeriod),
     ]).then(([cloudResult, billingResult]) => {
       if (cloudResult.status === 'fulfilled') setCompareCloudCosts(cloudResult.value);
       else setCompareCloudError(cloudResult.reason instanceof Error ? cloudResult.reason.message : 'Failed to load cloud costs.');
@@ -902,53 +896,60 @@ export function CostAnalysis({ monitoringBaseUrl, batchBaseUrl }: CostAnalysisPr
       else setCompareBillingError(billingResult.reason instanceof Error ? billingResult.reason.message : 'Failed to load user billing.');
       setCompareLoading(false);
     });
-  }, [compareTimePeriod, monitoringBaseUrl, batchBaseUrl]);
+  }, [compareTimePeriod, api]);
+
+  const fetchTrendPoint = useCallback(async (m: string): Promise<MonthDataPoint> => {
+    const [cloud, billing] = await Promise.allSettled([
+      fetchCloudCosts(api, m),
+      fetchUserBilling(api, m),
+    ]);
+    const c = cloud.status === 'fulfilled' ? cloud.value : null;
+    const b = billing.status === 'fulfilled' ? billing.value : null;
+    const overhead = c ? c.other_compute + [...c.non_compute_services.values()].reduce((a, bv) => a + bv, 0) : 0;
+    return {
+      month: monthParamToLabel(m),
+      cloud_total: c?.total ?? 0,
+      user_compute: c?.user_compute ?? 0,
+      other_compute: c?.other_compute ?? 0,
+      batch_test: c?.batch_test ?? 0,
+      batch_dev: c?.batch_dev ?? 0,
+      unknown: c?.unknown ?? 0,
+      k8s: c?.k8s ?? 0,
+      k8s_nodes: c?.k8s_nodes ?? 0,
+      k8s_mgmt: c?.k8s_mgmt ?? 0,
+      non_compute_services: c?.non_compute_services ?? new Map(),
+      overhead_by_sku: c?.overhead_by_sku ?? new Map(),
+      user_compute_by_product: c?.user_compute_by_product ?? new Map(),
+      resource_by_type: b?.resource_by_type ?? new Map(),
+      billing_by_project: b?.billing_by_project ?? new Map(),
+      billing_project_count: b?.billing_project_count ?? 0,
+      billing_project_concentration: b?.billing_project_concentration ?? 0,
+      user_billing: b?.total ?? 0,
+      service_fees: b?.service_fee_cost ?? 0,
+      resource_cost: b?.resource_cost ?? 0,
+      profit: (b?.total ?? 0) - (c?.total ?? 0),
+      svc_fee_overhead_pct: c && b && overhead > 0 ? (b.service_fee_cost / overhead) * 100 : null,
+      resource_billing_pct: c && b && c.user_compute > 0 ? (b.resource_cost / c.user_compute) * 100 : null,
+      svc_fee_bill_pct: b && b.total > 0 ? (b.service_fee_cost / b.total) * 100 : null,
+      overhead_cloud_pct: c && c.total > 0 ? (overhead / c.total) * 100 : null,
+      overhead_resource_pct: b && b.resource_cost > 0 ? (overhead / b.resource_cost) * 100 : null,
+    };
+  }, [api]);
 
   const fetchTrends = useCallback(async (start: string, end: string) => {
     setTrendsLoading(true);
     const months = monthsBetween(start, end);
-    const points = await Promise.all(
-      months.map(async (m) => {
-        const [cloud, billing] = await Promise.allSettled([
-          fetchCloudCosts(monitoringBaseUrl, m),
-          fetchUserBilling(batchBaseUrl, m),
-        ]);
-        const c = cloud.status === 'fulfilled' ? cloud.value : null;
-        const b = billing.status === 'fulfilled' ? billing.value : null;
-        const overhead = c ? c.other_compute + [...c.non_compute_services.values()].reduce((a, bv) => a + bv, 0) : 0;
-        return {
-          month: monthParamToLabel(m),
-          cloud_total: c?.total ?? 0,
-          user_compute: c?.user_compute ?? 0,
-          other_compute: c?.other_compute ?? 0,
-          batch_test: c?.batch_test ?? 0,
-          batch_dev: c?.batch_dev ?? 0,
-          unknown: c?.unknown ?? 0,
-          k8s: c?.k8s ?? 0,
-          k8s_nodes: c?.k8s_nodes ?? 0,
-          k8s_mgmt: c?.k8s_mgmt ?? 0,
-          non_compute_services: c?.non_compute_services ?? new Map(),
-          overhead_by_sku: c?.overhead_by_sku ?? new Map(),
-          user_compute_by_product: c?.user_compute_by_product ?? new Map(),
-          resource_by_type: b?.resource_by_type ?? new Map(),
-          billing_by_project: b?.billing_by_project ?? new Map(),
-          billing_project_count: b?.billing_project_count ?? 0,
-          billing_project_concentration: b?.billing_project_concentration ?? 0,
-          user_billing: b?.total ?? 0,
-          service_fees: b?.service_fee_cost ?? 0,
-          resource_cost: b?.resource_cost ?? 0,
-          profit: (b?.total ?? 0) - (c?.total ?? 0),
-          svc_fee_overhead_pct: c && b && overhead > 0 ? (b.service_fee_cost / overhead) * 100 : null,
-          resource_billing_pct: c && b && c.user_compute > 0 ? (b.resource_cost / c.user_compute) * 100 : null,
-          svc_fee_bill_pct: b && b.total > 0 ? (b.service_fee_cost / b.total) * 100 : null,
-          overhead_cloud_pct: c && c.total > 0 ? (overhead / c.total) * 100 : null,
-          overhead_resource_pct: b && b.resource_cost > 0 ? (overhead / b.resource_cost) * 100 : null,
-        };
-      })
-    );
+    // Fetch a bounded number of months concurrently at a time (2 requests/month) rather than
+    // firing every request in the range at once, which could spike load on the backend APIs
+    // for a wide date range.
+    const points: MonthDataPoint[] = [];
+    for (let i = 0; i < months.length; i += TRENDS_FETCH_BATCH_SIZE) {
+      const batch = months.slice(i, i + TRENDS_FETCH_BATCH_SIZE);
+      points.push(...await Promise.all(batch.map(fetchTrendPoint)));
+    }
     setTrendData(points);
     setTrendsLoading(false);
-  }, [monitoringBaseUrl, batchBaseUrl]);
+  }, [fetchTrendPoint]);
 
   const renderCloudBody = (
     costs: CloudCosts | null,
@@ -1121,7 +1122,7 @@ export function CostAnalysis({ monitoringBaseUrl, batchBaseUrl }: CostAnalysisPr
       <>
         {mProjects.map((p, i) => {
           const v = billing.billing_by_project.get(p) ?? 0;
-          return <CostRow key={p} label={p} value={v} pctStr={pct(v, billing.total)} indent colorClass={`text-[${BILLING_PROJECT_PALETTE[i % BILLING_PROJECT_PALETTE.length]}]`} delta={d(v, baseBilling?.billing_by_project.get(p) ?? 0)} />;
+          return <CostRow key={p} label={p} value={v} pctStr={pct(v, billing.total)} indent colorClass={BILLING_PROJECT_TEXT_CLASSES[i % BILLING_PROJECT_TEXT_CLASSES.length]} delta={d(v, baseBilling?.billing_by_project.get(p) ?? 0)} />;
         })}
         {hasOtherBP && bpOtherCost > 0 && (() => {
           const baseOther = baseBilling ? [...baseBilling.billing_by_project].filter(([p]) => !mProjects.includes(p)).reduce((s, [, v]) => s + v, 0) : 0;
