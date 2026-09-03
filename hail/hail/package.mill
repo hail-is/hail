@@ -214,7 +214,6 @@ object `package` extends HailScalaModule:
         `scalacheck-1-19` :: "3.2.20.0",
         `scalatest` :: "3.2.20",
         `scalatest-shouldmatchers` :: "3.2.20",
-        `testng-7-12` :: "3.2.20.0",
       )
 
     override def runMvnDeps: T[Seq[Dep]] =

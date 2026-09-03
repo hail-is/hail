@@ -1,14 +1,14 @@
 package is.hail.backend.driver
 
+import is.hail.ParameterizedTest
+import is.hail.TestUtils.assertEq
 import is.hail.io.fs.RequesterPaysConfig
 
 import org.json4s._
-import org.testng.annotations.{DataProvider, Test}
 
 class BatchQueryDriverSpec {
 
-  @DataProvider(name = "RequesterPaysConfig")
-  def dataRequesterPaysConfig: Array[Array[Any]] =
+  def dataRequesterPaysConfig =
     Array(
       Array(
         JNull,
@@ -24,7 +24,7 @@ class BatchQueryDriverSpec {
       ),
     )
 
-  @Test(dataProvider = "RequesterPaysConfig")
+  @ParameterizedTest("dataRequesterPaysConfig")
   def testRPCConfigDeserializer(rpjson: JValue, expected: Option[RequesterPaysConfig]): Unit = {
     val rpcConfig: JObject =
       JObject(
@@ -39,7 +39,7 @@ class BatchQueryDriverSpec {
 
     implicit val fmts: Formats = DefaultFormats + RequesterPaysConfigFormats
 
-    assert(rpcConfig.extract[ServiceBackendRPCConfig].requester_pays_config == expected)
+    assertEq(rpcConfig.extract[ServiceBackendRPCConfig].requester_pays_config, expected)
   }
 
 }
