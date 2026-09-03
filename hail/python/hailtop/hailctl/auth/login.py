@@ -10,7 +10,7 @@ async def auth_flow(deploy_config: DeployConfig, session: ClientSession):
     resp = await session.get_read_json(deploy_config.url('auth', '/api/v1alpha/oauth2-client'))
     idp = IdentityProvider(resp['idp'])
     client_secret_config = resp['oauth2_client']
-    if idp == IdentityProvider.GOOGLE:
+    if idp == IdentityProvider.GOOGLE or idp == IdentityProvider.AMAZON:
         credentials = GoogleFlow.perform_installed_app_login_flow(client_secret_config)
     else:
         assert idp == IdentityProvider.MICROSOFT
