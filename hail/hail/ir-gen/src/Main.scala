@@ -74,6 +74,7 @@ trait IRDSL {
 
   val Atom: Trait
   val BaseRef: Trait
+  val LeafRef: Trait
   def TypedIR(t: String): Trait
   val NDArrayIR: Trait
   // AbstractApplyNodeUnseededMissingness{Aware, Oblivious}JVMFunction
@@ -119,6 +120,7 @@ object IRDSL_Impl extends IRDSL {
 
   override val Atom: Trait = Trait("Atom")
   override val BaseRef: Trait = Trait("BaseRef")
+  override val LeafRef: Trait = Trait("LeafRef")
   override def TypedIR(typ: String): Trait = Trait(s"TypedIR[$typ]")
   override val NDArrayIR: Trait = Trait("NDArrayIR")
 
@@ -640,7 +642,7 @@ object Main {
       .withPreamble("override lazy val size: Int = bindings.length + 1")
       .withCompanionExtension
 
-    r += node("Ref", name, _typ().mutable).withTraits(BaseRef, Atom)
+    r += node("Ref", name, _typ().mutable).withTraits(LeafRef)
 
     r += node(
       "TailLoop",
@@ -659,7 +661,7 @@ object Main {
     r += node("Recur", name, in("args", child.*), _typ().mutable).withTraits(BaseRef)
 
     r += node("RelationalLet", name, in("value", child), in("body", child))
-    r += node("RelationalRef", name, _typ()).withTraits(BaseRef, Atom)
+    r += node("RelationalRef", name, _typ()).withTraits(LeafRef)
 
     r += node("ApplyBinaryPrimOp", in("op", att("BinaryOp")), in("l", child), in("r", child))
     r += node("ApplyUnaryPrimOp", in("op", att("UnaryOp")), in("x", child))

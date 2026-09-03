@@ -425,12 +425,8 @@ class SimplifySuite {
     def g = Ref(Name("golf"), TInt32)
     def arr = Ref(Name("alpha"), TArray(TInt32))
 
-    def bindings = FastSeq(Binding(Name("x"), ref(TInt32)))
-
     FastSeq(
       // -- StreamFlatMap --
-      Block(bindings, s).streamFlatMap(_ => t) ->
-        Block(bindings, s.streamFlatMap(_ => t)),
       s.streamMap(_ => ref(TInt32)).streamFlatMap(_ => t) ->
         s.streamFlatMap(_ => bindIR(ref(TInt32))(_ => t)),
       s.streamFlatMap(_ => t).streamFlatMap(_ => t) ->
@@ -438,8 +434,6 @@ class SimplifySuite {
       NA(TStream(TInt32)).streamFlatMap(_ => t) ->
         NA(TStream(TInt32)),
       // -- StreamMap --
-      Block(bindings, s).streamMap(_ => ref(TInt32)) ->
-        Block(bindings, s.streamMap(_ => ref(TInt32))),
       s.streamMap(_ => ref(TInt32)).streamMap(_ => ref(TInt32)) ->
         s.streamMap(_ => bindIR(ref(TInt32))(_ => ref(TInt32))),
       s.zip(t)((_, _) => ref(TInt32)).streamMap(_ => ref(TInt32)) ->
@@ -457,8 +451,6 @@ class SimplifySuite {
       MakeStream.empty(TInt32).streamMap(_ => ref(TInt64)) ->
         MakeStream.empty(TInt64),
       // -- StreamFilter --
-      Block(bindings, s).filter(_ => ref(TBoolean)) ->
-        Block(bindings, s.filter(_ => ref(TBoolean))),
       StreamFilter(sortIR(s)((_, _) => ref(TBoolean)), Name("a"), ref(TBoolean)) ->
         sortIR(StreamFilter(s, Name("a"), ref(TBoolean)))((_, _) => ref(TBoolean)),
       s.streamFlatMap(_ => t).filter(_ => ref(TBoolean)) ->
@@ -471,8 +463,6 @@ class SimplifySuite {
       s.filter(_ => False()) ->
         StreamTake(s, I32(0)),
       // -- StreamFor --
-      Block(bindings, s).streamFor(_ => ref(TVoid)) ->
-        Block(bindings, s.streamFor(_ => ref(TVoid))),
       s.streamMap(_ => ref(TInt32)).streamFor(_ => ref(TVoid)) ->
         s.streamFor(_ => bindIR(ref(TInt32))(_ => ref(TVoid))),
       s.streamFlatMap(_ => t).streamFor(_ => ref(TVoid)) ->
@@ -488,8 +478,6 @@ class SimplifySuite {
       s.streamAggScan(_ => ref(TInt32)) ->
         s.streamMap(_ => ref(TInt32)),
       // -- StreamFold --
-      foldIR(Block(bindings, s), ref(TInt32))((_, _) => ref(TInt32)) ->
-        Block(bindings, foldIR(s, ref(TInt32))((_, _) => ref(TInt32))),
       foldIR(s.filter(_ > 0), ref(TInt32))(_ + _) ->
         foldIR(s, ref(TInt32))((acc, elem) => If(elem > 0, acc + elem, acc)),
       foldIR(s.streamFlatMap(_ => t), ref(TInt32))(_ + _) ->
@@ -506,8 +494,6 @@ class SimplifySuite {
         I32(3),
       MakeStream.empty(TInt32).len ->
         I32(0),
-      Block(bindings, s).len ->
-        Block(bindings, s.len),
       s.streamMap(_ => ref(TInt32)).len ->
         s.len,
       s.streamFlatMap(_ => ref(TStream(TInt32))).len ->
@@ -1208,10 +1194,6 @@ class SimplifySuite {
       (IsNA(ToArray(StreamMap(ToStream(a), elt, IsNA(Ref(elt, TInt32))))), IsNA(a)),
       (IsNA(Cast(x, TInt64)), IsNA(x)),
       (IsNA(SelectFields(st, FastSeq("a"))), IsNA(st)),
-      (
-        IsNA(Let(FastSeq(elt -> x), Ref(elt, TInt32))),
-        Let(FastSeq(elt -> x), IsNA(Ref(elt, TInt32))),
-      ),
       /* nodes with more than one strict child are transparent when every other child is definitely
        * defined */
       (IsNA(StreamTake(s, I32(2))), IsNA(s)),

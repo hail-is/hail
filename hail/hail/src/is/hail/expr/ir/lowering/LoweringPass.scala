@@ -24,6 +24,14 @@ final class IrMetadata() {
     markCounter += 1
     markCounter
   }
+
+  // Reserve `n` consecutive mark values for the exclusive use of one
+  // caller, returning the first.
+  def nextFlags(n: Int): Int = {
+    val base = markCounter + 1
+    markCounter += n
+    base
+  }
 }
 
 abstract class LoweringPass(implicit E: sourcecode.Enclosing) {

@@ -74,9 +74,9 @@ object ContainsAgg {
   })
 }
 
-object ContainsAggIntermediate {
+object IsAggIntermediate {
   def apply(root: IR): Boolean =
-    (root match {
+    root match {
       case _: ResultOp => true
       case _: SeqOp => true
       case _: InitOp => true
@@ -87,10 +87,21 @@ object ContainsAggIntermediate {
       case _: CombOpValue => true
       case _: InitFromSerializedValue => true
       case _ => false
-    }) || root.children.exists {
-      case child: IR => ContainsAggIntermediate(child)
-      case _ => false
     }
+}
+
+object ContainsAggIntermediate {
+  def apply(root: IR): Boolean =
+    IsAggIntermediate(root) || (root match {
+      // a relational aggregate's query runs in its own execution: state
+      // ops within cannot read the enclosing context's aggregator state
+      case _: TableAggregate => false
+      case _: MatrixAggregate => false
+      case _ => root.children.exists {
+          case child: IR => ContainsAggIntermediate(child)
+          case _ => false
+        }
+    })
 }
 
 object AggIsCommutative {
@@ -128,4 +139,9 @@ object ContainsScan {
         case _ => false
       }
   })
+}
+
+object AggContextDependent {
+  def apply(ir: IR): Boolean =
+    ContainsAgg(ir) || ContainsScan(ir) || ContainsAggIntermediate(ir)
 }
