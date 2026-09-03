@@ -3,7 +3,6 @@ package is.hail.expr.ir.functions
 import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.collection.{FastSeq, StringArrayBuilder}
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir.{Memoized => M, _}
 import is.hail.expr.ir.defs._
@@ -16,6 +15,7 @@ import is.hail.types.physical.stypes.primitives.{SBoolean, SInt32, SInt64}
 import is.hail.types.virtual._
 import is.hail.utils._
 
+import scala.collection.immutable.ArraySeq
 import scala.collection.mutable
 
 import java.time.{Instant, ZoneId}

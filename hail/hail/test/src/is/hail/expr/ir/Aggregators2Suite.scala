@@ -6,7 +6,6 @@ import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir.agg._
 import is.hail.expr.ir.defs._
 import is.hail.io.BufferSpec
@@ -15,6 +14,8 @@ import is.hail.types.physical._
 import is.hail.types.physical.stypes.PTypeReferenceSingleCodeType
 import is.hail.types.virtual._
 import is.hail.variant.{Call0, Call1, Call2}
+
+import scala.collection.immutable.ArraySeq
 
 import org.apache.spark.sql.Row
 import org.junit.jupiter.api.{Disabled, Test}

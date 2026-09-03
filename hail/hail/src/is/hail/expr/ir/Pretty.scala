@@ -2,7 +2,6 @@ package is.hail.expr.ir
 
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.collection.implicits.{toRichIterable, RichIterable}
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir.Pretty.prettyBooleanLiteral
@@ -13,7 +12,7 @@ import is.hail.types.virtual.{MatrixType, TArray, TInterval, TStream, TableType,
 import is.hail.utils.{space => _, _}
 import is.hail.utils.prettyPrint._
 
-import scala.collection.compat._
+import scala.collection.immutable.ArraySeq
 import scala.collection.mutable
 
 import org.json4s.DefaultFormats

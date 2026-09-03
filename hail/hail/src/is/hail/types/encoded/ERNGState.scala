@@ -3,7 +3,6 @@ package is.hail.types.encoded
 import is.hail.annotations.Region
 import is.hail.asm4s.Value
 import is.hail.asm4s.implicits.{valueToRichCodeInputBuffer, valueToRichCodeOutputBuffer}
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.io.{InputBuffer, OutputBuffer}
 import is.hail.types.physical.stypes.SValue
@@ -11,6 +10,8 @@ import is.hail.types.physical.stypes.concrete.{
   SCanonicalRNGStateValue, SRNGState, SRNGStateStaticInfo, SRNGStateStaticSizeValue,
 }
 import is.hail.types.virtual.Type
+
+import scala.collection.immutable.ArraySeq
 
 //case object ERNGStateOptional extends ERNGState(false)
 //

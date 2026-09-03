@@ -2,7 +2,6 @@ package is.hail.rvd
 
 import is.hail.annotations._
 import is.hail.backend.{ExecuteContext, HailStateManager}
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.compatibility
 import is.hail.expr.{ir, JSONAnnotationImpex}
 import is.hail.expr.ir.{
@@ -20,7 +19,7 @@ import is.hail.types.physical._
 import is.hail.types.virtual._
 import is.hail.utils._
 
-import scala.collection.compat._
+import scala.collection.immutable.ArraySeq
 
 import org.apache.spark.TaskContext
 import org.apache.spark.sql.Row

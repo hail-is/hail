@@ -1,11 +1,10 @@
 package is.hail.io.bgen
 
 import is.hail.backend.ExecuteContext
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.types.virtual._
 import is.hail.utils._
 
-import scala.collection.compat._
+import scala.collection.immutable.ArraySeq
 
 case class FilePartitionInfo(
   metadata: BgenFileMetadata,

@@ -2,7 +2,6 @@ package is.hail.expr.ir.functions
 
 import is.hail.asm4s._
 import is.hail.collection.FastSeq
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir.{Memoized => M, _}
 import is.hail.expr.ir.defs._
 import is.hail.expr.ir.orderings.CodeOrdering
@@ -14,6 +13,8 @@ import is.hail.types.physical.stypes.primitives.{SBooleanValue, SFloat64, SInt32
 import is.hail.types.tcoerce
 import is.hail.types.virtual._
 import is.hail.types.virtual.TIterable.elementType
+
+import scala.collection.immutable.ArraySeq
 
 object ArrayFunctions extends RegistryFunctions {
   private[functions] val arrayOps: Array[(String, Type, Type, (IR, IR, Int) => IR)] =

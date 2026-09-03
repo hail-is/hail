@@ -6,12 +6,13 @@ import is.hail.TestUtils._
 import is.hail.asm4s._
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir.defs.{ApplyBinaryPrimOp, I32, In}
 import is.hail.expr.ir.functions.{IRFunctionRegistry, RegistryFunctions}
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.virtual._
 import is.hail.variant.Call2
+
+import scala.collection.immutable.ArraySeq
 
 import org.junit.jupiter.api.Test
 

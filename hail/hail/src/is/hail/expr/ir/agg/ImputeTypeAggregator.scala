@@ -3,7 +3,6 @@ package is.hail.expr.ir.agg
 import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.backend.ExecuteContext
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder, IEmitCode}
 import is.hail.types.{RPrimitive, VirtualTypeWithReq}
 import is.hail.types.physical.stypes.EmitType
@@ -11,6 +10,8 @@ import is.hail.types.physical.stypes.concrete.SStackStruct
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives.{SBoolean, SBooleanValue}
 import is.hail.types.virtual._
+
+import scala.collection.immutable.ArraySeq
 
 object ImputeTypeState {
   val resultVirtualType = TStruct(

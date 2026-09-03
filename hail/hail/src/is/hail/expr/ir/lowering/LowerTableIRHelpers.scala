@@ -7,8 +7,6 @@ import is.hail.expr.ir.defs._
 import is.hail.types.RTable
 import is.hail.types.virtual.TStruct
 
-import scala.collection.compat._
-
 object LowerTableIRHelpers {
 
   def lowerTableJoin(

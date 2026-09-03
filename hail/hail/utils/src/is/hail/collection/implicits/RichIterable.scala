@@ -1,9 +1,9 @@
 package is.hail.collection.implicits
 
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.utils._
 
 import scala.collection.{mutable, AbstractIterable}
+import scala.collection.immutable.ArraySeq
 import scala.reflect.ClassTag
 
 object RichIterable {

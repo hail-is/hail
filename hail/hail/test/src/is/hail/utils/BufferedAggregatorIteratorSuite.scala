@@ -2,8 +2,6 @@ package is.hail.utils
 
 import is.hail.TestUtils._
 
-import scala.collection.compat._
-
 import org.junit.jupiter.api.Test
 import org.scalacheck.Gen
 import org.scalacheck.Gen._

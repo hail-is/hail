@@ -9,7 +9,6 @@ import is.hail.io.fs.FS
 import is.hail.types.physical.PTuple
 import is.hail.variant.ReferenceGenome
 
-import scala.collection.compat._
 import scala.collection.mutable
 import scala.reflect.ClassTag
 

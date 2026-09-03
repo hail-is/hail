@@ -2,14 +2,13 @@ package is.hail.scalacheck
 
 import is.hail.annotations.{Annotation => An, RowSeq, SafeNDArray}
 import is.hail.backend.ExecuteContext
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.collection.implicits.toRichArray
 import is.hail.scalacheck
 import is.hail.types.physical._
 import is.hail.types.virtual._
 import is.hail.utils.Interval
 
-import scala.collection.compat._
+import scala.collection.immutable.ArraySeq
 
 import org.apache.spark.sql.Row
 import org.scalacheck.{Arbitrary, Gen}

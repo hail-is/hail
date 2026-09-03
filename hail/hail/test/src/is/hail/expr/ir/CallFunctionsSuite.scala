@@ -4,11 +4,12 @@ import is.hail.{ExecStrategy, ParameterizedTest}
 import is.hail.ExecStrategy.ExecStrategy
 import is.hail.TestUtils._
 import is.hail.backend.ExecuteContext
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir.TestUtils.{IRArray, IRCall}
 import is.hail.expr.ir.defs.{False, I32, Str, True}
 import is.hail.types.virtual.{TArray, TBoolean, TCall, TInt32}
 import is.hail.variant._
+
+import scala.collection.immutable.ArraySeq
 
 import org.junit.jupiter.api.Test
 

@@ -2,7 +2,6 @@ package is.hail.methods
 
 import is.hail.backend.ExecuteContext
 import is.hail.collection.LongArrayBuilder
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir._
 import is.hail.expr.ir.defs.{GetField, StreamLocalLDPrune, ToArray, ToStream}
 import is.hail.expr.ir.functions.MatrixToTableFunction
@@ -10,6 +9,8 @@ import is.hail.methods.BitPackedVector._
 import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.variant._
+
+import scala.collection.immutable.ArraySeq
 
 import java.util
 

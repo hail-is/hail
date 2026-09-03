@@ -2,11 +2,12 @@ package is.hail.expr.ir
 
 import is.hail.ParameterizedTest
 import is.hail.backend.ExecuteContext
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir.{Memoized => M}
 import is.hail.expr.ir.defs._
 import is.hail.expr.ir.implicits.forTesting.BaseIROps
 import is.hail.types.virtual.TFloat64
+
+import scala.collection.immutable.ArraySeq
 
 class IRBuilderSuite {
 

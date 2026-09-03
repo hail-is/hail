@@ -1,6 +1,6 @@
 package is.hail.expr
 
-import is.hail.collection.compat.immutable.ArraySeq
+import scala.collection.immutable.ArraySeq
 
 import org.junit.jupiter.api.Test
 

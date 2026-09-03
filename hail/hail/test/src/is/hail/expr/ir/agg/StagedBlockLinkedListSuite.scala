@@ -5,10 +5,11 @@ import is.hail.annotations.{Region, RegionPool, SafeRow, ScalaToRegionValue}
 import is.hail.asm4s.Code
 import is.hail.asm4s.implicits.valueToRichCodeRegion
 import is.hail.backend.ExecuteContext
-import is.hail.collection.compat.immutable.ArraySeq
-import is.hail.collection.compat.mutable.GrowableCompat
 import is.hail.expr.ir.{EmitCode, EmitFunctionBuilder}
 import is.hail.types.physical._
+
+import scala.collection.immutable.ArraySeq
+import scala.collection.mutable
 
 import org.junit.jupiter.api.Test
 
@@ -19,7 +20,7 @@ class StagedBlockLinkedListSuite {
     region: Region,
     val elemPType: PType,
     initImmediately: Boolean = true,
-  ) extends GrowableCompat[E] {
+  ) extends mutable.Growable[E] {
     val arrayPType = PCanonicalArray(elemPType)
 
     private val initF: Region => Long = {

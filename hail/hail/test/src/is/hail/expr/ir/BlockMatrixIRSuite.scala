@@ -5,7 +5,6 @@ import is.hail.ExecStrategy.ExecStrategy
 import is.hail.TestUtils._
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.collection.implicits.toRichIterable
 import is.hail.expr.Nat
 import is.hail.expr.ir.defs.{
@@ -16,6 +15,8 @@ import is.hail.io.TypedCodecSpec
 import is.hail.linalg.BlockMatrix
 import is.hail.types.encoded.{EBlockMatrixNDArray, EFloat64Required}
 import is.hail.types.virtual._
+
+import scala.collection.immutable.ArraySeq
 
 import java.lang.Math.floorDiv
 

@@ -6,13 +6,14 @@ import is.hail.TestUtils._
 import is.hail.annotations.RowSeq
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir.defs.{
   ErrorIDs, False, GetTupleElement, I32, If, Literal, MakeTuple, NA, True,
 }
 import is.hail.rvd.RVDPartitioner
 import is.hail.types.virtual._
 import is.hail.utils._
+
+import scala.collection.immutable.ArraySeq
 
 import org.junit.jupiter.api.{BeforeEach, Test}
 

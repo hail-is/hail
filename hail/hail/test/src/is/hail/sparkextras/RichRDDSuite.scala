@@ -1,9 +1,10 @@
 package is.hail.sparkextras
 
 import is.hail.backend.ExecuteContext
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir.ExportType
 import is.hail.sparkextras.implicits._
+
+import scala.collection.immutable.ArraySeq
 
 import org.junit.jupiter.api.Test
 

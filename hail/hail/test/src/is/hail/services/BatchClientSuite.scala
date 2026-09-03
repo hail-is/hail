@@ -166,6 +166,7 @@ class BatchClientSuite {
               command = Array(Main.TEST),
               spec = GitRevision(Revision),
               profile = false,
+              sparkVersion = org.apache.spark.SPARK_VERSION,
             ),
           )
         ),

@@ -1,8 +1,8 @@
 package is.hail.collection
 
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.collection.implicits.toRichIterable
 
+import scala.collection.immutable.ArraySeq
 import scala.reflect.ClassTag
 
 object FastSeq {

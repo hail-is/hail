@@ -1,9 +1,9 @@
 package is.hail.collection
 
-import is.hail.collection.compat.mutable.{Growable, GrowableCompat}
 import is.hail.collection.implicits.toRichIterator
 import is.hail.utils.{Muple, OrderingView}
 
+import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 import scala.reflect.runtime.universe._
 
@@ -42,8 +42,8 @@ class FlipbookIteratorSuite {
       implicitly[Ordering[A]].compare(value, a.value)
   }
 
-  def boxBuffer[A: TypeTag]: Growable[Box[A]] with Iterable[Box[A]] =
-    new GrowableCompat[Box[A]] with Iterable[Box[A]] {
+  def boxBuffer[A: TypeTag]: mutable.Growable[Box[A]] with Iterable[Box[A]] =
+    new mutable.Growable[Box[A]] with Iterable[Box[A]] {
       val buf = ArrayBuffer[A]()
       val box = Box[A]
 

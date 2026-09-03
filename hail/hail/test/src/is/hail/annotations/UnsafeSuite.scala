@@ -4,7 +4,6 @@ import is.hail.ParameterizedTest
 import is.hail.TestUtils._
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.collection.implicits.toRichIterable
 import is.hail.io._
 import is.hail.rvd.AbstractRVDSpec
@@ -12,6 +11,7 @@ import is.hail.scalacheck._
 import is.hail.types.physical._
 import is.hail.types.virtual.{TArray, TStruct, Type}
 
+import scala.collection.immutable.ArraySeq
 import scala.util.Random
 
 import java.io.{ByteArrayInputStream, ByteArrayOutputStream}

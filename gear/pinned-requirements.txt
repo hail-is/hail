@@ -62,7 +62,7 @@ frozenlist==1.8.0
     #   aiosignal
 google-api-core==2.34.0
     # via google-api-python-client
-google-api-python-client==2.199.0
+google-api-python-client==2.200.0
     # via google-cloud-profiler
 google-auth==2.57.0
     # via
@@ -121,7 +121,7 @@ propcache==0.5.2
     #   yarl
 proto-plus==1.28.4
     # via google-api-core
-protobuf==7.36.0
+protobuf==7.36.1
     # via
     #   google-api-core
     #   google-cloud-profiler

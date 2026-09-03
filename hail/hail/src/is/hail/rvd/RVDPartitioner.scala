@@ -3,12 +3,13 @@ package is.hail.rvd
 import is.hail.annotations._
 import is.hail.backend.{ExecuteContext, HailStateManager}
 import is.hail.collection.FastSeq
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.collection.implicits._
 import is.hail.expr.ir.defs.Literal
 import is.hail.sparkextras.implicits._
 import is.hail.types.virtual._
 import is.hail.utils._
+
+import scala.collection.immutable.ArraySeq
 
 import org.apache.commons.lang3.builder.HashCodeBuilder
 import org.apache.spark.{Partitioner, SparkContext}

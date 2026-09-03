@@ -11,8 +11,6 @@ import is.hail.types.physical.stypes.interfaces.{SBaseStruct, SBaseStructValue}
 import is.hail.types.virtual.TStruct
 import is.hail.utils._
 
-import scala.collection.compat._
-
 object PSubsetStruct {
   def apply(ps: PStruct, fieldNames: String*): PSubsetStruct =
     PSubsetStruct(ps, fieldNames.toFastSeq)

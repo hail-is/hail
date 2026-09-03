@@ -1,7 +1,8 @@
 package is.hail.linalg
 
 import is.hail.TestUtils._
-import is.hail.collection.compat.immutable.ArraySeq
+
+import scala.collection.immutable.ArraySeq
 
 import org.junit.jupiter.api.Test
 

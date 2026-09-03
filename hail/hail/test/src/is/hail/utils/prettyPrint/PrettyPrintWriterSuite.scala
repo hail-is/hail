@@ -2,8 +2,9 @@ package is.hail.utils.prettyPrint
 
 import is.hail.ParameterizedTest
 import is.hail.TestUtils._
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.collection.implicits.toRichIterator
+
+import scala.collection.immutable.ArraySeq
 
 import org.junit.jupiter.api.Test
 

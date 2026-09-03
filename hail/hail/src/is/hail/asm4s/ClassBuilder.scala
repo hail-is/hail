@@ -1,12 +1,12 @@
 package is.hail.asm4s
 
 import is.hail.collection.FastSeq
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.lir
 import is.hail.utils._
 import is.hail.utils.implicits.toRichBoolean
 
+import scala.collection.immutable.ArraySeq
 import scala.collection.mutable
 
 import java.io._

@@ -8,7 +8,6 @@ import is.hail.asm4s.{
 import is.hail.backend.ExecuteContext
 import is.hail.backend.spark.SparkBackend
 import is.hail.collection.FastSeq
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.collection.implicits.toRichIterable
 import is.hail.expr.ir._
 import is.hail.expr.ir.defs._
@@ -21,6 +20,7 @@ import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.variant.{BoxedCall, Call2, ReferenceGenome}
 
+import scala.collection.immutable.ArraySeq
 import scala.reflect.ClassTag
 
 import java.io.PrintWriter

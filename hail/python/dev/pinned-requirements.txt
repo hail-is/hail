@@ -113,11 +113,11 @@ executing==2.2.1
     #   stack-data
 fastjsonschema==2.22.2
     # via nbformat
-filelock==3.32.4
+filelock==3.32.5
     # via
     #   python-discovery
     #   virtualenv
-fonttools==4.63.0
+fonttools==4.64.0
     # via matplotlib
 fqdn==1.5.1
     # via jsonschema
@@ -155,7 +155,7 @@ ipykernel==6.29.5
     #   jupyterlab
     #   nbclassic
     #   notebook
-ipython==9.17.0
+ipython==9.17.1
     # via
     #   ipykernel
     #   ipywidgets
@@ -341,7 +341,7 @@ pillow==12.3.0
     #   -c hail/python/dev/../pinned-requirements.txt
     #   -r hail/python/dev/requirements.txt
     #   matplotlib
-platformdirs==4.11.5
+platformdirs==4.11.7
     # via
     #   jupyter-core
     #   pylint
@@ -428,7 +428,7 @@ python-dateutil==2.9.0.post0
     #   arrow
     #   jupyter-client
     #   matplotlib
-python-discovery==1.5.3
+python-discovery==1.6.0
     # via virtualenv
 python-json-logger==2.0.7
     # via
@@ -602,11 +602,11 @@ uv==0.11.33
     # via -r hail/python/dev/requirements.txt
 uv-build==0.11.33
     # via -r hail/python/dev/requirements.txt
-virtualenv==21.7.5
+virtualenv==21.7.8
     # via pre-commit
 watchfiles==1.2.0
     # via aiohttp-devtools
-wcwidth==0.8.2
+wcwidth==0.8.3
     # via prompt-toolkit
 webcolors==25.10.0
     # via jsonschema
@@ -614,7 +614,7 @@ webencodings==0.6.1
     # via
     #   bleach
     #   tinycss2
-websocket-client==1.9.0
+websocket-client==1.9.2
     # via jupyter-server
 widgetsnbextension==4.0.16
     # via ipywidgets

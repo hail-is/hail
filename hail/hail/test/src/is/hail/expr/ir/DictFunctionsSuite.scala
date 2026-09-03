@@ -6,10 +6,11 @@ import is.hail.TestUtils._
 import is.hail.annotations.RowSeq
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir.TestUtils._
 import is.hail.expr.ir.defs.{NA, ToSet, ToStream}
 import is.hail.types.virtual._
+
+import scala.collection.immutable.ArraySeq
 
 import org.apache.spark.sql.Row
 import org.junit.jupiter.api.Test

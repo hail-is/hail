@@ -1,13 +1,12 @@
 package is.hail.scalacheck
 
 import is.hail.annotations.{Annotation, RowSeq}
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.utils.{triangle, uniqueMaxIndex}
 import is.hail.variant._
 import is.hail.variant.Genotype.gqFromPL
 import is.hail.variant.Sex.Sex
 
-import scala.collection.compat._
+import scala.collection.immutable.ArraySeq
 
 import org.scalacheck.{Arbitrary, Gen}
 import org.scalacheck.Arbitrary.arbitrary

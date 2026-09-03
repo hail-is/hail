@@ -1,7 +1,6 @@
 package is.hail.io.bgen
 
 import is.hail.collection.FastSeq
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir.PruneDeadFields
 import is.hail.io._
 import is.hail.rvd.AbstractIndexSpec
@@ -9,6 +8,8 @@ import is.hail.types.encoded._
 import is.hail.types.physical._
 import is.hail.types.virtual._
 import is.hail.utils._
+
+import scala.collection.immutable.ArraySeq
 
 object BgenSettings {
   val UNCOMPRESSED: Int = 0

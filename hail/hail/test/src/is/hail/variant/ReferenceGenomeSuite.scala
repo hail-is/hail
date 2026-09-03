@@ -2,12 +2,13 @@ package is.hail.variant
 
 import is.hail.TestUtils._
 import is.hail.backend.{ExecuteContext, HailStateManager}
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir.EmitFunctionBuilder
 import is.hail.io.reference.{FASTAReader, FASTAReaderConfig, LiftOver}
 import is.hail.scalacheck.{genLocus, genNonMissing}
 import is.hail.types.virtual.{TInterval, TLocus}
 import is.hail.utils._
+
+import scala.collection.immutable.ArraySeq
 
 import htsjdk.samtools.reference.ReferenceSequenceFileFactory
 import org.junit.jupiter.api.Assertions.assertTrue

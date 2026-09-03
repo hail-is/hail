@@ -1,7 +1,5 @@
 package is.hail.lir
 
-import scala.collection.mutable
-
 object Liveness {
   def apply(
     blocks: Blocks,
@@ -55,13 +53,15 @@ object Liveness {
     }
 
     def computeLiveIn(): Unit = {
-      val q = mutable.Set[Int]()
+      val q = new java.util.BitSet(nBlocks)
+      q.set(0, nBlocks)
 
-      (0 until nBlocks).foreach(q += _)
-
-      while (q.nonEmpty) {
-        val i = q.head
-        q -= i
+      while (!q.isEmpty) {
+        // liveness is a backward analysis and block indices are in reverse post-order
+        // (see `Method.findBlocks`). Draining the largest-first visits successors before
+        // predecessors and converges in fewer iterations.
+        val i = q.previousSetBit(nBlocks - 1)
+        q.clear(i)
 
         val newLiveIn = new java.util.BitSet(nLocals)
         for (j <- cfg.succ(i))
@@ -72,7 +72,7 @@ object Liveness {
         if (newLiveIn != liveIn(i)) {
           liveIn(i) = newLiveIn
           for (j <- cfg.pred(i))
-            q += j
+            q.set(j)
         }
       }
     }

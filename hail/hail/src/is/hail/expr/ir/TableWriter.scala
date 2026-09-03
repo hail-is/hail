@@ -5,7 +5,6 @@ import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.collection.implicits.toRichIterable
 import is.hail.expr.TableAnnotationImpex
 import is.hail.expr.ir.defs._
@@ -23,6 +22,8 @@ import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
+
+import scala.collection.immutable.ArraySeq
 
 import java.io.{BufferedOutputStream, OutputStream, OutputStreamWriter}
 import java.text.SimpleDateFormat

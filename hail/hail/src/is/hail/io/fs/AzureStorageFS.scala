@@ -1,6 +1,5 @@
 package is.hail.io.fs
 
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.io.fs.FSUtil.dropTrailingSlash
 import is.hail.services.oauth2.AzureCloudCredentials
 import is.hail.services.retryTransientErrors
@@ -14,6 +13,7 @@ import is.hail.shadedazure.com.azure.storage.blob.models.{
 }
 import is.hail.shadedazure.com.azure.storage.blob.specialized.BlockBlobClient
 
+import scala.collection.immutable.ArraySeq
 import scala.collection.mutable
 import scala.jdk.CollectionConverters._
 

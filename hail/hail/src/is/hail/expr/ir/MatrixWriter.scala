@@ -4,7 +4,6 @@ import is.hail.annotations.{Region, RowSeq}
 import is.hail.asm4s._
 import is.hail.backend.ExecuteContext
 import is.hail.collection.{ByteArrayBuilder, FastSeq}
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.{JSONAnnotationImpex, Nat}
 import is.hail.expr.ir.{Memoized => M}
 import is.hail.expr.ir.defs._
@@ -30,6 +29,8 @@ import is.hail.types.physical.stypes.primitives._
 import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.variant.{Call, ReferenceGenome}
+
+import scala.collection.immutable.ArraySeq
 
 import java.io.{InputStream, OutputStream}
 

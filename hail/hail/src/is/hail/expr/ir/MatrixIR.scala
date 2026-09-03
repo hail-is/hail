@@ -3,7 +3,6 @@ package is.hail.expr.ir
 import is.hail.annotations._
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir.analyses.{ColumnCount, PartitionCounts}
 import is.hail.expr.ir.defs._
 import is.hail.expr.ir.functions.MatrixToMatrixFunction
@@ -17,6 +16,8 @@ import is.hail.rvd._
 import is.hail.types._
 import is.hail.types.virtual._
 import is.hail.utils._
+
+import scala.collection.immutable.ArraySeq
 
 import org.apache.spark.sql.Row
 import org.json4s._
