@@ -11,6 +11,14 @@ from .local_fs import LocalAsyncFS
 
 
 class RouterAsyncFS(AsyncFS):
+    """Route each URL to the concrete :class:`AsyncFS` for its scheme.
+
+    RouterAsyncFS supports local paths, Google Cloud Storage, Terra Azure,
+    Azure Blob Storage, and Amazon S3. Backend filesystem instances are created
+    lazily from the corresponding ``*_kwargs`` and owned by the router; closing
+    the router closes every backend that was used.
+    """
+
     FS_CLASSES: ClassVar[List[type[AsyncFS]]] = [
         LocalAsyncFS,
         aiogoogle.GoogleStorageAsyncFS,
