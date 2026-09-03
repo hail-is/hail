@@ -15,6 +15,13 @@ versions. In particular, Hail officially supports:
 Change Log
 ==========
 
+**Version 0.2.140**
+
+- (`#15682 <https://github.com/hail-is/hail/pull/15682>`__) Update worker base to ubuntu-minimal-2404-noble-amd64-v20260810
+- (`#15654 <https://github.com/hail-is/hail/pull/15654>`__) bump base docker ubuntu version to noble 20260730.1
+- (`#15620 <https://github.com/hail-is/hail/pull/15620>`__) Improved inactivity error messages
+- (`#15663 <https://github.com/hail-is/hail/pull/15663>`__) Restore "shift supported python versions from 3.10-13 to 3.12-14"
+
 **Version 0.2.139**
 
 - (`#15200 <https://github.com/hail-is/hail/pull/15200>`__) Services now use role-based access control for system-level actions. Users can be granted specific system roles (e.g. sysadmin, billing manager) instead of the previous all-or-nothing developer flag.

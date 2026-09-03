@@ -52,6 +52,12 @@ supports.
 policy. Their functionality or even existence may change without notice. Please contact us if you
 critically depend on experimental functionality.**
 
+## Version 0.2.140 
+
+Released 2026-08-20 
+
+- (hail#15689) make Py4JBackend resilient to interrupts and dead JVMs
+
 ## Version 0.2.139
 
 Released 2026-08-07
