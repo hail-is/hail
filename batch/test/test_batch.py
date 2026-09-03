@@ -18,7 +18,12 @@ from hailtop.batch_client.client import Batch, BatchClient
 from hailtop.batch_client.globals import MAX_JOB_GROUPS_DEPTH
 from hailtop.config import get_deploy_config
 from hailtop.test_utils import skip_in_azure
-from hailtop.utils import delay_ms_for_try, external_requests_client_session, retry_response_returning_functions
+from hailtop.utils import (
+    delay_ms_for_try,
+    external_requests_client_session,
+    retry_response_returning_functions,
+    sync_sleep_before_try,
+)
 from hailtop.utils.rich_progress_bar import BatchProgressBar
 
 from .failure_injecting_client_session import FailureInjectingClientSession
@@ -72,9 +77,20 @@ def test_job_running_logs(client: BatchClient):
     if wait_status['state'] != 'Running':
         assert False, str((j.log(), b.debug_info()))
 
-    log = j.log()
-    if log is not None and log['main'] != '':
-        assert log['main'] == 'test\n', str((log, b.debug_info()))
+    # The log-sync worker only pushes the persisted log periodically, so it's expected to be
+    # empty for a while after the job starts running. Keep polling until it shows up, but if
+    # the job finishes first, the log was never synced while running, which is a real failure.
+    tries = 0
+    while True:
+        status = j.status()
+        log = j.log()
+        if log is not None and log['main'] != '':
+            assert log['main'] == 'test\n', str((log, b.debug_info()))
+            break
+        if status['state'] != 'Running':
+            assert False, f'job finished before producing a non-empty running log: {(log, status, b.debug_info())}'
+        tries += 1
+        sync_sleep_before_try(tries, base_delay_ms=2_000, max_delay_ms=10_000)
 
     b.cancel()
     b.wait()
