@@ -6,6 +6,7 @@ import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 import scala.util.Random
 
+import org.junit.jupiter.api.Test
 import org.scalacheck.Arbitrary._
 import org.scalacheck.Gen
 import org.scalacheck.Gen._
@@ -13,7 +14,6 @@ import org.scalatest
 import org.scalatest.matchers.should.Matchers._
 import org.scalatestplus.scalacheck.CheckerAsserting.assertingNatureOfAssertion
 import org.scalatestplus.scalacheck.ScalaCheckDrivenPropertyChecks
-import org.testng.annotations.Test
 
 class BinaryHeapSuite extends ScalaCheckDrivenPropertyChecks {
   @Test

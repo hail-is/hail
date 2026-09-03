@@ -73,6 +73,9 @@ object TestUtils extends Logging {
     * silent argument inversions that would swap the "expected" and "actual" labels on failure.
     */
   // scalafix:off ForbiddenSymbol
+  def assertEq(actual: Array[Int], expected: Array[Int]): Unit =
+    JAssertions.assertArrayEquals(expected, actual)
+
   def assertEq[A](actual: A, expected: A): Unit =
     JAssertions.assertEquals(expected, actual)
 
