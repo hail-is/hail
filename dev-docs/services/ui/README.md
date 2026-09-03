@@ -123,6 +123,11 @@ In `build.yaml`, two steps run before any service image that depends on compiled
 - `services/ui/src/shared/` — genuinely generic components/hooks/utils with no domain-specific coupling (e.g. `Panel`, `SpinnerIcon`, `useLegendToggle`, `timeUtils`). These are candidates for reuse across services.
 - `services/ui/src/<service>/components/` — pure functions, types, and components that are cleanly factored but only make sense for one feature or service today (e.g. dollar formatting, stats helpers for a specific dashboard). Don't promote something to `shared/` just because it's generically *coded* — promote it once a second consumer actually needs it. Until then, keeping it service-local signals its actual scope honestly. See `batch/components/jobModels.ts` for a precedent (pure types/utils colocated with a service's components, not in `shared/`).
 
+### Reuse before you build
+
+- **Don't write a new API endpoint if an existing one already covers it.** Check the service's `/openapi.yaml` (and the other `hailApi` client namespaces) for something that already returns the data you need, even under a name that doesn't obviously match what you're building — before adding a new backend endpoint.
+- **Don't spam out near-identical components.** If you're about to write something that looks like an existing component with a small tweak, generalize the existing one (an extra prop, a format function, a variant) instead of copy-pasting it into a new file. See "Component organization" above for where a generalized version should live — most near-duplicates turn out to belong in `shared/` once you factor out the difference.
+
 ### `Map` vs `Record` vs a typed interface
 
 - If a value's field set is known and fixed at compile time, use a proper typed interface/class with named properties — not a dynamic collection at all.
