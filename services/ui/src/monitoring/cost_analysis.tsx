@@ -413,6 +413,7 @@ export function CostAnalysis({ monitoringBaseUrl, batchBaseUrl }: CostAnalysisPr
   const [scatterY, setScatterY] = useState('margin/profit');
   const [showRegression, setShowRegression] = useState(false);
   const [trendsLoading, setTrendsLoading] = useState(false);
+  const [trendsError, setTrendsError] = useState<string | null>(null);
   const [trendsStart, setTrendsStart] = useState(() => new URLSearchParams(window.location.search).get('trends_start') ?? shiftMonthParam(currentMonthParam(), -12));
   const [trendsEnd, setTrendsEnd] = useState(() => new URLSearchParams(window.location.search).get('trends_end') ?? shiftMonthParam(currentMonthParam(), -1));
 
@@ -899,55 +900,61 @@ export function CostAnalysis({ monitoringBaseUrl, batchBaseUrl }: CostAnalysisPr
   }, [compareTimePeriod, api]);
 
   const fetchTrendPoint = useCallback(async (m: string): Promise<MonthDataPoint> => {
-    const [cloud, billing] = await Promise.allSettled([
+    // Deliberately uses Promise.all (not allSettled): a failed fetch for any month must fail
+    // the whole trend load rather than being silently recorded as a $0 month.
+    const [c, b] = await Promise.all([
       fetchCloudCosts(api, m),
       fetchUserBilling(api, m),
     ]);
-    const c = cloud.status === 'fulfilled' ? cloud.value : null;
-    const b = billing.status === 'fulfilled' ? billing.value : null;
-    const overhead = c ? c.other_compute + [...c.non_compute_services.values()].reduce((a, bv) => a + bv, 0) : 0;
+    const overhead = c.other_compute + [...c.non_compute_services.values()].reduce((a, bv) => a + bv, 0);
     return {
       month: monthParamToLabel(m),
-      cloud_total: c?.total ?? 0,
-      user_compute: c?.user_compute ?? 0,
-      other_compute: c?.other_compute ?? 0,
-      batch_test: c?.batch_test ?? 0,
-      batch_dev: c?.batch_dev ?? 0,
-      unknown: c?.unknown ?? 0,
-      k8s: c?.k8s ?? 0,
-      k8s_nodes: c?.k8s_nodes ?? 0,
-      k8s_mgmt: c?.k8s_mgmt ?? 0,
-      non_compute_services: c?.non_compute_services ?? new Map(),
-      overhead_by_sku: c?.overhead_by_sku ?? new Map(),
-      user_compute_by_product: c?.user_compute_by_product ?? new Map(),
-      resource_by_type: b?.resource_by_type ?? new Map(),
-      billing_by_project: b?.billing_by_project ?? new Map(),
-      billing_project_count: b?.billing_project_count ?? 0,
-      billing_project_concentration: b?.billing_project_concentration ?? 0,
-      user_billing: b?.total ?? 0,
-      service_fees: b?.service_fee_cost ?? 0,
-      resource_cost: b?.resource_cost ?? 0,
-      profit: (b?.total ?? 0) - (c?.total ?? 0),
-      svc_fee_overhead_pct: c && b && overhead > 0 ? (b.service_fee_cost / overhead) * 100 : null,
-      resource_billing_pct: c && b && c.user_compute > 0 ? (b.resource_cost / c.user_compute) * 100 : null,
-      svc_fee_bill_pct: b && b.total > 0 ? (b.service_fee_cost / b.total) * 100 : null,
-      overhead_cloud_pct: c && c.total > 0 ? (overhead / c.total) * 100 : null,
-      overhead_resource_pct: b && b.resource_cost > 0 ? (overhead / b.resource_cost) * 100 : null,
+      cloud_total: c.total,
+      user_compute: c.user_compute,
+      other_compute: c.other_compute,
+      batch_test: c.batch_test,
+      batch_dev: c.batch_dev,
+      unknown: c.unknown,
+      k8s: c.k8s,
+      k8s_nodes: c.k8s_nodes,
+      k8s_mgmt: c.k8s_mgmt,
+      non_compute_services: c.non_compute_services,
+      overhead_by_sku: c.overhead_by_sku,
+      user_compute_by_product: c.user_compute_by_product,
+      resource_by_type: b.resource_by_type,
+      billing_by_project: b.billing_by_project,
+      billing_project_count: b.billing_project_count,
+      billing_project_concentration: b.billing_project_concentration,
+      user_billing: b.total,
+      service_fees: b.service_fee_cost,
+      resource_cost: b.resource_cost,
+      profit: b.total - c.total,
+      svc_fee_overhead_pct: overhead > 0 ? (b.service_fee_cost / overhead) * 100 : null,
+      resource_billing_pct: c.user_compute > 0 ? (b.resource_cost / c.user_compute) * 100 : null,
+      svc_fee_bill_pct: b.total > 0 ? (b.service_fee_cost / b.total) * 100 : null,
+      overhead_cloud_pct: c.total > 0 ? (overhead / c.total) * 100 : null,
+      overhead_resource_pct: b.resource_cost > 0 ? (overhead / b.resource_cost) * 100 : null,
     };
   }, [api]);
 
   const fetchTrends = useCallback(async (start: string, end: string) => {
     setTrendsLoading(true);
+    setTrendsError(null);
     const months = monthsBetween(start, end);
     // Fetch a bounded number of months concurrently at a time (2 requests/month) rather than
     // firing every request in the range at once, which could spike load on the backend APIs
     // for a wide date range.
     const points: MonthDataPoint[] = [];
-    for (let i = 0; i < months.length; i += TRENDS_FETCH_BATCH_SIZE) {
-      const batch = months.slice(i, i + TRENDS_FETCH_BATCH_SIZE);
-      points.push(...await Promise.all(batch.map(fetchTrendPoint)));
+    try {
+      for (let i = 0; i < months.length; i += TRENDS_FETCH_BATCH_SIZE) {
+        const batch = months.slice(i, i + TRENDS_FETCH_BATCH_SIZE);
+        points.push(...await Promise.all(batch.map(fetchTrendPoint)));
+      }
+      setTrendData(points);
+    } catch (e) {
+      setTrendData([]);
+      setTrendsError(e instanceof Error ? e.message : 'Failed to load trend data.');
     }
-    setTrendData(points);
     setTrendsLoading(false);
   }, [fetchTrendPoint]);
 
@@ -1436,6 +1443,8 @@ export function CostAnalysis({ monitoringBaseUrl, batchBaseUrl }: CostAnalysisPr
       {tab === 'trends' && (
         trendsLoading ? (
           <p className="text-zinc-400 text-sm py-4 text-center animate-pulse">Loading…</p>
+        ) : trendsError ? (
+          <p className="text-red-400 text-sm py-8 text-center">Failed to load trend data ({trendsError}). Please try again.</p>
         ) : trendData.length === 0 ? (
           <p className="text-zinc-400 text-sm py-8 text-center">Select a date range above and press Compare to load data.</p>
         ) : (

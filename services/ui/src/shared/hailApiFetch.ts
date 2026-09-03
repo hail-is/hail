@@ -4,10 +4,10 @@
 // method rather than force every caller to know that.
 export async function hailApiFetch<T>(url: string, init?: RequestInit): Promise<T> {
   const method = (init?.method ?? 'GET').toUpperCase();
-  const headers: Record<string, string> = { ...(init?.headers as Record<string, string> | undefined) };
+  const headers = new Headers(init?.headers);
   if (method !== 'GET' && method !== 'HEAD') {
     const token = document.head.querySelector('meta[name="csrf"]')?.getAttribute('value');
-    if (token) headers['X-CSRF-Token'] = token;
+    if (token) headers.set('X-CSRF-Token', token);
   }
   const resp = await fetch(url, { credentials: 'same-origin', ...init, headers });
   if (!resp.ok) {
