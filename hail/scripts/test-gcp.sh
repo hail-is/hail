@@ -36,30 +36,36 @@ hailctl dataproc start $CLUSTER \
 # copy up necessary files
 gcloud --project broad-ctsa compute scp \
        --zone $ZONE \
-       ./build/libs/hail-all-spark-test.jar \
-       ./testng.xml \
-       $MASTER:~
+       ./out/hail/test/assembly.dest/out.jar \
+       $MASTER:~/hail-test.jar
 
-gcloud --project broad-ctsa compute ssh --zone ${ZONE} $MASTER -- 'mkdir -p src/test'
+gcloud --project broad-ctsa compute ssh --zone ${ZONE} $MASTER -- 'mkdir -p hail/test'
 gcloud --project broad-ctsa compute scp --recurse \
        --zone ${ZONE} \
-       ./src/test/resources \
-       $MASTER:~/src/test
+       ./hail/test/resources \
+       $MASTER:~/hail/test
 
 set +e
 cat <<'EOF' | gcloud --project broad-ctsa compute ssh --zone ${ZONE} $MASTER -- bash
 set -ex
 
-hdfs dfs -mkdir -p src/test
-hdfs dfs -rm -r -f -skipTrash src/test/resources
-hdfs dfs -put ./src/test/resources src/test
+hdfs dfs -mkdir -p hail/test
+hdfs dfs -rm -r -f -skipTrash hail/test/resources
+hdfs dfs -put ./hail/test/resources hail/test
 
 spark-submit \
-  --class org.testng.TestNG \
-  --jars ./hail-all-spark-test.jar \
-  --conf "spark.driver.extraClassPath=./hail-all-spark-test.jar" \
-  --conf 'spark.executor.extraClassPath=./hail-all-spark-test.jar' \
-  ./hail-all-spark-test.jar ./testng.xml
+  --class org.junit.platform.console.ConsoleLauncher \
+  --jars ./hail-test.jar \
+  --conf "spark.driver.extraClassPath=./hail-test.jar" \
+  --conf 'spark.executor.extraClassPath=./hail-test.jar' \
+  ./hail-test.jar \
+  execute \
+  --select-package=is.hail \
+  --exclude-package=is.hail.shadedazure \
+  --exclude-package=is.hail.io.fs \
+  --exclude-package=is.hail.services \
+  --fail-if-no-tests \
+  --reports-dir=test-output
 EOF
 TEST_EXIT_CODE=$?
 set -e
