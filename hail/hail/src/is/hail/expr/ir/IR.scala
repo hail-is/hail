@@ -45,10 +45,9 @@ abstract class IR extends BaseIR {
   override def mapChildrenWithIndex(f: (BaseIR, Int) => BaseIR): IR =
     super.mapChildrenWithIndex(f).asInstanceOf[IR]
 
-  override def deepCopy: this.type = {
-    val cp = super.deepCopy
-    if (_typ != null)
-      cp._typ = _typ
+  override def deepCopy: IR = {
+    val cp = super.deepCopy.asInstanceOf[IR]
+    if (_typ != null) cp._typ = _typ
     cp
   }
 
@@ -205,7 +204,7 @@ package defs {
 
   // Refs and Constants as IRs that are safe to duplicate
   trait Atom { this: IR =>
-    def ir: IR with Atom = deepCopy
+    def ir: IR with Atom = deepCopy.asInstanceOf[IR with Atom]
   }
 
   object Atom {

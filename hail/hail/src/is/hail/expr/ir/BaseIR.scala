@@ -21,8 +21,8 @@ abstract class BaseIR {
 
   protected def copyWithNewChildren(newChildren: IndexedSeq[BaseIR]): BaseIR
 
-  def deepCopy: this.type =
-    copyWithNewChildren(newChildren = childrenSeq.map(_.deepCopy)).asInstanceOf[this.type]
+  def deepCopy: BaseIR =
+    copyWithNewChildren(newChildren = childrenSeq.map(_.deepCopy))
 
   // For use as a boolean flag by IR passes. Each pass uses a different sentinel value to encode
   // "true" (and anything else is false). As long as we maintain the global invariant that no

@@ -59,7 +59,7 @@ object TableIR {
 
 sealed abstract class TableIR extends BaseIR {
   override def typ: TableType
-
+  override def deepCopy: TableIR = super.deepCopy.asInstanceOf[TableIR]
   override protected def copyWithNewChildren(newChildren: IndexedSeq[BaseIR]): TableIR
 }
 
