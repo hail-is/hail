@@ -80,7 +80,7 @@ def start(
     ctx: typer.Context,
     name: str,
     # arguments with default parameters
-    master_machine_type: Ann[str, Opt('--master-machine-type', '--master', '-m')] = 'n1-highmem-8',
+    master_machine_type: Ann[str, Opt('--master-machine-type', '--master', '-m')] = 'n2-highmem-8',
     master_memory_fraction: Ann[
         float,
         Opt(
@@ -106,7 +106,7 @@ def start(
         Opt(
             '--worker-machine-type',
             '--worker',
-            help='Worker machine type (default: n1-standard-8, or n1-highmem-8 with --vep).',
+            help='Worker machine type (default: n2-standard-8, or n2-highmem-8 with --vep).',
         ),
     ] = None,
     region: Ann[Optional[str], Opt(help='Compute region for the cluster.')] = None,
@@ -287,15 +287,14 @@ def connect(
     service: DataprocConnectService,
     pass_through_args: Ann[Optional[List[str]], Arg()] = None,
     project: ProjectOption = None,
-    port: Ann[str, Opt(help='Local port to use for SSH tunnel to leader (master) node')] = '10000',
     zone: ZoneOption = None,
     dry_run: DryRunOption = False,
 ):
     """
-    Connect to a running Dataproc cluster with name NAME and start
-    the web service SERVICE.
+    Connect to a running Dataproc cluster with name NAME and open
+    the web service SERVICE in a browser.
     """
-    dataproc_connect(name, service, project, port, zone, dry_run, pass_through_args or [])
+    dataproc_connect(name, service, project, zone, dry_run, pass_through_args or [])
 
 
 @app.command(context_settings={"allow_extra_args": True, "ignore_unknown_options": True})

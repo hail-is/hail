@@ -86,12 +86,13 @@ def modify(
                 '--zone={}'.format(zone),
                 '--',
                 f'sudo gsutil cp {wheel} /tmp/ && '
-                'sudo /opt/conda/default/bin/pip uninstall -y hail && '
-                f'sudo /opt/conda/default/bin/pip install --no-dependencies /tmp/{wheelfile} && '
+                'python3=$(command -v python3) && '
+                'sudo "$python3" -m pip uninstall -y hail && '
+                f'sudo "$python3" -m pip install --no-dependencies /tmp/{wheelfile} && '
                 f"unzip /tmp/{wheelfile} && "
                 "requirements_file=$(mktemp) && "
                 "grep 'Requires-Dist: ' hail*dist-info/METADATA | sed 's/Requires-Dist: //' | sed 's/ (//' | sed 's/)//' | grep -v 'pyspark' >$requirements_file &&"
-                "/opt/conda/default/bin/pip install -r $requirements_file",
+                '"$python3" -m pip install -r $requirements_file',
             ])
         else:
             cmds.extend([
@@ -102,12 +103,13 @@ def modify(
                     f'{name}-m',
                     f'--zone={zone}',
                     '--',
-                    'sudo /opt/conda/default/bin/pip uninstall -y hail && '
-                    f'sudo /opt/conda/default/bin/pip install --no-dependencies /tmp/{wheelfile} && '
+                    'python3=$(command -v python3) && '
+                    'sudo "$python3" -m pip uninstall -y hail && '
+                    f'sudo "$python3" -m pip install --no-dependencies /tmp/{wheelfile} && '
                     f"unzip /tmp/{wheelfile} && "
                     "requirements_file=$(mktemp) && "
                     "grep 'Requires-Dist: ' hail*dist-info/METADATA | sed 's/Requires-Dist: //' | sed 's/ (//' | sed 's/)//' | grep -v 'pyspark' >$requirements_file &&"
-                    "/opt/conda/default/bin/pip install -r $requirements_file",
+                    '"$python3" -m pip install -r $requirements_file',
                 ],
             ])
 
