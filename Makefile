@@ -42,6 +42,10 @@ default:
 .PHONY: check-all
 check-all: check-hail check-services
 
+# Force color output from ruff even though CI captures stdout to a non-tty log,
+# so colored linter output renders correctly in the batch log viewer.
+check-hail-fast check-%-fast: export FORCE_COLOR := 1
+
 .PHONY: check-hail-fast
 check-hail-fast:
 	ruff check hail
@@ -54,7 +58,7 @@ check-hail-fast:
 .PHONY: pylint-hailtop
 pylint-hailtop:
 	# pylint on hail is still a work in progress
-	$(PYTHON) -m pylint --rcfile pylintrc hail/python/hailtop --score=n
+	$(PYTHON) -m pylint --rcfile pylintrc --output-format=colorized hail/python/hailtop --score=n
 
 .PHONY: check-hail
 check-hail: check-hail-fast pylint-hailtop
@@ -69,7 +73,7 @@ check-services: $(CHECK_SERVICES_MODULES)
 
 .PHONY: pylint-%
 pylint-%:
-	$(PYTHON) -m pylint --rcfile pylintrc --recursive=y $* --score=n
+	$(PYTHON) -m pylint --rcfile pylintrc --output-format=colorized --recursive=y $* --score=n
 
 .PHONY: check-%-fast
 check-%-fast:
