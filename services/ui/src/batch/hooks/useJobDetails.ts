@@ -105,8 +105,14 @@ export function useJobDetails(basePath: string, batchId: string, jobId: string):
     // 'pending' is the only state that guarantees no log file exists yet in GCS: the worker
     // confirms the (possibly still-empty) log object before the container leaves 'pending'.
     const liveStatus = currentJob?.status?.attempt_id === attemptId ? currentJob.status : null;
-    const notStarted = (name: 'input' | 'main' | 'output') =>
-      liveStatus?.container_statuses?.[name]?.state === 'pending';
+    const notStarted = (name: 'input' | 'main' | 'output') => {
+      const containerStatuses = liveStatus?.container_statuses;
+      const status =
+        name === 'input' ? containerStatuses?.input
+        : name === 'main' ? containerStatuses?.main
+        : containerStatuses?.output;
+      return status?.state === 'pending';
+    };
 
     const attemptParam = `?attempt_id=${attemptId}`;
     const apiBase = `${basePath}/api/v1alpha/batches/${batchId}/jobs/${jobId}`;
