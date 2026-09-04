@@ -9,8 +9,8 @@ function styleFromEntry(entry: AnserJsonEntry): React.CSSProperties {
     if (decoration === 'bold') style.fontWeight = 'bold';
     else if (decoration === 'dim') style.opacity = 0.65;
     else if (decoration === 'italic') style.fontStyle = 'italic';
-    else if (decoration === 'underline') style.textDecoration = 'underline';
-    else if (decoration === 'strikethrough') style.textDecoration = 'line-through';
+    else if (decoration === 'underline') style.textDecoration = (style.textDecoration ? style.textDecoration + ' ' : '') + 'underline';
+    else if (decoration === 'strikethrough') style.textDecoration = (style.textDecoration ? style.textDecoration + ' ' : '') + 'line-through';
   }
   return style;
 }

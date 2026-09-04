@@ -26,4 +26,11 @@ describe('ansiTextToNodes', () => {
     const container = renderText('\x1b[1mbold\x1b[0m');
     expect(container.querySelector('span')?.style.fontWeight).toBe('bold');
   });
+
+  it('combines underline and strikethrough when both apply to the same span', () => {
+    const container = renderText('\x1b[4;9mboth\x1b[0m');
+    const textDecoration = container.querySelector('span')?.style.textDecoration;
+    expect(textDecoration).toContain('underline');
+    expect(textDecoration).toContain('line-through');
+  });
 });
