@@ -184,6 +184,7 @@ def build_run_job_flow_kwargs(
         'AutoTerminationPolicy': {'IdleTimeout': idle_timeout},
         'VisibleToAllUsers': True,
         'Tags': [
+            {'Key': 'for-use-with-amazon-emr-managed-policies', 'Value': 'true'},
             {'Key': 'hailctl', 'Value': 'emr'},
             {'Key': 'hail-version', 'Value': artifact.hail_pip_version},
             {'Key': 'hail-revision', 'Value': artifact.hail_git_revision},

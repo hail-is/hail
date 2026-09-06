@@ -130,6 +130,7 @@ def test_build_run_job_flow_kwargs_shape():
     assert ba['ScriptBootstrapAction']['Path'] == 's3://bkt/bootstrap/install-hail-emr.sh'
     assert ba['ScriptBootstrapAction']['Args'] == artifact.bootstrap_args()
     tags = {tag['Key']: tag['Value'] for tag in kwargs['Tags']}
+    assert tags['for-use-with-amazon-emr-managed-policies'] == 'true'
     assert tags['hail-revision'] == 'a' * 40
     assert tags['hail-spark-version'] == '4.1.2'
     igs = {g['InstanceRole']: g for g in kwargs['Instances']['InstanceGroups']}
