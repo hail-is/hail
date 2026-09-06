@@ -13,7 +13,12 @@ wheel_sha256=$2
 wheelhouse_uri=$3
 wheelhouse_sha256=$4
 workdir=/tmp/hail-emr-bootstrap
-wheel_path=${workdir}/hail.whl
+wheel_filename=${wheel_uri##*/}
+if [[ ! "${wheel_filename}" =~ ^hail-.+\.whl$ ]]; then
+    echo "wheel URI does not end in a valid Hail wheel filename: ${wheel_uri}" >&2
+    exit 1
+fi
+wheel_path=${workdir}/${wheel_filename}
 wheelhouse_archive=${workdir}/wheelhouse.tar.gz
 wheelhouse_dir=${workdir}/wheelhouse
 
