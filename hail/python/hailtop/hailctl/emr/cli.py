@@ -61,6 +61,8 @@ def start(
         str,
         Opt(help='Security group attached to the EMR Spark service VPC endpoint.'),
     ],
+    primary_security_group: Ann[str, Opt(help='Private security group for the EMR primary node.')],
+    core_security_group: Ann[str, Opt(help='Private security group for EMR core and task nodes.')],
     s3_scratch: Ann[
         Optional[str],
         Opt(
@@ -147,6 +149,8 @@ def start(
         ec2_key_name=ec2_key_name,
         subnet_id=subnet_id,
         service_access_security_group=service_access_security_group,
+        primary_security_group=primary_security_group,
+        core_security_group=core_security_group,
         log_uri=resolved_log_uri,
         bootstrap_s3_uri=bootstrap_s3_uri,
         artifact=artifact,
@@ -199,6 +203,10 @@ def start(
         raise typer.BadParameter(
             'The final RunJobFlow request must contain a ServiceAccessSecurityGroup for the EMR service endpoint.'
         )
+    final_primary_security_group = instances.get('EmrManagedMasterSecurityGroup')
+    final_core_security_group = instances.get('EmrManagedSlaveSecurityGroup')
+    if not isinstance(final_primary_security_group, str) or not isinstance(final_core_security_group, str):
+        raise typer.BadParameter('The final private RunJobFlow request must contain primary and core security groups.')
 
     final_log_uri = kwargs.get('LogUri')
     if not isinstance(final_log_uri, str):
@@ -243,6 +251,8 @@ def start(
         resolved_region,
         final_subnet_id,
         final_service_access_security_group,
+        final_primary_security_group,
+        final_core_security_group,
     )
 
     _upload_bootstrap(bootstrap_s3_uri, bootstrap_bytes)

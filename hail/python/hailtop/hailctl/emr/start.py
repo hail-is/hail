@@ -141,6 +141,8 @@ def build_run_job_flow_kwargs(
     ec2_key_name: Optional[str],
     subnet_id: Optional[str],
     service_access_security_group: Optional[str],
+    primary_security_group: Optional[str],
+    core_security_group: Optional[str],
     log_uri: Optional[str],
     bootstrap_s3_uri: str,
     artifact: HailArtifactManifest,
@@ -196,6 +198,10 @@ def build_run_job_flow_kwargs(
         kwargs['Instances']['Ec2SubnetId'] = subnet_id
     if service_access_security_group is not None:
         kwargs['Instances']['ServiceAccessSecurityGroup'] = service_access_security_group
+    if primary_security_group is not None:
+        kwargs['Instances']['EmrManagedMasterSecurityGroup'] = primary_security_group
+    if core_security_group is not None:
+        kwargs['Instances']['EmrManagedSlaveSecurityGroup'] = core_security_group
 
     if use_default_roles:
         kwargs['ServiceRole'] = 'EMR_DefaultRole'

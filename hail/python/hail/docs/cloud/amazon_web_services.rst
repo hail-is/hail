@@ -47,7 +47,9 @@ Starting and using a cluster
         --artifact-manifest ./hail-emr-artifact.json \
         --s3-scratch s3://my-bucket/hail-tmp/ \
         --subnet-id subnet-PRIVATE \
-        --service-access-security-group sg-EMR_SERVICE_ENDPOINT
+        --service-access-security-group sg-EMR_SERVICE_ENDPOINT \
+        --primary-security-group sg-EMR_PRIMARY \
+        --core-security-group sg-EMR_CORE
 
 Clusters receive an idle auto-termination policy. The default is one hour and can be changed with
 ``--idle-timeout``.

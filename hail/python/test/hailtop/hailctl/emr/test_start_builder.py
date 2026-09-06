@@ -104,6 +104,8 @@ def test_build_run_job_flow_kwargs_shape():
         ec2_key_name=None,
         subnet_id='subnet-1',
         service_access_security_group='sg-service',
+        primary_security_group='sg-primary',
+        core_security_group='sg-core',
         log_uri='s3://bkt/logs/',
         bootstrap_s3_uri='s3://bkt/bootstrap/install-hail-emr.sh',
         artifact=artifact,
@@ -122,6 +124,8 @@ def test_build_run_job_flow_kwargs_shape():
     assert kwargs['AutoTerminationPolicy'] == {'IdleTimeout': 3600}
     assert kwargs['Instances']['Ec2SubnetId'] == 'subnet-1'
     assert kwargs['Instances']['ServiceAccessSecurityGroup'] == 'sg-service'
+    assert kwargs['Instances']['EmrManagedMasterSecurityGroup'] == 'sg-primary'
+    assert kwargs['Instances']['EmrManagedSlaveSecurityGroup'] == 'sg-core'
     ba = kwargs['BootstrapActions'][0]
     assert ba['ScriptBootstrapAction']['Path'] == 's3://bkt/bootstrap/install-hail-emr.sh'
     assert ba['ScriptBootstrapAction']['Args'] == artifact.bootstrap_args()

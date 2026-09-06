@@ -2,7 +2,8 @@
 # Manual EMR Spark 4 smoke test.
 # Required environment:
 #   S3_SCRATCH, ARTIFACT_MANIFEST, SUBNET_ID,
-#   SERVICE_ACCESS_SECURITY_GROUP, SERVICE_ROLE, INSTANCE_PROFILE
+#   SERVICE_ACCESS_SECURITY_GROUP, PRIMARY_SECURITY_GROUP, CORE_SECURITY_GROUP,
+#   SERVICE_ROLE, INSTANCE_PROFILE
 # Optional: AWS_REGION (default us-east-1)
 
 set -ex
@@ -11,6 +12,8 @@ set -ex
 : "${ARTIFACT_MANIFEST:?set ARTIFACT_MANIFEST to the local artifact manifest path}"
 : "${SUBNET_ID:?set SUBNET_ID to a private NAT-backed subnet}"
 : "${SERVICE_ACCESS_SECURITY_GROUP:?set SERVICE_ACCESS_SECURITY_GROUP to the EMR endpoint security group}"
+: "${PRIMARY_SECURITY_GROUP:?set PRIMARY_SECURITY_GROUP to the private primary-node security group}"
+: "${CORE_SECURITY_GROUP:?set CORE_SECURITY_GROUP to the private core/task-node security group}"
 : "${SERVICE_ROLE:?set SERVICE_ROLE to the custom EMR service role name}"
 : "${INSTANCE_PROFILE:?set INSTANCE_PROFILE to the custom EC2 instance profile name}"
 REGION=${AWS_REGION:-us-east-1}
@@ -42,6 +45,8 @@ start_output=$(hailctl emr start "$cluster_name" \
     --region "$REGION" \
     --subnet-id "$SUBNET_ID" \
     --service-access-security-group "$SERVICE_ACCESS_SECURITY_GROUP" \
+    --primary-security-group "$PRIMARY_SECURITY_GROUP" \
+    --core-security-group "$CORE_SECURITY_GROUP" \
     --no-use-default-roles \
     --service-role "$SERVICE_ROLE" \
     --instance-profile "$INSTANCE_PROFILE" \
