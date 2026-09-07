@@ -188,6 +188,11 @@ def start(
     ):
         raise typer.BadParameter('The final RunJobFlow Applications list must include Spark.')
 
+    try:
+        start_mod.validate_s3a_configurations(kwargs.get('Configurations'))
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc)) from exc
+
     instances = kwargs.get('Instances')
     if not isinstance(instances, dict):
         raise typer.BadParameter('The final RunJobFlow Instances value must be a JSON object.')

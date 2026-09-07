@@ -71,8 +71,24 @@ List or terminate clusters:
 Runtime environment
 ~~~~~~~~~~~~~~~~~~~
 
-Amazon EMR Spark 8 uses S3A rather than EMRFS. Hail routes ``s3://`` and ``s3a://`` paths through
-Spark's Hadoop configuration. Hail sets ``HAIL_CLOUD=aws`` to select this HadoopFS-only route.
+Starting with EMR 7.10, S3A is the default connector for ``s3://``, ``s3n://``, and
+``s3a://`` paths. The supported EMR Spark 8.1 release therefore does not use EMRFS. Hail routes
+these paths through Spark's Hadoop configuration and sets ``HAIL_CLOUD=aws`` to select its
+HadoopFS-only route. Do not carry EMRFS consistent-view or multipart-cleanup properties into this
+configuration; many have no S3A equivalent. Bucket-specific EMRFS properties are mapped by EMR only
+when the corresponding S3A property is undefined.
+
+``hailctl emr`` explicitly pins all three schemes to ``S3AFileSystem`` and enables the EMR MagicV2
+committer with the S3A committer factory, in-memory commit tracking, and overwrite-and-commit
+behavior. MagicV2 avoids traditional list-and-rename commit operations and writes files to their
+final output location during task commit.
+
+MagicV2 has operational implications. Successful task outputs can remain visible after a failed job,
+so clean the destination before retrying the same output path. A killed JVM can leave incomplete
+multipart uploads; scratch and output buckets should have an S3 lifecycle rule that aborts incomplete
+uploads. MagicV2 also retains a small amount of memory per file until task commit, so workloads that
+write unusually many files per executor may require more container memory or fewer concurrent tasks.
+S3A directory markers end in ``/`` rather than the legacy EMRFS ``_$folder$`` form.
 
 Hail requires Python 3.12 or later. EMR on EC2 does not preinstall Python 3.12, so the bootstrap uses
 Amazon Linux 2023 ``dnf`` packages and points ``spark.pyspark.python`` and ``PYSPARK_PYTHON`` at
@@ -101,8 +117,9 @@ Advanced cluster options
 
 ``--run-job-flow-json`` deep-merges a JSON object into the final ``RunJobFlow`` request. Nested
 objects are merged and lists are replaced. ``InstanceFleets`` replaces default ``InstanceGroups``.
-The final request must retain Spark, the content-addressed Hail bootstrap, an S3 log URI, a supported
-release, and a valid auto-termination policy.
+The final request must retain Spark, the content-addressed Hail bootstrap, the required S3A and
+MagicV2 ``core-site`` properties, an S3 log URI, a supported release, and a valid auto-termination
+policy.
 
 ``--off-heap-memory-per-core-mb`` caps Hail's native off-heap allocation per task core. It does not
 reserve YARN container memory or automatically change ``spark.executor.memoryOverhead``.

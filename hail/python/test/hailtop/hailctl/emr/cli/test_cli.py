@@ -304,6 +304,25 @@ def test_start_json_overlay_requires_spark(emr_client_mock):
     assert emr_client_mock.run_job_flow.call_count == 0
 
 
+def test_start_json_overlay_requires_s3a_magic_v2(emr_client_mock):
+    res = runner.invoke(
+        cli.app,
+        [
+            'start',
+            'c1',
+            '--s3-scratch',
+            's3://bkt/tmp/',
+            '--dry-run',
+            '--run-job-flow-json',
+            '{"Configurations":[]}',
+        ],
+    )
+    assert res.exit_code != 0
+    assert 'core-site configuration must set' in res.output
+    assert 'fs.s3.impl' in res.output
+    assert emr_client_mock.run_job_flow.call_count == 0
+
+
 def test_start_json_overlay_instance_fleets_replace_default_groups():
     res = runner.invoke(
         cli.app,

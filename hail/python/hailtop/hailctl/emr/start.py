@@ -23,6 +23,19 @@ EMR_RELEASE_CONFIGS = {
         storage_connector='s3a',
     )
 }
+
+S3A_FILESYSTEM_CLASS = 'org.apache.hadoop.fs.s3a.S3AFileSystem'
+S3A_COMMITTER_FACTORY = 'org.apache.hadoop.fs.s3a.commit.S3ACommitterFactory'
+S3A_CORE_SITE_PROPERTIES = {
+    'fs.s3.impl': S3A_FILESYSTEM_CLASS,
+    'fs.s3n.impl': S3A_FILESYSTEM_CLASS,
+    'fs.s3a.impl': S3A_FILESYSTEM_CLASS,
+    'mapreduce.outputcommitter.factory.scheme.s3a': S3A_COMMITTER_FACTORY,
+    'fs.s3a.committer.magic.enabled': 'true',
+    'fs.s3a.committer.name': 'magicv2',
+    'fs.s3a.committer.magic.track.commits.in.memory.enabled': 'true',
+    'fs.s3a.committer.magic.overwrite.and.commit': 'true',
+}
 DEFAULT_EMR_RELEASE = 'emr-spark-8.1.0'
 HAIL_JAR_PATH = '/usr/lib/hail/hail-all-spark.jar'
 EMR_PYSPARK_PYTHON = '/usr/bin/python3.12'
@@ -92,6 +105,7 @@ def hail_configurations(off_heap_memory_per_core_mb: Optional[int]) -> list[dict
     if off_heap_memory_per_core_mb is not None:
         spark_defaults['spark.executorEnv.HAIL_WORKER_OFF_HEAP_MEMORY_PER_CORE_MB'] = str(off_heap_memory_per_core_mb)
     return [
+        {'Classification': 'core-site', 'Properties': copy.deepcopy(S3A_CORE_SITE_PROPERTIES)},
         {'Classification': 'spark-defaults', 'Properties': spark_defaults},
         {'Classification': 'spark', 'Properties': {'maximizeResourceAllocation': 'true'}},
         {
@@ -109,6 +123,21 @@ def hail_configurations(off_heap_memory_per_core_mb: Optional[int]) -> list[dict
             'Properties': {},
         },
     ]
+
+
+def validate_s3a_configurations(configurations: object) -> None:
+    if not isinstance(configurations, list):
+        raise ValueError('The final RunJobFlow Configurations value must be a list.')
+    core_site_properties: dict = {}
+    for configuration in configurations:
+        if isinstance(configuration, dict) and configuration.get('Classification') == 'core-site':
+            properties = configuration.get('Properties')
+            if isinstance(properties, dict):
+                core_site_properties.update(properties)
+    for name, expected in S3A_CORE_SITE_PROPERTIES.items():
+        actual = core_site_properties.get(name)
+        if actual != expected:
+            raise ValueError(f'The final core-site configuration must set {name}={expected}.')
 
 
 def deep_merge(base: dict, overlay: dict) -> dict:

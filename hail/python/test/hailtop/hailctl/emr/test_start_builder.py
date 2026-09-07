@@ -68,6 +68,26 @@ def test_hail_configurations_sets_hail_cloud_and_jar():
     assert export['Properties']['HAIL_CLOUD'] == 'aws'
     assert export['Properties']['PYSPARK_PYTHON'] == start.EMR_PYSPARK_PYTHON
     assert export['Properties']['SPARK_DIST_CLASSPATH'] == '$(hadoop classpath)'
+    core_site = next(c for c in confs if c['Classification'] == 'core-site')
+    assert core_site['Properties'] == start.S3A_CORE_SITE_PROPERTIES
+    start.validate_s3a_configurations(confs)
+
+
+def test_validate_s3a_configurations_rejects_missing_or_changed_properties():
+    with pytest.raises(ValueError, match='Configurations value must be a list'):
+        start.validate_s3a_configurations(None)
+
+    configurations = start.hail_configurations(off_heap_memory_per_core_mb=None)
+    core_site = next(c for c in configurations if c['Classification'] == 'core-site')
+    del core_site['Properties']['mapreduce.outputcommitter.factory.scheme.s3a']
+    with pytest.raises(ValueError, match='mapreduce.outputcommitter.factory.scheme.s3a'):
+        start.validate_s3a_configurations(configurations)
+
+    configurations = start.hail_configurations(off_heap_memory_per_core_mb=None)
+    core_site = next(c for c in configurations if c['Classification'] == 'core-site')
+    core_site['Properties']['fs.s3a.committer.name'] = 'file'
+    with pytest.raises(ValueError, match='fs.s3a.committer.name=magicv2'):
+        start.validate_s3a_configurations(configurations)
 
 
 def test_hail_configurations_off_heap_overlay():
