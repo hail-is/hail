@@ -12,9 +12,11 @@ from hailtop.test_utils import skip_in_azure
 from .utils import DOCKER_ROOT_IMAGE, create_batch
 
 
-def _run_on_rare_instance(client: BatchClient, image: str, command, resources: dict, xfail_message: str) -> dict:
+def _run_on_rare_instance(
+    client: BatchClient, image: str, command, resources: dict, xfail_message: str, n_max_attempts: int = 4
+) -> dict:
     b = create_batch(client)
-    j = b.create_job(image, command, resources=resources, n_max_attempts=4)
+    j = b.create_job(image, command, resources=resources, n_max_attempts=n_max_attempts)
     b.submit()
     status = j.wait()
     if status['state'] != 'Success':
@@ -43,14 +45,19 @@ def test_nvidia_driver_accesibility_usage(client: BatchClient):
 
 
 @skip_in_azure
-@pytest.mark.timeout(10 * 60)
+@pytest.mark.timeout(20 * 60)
 def test_over_64_cpus(client: BatchClient):
     # The relevant part of this machine type ('highmem-96') is the CPU count, which is 96.
+    # n1-highmem-96 instances can sit in GCE's PROVISIONING/STAGING state for the full
+    # 5-minute activation_timeout before Hail gives up on an attempt, rather than failing
+    # fast like a zone-exhaustion error, so give this test a larger timeout budget and
+    # fewer attempts than the default so it can't blow past it.
     status = _run_on_rare_instance(
         client,
         DOCKER_ROOT_IMAGE,
         ['true'],
         {'machine_type': 'n1-highmem-96', 'preemptible': False},
         "n1-highmem-96 instances unavailable",
+        n_max_attempts=3,
     )
     assert 'job-private' in status['status']['worker'], status
