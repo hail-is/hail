@@ -19,12 +19,7 @@ LOG_SYNC_FINISH_TIMEOUT = 120
 
 
 class LogSyncer:
-    """Manages a bash subprocess that incrementally syncs a job log file to GCS.
-
-    The instruction file in LOG_SYNC_STATE_DIR is the sole coordination channel between
-    worker.py and the subprocess. It is deliberately kept outside the job scratch space
-    so the user cannot interfere with it.
-    """
+    """Manages a bash subprocess that incrementally syncs a job log file to GCS."""
 
     def __init__(
         self,
@@ -41,6 +36,9 @@ class LogSyncer:
     @classmethod
     async def start(cls, log_path: str, remote_url: str, batch_id: int, job_id: int, attempt_id: str) -> 'LogSyncer':
         instruction_file = os.path.join(LOG_SYNC_STATE_DIR, f'{batch_id}_{job_id}_{attempt_id}.conf')
+        status_file = instruction_file + '.status'
+        with suppress(FileNotFoundError):
+            os.unlink(status_file)
         cls._write_instruction_file(instruction_file, log_path, remote_url, 'running')
         # Touch the log file so GCS gets an empty object on the first sync cycle rather than a 404.
         os.makedirs(os.path.dirname(log_path), exist_ok=True)
@@ -57,12 +55,12 @@ class LogSyncer:
             async with async_timeout.timeout(30):
                 while proc.returncode is None:
                     try:
-                        with open(instruction_file, encoding='utf-8') as f:
+                        with open(status_file, encoding='utf-8') as f:
                             if 'log_created=1\n' in f.read():
                                 break
                     except FileNotFoundError:
                         pass
-                    await asyncio.sleep(0.01)
+                    await asyncio.sleep(1)
                 else:
                     raise RuntimeError(f'log syncer exited before becoming ready (code {proc.returncode})')
         except asyncio.TimeoutError as exc:
@@ -70,6 +68,8 @@ class LogSyncer:
             await proc.wait()
             with suppress(FileNotFoundError):
                 os.unlink(instruction_file)
+            with suppress(FileNotFoundError):
+                os.unlink(status_file)
             raise RuntimeError('log syncer did not create the remote log file within 30s') from exc
         log.info(f'started log syncer pid={proc.pid} {log_path} -> {remote_url}')
         syncer = cls(log_path, remote_url, instruction_file, proc)
@@ -86,7 +86,6 @@ class LogSyncer:
             f.write(f'target_bytes_per_s={LOG_SYNC_TARGET_BYTES_PER_S}\n')
             f.write(f'min_interval={LOG_SYNC_MIN_INTERVAL}\n')
             f.write(f'max_interval={LOG_SYNC_MAX_INTERVAL}\n')
-            f.write('log_created=0\n')
         os.replace(tmp, path)
 
     async def finish(self) -> None:
@@ -109,6 +108,8 @@ class LogSyncer:
         finally:
             with suppress(FileNotFoundError):
                 os.unlink(self._instruction_file)
+            with suppress(FileNotFoundError):
+                os.unlink(self._instruction_file + '.status')
 
     async def cancel(self) -> None:
         """Kill the syncer without a final upload (container never ran)."""
@@ -120,6 +121,8 @@ class LogSyncer:
         await self._log_copier_proc.wait()
         with suppress(FileNotFoundError):
             os.unlink(self._instruction_file)
+        with suppress(FileNotFoundError):
+            os.unlink(self._instruction_file + '.status')
 
     def wakeup(self) -> None:
         """Send SIGUSR1 to interrupt any current sleep without marking the job done."""
@@ -130,5 +133,7 @@ class LogSyncer:
 
 
 def wakeup_all_active_log_syncers() -> None:
-    for syncer in _active_log_syncers:
+    # Snapshot before iterating: finish()/cancel() discard from _active_log_syncers, and this
+    # is called from a signal handler, so don't assume the set can't change under us.
+    for syncer in list(_active_log_syncers):
         syncer.wakeup()

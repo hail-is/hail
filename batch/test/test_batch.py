@@ -73,11 +73,14 @@ def test_job_running_logs(client: BatchClient):
     j = b.create_job(DOCKER_ROOT_IMAGE, ['bash', '-c', 'echo test && sleep 300'])
     b.submit()
 
-    # Wait for the main container to be started before we start polling for its logs.
+    # Wait for the main container to be started before we start polling for its logs. `status`
+    # is None until the job reaches Running (and can briefly still be None just after, if the
+    # worker hasn't responded yet), so treat that the same as the container being 'pending'.
     tries = 0
     while True:
         status = j.status()
-        main_state = status['status']['container_statuses']['main']['state']
+        full_status = status['status']
+        main_state = full_status['container_statuses']['main']['state'] if full_status is not None else 'pending'
         if main_state != 'pending':
             break
         if status['state'] in complete_states:

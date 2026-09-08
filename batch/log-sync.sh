@@ -8,10 +8,15 @@
 set -euo pipefail
 
 INSTRUCTION_FILE=$1
+# Sole writer of this file (unlike $INSTRUCTION_FILE, which only the worker writes): starts
+# at log_created=0 and flips to 1 once the first upload succeeds, so a value of 0 also covers
+# "died before becoming ready" for free.
+STATUS_FILE="${INSTRUCTION_FILE}.status"
 SLEEP_PID=""
 last_uploaded_size=-1
 wakeup_pending=0
 log_created=0
+echo "log_created=0" > "$STATUS_FILE"
 
 _base=$(basename "$INSTRUCTION_FILE" .conf)
 _batch="${_base%%_*}"; _rest="${_base#*_}"; _job="${_rest%%_*}"; _attempt="${_rest#*_}"
@@ -50,7 +55,7 @@ while true; do
             last_uploaded_size=$file_size
             if (( ! log_created )); then
                 log_created=1
-                sed -i "s|^log_created=.*|log_created=1|" "$INSTRUCTION_FILE"
+                echo "log_created=1" > "$STATUS_FILE"
             fi
         else
             echo "$PREFIX upload failed, will retry next cycle"
