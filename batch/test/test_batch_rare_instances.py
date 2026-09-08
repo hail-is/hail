@@ -13,7 +13,7 @@ from .utils import DOCKER_ROOT_IMAGE, create_batch
 
 
 def _run_on_rare_instance(
-    client: BatchClient, image: str, command, resources: dict, xfail_message: str, n_max_attempts: int = 4
+    client: BatchClient, image: str, command, resources: dict, xfail_message: str, n_max_attempts: int
 ) -> dict:
     b = create_batch(client)
     j = b.create_job(image, command, resources=resources, n_max_attempts=n_max_attempts)
@@ -29,7 +29,7 @@ def _run_on_rare_instance(
 
 
 @skip_in_azure
-@pytest.mark.timeout(10 * 60)
+@pytest.mark.timeout(20 * 60)
 def test_nvidia_driver_accesibility_usage(client: BatchClient):
     _run_on_rare_instance(
         client,
@@ -41,6 +41,7 @@ def test_nvidia_driver_accesibility_usage(client: BatchClient):
         ],
         {'machine_type': 'g2-standard-4', 'storage': '100Gi'},
         "G2 instances unavailable (ZONE_RESOURCE_POOL_EXHAUSTED)",
+        n_max_attempts=3,
     )
 
 
@@ -48,7 +49,6 @@ def test_nvidia_driver_accesibility_usage(client: BatchClient):
 @pytest.mark.timeout(20 * 60)
 def test_over_64_cpus(client: BatchClient):
     # The relevant part of this machine type ('highmem-96') is the CPU count, which is 96.
-    # Timeout is a 5 minute activation timeout per attempt plus a 5 minute buffer for scheduling, etc.
     status = _run_on_rare_instance(
         client,
         DOCKER_ROOT_IMAGE,
