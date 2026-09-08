@@ -1585,8 +1585,8 @@ export function CostAnalysis({ monitoringBaseUrl, batchBaseUrl }: CostAnalysisPr
                     <>
                       <Legend onClick={onOverheadLegendClick} wrapperStyle={{ cursor: 'pointer' }} />
                       {statsReferenceLines(cloudShowPct ? cloudPctStats : cloudStats, 0, cloudShowPct ? 100 : cloudYMax)}
-                      {(overheadSkusByService.get(cloudView) ?? []).map(sku => (
-                        <Bar key={sku} dataKey={sku} name={sku} stackId="a" fill={overheadServiceColor(sku)} hide={isOverheadHidden(sku)} />
+                      {(overheadSkusByService.get(cloudView) ?? []).map((sku, i) => (
+                        <Bar key={sku} dataKey={sku} name={sku} stackId="a" fill={OVERHEAD_PALETTE[i % OVERHEAD_PALETTE.length]} hide={isOverheadHidden(sku)} />
                       ))}
                     </>
                   ) : null}
