@@ -48,10 +48,7 @@ def test_nvidia_driver_accesibility_usage(client: BatchClient):
 @pytest.mark.timeout(20 * 60)
 def test_over_64_cpus(client: BatchClient):
     # The relevant part of this machine type ('highmem-96') is the CPU count, which is 96.
-    # n1-highmem-96 instances can sit in GCE's PROVISIONING/STAGING state for the full
-    # 5-minute activation_timeout before Hail gives up on an attempt, rather than failing
-    # fast like a zone-exhaustion error, so give this test a larger timeout budget and
-    # fewer attempts than the default so it can't blow past it.
+    # Timeout is a 5 minute activation timeout per attempt plus a 5 minute buffer for scheduling, etc.
     status = _run_on_rare_instance(
         client,
         DOCKER_ROOT_IMAGE,
