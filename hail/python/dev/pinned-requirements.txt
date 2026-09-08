@@ -16,7 +16,7 @@ aiosignal==1.4.0
     #   aiohttp
 alabaster==0.7.16
     # via sphinx
-anyio==4.14.2
+anyio==4.15.0
     # via
     #   httpx
     #   jupyter-server

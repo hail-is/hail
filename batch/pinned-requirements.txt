@@ -67,12 +67,12 @@ frozenlist==1.8.0
     #   -c batch/../web_common/pinned-requirements.txt
     #   aiohttp
     #   aiosignal
-google-api-core==2.34.0
+google-api-core==2.36.0
     # via
     #   -c batch/../gear/pinned-requirements.txt
     #   google-cloud-core
     #   google-cloud-storage
-google-auth==2.57.0
+google-auth==2.57.1
     # via
     #   -c batch/../gear/pinned-requirements.txt
     #   -c batch/../hail/python/pinned-requirements.txt
@@ -89,7 +89,7 @@ google-crc32c==1.8.0
     #   google-resumable-media
 google-resumable-media==2.10.2
     # via google-cloud-storage
-googleapis-common-protos==1.75.2
+googleapis-common-protos==1.75.3
     # via
     #   -c batch/../gear/pinned-requirements.txt
     #   google-api-core
@@ -114,6 +114,10 @@ numpy==2.5.2
     #   -c batch/../hail/python/dev/pinned-requirements.txt
     #   -c batch/../hail/python/pinned-requirements.txt
     #   pandas
+opentelemetry-api==1.44.0
+    # via
+    #   -c batch/../gear/pinned-requirements.txt
+    #   google-api-core
 packaging==26.3
     # via
     #   -c batch/../gear/pinned-requirements.txt
@@ -197,6 +201,7 @@ typing-extensions==4.16.0
     #   -c batch/../web_common/pinned-requirements.txt
     #   aiohttp
     #   aiosignal
+    #   opentelemetry-api
 tzdata==2026.3
     # via
     #   -c batch/../hail/python/dev/pinned-requirements.txt
