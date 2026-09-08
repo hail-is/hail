@@ -97,7 +97,9 @@ class Authenticator(abc.ABC):
     def authenticated_users_with_permission(
         self, permission: Union[SystemPermission, Sequence[SystemPermission]], redirect: bool = True
     ) -> Callable[[AuthenticatedAIOHTTPHandler], AIOHTTPHandler]:
-        permissions = [permission] if isinstance(permission, SystemPermission) else permission
+        permissions = [permission] if isinstance(permission, SystemPermission) else list(permission)
+        if not permissions:
+            raise ValueError('authenticated_users_with_permission requires at least one permission')
 
         def wrap(fun: AuthenticatedAIOHTTPHandler):
             @self.authenticated_users_only(redirect)
