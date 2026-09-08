@@ -2,6 +2,8 @@ import logging
 import math
 from typing import Dict, Optional, Tuple
 
+from ...driver.exceptions import LocalSSDNotSupportedError
+
 log = logging.getLogger('utils')
 
 GCP_MAX_PERSISTENT_SSD_SIZE_GIB = 64 * 1024
@@ -467,7 +469,9 @@ def gcp_hyperdisk_performance_overrides(disk_type: str) -> Dict[str, str]:
 
 
 def gcp_local_ssd_count(machine_family: str, cores: int) -> int:
-    assert machine_family != 'n4', machine_family  # n4 supports zero local SSDs; never fall through to `return 1`
+    if machine_family == 'n4':
+        # n4 supports zero local SSDs; never fall through to the generic non-n2 `return 1`
+        raise LocalSSDNotSupportedError(machine_family)
     if machine_family != 'n2':
         return 1
     count = N2_MIN_LOCAL_SSD_COUNT_BY_CORES.get(cores)

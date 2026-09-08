@@ -9,6 +9,7 @@ from gear.cloud_config import get_global_config
 from hailtop.config import get_deploy_config
 
 from ....batch_configuration import DEFAULT_NAMESPACE, DOCKER_PREFIX, DOCKER_ROOT_IMAGE, INTERNAL_GATEWAY_IP
+from ....driver.exceptions import LocalSSDNotSupportedError
 from ....file_store import FileStore
 from ....instance_config import InstanceConfig
 from ...resource_utils import unreserved_worker_data_disk_size_gib
@@ -68,7 +69,8 @@ def create_vm_config(
     assert parts
     cores = parts.cores
 
-    assert not (local_ssd_data_disk and parts.machine_family == 'n4')
+    if local_ssd_data_disk and parts.machine_family == 'n4':
+        raise LocalSSDNotSupportedError(parts.machine_family)
 
     region = instance_config.region_for(zone)
     docker_run_gpu_args = '--runtime=nvidia --gpus all' if machine_type_to_gpu(machine_type_full) else ''

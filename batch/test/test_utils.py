@@ -19,6 +19,7 @@ from batch.cloud.gcp.resource_utils import (
 )
 from batch.cloud.gcp.resources import GCPAcceleratorResource, gcp_resource_from_dict
 from batch.cloud.resource_utils import adjust_cores_for_packability
+from batch.driver.exceptions import LocalSSDNotSupportedError
 from batch.driver.naming import build_inst_coll_regex, make_machine_name
 from batch.utils import rewrite_dockerhub_image
 from hailtop.batch_client.parse import parse_memory_in_bytes
@@ -129,7 +130,7 @@ def test_gcp_local_ssd_count(family, cores, expected):
 
 def test_gcp_local_ssd_count_rejects_n4():
     # n4 supports zero local SSDs; it must never fall through to the generic non-n2 default of 1.
-    with pytest.raises(AssertionError):
+    with pytest.raises(LocalSSDNotSupportedError):
         gcp_local_ssd_count('n4', 16)
 
 
