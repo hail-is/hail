@@ -47,6 +47,7 @@ object BlockMatrixIR {
 
 sealed abstract class BlockMatrixIR extends BaseIR {
   override def typ: BlockMatrixType
+  override def deepCopy: BlockMatrixIR = super.deepCopy.asInstanceOf[BlockMatrixIR]
 
   protected[ir] def execute(ctx: ExecuteContext): BlockMatrix =
     fatal("tried to execute unexecutable IR:\n" + Pretty(ctx, this))

@@ -56,7 +56,7 @@ object MatrixIR {
 
 sealed abstract class MatrixIR extends BaseIR {
   override def typ: MatrixType
-
+  override def deepCopy: MatrixIR = super.deepCopy.asInstanceOf[MatrixIR]
   override protected def copyWithNewChildren(newChildren: IndexedSeq[BaseIR]): MatrixIR
 }
 
