@@ -120,36 +120,6 @@ In `build.yaml`, two steps run before any service image that depends on compiled
 
 You don't need a deployed environment to work on a React page. The dev-proxy (`devbin/dev_proxy.py`) runs a local aiohttp server that renders Jinja2 templates directly and either proxies API calls to a real deployed service or serves mock data locally.
 
-### Two ways a page gets rendered
-
-The dev-proxy renders a page's HTML shell one of two ways, depending on how the page is registered. Which one applies determines whether `hail_react_ui` cookie toggling does anything when you're testing through the dev-proxy.
-
-**1. Fully local (`_LOCAL_REACT_ROUTES`).** The page's path is listed in `_LOCAL_REACT_ROUTES` with its template name. The dev-proxy renders that template directly, locally, with a bare-bones context (any `{param}` segments from the URL, plus `use_tailwind`) — no request to the real backend for the page at all:
-
-```python
-('ci', 'GET', '/ci/watched_branches/{watched_branch_index}/pr/{pr_number}', 'pr_react.html', {}),
-```
-
-Only the page's own `fetch` calls (hitting `/{service}/api/...`) go upstream, via `default_proxied_api_route`. **The `hail_react_ui` cookie has no effect here** — you always get the React shell in the dev-proxy, regardless of the cookie. Pages end up in this table for one of two distinct reasons, and it matters which:
-
-- No classic layout exists at all (swagger UIs, the flaky-tests dashboard) — there's nothing to fall back to either way.
-- A classic layout *does* exist on the real backend, but its `page_context` isn't JSON-serializable, which rules out model 2 below entirely (not a preference — a hard blocker). `ci`'s classic PR page context holds the raw `pr`/`wb` objects (a `PR`/`WatchedBranch` instance, not a dict — see `ci/ci/ci.py`'s `page_context['pr'] = pr`); batch-driver's classic index context holds `jpim`, `pools`, `instances` — manager and model objects (see `get_index` in `batch/batch/driver/main.py`). `json.dumps` can't serialize any of that, so there's no way to get that context out of the real backend as JSON for the dev-proxy to render — the classic layout for these two pages only works by hitting a real deployed backend directly, not through this proxy.
-
-**2. Proxied through, with `x-hail-return-jinja-context` (everything else).** A page with no `_LOCAL_REACT_ROUTES` entry falls through to the catch-all `default_proxied_web_route`, which forwards the *entire* request — including cookies — to the real backend, with an extra header: `x-hail-return-jinja-context: 1`. The real handler runs exactly as it would in production — including the `hail_react_ui` cookie check, if it has one — and builds whichever `page_context` its chosen branch needs. `render_template` (in `web_common.py`) sees that header and, instead of rendering HTML, returns `{file, page_context, userdata}` as JSON:
-
-```python
-if request.cookies.get('hail_react_ui') == '1':
-    return await render_template('batch', request, userdata, 'job_react.html', {'batch_id': batch_id, 'job_id': job_id})
-# else: run _get_job / _get_attempts / _get_job_log / _get_job_resource_usage, then
-return await render_template('batch', request, userdata, 'job.html', big_page_context)
-```
-
-This only works at all because `ui_get_job`'s classic `page_context` is built from plain dicts (JSON API response shapes, `datetime`s handled by a `default=` hook) — genuinely serializable, unlike the two cases above. The dev-proxy takes the JSON and renders `file` itself, using its own on-disk copy of the templates (so template edits hot-reload locally) with the `page_context` it was handed. Nothing is fetched then discarded: whichever branch the real backend took only ever builds the context that branch's template needs — the React branch's context is cheap (a couple of IDs), the classic branch's is the full page's worth of data. This is the model for `JobPage`, and it's why its cookie toggle actually works when tested through the dev-proxy: the *decision* is made by a real, already-deployed backend that knows about the cookie, not by the dev-proxy itself.
-
-The trade-off: model 2 requires the real backend (wherever your deploy config points) to already have the page's cookie-check code deployed for the toggle to mean anything locally, *and* requires its classic `page_context` to be JSON-serializable; model 1 never touches the real backend for the page at all, so it's immune to both concerns but can never show the classic layout through the dev-proxy, cookie or not.
-
-**Should more pages move to model 2?** Only if their classic context is actually serializable — that's the gating question, not a stylistic choice. `JobPage`'s already is, which is exactly why it's able to use model 2 today. There's no reason to change it: switching it to a cookie-check-in-the-dev-proxy variant of model 1 wouldn't gain anything, since its feature is long since deployed everywhere and its classic layout already renders correctly through the proxy — it would just be added dev-proxy bookkeeping for a page that doesn't need it. Model 1 earns its keep specifically when a page's classic context *can't* make the trip (this section's two examples) or doesn't have a classic layout to worry about at all.
-
 ### With mock data (no deployed service needed)
 
 For pages that have mock data handlers in the dev-proxy, set `MOCK_API_DATA=1`. For example, to work on the CI flaky tests dashboard:
