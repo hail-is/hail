@@ -108,10 +108,13 @@ def _backend_url(service: str, raw_path: str) -> str:
 _LOCAL_REACT_ROUTES: list[tuple[str, str, str, str, dict]] = [
     ('monitoring',   'GET', '/monitoring/helloreact', 'hello_react.html', {}),
     ('auth',         'GET', '/auth/helloreact', 'hello_react.html', {}),
+    # classic page_context holds `jpim`/`pools`/`instances` (manager/model objects, not dicts) — not JSON-serializable
     ('batch-driver', 'GET', '/batch-driver/', 'index_react.html', {}),
     ('batch-driver', 'GET', '/batch-driver', 'index_react.html', {}),
     ('batch-driver', 'GET', '/batch-driver/swagger', 'swagger/index.html', {}),
     ('ci',           'GET', '/ci/flaky_tests', 'flaky_tests.html', {}),
+    # classic page_context holds `pr`/`wb` directly (a PR/WatchedBranch instance, not a dict) — not JSON-serializable
+    ('ci',           'GET', '/ci/watched_branches/{watched_branch_index}/pr/{pr_number}', 'pr_react.html', {}),
     ('batch',        'GET', '/batch/swagger', 'swagger/index.html', {}),
     ('ci',           'GET', '/ci/swagger', 'swagger/index.html', {}),
     ('monitoring',   'GET', '/monitoring/swagger', 'swagger/index.html', {}),
@@ -125,7 +128,7 @@ for _service, _verb, _path, _template, _extra_ctx in _LOCAL_REACT_ROUTES:
         _t: str = _template,
         _ctx: dict = _extra_ctx,
     ) -> web.Response:
-        return await _render_html(request, _s, _FAKE_DEV_USERDATA, _t, {'use_tailwind': True, **_ctx})
+        return await _render_html(request, _s, _FAKE_DEV_USERDATA, _t, {'use_tailwind': True, **_ctx, **request.match_info})
     if _template.startswith('swagger/'):
         _decorator = web_security_headers_swagger
     elif _template == 'index_react.html':

@@ -3,6 +3,9 @@ import { AutoRefreshBar } from '../shared/AutoRefreshBar';
 import { SpinnerIcon } from '../shared/SpinnerIcon';
 import { formatDuration, formatTime } from '../shared/timeUtils';
 import { hasPermission } from '../shared/authUtils';
+import { SegmentedBar, Segment } from '../shared/SegmentedBar';
+import { hailApiFetch as apiFetch } from '../shared/hailApiFetch';
+import { useTip, FloatingTip } from '../shared/useTip';
 
 const REFRESH_INTERVAL_MS = 30_000;
 
@@ -78,25 +81,6 @@ function pctFree(free: number, total: number): string {
   return total !== 0 ? `${((free * 100) / total).toFixed(1)}%` : '';
 }
 
-async function apiFetch<T>(url: string, init?: RequestInit): Promise<T> {
-  const method = (init?.method ?? 'GET').toUpperCase();
-  const csrfHeaders: Record<string, string> = {};
-  if (method !== 'GET' && method !== 'HEAD') {
-    const token = document.head.querySelector('meta[name="csrf"]')?.getAttribute('value');
-    if (token) csrfHeaders['X-CSRF-Token'] = token;
-  }
-  const resp = await fetch(url, {
-    credentials: 'same-origin',
-    ...init,
-    headers: { ...csrfHeaders, ...init?.headers },
-  });
-  if (!resp.ok) {
-    const text = await resp.text().catch(() => '');
-    throw new Error(`HTTP ${resp.status}${text ? ': ' + text : ''}`);
-  }
-  return resp.json() as Promise<T>;
-}
-
 // ── Instance state icon ───────────────────────────────────────────────────────
 
 function InstanceStateIcon({ state }: { state: string }): JSX.Element {
@@ -169,27 +153,6 @@ function SortTh({ col, label, sortCol, sortDir, onSort }: {
 
 // ── Instance Collections table ────────────────────────────────────────────────
 
-type TipState = { text: string; x: number; y: number } | null;
-
-function useTip(): [TipState, (text: string) => (e: React.MouseEvent) => void, () => void] {
-  const [tip, setTip] = useState<TipState>(null);
-  const onEnter = (text: string) => (e: React.MouseEvent) => setTip({ text, x: e.clientX, y: e.clientY });
-  const onLeave = () => setTip(null);
-  return [tip, onEnter, onLeave];
-}
-
-function FloatingTip({ tip }: { tip: TipState }): JSX.Element | null {
-  if (!tip) return null;
-  return (
-    <div
-      className="fixed z-50 pointer-events-none bg-zinc-800 text-white text-xs px-2 py-1 rounded shadow whitespace-nowrap"
-      style={{ left: tip.x + 12, top: tip.y - 32 }}
-    >
-      {tip.text}
-    </div>
-  );
-}
-
 function PoolUsageBar({ ic, maxInstances }: { ic: InstCollSummary; maxInstances: number }): JSX.Element {
   const [tip, onEnter, onLeave] = useTip();
   if (maxInstances === 0 || ic.max_instances === 0) return <td className={TD_BASE} />;
@@ -201,28 +164,24 @@ function PoolUsageBar({ ic, maxInstances }: { ic: InstCollSummary; maxInstances:
   const unused = Math.max(0, ic.max_instances - used);
   const barPct = (ic.max_instances / maxInstances) * 100;
   const pct = (n: number) => ` (${((n / ic.max_instances) * 100).toFixed(1)}%)`;
-  const segments: [number, string, string][] = [
+  const segments: Segment[] = [
     [pending,  'bg-sky-300',    `Pending: ${pending}${pct(pending)}`],
     [active,   'bg-green-500',  `Active: ${active}${pct(active)}`],
     [inactive, 'bg-orange-400', `Inactive: ${inactive}${pct(inactive)}`],
     [deleted,  'bg-red-400',    `Deleted: ${deleted}${pct(deleted)}`],
+    [unused,   '',              `Unused: ${unused}${pct(unused)}`],
   ];
   return (
     <td className={`${TD_BASE} w-44`}>
       <div className="h-3.5 w-40">
-        <div className="flex h-full bg-zinc-300 rounded overflow-hidden" style={{ width: `${barPct}%` }}>
-          {segments.map(([value, color, label], i) => {
-            const pct = (value / ic.max_instances) * 100;
-            return pct > 0 ? (
-              <div key={i} className={`${color} h-full flex-shrink-0`} style={{ width: `${pct}%` }}
-                onMouseEnter={onEnter(label)} onMouseLeave={onLeave} />
-            ) : null;
-          })}
-          {unused > 0 && (
-            <div className="flex-1 h-full"
-              onMouseEnter={onEnter(`Unused: ${unused}${pct(unused)}`)} onMouseLeave={onLeave} />
-          )}
-        </div>
+        <SegmentedBar
+          segments={segments}
+          total={ic.max_instances}
+          onSegmentEnter={onEnter}
+          onSegmentLeave={onLeave}
+          className="h-full"
+          style={{ width: `${barPct}%` }}
+        />
       </div>
       <FloatingTip tip={tip} />
     </td>
@@ -241,7 +200,7 @@ function CoreUtilBar({ ic }: { ic: InstCollSummary }): JSX.Element {
   const cores = (mcpu: number) => (mcpu / 1000).toLocaleString(undefined, { maximumFractionDigits: 1 });
   const pct   = (mcpu: number) => total > 0 ? ` (${((mcpu / total) * 100).toFixed(1)}%)` : '';
   const label = (name: string, mcpu: number) => `${name}: ${cores(mcpu)} cores${pct(mcpu)}`;
-  const segments: [number, string, string][] = [
+  const segments: Segment[] = [
     [pending,    'bg-sky-300',    label('Pending', pending)],
     [free,       'bg-blue-500',   label('Active (free)', free)],
     [activeUsed, 'bg-green-500',  label('Active (used)', activeUsed)],
@@ -250,15 +209,7 @@ function CoreUtilBar({ ic }: { ic: InstCollSummary }): JSX.Element {
   ];
   return (
     <td className={`${TD_BASE} w-44`}>
-      <div className="flex h-3.5 w-40 bg-zinc-300 rounded overflow-hidden">
-        {total === 0 ? null : segments.map(([value, color, label], i) => {
-          const pct = (value / total) * 100;
-          return pct > 0 ? (
-            <div key={i} className={`${color} h-full flex-shrink-0`} style={{ width: `${pct}%` }}
-              onMouseEnter={onEnter(label)} onMouseLeave={onLeave} />
-          ) : null;
-        })}
-      </div>
+      <SegmentedBar segments={segments} total={total} onSegmentEnter={onEnter} onSegmentLeave={onLeave} />
       <FloatingTip tip={tip} />
     </td>
   );
