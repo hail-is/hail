@@ -3263,6 +3263,8 @@ steps:
       - batch_image
       - deploy_batch
       - test_batch
+    after:
+      - test_batch
   - kind: runImage
     name: create_ci_test_repo
     image:
@@ -3469,6 +3471,8 @@ steps:
         to: /io/ci
       - from: /repo/hail/python/dev/pinned-requirements.txt
         to: /io/dev-requirements.txt
+      - from: /repo/build.yaml
+        to: /io/build.yaml
     scopes:
       - test
       - dev
@@ -3788,6 +3792,9 @@ steps:
       - default_ns
       - hail_ubuntu_image
       - create_ci_test_repo
+      - deploy_ci
+      - test_ci
+    after:
       - deploy_ci
       - test_ci
   - kind: runImage
@@ -4277,6 +4284,15 @@ steps:
       - hailgenetics_hailtop_image
       - deploy_batch
       - test_batch
+      - test_ci
+      - test_hailtop_python
+      - test_hail_python_service_backend_gcp
+      - test_hail_python_service_backend_gcp_fs
+      - test_hail_services_java
+      - test_batch_docs
+      - test_hailctl_batch
+    after:
+      - test_batch
       - test_batch_job_private_machines
       - test_ci
       - test_hailtop_python
@@ -4326,11 +4342,6 @@ steps:
       - merge_code
       - hail_dev_image
       - deploy_batch
-      - test_batch
-      - test_ci
-      - test_hailtop_python
-      - test_hail_python_service_backend_gcp
-      - test_hail_python_service_backend_gcp_fs
       - cancel_all_running_test_batches
   - kind: runImage
     name: delete_gcp_batch_instances
@@ -4372,13 +4383,20 @@ steps:
     dependsOn:
       - default_ns
       - ci_utils_image
+      - cancel_all_running_test_batches
       - test_batch_invariants
       - test_batch
       - test_ci
       - test_hailtop_python
       - test_hail_python_service_backend_gcp
       - test_hail_python_service_backend_gcp_fs
-      - cancel_all_running_test_batches
+    after:
+      - test_batch_invariants
+      - test_batch
+      - test_ci
+      - test_hailtop_python
+      - test_hail_python_service_backend_gcp
+      - test_hail_python_service_backend_gcp_fs
   - kind: runImage
     name: setup_dev_namespace_autoscaledown
     resources:

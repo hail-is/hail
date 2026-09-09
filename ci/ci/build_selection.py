@@ -1,4 +1,4 @@
-from typing import Dict, List, Optional, Set
+from typing import Dict, List, Optional, Sequence, Set
 
 import yaml
 
@@ -67,6 +67,65 @@ def _expand_to_descendants(
                 result.add(dependent)
                 steps_to_review.add(dependent)
     return result
+
+
+def _ancestors_closure(seeds: Set[str], deps_map: Dict[str, List[str]]) -> Set[str]:
+    """Return seeds plus all steps reachable by following dependsOn backwards."""
+    visited: Set[str] = set()
+
+    def visit(name: str) -> None:
+        if name in visited:
+            return
+        visited.add(name)
+        for dep in deps_map.get(name, []):
+            visit(dep)
+
+    for name in seeds:
+        visit(name)
+    return visited
+
+
+def _descendants_closure(seeds: Set[str], ordered_steps: Sequence[Dict]) -> Set[str]:
+    """Return seeds plus any step whose ordering predecessors (dependsOn or after)
+    intersect the selected set.  ordered_steps must be in topological order so that
+    a single linear sweep suffices — no fixed-point loop needed."""
+    selected = set(seeds)
+    for step in ordered_steps:
+        name = step['name']
+        if step.get('runIfRequested') or name in selected:
+            continue
+        predecessors = step.get('dependsOn', []) + step.get('after', [])
+        if any(p in selected for p in predecessors):
+            selected.add(name)
+    return selected
+
+
+def select_steps(seeds: Set[str], ordered_steps: Sequence[Dict]) -> Set[str]:
+    """Return the full set of step names that should run given a seed set.
+
+    Algorithm:
+      1. Forward pass  — expand seeds to include steps whose ordering predecessors
+         (dependsOn *or* after) are selected.  after edges are used here
+         so that cleanup steps follow the steps they clean up.
+      2. Backward pass — for every selected step, pull in hard dependsOn ancestors.
+         after edges are NOT followed here, so a cleanup step never forces its
+         ordering predecessors to re-run (important for tactical retries).
+    """
+    run_if_requested = {s['name'] for s in ordered_steps if s.get('runIfRequested')}
+    eligible = [s for s in ordered_steps if not s.get('runIfRequested')]
+
+    # Hard-dep map: dependsOn only, excluding runIfRequested steps.
+    deps_map: Dict[str, List[str]] = {
+        s['name']: [d for d in s.get('dependsOn', []) if d not in run_if_requested] for s in eligible
+    }
+
+    # runIfRequested steps may appear as explicit seeds but are never pulled in
+    # transitively, so handle them separately.
+    seeded_run_if_requested = seeds & run_if_requested
+    eligible_seeds = seeds - run_if_requested
+
+    with_descendants = _descendants_closure(eligible_seeds, eligible)
+    return _ancestors_closure(with_descendants, deps_map) | seeded_run_if_requested
 
 
 def compute_requested_steps(
