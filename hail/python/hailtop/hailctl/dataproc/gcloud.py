@@ -1,12 +1,43 @@
 import json
+import re
 import subprocess
 import sys
 from typing import List, Optional, Tuple
+
+CUSTOM_MACHINE_TYPE = re.compile(r"(?:[a-z0-9]+-)?custom-(\d+)-(\d+)(?:-ext)?")
 
 
 def run(command: List[str]):
     """Run a gcloud command."""
     return subprocess.check_call(["gcloud", *command])
+
+
+def output(command: List[str]) -> str:
+    """Run a gcloud command and return its stdout."""
+    return subprocess.check_output(["gcloud", *command]).decode()
+
+
+def get_machine_type_info(machine_type: str) -> Tuple[int, float]:
+    """Get the vCPU count and advertised memory (GiB) of a machine type."""
+    custom = CUSTOM_MACHINE_TYPE.fullmatch(machine_type)
+    if custom:
+        return int(custom.group(1)), int(custom.group(2)) / 1024
+    output = subprocess.check_output(
+        [
+            "gcloud",
+            "compute",
+            "machine-types",
+            "list",
+            f"--filter=name={machine_type}",
+            "--limit=1",
+            "--format=json",
+        ],
+        stderr=subprocess.DEVNULL,
+    )
+    machine_types = json.loads(output)
+    if not machine_types:
+        raise RuntimeError(f"machine type '{machine_type}' not found")
+    return machine_types[0]["guestCpus"], machine_types[0]["memoryMb"] / 1024
 
 
 def get_config(setting: str) -> Optional[str]:
