@@ -414,6 +414,22 @@ paths:
           required: true
           schema:
             type: number
+        - name: q
+          in: query
+          description: >
+            Query string in v1 format, e.g. "state = Failed" or "user:alice". A bare word
+            matching a known state search term (e.g. "bad", "running", "done") filters jobs to
+            that group of states.
+          required: false
+          schema:
+            type: string
+            example: "bad"
+        - name: last_job_id
+          in: query
+          description: "Job ID to resume pagination after."
+          required: false
+          schema:
+            type: integer
       responses:
         '200':
           description: "Successfully retrieved the jobs in the batch."
@@ -489,6 +505,28 @@ paths:
           required: true
           schema:
             type: number
+        - name: q
+          in: query
+          description: >
+            Query string in v1 format, e.g. "state = Failed" or "user:alice". A bare word
+            matching a known state search term (e.g. "bad", "running", "done") filters jobs to
+            that group of states.
+          required: false
+          schema:
+            type: string
+            example: "bad"
+        - name: last_job_id
+          in: query
+          description: "Job ID to resume pagination after."
+          required: false
+          schema:
+            type: integer
+        - name: recursive
+          in: query
+          description: "Include jobs from nested job groups, not just this one."
+          required: false
+          schema:
+            type: boolean
       responses:
         '200':
           description: "Successfully retrieved the jobs in the job group."
@@ -781,6 +819,21 @@ paths:
           required: true
           schema:
             type: number
+        - name: q
+          in: query
+          description: >
+            Query string in v2 format, e.g. "state = Failed" or "state = bad" ("bad" is a state
+            search term covering both Failed and Error).
+          required: false
+          schema:
+            type: string
+            example: "state = bad"
+        - name: last_job_id
+          in: query
+          description: "Job ID to resume pagination after."
+          required: false
+          schema:
+            type: integer
       responses:
         '200':
           description: "Successfully retrieved the jobs in the batch."
@@ -808,6 +861,27 @@ paths:
           required: true
           schema:
             type: number
+        - name: q
+          in: query
+          description: >
+            Query string in v2 format, e.g. "state = Failed" or "state = bad" ("bad" is a state
+            search term covering both Failed and Error).
+          required: false
+          schema:
+            type: string
+            example: "state = bad"
+        - name: last_job_id
+          in: query
+          description: "Job ID to resume pagination after."
+          required: false
+          schema:
+            type: integer
+        - name: recursive
+          in: query
+          description: "Include jobs from nested job groups, not just this one."
+          required: false
+          schema:
+            type: boolean
       responses:
         '200':
           description: "Successfully retrieved the jobs in the job group."
