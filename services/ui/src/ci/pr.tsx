@@ -160,6 +160,26 @@ async function fetchAllJobs(batchBaseUrl: string, batchId: number): Promise<JobL
   return all;
 }
 
+const FAILED_JOBS_DISPLAY_LIMIT = 10;
+
+// Fetches up to FAILED_JOBS_DISPLAY_LIMIT + 1 failed/errored ("bad" state) job names for a
+// batch, so callers can show the first 10 and know whether there are more without having to
+// paginate through the whole batch.
+async function fetchFirstBadJobs(batchBaseUrl: string, batchId: number): Promise<JobListEntry[]> {
+  const found: JobListEntry[] = [];
+  let lastJobId: number | undefined;
+  while (found.length <= FAILED_JOBS_DISPLAY_LIMIT) {
+    const url = new URL(`${batchBaseUrl}/api/v1alpha/batches/${batchId}/jobs`, window.location.origin);
+    url.searchParams.set('q', 'bad');
+    if (lastJobId !== undefined) url.searchParams.set('last_job_id', String(lastJobId));
+    const page = await apiFetch<{ jobs: JobListEntry[]; last_job_id?: number }>(url.toString());
+    found.push(...page.jobs);
+    if (page.last_job_id === undefined) break;
+    lastJobId = page.last_job_id;
+  }
+  return found.slice(0, FAILED_JOBS_DISPLAY_LIMIT + 1);
+}
+
 function storageUriToUrl(uri: string): string {
   if (uri.startsWith('gs://')) {
     return `https://console.cloud.google.com/storage/browser/${uri.slice('gs://'.length)}`;
@@ -271,8 +291,105 @@ function MergeEligibility({ pr, basePath, batchBaseUrl, wbIndex }: {
   );
 }
 
+type BadJobsState =
+  | { status: 'pending' }
+  | { status: 'loading' }
+  | { status: 'loaded'; jobs: JobListEntry[]; truncated: boolean }
+  | { status: 'error'; message: string };
+
+function BadJobsCell({
+  state,
+  repeatedNames,
+  alwaysFailingNames,
+  batchBaseUrl,
+  batchId,
+}: {
+  state: BadJobsState | undefined;
+  repeatedNames: Set<string>;
+  alwaysFailingNames: Set<string>;
+  batchBaseUrl: string;
+  batchId: number;
+}): JSX.Element | null {
+  if (state === undefined) return null;
+  if (state.status === 'pending') {
+    return <span className="text-zinc-400">pending</span>;
+  }
+  if (state.status === 'loading') {
+    return (
+      <span className="text-zinc-400 inline-flex items-center gap-1">
+        <span className="material-symbols-outlined text-sm animate-spin" style={{ animationDuration: '1s' }}>
+          progress_activity
+        </span>
+        loading
+      </span>
+    );
+  }
+  if (state.status === 'error') {
+    return <span className="text-red-600">{state.message}</span>;
+  }
+  if (state.jobs.length === 0) return null;
+  return (
+    <span className="font-mono text-xs">
+      {state.jobs.map((j, i) => {
+        const name = j.name ?? '';
+        const always = alwaysFailingNames.has(name);
+        const repeated = always || repeatedNames.has(name);
+        const className = always ? 'font-bold text-sm' : repeated ? 'font-bold' : undefined;
+        return (
+          <span key={j.job_id} className={className}>
+            {i > 0 && ', '}
+            <a href={`${batchBaseUrl}/batches/${batchId}/jobs/${j.job_id}`} className="text-sky-600 hover:underline">
+              {j.name}
+            </a>
+          </span>
+        );
+      })}
+      {state.truncated && <span className="text-zinc-400"> &hellip; and more</span>}
+    </span>
+  );
+}
+
 function BatchHistoryTable({ batches, batchBaseUrl }: { batches: BatchHistoryEntry[]; batchBaseUrl: string }): JSX.Element {
+  const [badJobs, setBadJobs] = useState<Record<number, BadJobsState> | null>(null);
+
+  const loadBadJobs = useCallback(async () => {
+    setBadJobs(Object.fromEntries(batches.map((b) => [b.id, { status: 'pending' } as BadJobsState])));
+    for (const b of batches) {
+      setBadJobs((prev) => (prev ? { ...prev, [b.id]: { status: 'loading' } } : prev));
+      try {
+        const jobs = await fetchFirstBadJobs(batchBaseUrl, b.id);
+        const truncated = jobs.length > FAILED_JOBS_DISPLAY_LIMIT;
+        setBadJobs((prev) =>
+          prev ? { ...prev, [b.id]: { status: 'loaded', jobs: jobs.slice(0, FAILED_JOBS_DISPLAY_LIMIT), truncated } } : prev
+        );
+      } catch (e) {
+        setBadJobs((prev) => (prev ? { ...prev, [b.id]: { status: 'error', message: 'failed to load' } } : prev));
+      }
+    }
+  }, [batches, batchBaseUrl]);
+
   if (batches.length === 0) return <p className="text-sm text-zinc-500">No builds.</p>;
+
+  // Job names that showed up as a failure/error in more than one loaded row are bolded; ones
+  // that showed up in *every* loaded row are also sized up, so a solid vertical line of matches
+  // down the column pops out.
+  const loadedNameSets = badJobs
+    ? Object.values(badJobs)
+        .filter((s): s is Extract<BadJobsState, { status: 'loaded' }> => s.status === 'loaded')
+        .map((s) => new Set(s.jobs.map((j) => j.name ?? '').filter((name) => name !== '')))
+    : [];
+  const nameCounts = new Map<string, number>();
+  for (const set of loadedNameSets) {
+    for (const name of set) {
+      nameCounts.set(name, (nameCounts.get(name) ?? 0) + 1);
+    }
+  }
+  const repeatedNames = new Set([...nameCounts].filter(([, count]) => count >= 2).map(([name]) => name));
+  const alwaysFailingNames =
+    loadedNameSets.length >= 2
+      ? new Set([...nameCounts].filter(([, count]) => count === loadedNameSets.length).map(([name]) => name))
+      : new Set<string>();
+
   return (
     <table className="w-auto text-sm border border-zinc-200 rounded overflow-hidden">
       <thead>
@@ -281,6 +398,15 @@ function BatchHistoryTable({ batches, batchBaseUrl }: { batches: BatchHistoryEnt
           <th className="px-3 py-0.5">reason</th>
           <th className="px-3 py-0.5">started</th>
           <th className="px-3 py-0.5">state</th>
+          <th className="px-3 py-0.5">
+            {badJobs === null ? (
+              <button type="button" onClick={loadBadJobs} className="normal-case text-sky-600 hover:underline">
+                Load failed job names
+              </button>
+            ) : (
+              'failed jobs'
+            )}
+          </th>
         </tr>
       </thead>
       <tbody className="divide-y divide-zinc-100">
@@ -292,6 +418,15 @@ function BatchHistoryTable({ batches, batchBaseUrl }: { batches: BatchHistoryEnt
             <td className="px-3 py-0.5">{b.attributes?.reason ?? ''}</td>
             <td className="px-3 py-0.5">{b.time_created ?? ''}</td>
             <td className="px-3 py-0.5 whitespace-nowrap">{b.state ? <BatchStateIcon state={b.state} /> : null} {b.state}</td>
+            <td className="px-3 py-0.5">
+              <BadJobsCell
+                state={badJobs?.[b.id]}
+                repeatedNames={repeatedNames}
+                alwaysFailingNames={alwaysFailingNames}
+                batchBaseUrl={batchBaseUrl}
+                batchId={b.id}
+              />
+            </td>
           </tr>
         ))}
       </tbody>
