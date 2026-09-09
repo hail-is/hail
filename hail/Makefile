@@ -112,14 +112,14 @@ ifdef HAIL_COMPILE_NATIVES
 jvm-test: native-lib-prebuilt
 endif
 jvm-test:
-	$(MILL) $(MILLOPTS) hail.test testng.xml
+	$(MILL) $(MILLOPTS) hail.test.test-main
 
 .PHONY: services-jvm-test
 ifdef HAIL_COMPILE_NATIVES
 services-jvm-test: native-lib-prebuilt
 endif
 services-jvm-test:
-	$(MILL) $(MILLOPTS) hail.test testng-services.xml
+	$(MILL) $(MILLOPTS) hail.test.test-services
 
 .PHONY: fs-jvm-test
 ifdef HAIL_COMPILE_NATIVES
@@ -132,7 +132,7 @@ fs-jvm-test: upload-remote-test-resources
 	HAIL_DEFAULT_NAMESPACE=$(NAMESPACE) \
 	HAIL_FS_TEST_CLOUD_RESOURCES_URI=$(CLOUD_HAIL_TEST_RESOURCES_DIR)fs \
 	HAIL_TEST_STORAGE_URI=$(TEST_STORAGE_URI) \
-	$(MILL) $(MILLOPTS) hail.test $(realpath testng-fs.xml)
+	$(MILL) $(MILLOPTS) hail.test.test-fs
 
 # end mill integration
 
