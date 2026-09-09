@@ -213,8 +213,13 @@ function MergeEligibility({ pr, basePath, batchBaseUrl, wbIndex }: {
         <li>
           {pr.checks_all_pass ? (
             <><Icon name="check_circle" className="text-green-600" /> All checks passing</>
-          ) : pr.build_state == null ? (
-            <><Icon name="pending" className="text-zinc-400" /> Build in progress</>
+          ) : pr.build_state == null || pr.build_state === 'building' ? (
+            <>
+              <span className="material-symbols-outlined align-middle text-lg animate-spin text-zinc-400" style={{ animationDuration: '1s' }}>
+                progress_activity
+              </span>{' '}
+              Build in progress
+            </>
           ) : (
             <><Icon name="cancel" className="text-red-600" /> Checks not passing ({pr.build_state})</>
           )}
@@ -537,6 +542,7 @@ function BuildPanel({ pr, basePath, batchBaseUrl, wbBranchName, prNumber, batchS
 
         {jobBuckets && totalJobs > 0 && (
           <div className="mt-3">
+            <h3 className="text-sm font-semibold text-zinc-600 mb-1">Batch Status:</h3>
             <SegmentedBar
               segments={segments}
               total={totalJobs}
@@ -545,6 +551,16 @@ function BuildPanel({ pr, basePath, batchBaseUrl, wbBranchName, prNumber, batchS
               onSegmentLeave={onTipLeave}
             />
             <FloatingTip tip={tip} />
+            <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-xs text-zinc-600">
+              {segments
+                .filter(([count]) => count > 0)
+                .map(([count, color, label]) => (
+                  <div key={label} className="flex items-center gap-1.5">
+                    <span className={`inline-block w-2.5 h-2.5 rounded-sm ${color}`} />
+                    <span>{label}</span>
+                  </div>
+                ))}
+            </div>
           </div>
         )}
 
