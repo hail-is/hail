@@ -96,7 +96,7 @@ from ..cloud.resource_utils import (
     memory_to_worker_type,
     valid_machine_types,
 )
-from ..cloud.utils import ACCEPTABLE_QUERY_JAR_URL_PREFIX
+from ..cloud.utils import ACCEPTABLE_QUERY_JAR_URL_PREFIX, SPARK_ARCHIVE_URL_PREFIX
 from ..exceptions import (
     BatchOperationAlreadyCompletedError,
     BatchUserError,
@@ -110,6 +110,7 @@ from ..exceptions import (
 from ..file_store import FileStore
 from ..globals import (
     BATCH_FORMAT_VERSION,
+    DEFAULT_SPARK_VERSION,
     HTTP_CLIENT_MAX_SIZE,
     RESERVED_STORAGE_GB_PER_CORE,
     complete_states,
@@ -1149,7 +1150,7 @@ WHERE batch_id = %s AND update_id = %s AND job_group_id BETWEEN %s AND %s;
                 )
             except asyncio.CancelledError:
                 raise
-            except pymysql.err.IntegrityError:
+            except (pymysql.err.IntegrityError, pymysql.err.OperationalError, pymysql.err.InternalError):
                 raise
             except Exception as e:
                 raise web.HTTPBadRequest(
@@ -1311,6 +1312,10 @@ WHERE batch_updates.batch_id = %s AND batch_updates.update_id = %s AND user = %s
                 jar_url = spec['process']['jar_spec']['value']
                 if not jar_url.startswith(ACCEPTABLE_QUERY_JAR_URL_PREFIX):
                     raise web.HTTPBadRequest(reason=f'unacceptable JAR url: {jar_url}')
+
+            spark_version = spec['process'].setdefault('spark_version', DEFAULT_SPARK_VERSION)
+            if not await app[AppKeys.SPARK_ARCHIVE_EXISTENCE_CACHE].lookup(spark_version):
+                raise web.HTTPBadRequest(reason=f'no spark jars archive exists for spark version {spark_version}')
 
         req_memory_bytes: Optional[int]
         if machine_type is None:
@@ -2542,10 +2547,11 @@ async def _get_attempts(app, batch_id, job_id):
 
     attempts = db.select_and_fetchall(
         """
-SELECT attempts.*
+SELECT attempts.*, instances.location
 FROM jobs
 INNER JOIN batches ON jobs.batch_id = batches.id
 LEFT JOIN attempts ON jobs.batch_id = attempts.batch_id and jobs.job_id = attempts.job_id
+LEFT JOIN instances ON attempts.instance_name = instances.name
 WHERE jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s;
 """,
         (batch_id, job_id),
@@ -2874,7 +2880,11 @@ async def ui_get_jvm_profile(request: web.Request, _, batch_id: int) -> web.Resp
     profile = await _get_jvm_profile(app, batch_id, job_id)
     if profile is None:
         raise web.HTTPNotFound()
-    return web.Response(text=profile, content_type='text/html')
+    return web.Response(
+        text=profile,
+        content_type='text/html',
+        headers={'Content-Disposition': f'attachment; filename="{batch_id}_{job_id}_jvm_profile.html"'},
+    )
 
 
 @routes.get('/batches/{batch_id}/jobs/{job_id}')
@@ -2976,6 +2986,16 @@ async def ui_get_job(request, userdata, batch_id):
             non_io_storage_limit_bytes = int(non_io_storage_limit_gb * 1024**3 + 1)
             resources['actual_cpu'] = cores
             del resources['cores_mcpu']
+
+        spec_regions = job['spec'].get('regions') if job.get('spec') else None
+        if spec_regions:
+            resources['req_regions'] = ', '.join(spec_regions)
+
+        original_status = job.get('status')
+        if original_status:
+            actual_region = original_status.get('region')
+            if actual_region:
+                resources['actual_region'] = actual_region
 
     # Not all logs will be proper utf-8 but we attempt to show them as
     # str or else Jinja will present them surrounded by b''
@@ -3831,6 +3851,7 @@ class BatchFrontEndAccessLogger(AccessLogger):
 
 class AppKeys(CommonAiohttpAppKeys):
     QOB_JAR_RESOLUTION_CACHE = web.AppKey('qob_jar_resolution_cache', TimeLimitedMaxSizeCache[Tuple[str, str], str])
+    SPARK_ARCHIVE_EXISTENCE_CACHE = web.AppKey('spark_archive_existence_cache', TimeLimitedMaxSizeCache[str, bool])
 
 
 async def on_startup(app):
@@ -3917,6 +3938,13 @@ SELECT instance_id, n_tokens, frozen FROM globals;
 
     app[AppKeys.QOB_JAR_RESOLUTION_CACHE] = TimeLimitedMaxSizeCache(
         resolve_qob_jar_url, int(1e10), 100, AppKeys.QOB_JAR_RESOLUTION_CACHE._name
+    )
+
+    async def spark_archive_exists(spark_version: str) -> bool:
+        return await fs.exists(SPARK_ARCHIVE_URL_PREFIX + '/spark-' + spark_version + '.tar.gz')
+
+    app[AppKeys.SPARK_ARCHIVE_EXISTENCE_CACHE] = TimeLimitedMaxSizeCache(
+        spark_archive_exists, int(1e10), 100, AppKeys.SPARK_ARCHIVE_EXISTENCE_CACHE._name
     )
 
     app['task_manager'].ensure_future(periodically_call(5, _refresh, app))

@@ -3,13 +3,12 @@ package is.hail.sparkextras
 import is.hail.asm4s.HailClassLoader
 import is.hail.backend.ExecuteContext
 import is.hail.backend.spark.{unsafeHailClassLoaderForSparkWorkers, SparkBackend, SparkTaskContext}
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.rvd.RVDContext
 import is.hail.sparkextras.ContextRDD.{inCtx, Element}
 import is.hail.sparkextras.implicits.{toRichContextRDD, toRichRDD, toRichSC}
 import is.hail.utils._
 
-import scala.collection.compat._
+import scala.collection.immutable.ArraySeq
 import scala.reflect.ClassTag
 
 import org.apache.spark._

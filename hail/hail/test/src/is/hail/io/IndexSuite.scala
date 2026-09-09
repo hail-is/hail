@@ -4,12 +4,13 @@ import is.hail.ParameterizedTest
 import is.hail.TestUtils._
 import is.hail.annotations.{Annotation, RowSeq}
 import is.hail.backend.ExecuteContext
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.collection.implicits.toRichIterator
 import is.hail.io.index._
 import is.hail.types.physical.{PCanonicalString, PCanonicalStruct, PInt32, PType}
 import is.hail.types.virtual._
 import is.hail.utils._
+
+import scala.collection.immutable.ArraySeq
 
 import org.junit.jupiter.api.Test
 

@@ -6,10 +6,11 @@ import is.hail.asm4s.implicits.{
   valueToRichCodeInputBuffer, valueToRichCodeOutputBuffer, valueToRichCodeRegion,
 }
 import is.hail.collection.FastSeq
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir._
 import is.hail.io.{InputBuffer, OutputBuffer}
 import is.hail.types.physical._
+
+import scala.collection.immutable.ArraySeq
 
 trait BTreeKey {
   def storageType: PType

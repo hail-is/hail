@@ -2,10 +2,10 @@ package is.hail.expr.ir
 
 import is.hail.asm4s._
 import is.hail.collection.FastSeq
-import is.hail.collection.compat.immutable.ArraySeq
 
 import scala.{collection => C}
 import scala.collection.{mutable => M}
+import scala.collection.immutable.ArraySeq
 
 import net.sourceforge.jdistlib.{Beta, Gamma, HyperGeometric, Poisson}
 import net.sourceforge.jdistlib.rng.RandomEngine

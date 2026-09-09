@@ -48,7 +48,7 @@ charset-normalizer==3.5.1
     #   -c gear/../hail/python/hailtop/pinned-requirements.txt
     #   -c gear/../hail/python/pinned-requirements.txt
     #   requests
-cryptography==50.0.0
+cryptography==50.0.1
     # via
     #   -c gear/../hail/python/hailtop/pinned-requirements.txt
     #   -c gear/../hail/python/pinned-requirements.txt
@@ -60,11 +60,11 @@ frozenlist==1.8.0
     #   -c gear/../hail/python/pinned-requirements.txt
     #   aiohttp
     #   aiosignal
-google-api-core==2.34.0
+google-api-core==2.36.0
     # via google-api-python-client
-google-api-python-client==2.199.0
+google-api-python-client==2.200.0
     # via google-cloud-profiler
-google-auth==2.56.3
+google-auth==2.57.1
     # via
     #   -c gear/../hail/python/hailtop/pinned-requirements.txt
     #   -c gear/../hail/python/pinned-requirements.txt
@@ -72,13 +72,13 @@ google-auth==2.56.3
     #   google-api-python-client
     #   google-auth-httplib2
     #   google-cloud-profiler
-google-auth-httplib2==0.4.1
+google-auth-httplib2==0.4.2
     # via
     #   google-api-python-client
     #   google-cloud-profiler
 google-cloud-profiler==4.1.0
     # via -r gear/requirements.txt
-googleapis-common-protos==1.75.1
+googleapis-common-protos==1.75.3
     # via google-api-core
 httplib2==0.32.0
     # via
@@ -100,6 +100,8 @@ multidict==6.7.1
     #   -c gear/../hail/python/pinned-requirements.txt
     #   aiohttp
     #   yarl
+opentelemetry-api==1.44.0
+    # via google-api-core
 packaging==26.3
     # via
     #   -c gear/../hail/python/dev/pinned-requirements.txt
@@ -119,9 +121,9 @@ propcache==0.5.2
     #   -c gear/../hail/python/pinned-requirements.txt
     #   aiohttp
     #   yarl
-proto-plus==1.28.3
+proto-plus==1.28.4
     # via google-api-core
-protobuf==7.36.0
+protobuf==7.36.1
     # via
     #   google-api-core
     #   google-cloud-profiler
@@ -194,6 +196,7 @@ typing-extensions==4.16.0
     #   -c gear/../hail/python/pinned-requirements.txt
     #   aiohttp
     #   aiosignal
+    #   opentelemetry-api
 uritemplate==4.2.0
     # via google-api-python-client
 urllib3==2.7.0

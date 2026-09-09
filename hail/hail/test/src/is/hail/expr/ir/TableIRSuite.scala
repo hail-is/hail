@@ -6,7 +6,6 @@ import is.hail.TestUtils._
 import is.hail.annotations.{RowSeq, SafeNDArray}
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.collection.implicits.toRichIterable
 import is.hail.expr.Nat
 import is.hail.expr.ir.TestUtils._
@@ -21,7 +20,7 @@ import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.variant.Locus
 
-import scala.collection.compat._
+import scala.collection.immutable.ArraySeq
 
 import org.apache.spark.sql.Row
 import org.junit.jupiter.api.Test

@@ -3,7 +3,6 @@ package is.hail.expr.ir.lowering
 import is.hail.annotations.{ExtendedOrdering, IntervalEndpointOrdering, RowSeq, SafeRow}
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.collection.implicits.{toRichIndexedSeq, toRichIterable}
 import is.hail.expr.ir._
 import is.hail.expr.ir.defs._
@@ -12,6 +11,7 @@ import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.variant.{Locus, ReferenceGenome}
 
+import scala.collection.immutable.ArraySeq
 import scala.collection.mutable
 
 import org.apache.spark.sql.Row

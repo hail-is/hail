@@ -1,9 +1,10 @@
 package is.hail.expr.ir
 
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir.Memoized.eval
 import is.hail.expr.ir.Scope.EVAL
 import is.hail.expr.ir.defs._
+
+import scala.collection.immutable.ArraySeq
 
 import java.util.concurrent.TimeUnit
 

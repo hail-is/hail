@@ -2,8 +2,6 @@ package is.hail.expr.ir.lowering
 
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
-import is.hail.collection.compat.immutable.ArraySeq
-import is.hail.collection.compat.mutable.Growable
 import is.hail.collection.implicits.toRichArray
 import is.hail.expr.ir.{Memoized => M, _}
 import is.hail.expr.ir.MatrixIR.{colName, entryName, globalName, rowName}
@@ -13,6 +11,9 @@ import is.hail.expr.ir.defs.ArrayZipBehavior._
 import is.hail.expr.ir.functions.{WrappedMatrixToTableFunction, WrappedMatrixToValueFunction}
 import is.hail.types.virtual._
 import is.hail.utils._
+
+import scala.collection.immutable.ArraySeq
+import scala.collection.mutable
 
 object LowerMatrixIR extends Logging {
   val entriesFieldName: String = MatrixType.entriesIdentifier
@@ -51,7 +52,7 @@ object LowerMatrixIR extends Logging {
   private def lowerChildren(
     ctx: ExecuteContext,
     ir: BaseIR,
-    ab: Growable[(Name, IR)],
+    ab: mutable.Growable[(Name, IR)],
   ): BaseIR =
     ir.mapChildren {
       case tir: TableIR => lower(ctx, tir, ab)
@@ -70,7 +71,7 @@ object LowerMatrixIR extends Logging {
   private def lower(
     ctx: ExecuteContext,
     mir: MatrixIR,
-    liftedRelationalLets: Growable[(Name, IR)],
+    liftedRelationalLets: mutable.Growable[(Name, IR)],
   ): TableIR = {
     val lowered = mir match {
       case RelationalLetMatrixTable(name, value, body) =>
@@ -237,7 +238,7 @@ object LowerMatrixIR extends Logging {
 
       case MatrixMapRows(child, newRow) =>
         def liftScans(ir: IR): (IR, IndexedSeq[(Name, IR)]) = {
-          def lift(ir: IR, builder: Growable[(Name, IR)]): IR =
+          def lift(ir: IR, builder: mutable.Growable[(Name, IR)]): IR =
             ir match {
               case a: ApplyScanOp =>
                 val s = freshName()
@@ -304,7 +305,7 @@ object LowerMatrixIR extends Logging {
               case Block(bindings, body) =>
                 val newBindings = ArraySeq.newBuilder[Binding]
 
-                def go(i: Int, builder: Growable[(Name, IR)]): IR = {
+                def go(i: Int, builder: mutable.Growable[(Name, IR)]): IR = {
                   if (i == bindings.length) lift(body, builder)
                   else bindings(i) match {
                     case Binding(name, value, Scope.SCAN) =>
@@ -379,8 +380,11 @@ object LowerMatrixIR extends Logging {
       case MatrixMapCols(child, newCol, _) =>
         val lc = lower(ctx, child, liftedRelationalLets)
 
-        def lift(ir: IR, scanBindings: Growable[(Name, IR)], aggBindings: Growable[(Name, IR)])
-          : IR = ir match {
+        def lift(
+          ir: IR,
+          scanBindings: mutable.Growable[(Name, IR)],
+          aggBindings: mutable.Growable[(Name, IR)],
+        ): IR = ir match {
           case a: ApplyScanOp =>
             val s = freshName()
             scanBindings += (s -> a)
@@ -458,8 +462,11 @@ object LowerMatrixIR extends Logging {
 
           case Block(bindings, body) =>
             val newBindings = ArraySeq.newBuilder[Binding]
-            def go(i: Int, scanBindings: Growable[(Name, IR)], aggBindings: Growable[(Name, IR)])
-              : IR =
+            def go(
+              i: Int,
+              scanBindings: mutable.Growable[(Name, IR)],
+              aggBindings: mutable.Growable[(Name, IR)],
+            ): IR =
               if (i == bindings.length) lift(body, scanBindings, aggBindings)
               else bindings(i) match {
                 case Binding(name, value, Scope.EVAL) =>
@@ -923,7 +930,8 @@ object LowerMatrixIR extends Logging {
     lowered
   }
 
-  private def lower(ctx: ExecuteContext, tir: TableIR, ab: Growable[(Name, IR)]): TableIR = {
+  private def lower(ctx: ExecuteContext, tir: TableIR, ab: mutable.Growable[(Name, IR)])
+    : TableIR = {
     val lowered = tir match {
       case CastMatrixToTable(child, entries, cols) =>
         lower(ctx, child, ab)
@@ -1098,14 +1106,14 @@ object LowerMatrixIR extends Logging {
     lowered
   }
 
-  private def lower(ctx: ExecuteContext, bmir: BlockMatrixIR, ab: Growable[(Name, IR)])
+  private def lower(ctx: ExecuteContext, bmir: BlockMatrixIR, ab: mutable.Growable[(Name, IR)])
     : BlockMatrixIR = {
     val lowered = lowerChildren(ctx, bmir, ab).asInstanceOf[BlockMatrixIR]
     assertTypeUnchanged(bmir, lowered)
     lowered
   }
 
-  private def lower(ctx: ExecuteContext, ir: IR, ab: Growable[(Name, IR)]): IR = {
+  private def lower(ctx: ExecuteContext, ir: IR, ab: mutable.Growable[(Name, IR)]): IR = {
     val lowered = ir match {
       case MatrixToValueApply(child, function) =>
         TableToValueApply(

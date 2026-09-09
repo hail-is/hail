@@ -5,7 +5,6 @@ import is.hail.asm4s._
 import is.hail.asm4s.implicits.valueToRichCodeRegion
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.collection.implicits._
 import is.hail.expr.ir.{
   EmitCode, EmitCodeBuilder, EmitMethodBuilder, EmitSettable, EmitValue, IEmitCode, IR,
@@ -26,6 +25,7 @@ import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.virtual._
 import is.hail.utils._
 
+import scala.collection.immutable.ArraySeq
 import scala.collection.mutable
 import scala.io.Source
 

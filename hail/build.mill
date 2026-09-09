@@ -1,5 +1,5 @@
-//| mill-version: 1.0.6
-//| mill-jvm-version: 17
+//| mill-version: 1.1.8
+//| mill-jvm-version: 21
 package build
 
 import mill.*
@@ -17,63 +17,76 @@ import org.typelevel.scalacoptions.*
 object Settings:
   val hailMajorMinorVersion = "0.2"
   val hailPatchVersion = "139"
-  val scalaMinorVersions = Map("2.12" -> "2.12.18", "2.13" -> "2.13.16")
-
 
 object Env extends Module:
   def sparkVersion: T[String] =
     Task.Input {
-      Task.env.getOrElse("SPARK_VERSION", "3.5.3")
+      Task.env.getOrElse("SPARK_VERSION", "4.1.2")
     }
 
 
 trait HailJavaModule extends JavaModule:
-  override def jvmId: T[String] =
-    "11"
+  override def jvmVersion: T[String] =
+    "21"
+
+  override def bomMvnDeps: T[Seq[Dep]] =
+    Seq(
+      `asm-bom` :: "9.10.1",
+      `libraries-bom` :: "26.86.0",
+      `log4j-bom` :: "2.24.3",
+    )
 
   override def javacOptions: T[Seq[String]] = {
-    val `java-1.8` =
-      if System.getProperty("java.version").startsWith("1.8")
-      then Seq("-Xlint:-processing")
-      else Seq()
-
     val `optim?` =
       if buildMode == Release
       then Seq("-O")
       else Seq("-g")
 
-    `java-1.8` ++ `optim?` ++ Seq(
+    `optim?` ++ Seq(
       "-Xlint:all",
       "-Werror",
+      // log4j-core's PluginProcessor is discovered on the classpath but no hail
+      // module defines log4j plugins, so skip annotation processing entirely
+      "-proc:none",
+      // sun.misc.Unsafe triggers a mandatory "internal proprietary API" warning
+      // that can't be suppressed under --release, which reads ct.sym.
+      "--source", "17",
+      "--target", "17",
     )
   }
 
 
 trait HailScalaModule extends ScalaModule, HailJavaModule, ScalafmtModule, ScalafixModule:
-  outer =>
+  override def scalaVersion: T[String] =
+    "2.13.18"
+
+  override def depManagement: T[Seq[Dep]] =
+    Seq(
+      `log4j-api-scala` :: "13.1.0",
+    )
 
   override def scalafixIvyDeps: T[Seq[Dep]] =
     Seq(
       `scalafix-forbidden-symbol` :: "1.0.0",
     )
 
-  override def depManagement: T[Seq[Dep]] =
+  def scalacPluginMvnDeps: T[Seq[Dep]] =
     Seq(
-      `scala-collection-compat` :: "2.13.0",
+      `wartremover` :: "3.4.1",
+      `wartremover-contrib` :: "2.3.5",
     )
-
-  def scalacPluginMvnDeps = Seq(
-    mvn"org.wartremover::wartremover:3.4.1",
-    mvn"org.wartremover::wartremover-contrib:2.3.5",
-  )
 
   override def scalacOptions: T[Seq[String]] =
     Task {
       val scalaVersion = this.scalaVersion()
 
+      if scalaVersion < "2.13" || scalaVersion >= "3"
+      then sys.error(s"scalaVersion must be 2.13. Got '$scalaVersion'.")
+
       val base =
         ScalacOptions.default +
           ScalacOptions.source213 +
+          ScalacOptions.release("17") +
           ScalacOptions.advancedOption("no-patmat-analysis")
 
       val disabled =
@@ -83,8 +96,6 @@ trait HailScalaModule extends ScalaModule, HailJavaModule, ScalafmtModule, Scala
           ScalacOptions.warnUnusedImplicits,
           ScalacOptions.privateWarnUnusedImplicits,
           ScalacOptions.warnUnusedExplicits,
-          // we don't enable the unused imports warning in 2.12, as the wconf origin filter doesn't work
-          ScalacOptions.privateWarnUnusedImports,
           // 2.13 added the -Wnonunit-discard flag, which is a stronger check than -Wvalue-discard
           ScalacOptions.warnValueDiscard,
           ScalacOptions.privateWarnValueDiscard,
@@ -102,40 +113,16 @@ trait HailScalaModule extends ScalaModule, HailJavaModule, ScalafmtModule, Scala
           case Release =>
             Set(
               ScalacOptions.fatalWarnings,
-              ScalacOptions.optimizerMethodLocal,
-              ScalacOptions.optimizerOption(":-closure-invocations"),
+              ScalacOptions.optimizerInline,
+              ScalacOptions.optimizerInlineFrom("is.hail.**"),
             )
         }
 
-      val richOptions =
-        ScalacOptions.tokensForVersion(
-          ScalaVersion.unsafeFromString(scalaVersion),
-          base -- disabled ++ fromBuildMode,
-      ) :+ "-P:wartremover:only-warn-traverser:org.wartremover.contrib.warts.MissingOverride"
-      //      :+ "-P:wartremover:only-warn-traverser:org.wartremover.contrib.warts.UnsafeInheritance"
-
-      val rawOptions =
-        if scalaVersion < "2.12" || scalaVersion >= "3"
-        then sys.error(s"scalaVersion must be 2.12 or 2.13. Got '$scalaVersion'.")
-        else if scalaVersion < "2.13"
-        then Seq("-Wconf:msg=legacy-binding:s")
-        else Seq(
-          // collection types
-          // value ArrayStack in package mutable is deprecated (since 2.13.0): Use Stack instead of ArrayStack; it now uses an array-based implementation
-          "-Wconf:cat=deprecation&msg=value ArrayStack in package mutable is deprecated:s",
-          // collection methods
-          // method transform in trait SeqOps is deprecated (since 2.13.0): Use `mapInPlace` on an `IndexedSeq` instead
-          "-Wconf:cat=deprecation&msg=method transform in trait SeqOps is deprecated:s",
-          // other
-          "-Wconf:cat=deprecation&msg=symbol literal is deprecated:s",
-          raw"-Wconf:cat=unused-imports&origin=scala\.collection\.compat\._:s",
-          raw"-Wconf:cat=unused-imports&origin=scala\.Option\.option2Iterable:s",
-          raw"-Wconf:cat=unused-imports&origin=is\.hail\.collection\.compat\._:s",
-          raw"-Wconf:msg=unused value of type org\.scalatest\..*Assertion:s",
-          raw"-Wconf:msg=unused value of type org\.mockito\.stubbing\.ScalaOngoingStubbing:s",
-        )
-
-      richOptions ++ rawOptions
+      ScalacOptions.tokensForVersion(
+        ScalaVersion.unsafeFromString(scalaVersion),
+        base -- disabled ++ fromBuildMode,
+      )
+        :+ "-P:wartremover:only-warn-traverser:org.wartremover.contrib.warts.MissingOverride"
     }
 
   trait HailScalaTests extends ScalaTests, HailScalaModule

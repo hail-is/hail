@@ -4,11 +4,12 @@ import is.hail.ParameterizedTest
 import is.hail.TestUtils._
 import is.hail.annotations.RowSeq
 import is.hail.collection.FastSeq
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.rvd.AbstractRVDSpec
 import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
+
+import scala.collection.immutable.ArraySeq
 
 import org.json4s.jackson.Serialization
 import org.junit.jupiter.api.Test

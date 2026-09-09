@@ -5,7 +5,6 @@ import is.hail.asm4s.{Code, _}
 import is.hail.asm4s.implicits.valueToRichCodeRegion
 import is.hail.backend.HailStateManager
 import is.hail.collection.FastSeq
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir.{
   CodeParam, CodeParamType, EmitCode, EmitCodeBuilder, Param, ParamType, SCodeParam,
 }
@@ -13,6 +12,8 @@ import is.hail.types.physical.stypes.SValue
 import is.hail.types.physical.stypes.concrete._
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.virtual.{TNDArray, Type}
+
+import scala.collection.immutable.ArraySeq
 
 final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boolean = false)
     extends PNDArray {

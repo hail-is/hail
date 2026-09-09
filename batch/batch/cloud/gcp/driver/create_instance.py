@@ -13,7 +13,7 @@ from ....driver.exceptions import LocalSSDNotSupportedError
 from ....file_store import FileStore
 from ....instance_config import InstanceConfig
 from ...resource_utils import unreserved_worker_data_disk_size_gib
-from ...utils import ACCEPTABLE_QUERY_JAR_URL_PREFIX
+from ...utils import ACCEPTABLE_QUERY_JAR_URL_PREFIX, SPARK_ARCHIVE_URL_PREFIX
 from ..resource_utils import (
     GPUConfig,
     gcp_boot_disk_type,
@@ -202,6 +202,7 @@ WORKER_DATA_DISK_NAME="{worker_data_disk_name}"
 NUM_LOCAL_SSDS="{num_local_ssds}"
 UNRESERVED_WORKER_DATA_DISK_SIZE_GB="{unreserved_disk_storage_gb}"
 ACCEPTABLE_QUERY_JAR_URL_PREFIX="{ACCEPTABLE_QUERY_JAR_URL_PREFIX}"
+SPARK_ARCHIVE_URL_PREFIX="{SPARK_ARCHIVE_URL_PREFIX}"
 
 CORES=$(nproc)
 NAMESPACE=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/namespace")
@@ -373,6 +374,7 @@ docker run \
 -e INTERNET_INTERFACE=$INTERNET_INTERFACE \
 -e UNRESERVED_WORKER_DATA_DISK_SIZE_GB=$UNRESERVED_WORKER_DATA_DISK_SIZE_GB \
 -e ACCEPTABLE_QUERY_JAR_URL_PREFIX=$ACCEPTABLE_QUERY_JAR_URL_PREFIX \
+-e SPARK_ARCHIVE_URL_PREFIX=$SPARK_ARCHIVE_URL_PREFIX \
 -e INTERNAL_GATEWAY_IP=$INTERNAL_GATEWAY_IP \
 -v /var/run/docker.sock:/var/run/docker.sock \
 -v /var/run/netns:/var/run/netns:shared \

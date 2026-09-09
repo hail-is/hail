@@ -1,10 +1,11 @@
 package is.hail.kryo
 
 import is.hail.annotations.{Region, RegionMemory, RegionPool, RowSeq, UnsafeIndexedSeq, UnsafeRow}
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.collection.implicits.toRichArray
 import is.hail.utils.{Interval, IntervalEndpoint, SerializableHadoopConfiguration}
 import is.hail.variant.Locus
+
+import scala.collection.immutable.ArraySeq
 
 import com.esotericsoftware.kryo.{Kryo, Serializer}
 import com.esotericsoftware.kryo.io.{Input, Output}

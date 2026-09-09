@@ -1,9 +1,9 @@
 package is.hail.expr
 
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.utils._
 import is.hail.variant._
 
+import scala.collection.immutable.ArraySeq
 import scala.util.parsing.combinator.JavaTokenParsers
 import scala.util.parsing.input.Position
 

@@ -2,8 +2,9 @@ package is.hail.types.virtual
 
 import is.hail.annotations.{Annotation, ExtendedOrdering, NDArray}
 import is.hail.backend.HailStateManager
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.{Nat, NatBase}
+
+import scala.collection.immutable.ArraySeq
 
 object TNDArray {
   def matMulNDims(l: Int, r: Int): Int = {

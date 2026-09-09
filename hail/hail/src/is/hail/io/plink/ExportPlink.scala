@@ -1,8 +1,9 @@
 package is.hail.io.plink
 
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.utils._
 import is.hail.variant._
+
+import scala.collection.immutable.ArraySeq
 
 import java.io.OutputStream
 

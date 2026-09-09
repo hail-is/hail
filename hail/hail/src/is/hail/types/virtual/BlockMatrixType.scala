@@ -1,12 +1,11 @@
 package is.hail.types.virtual
 
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir._
 import is.hail.expr.ir.defs.{Atom, I64, If}
 import is.hail.linalg.{BlockMatrix, MatrixSparsity}
 import is.hail.utils.fatal
 
-import scala.collection.compat._
+import scala.collection.immutable.ArraySeq
 
 import org.json4s.{JInt, JObject, JString, JValue}
 

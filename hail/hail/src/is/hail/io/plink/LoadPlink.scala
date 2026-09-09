@@ -4,8 +4,6 @@ import is.hail.annotations.{Region, RegionValueBuilder, RowSeq}
 import is.hail.asm4s.HailClassLoader
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
-import is.hail.collection.compat._
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.collection.implicits.toRichArray
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir._
@@ -21,6 +19,8 @@ import is.hail.utils._
 import is.hail.utils.StringEscapeUtils._
 import is.hail.utils.implicits.{toRichContextIterator, toRichInputStream}
 import is.hail.variant._
+
+import scala.collection.immutable.ArraySeq
 
 import java.io.{ObjectInputStream, ObjectOutputStream}
 
@@ -78,7 +78,7 @@ object LoadPlink extends Logging {
       }
     }
     implicit val ord = locusAllelesType.ordering(ctx.stateManager).toOrdering
-    val variants = vs.result().sortInPlaceBy(_.locusAlleles).array
+    val variants = vs.result().sortedInPlaceBy(_.locusAlleles)
     (n, variants)
   }
 

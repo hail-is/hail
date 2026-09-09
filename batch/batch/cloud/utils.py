@@ -30,22 +30,23 @@ def possible_cloud_locations(cloud: str) -> Set[str]:
     return gcp_config.regions
 
 
-def _acceptable_query_jar_url_prefix() -> str:
+def _query_storage_url_prefix(subfolder_envvar: str) -> str:
     cloud = os.environ['CLOUD']
     query_storage_uri = os.environ['HAIL_QUERY_STORAGE_URI']
-    jar_subfolder = os.environ['HAIL_QUERY_ACCEPTABLE_JAR_SUBFOLDER']
-    acceptable_query_jar_url_prefix = query_storage_uri + jar_subfolder
+    subfolder = os.environ[subfolder_envvar]
+    url_prefix = query_storage_uri + subfolder
 
-    assert jar_subfolder[0] == '/', (query_storage_uri, jar_subfolder)
-    assert query_storage_uri[-1] != '/', (query_storage_uri, jar_subfolder)
+    assert subfolder[0] == '/', (query_storage_uri, subfolder)
+    assert query_storage_uri[-1] != '/', (query_storage_uri, subfolder)
 
     if cloud == 'gcp':
-        assert GoogleStorageAsyncFS.valid_url(acceptable_query_jar_url_prefix)
+        assert GoogleStorageAsyncFS.valid_url(url_prefix)
     else:
         assert cloud == 'azure'
-        assert AzureAsyncFS.valid_url(acceptable_query_jar_url_prefix)
+        assert AzureAsyncFS.valid_url(url_prefix)
 
-    return acceptable_query_jar_url_prefix
+    return url_prefix
 
 
-ACCEPTABLE_QUERY_JAR_URL_PREFIX = _acceptable_query_jar_url_prefix()
+ACCEPTABLE_QUERY_JAR_URL_PREFIX = _query_storage_url_prefix('HAIL_QUERY_ACCEPTABLE_JAR_SUBFOLDER')
+SPARK_ARCHIVE_URL_PREFIX = _query_storage_url_prefix('HAIL_QUERY_SPARK_ARCHIVE_SUBFOLDER')

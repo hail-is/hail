@@ -2,12 +2,13 @@ package is.hail.types.physical.stypes.concrete
 
 import is.hail.annotations.Region
 import is.hail.asm4s.{Settable, TypeInfo, Value}
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir.{EmitCodeBuilder, IEmitCode}
 import is.hail.types.physical.{PCanonicalStruct, PType}
 import is.hail.types.physical.stypes.{EmitType, SType, SValue}
 import is.hail.types.physical.stypes.interfaces.{SBaseStruct, SBaseStructSettable, SBaseStructValue}
 import is.hail.types.virtual.{TBaseStruct, TStruct, Type}
+
+import scala.collection.immutable.ArraySeq
 
 object SStructView {
   def subset(fieldnames: IndexedSeq[String], struct: SBaseStruct): SStructView =

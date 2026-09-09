@@ -6,13 +6,14 @@ import is.hail.asm4s.implicits.{
   valueToRichCodeInputBuffer, valueToRichCodeOutputBuffer, valueToRichCodeRegion,
 }
 import is.hail.backend.ExecuteContext
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir._
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer}
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.{EmitType, SValue}
 import is.hail.types.physical.stypes.concrete.SIndexablePointer
 import is.hail.types.virtual.{TInt32, TVoid, Type}
+
+import scala.collection.immutable.ArraySeq
 
 // initOp args: initOps for nestedAgg, length if knownLength = true
 // seqOp args: array, other non-elt args for nestedAgg

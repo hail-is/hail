@@ -2,7 +2,7 @@ package is.hail.stats
 
 import breeze.generic.UFunc
 import breeze.linalg._
-import com.github.fommil.netlib.LAPACK.{getInstance => lapack}
+import dev.ludovic.netlib.lapack.LAPACK.{getInstance => lapack}
 import org.netlib.util.intW
 
 /** Computes all eigenvalues (and optionally right eigenvectors) of the given real symmetric matrix

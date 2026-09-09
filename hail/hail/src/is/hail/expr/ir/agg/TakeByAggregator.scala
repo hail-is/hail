@@ -8,7 +8,6 @@ import is.hail.asm4s.implicits.{
 }
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir.{
   Ascending, EmitClassBuilder, EmitCode, EmitCodeBuilder, EmitValue, IEmitCode, ParamType, SortOrder,
 }
@@ -22,6 +21,8 @@ import is.hail.types.physical.stypes.concrete.{
 }
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.virtual.{TInt32, Type}
+
+import scala.collection.immutable.ArraySeq
 
 object TakeByRVAS {
   val END_SERIALIZATION: Int = 0x1324

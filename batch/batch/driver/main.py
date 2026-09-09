@@ -956,9 +956,18 @@ HAVING n_ready_jobs + n_running_jobs > 0;
 
 @routes.get('/')
 @routes.get('')
-@web_security_headers
+@web_security_headers_inline_styles
 @auth.authenticated_users_with_permission(SystemPermission.READ_DEPLOYED_SYSTEM_STATE)
 async def get_index(request, userdata):
+    if request.cookies.get('hail_react_ui') == '1':
+        return await render_template(
+            'batch-driver',
+            request,
+            userdata,
+            'index_react.html',
+            {'use_tailwind': True},
+        )
+
     app = request.app
     db: Database = app['db']
     inst_coll_manager: InstanceCollectionManager = app['driver'].inst_coll_manager
@@ -1079,13 +1088,6 @@ def validate_int(session, name, value, predicate, description):
         set_message(session, f'{name} invalid: {value}.  Must be an integer.', 'error')
         raise ConfigError() from e
     return validate(session, name, i, predicate, description)
-
-
-@routes.get('/helloreact')
-@web_security_headers_inline_styles
-@auth.authenticated_users_with_permission(SystemPermission.READ_DEPLOYED_SYSTEM_STATE)
-async def hello_react(request: web.Request, userdata) -> web.Response:
-    return await render_template('batch-driver', request, userdata, 'hello_react.html', {'use_tailwind': True})
 
 
 @routes.post('/configure-feature-flags')
@@ -2259,6 +2261,7 @@ def run():
     setup_common_static_routes(routes)
     routes.static('/batch_driver/static/js', f'{DRIVER_ROOT}/static/js')
     os.makedirs(f'{DRIVER_ROOT}/static/compiled-js', exist_ok=True)
+    routes.static('/batch-driver/static/compiled-js', f'{DRIVER_ROOT}/static/compiled-js')
     routes.static('/batch/static/compiled-js', f'{DRIVER_ROOT}/static/compiled-js')
     app.add_routes(routes)
     app.router.add_get("/metrics", server_stats)

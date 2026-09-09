@@ -4,7 +4,6 @@ import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.asm4s.implicits.valueToRichCodeOutputBuffer
 import is.hail.backend.ExecuteContext
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir._
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer, TypedCodecSpec}
 import is.hail.io.index.{IndexType, StagedIndexWriter}
@@ -16,6 +15,8 @@ import is.hail.types.physical.stypes.concrete.{SJavaString, SJavaStringValue, SS
 import is.hail.types.physical.stypes.interfaces.primitive
 import is.hail.types.virtual._
 import is.hail.utils.fatal
+
+import scala.collection.immutable.ArraySeq
 
 class StreamWriterState(override val kb: EmitClassBuilder[_], indexType: Option[IndexType])
     extends AggregatorState {

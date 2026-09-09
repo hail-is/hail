@@ -18,12 +18,12 @@ charset-normalizer==3.5.1
     #   -c ci/../hail/python/dev/pinned-requirements.txt
     #   -c ci/../hail/python/pinned-requirements.txt
     #   requests
-click==8.4.2
+click==8.5.0
     # via
     #   -c ci/../hail/python/dev/pinned-requirements.txt
     #   -c ci/../hail/python/pinned-requirements.txt
     #   zulip
-cryptography==50.0.0
+cryptography==50.0.1
     # via
     #   -c ci/../gear/pinned-requirements.txt
     #   -c ci/../hail/python/pinned-requirements.txt

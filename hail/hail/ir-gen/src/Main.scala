@@ -1,6 +1,5 @@
 import scala.annotation.nowarn
-import scala.collection.compat._
-import scala.collection.compat.immutable.ArraySeq
+import scala.collection.immutable.ArraySeq
 
 import mainargs.{main, ParserForMethods}
 
@@ -1213,7 +1212,6 @@ object Main {
         "UnseededMissingnessObliviousJVMFunction, TableToValueFunction, MatrixToValueFunction, " +
         "BlockMatrixToValueFunction}",
       "is.hail.expr.ir.defs.exts._",
-      "scala.collection.compat._",
     )
     val gen = pack + "\n\n" + imports.map(i => s"import $i").mkString("\n") + "\n\n" + allNodes.map(
       _.generateDef

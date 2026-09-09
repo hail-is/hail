@@ -2,7 +2,6 @@ package is.hail.methods
 
 import is.hail.annotations.RowSeq
 import is.hail.backend.ExecuteContext
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir.TableValue
 import is.hail.expr.ir.functions.BlockMatrixToTableFunction
 import is.hail.linalg.BlockMatrix
@@ -10,6 +9,8 @@ import is.hail.linalg.BlockMatrix.ops._
 import is.hail.linalg.implicits._
 import is.hail.types.virtual._
 import is.hail.utils._
+
+import scala.collection.immutable.ArraySeq
 
 import breeze.linalg.{DenseMatrix => BDM}
 import org.apache.spark.rdd.RDD

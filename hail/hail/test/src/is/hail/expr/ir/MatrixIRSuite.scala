@@ -6,7 +6,6 @@ import is.hail.TestUtils._
 import is.hail.annotations.{BroadcastRow, RowSeq}
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.collection.implicits._
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir.TestUtils._
@@ -17,7 +16,7 @@ import is.hail.expr.ir.defs.{
 import is.hail.types.virtual._
 import is.hail.utils._
 
-import scala.collection.compat._
+import scala.collection.immutable.ArraySeq
 
 import org.apache.spark.sql.Row
 import org.json4s.jackson.JsonMethods

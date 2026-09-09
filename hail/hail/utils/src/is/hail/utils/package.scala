@@ -1,10 +1,9 @@
 package is.hail
 
 import is.hail.collection.ByteArrayBuilder
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.utils.implicits.toRichBoolean
 
-import scala.collection.compat._
+import scala.collection.immutable.ArraySeq
 import scala.collection.mutable
 import scala.reflect.ClassTag
 import scala.util.control.ControlThrowable
@@ -21,6 +20,9 @@ import org.json4s.JsonAST.JString
 import org.json4s.jackson.JsonMethods
 
 package utils {
+
+  import scala.collection.Factory
+
   trait Truncatable {
     def truncate: String
     def strings: (String, String)

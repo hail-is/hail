@@ -2,6 +2,7 @@ import { Job, Attempt } from './jobModels';
 import { stateColor } from './StateIcon';
 import { CollapsibleItem } from './CollapsibleItem';
 import { RelativeTime } from './RelativeTime';
+import { AutoRefreshBar } from '../../shared/AutoRefreshBar';
 
 const MIN_VISIBLE_COST = 0.01;
 
@@ -19,17 +20,19 @@ function CostDisplay({ cost }: { cost: number }): JSX.Element {
 interface Props {
   batchId: string;
   jobId: string;
+  basePath: string;
   job: Job;
   latestAttempt: Attempt | null;
   autoRefresh: boolean;
   isTerminal: boolean;
+  hasJvmProfile: boolean;
   onAutoRefreshToggle: (_checked: boolean) => void;
   countdownKey: number;
   refreshIntervalMs: number;
   jobRefreshing: boolean;
 }
 
-export function JobStatusPanel({ batchId, jobId, job, latestAttempt, autoRefresh, isTerminal, onAutoRefreshToggle, countdownKey, refreshIntervalMs, jobRefreshing }: Props): JSX.Element {
+export function JobStatusPanel({ batchId, jobId, basePath, job, latestAttempt, autoRefresh, isTerminal, hasJvmProfile, onAutoRefreshToggle, countdownKey, refreshIntervalMs, jobRefreshing }: Props): JSX.Element {
   return (
     <div className="w-full lg:basis-1/4 drop-shadow-sm shrink-0">
       <ul className="border border-collapse divide-y bg-slate-50 rounded">
@@ -43,32 +46,13 @@ export function JobStatusPanel({ batchId, jobId, job, latestAttempt, autoRefresh
           )}
           {!isTerminal && (
             <div className="mt-2">
-              <label className="flex items-center gap-1.5 text-zinc-500 text-sm cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={autoRefresh}
-                  onChange={(e) => { onAutoRefreshToggle(e.target.checked); }}
-                  className="cursor-pointer"
-                />
-                Auto-refresh
-                {autoRefresh && jobRefreshing && (
-                  <span className="material-symbols-outlined text-sm animate-spin text-sky-400" style={{ animationDuration: '1s' }}>
-                    progress_activity
-                  </span>
-                )}
-              </label>
-              <div className="mt-1.5 h-0.5 bg-zinc-200 rounded-full overflow-hidden">
-                {autoRefresh && !jobRefreshing && (
-                  <div
-                    key={countdownKey}
-                    className="h-full bg-sky-400 origin-left"
-                    style={{ animation: `countdown-grow ${refreshIntervalMs}ms linear forwards` }}
-                  />
-                )}
-                {autoRefresh && jobRefreshing && (
-                  <div className="h-full bg-sky-300 w-full animate-pulse" />
-                )}
-              </div>
+              <AutoRefreshBar
+                autoRefresh={autoRefresh}
+                onToggle={onAutoRefreshToggle}
+                countdownKey={countdownKey}
+                refreshing={jobRefreshing}
+                intervalMs={refreshIntervalMs}
+              />
             </div>
           )}
           {job.user && (
@@ -103,6 +87,14 @@ export function JobStatusPanel({ batchId, jobId, job, latestAttempt, autoRefresh
               </table>
             )}
           </CollapsibleItem>
+        )}
+        {hasJvmProfile && isTerminal && (
+          <li className="p-4">
+            <a href={`${basePath}/batches/${batchId}/jobs/${jobId}/jvm_profile`} download={`${batchId}_${jobId}_jvm_profile.html`} className="text-sm text-sky-600 hover:underline flex items-center gap-1">
+              <span className="material-symbols-outlined text-base leading-none">download</span>
+              JVM profile
+            </a>
+          </li>
         )}
       </ul>
     </div>

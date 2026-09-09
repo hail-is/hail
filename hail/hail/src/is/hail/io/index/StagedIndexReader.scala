@@ -5,7 +5,6 @@ import is.hail.asm4s._
 import is.hail.asm4s.implicits.valueToRichCodeInputBuffer
 import is.hail.backend.TaskFinalizer
 import is.hail.collection.FastSeq
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir.{
   BinarySearch, EmitCode, EmitCodeBuilder, EmitMethodBuilder, EmitValue, IEmitCode,
 }
@@ -21,6 +20,8 @@ import is.hail.types.physical.stypes.concrete._
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.virtual.{TInt64, TTuple}
 import is.hail.utils._
+
+import scala.collection.immutable.ArraySeq
 
 import java.io.{Closeable, InputStream}
 

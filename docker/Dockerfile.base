@@ -6,10 +6,9 @@ RUN hail-apt-get-install \
     htop \
     unzip bzip2 zip tar \
     xsltproc pandoc \
-    openjdk-11-jdk-headless \
+    openjdk-21-jdk-headless \
     liblapack3 \
     liblz4-dev \
-    cmake
+    make
 
-RUN hail-apt-get-install maven
 RUN hail-pip-install build

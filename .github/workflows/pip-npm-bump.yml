@@ -2,7 +2,7 @@ name: Weekly pip/npm bump
 
 on:
   schedule:
-    - cron: '0 9 * * 5'  # Friday 9am UTC
+    - cron: '0 4 * * 5'  # Friday 4am UTC
   workflow_dispatch:
 
 permissions:
@@ -84,4 +84,5 @@ jobs:
           gh pr create \
             --title "[services] pip npm bump ${{ steps.date.outputs.value }}" \
             --body "$PR_BODY" \
-            --base main
+            --base main \
+            --label run-dataproc-tests

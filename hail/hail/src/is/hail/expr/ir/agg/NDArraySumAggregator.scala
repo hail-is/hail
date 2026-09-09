@@ -5,13 +5,14 @@ import is.hail.asm4s._
 import is.hail.asm4s.implicits.valueToRichCodeRegion
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir.{CodeParamType, EmitCode, EmitCodeBuilder, IEmitCode}
 import is.hail.types.VirtualTypeWithReq
 import is.hail.types.physical.PCanonicalNDArray
 import is.hail.types.physical.stypes.{EmitType, SCode}
 import is.hail.types.physical.stypes.interfaces.SNDArrayValue
 import is.hail.types.virtual.Type
+
+import scala.collection.immutable.ArraySeq
 
 class NDArraySumAggregator(ndVTyp: VirtualTypeWithReq) extends StagedAggregator {
   override type State = TypedRegionBackedAggState

@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
+import { ansiTextToNodes } from '../../shared/ansi';
 
 type Props = {
   text: string;
@@ -26,6 +27,8 @@ export function LogViewer({ text, downloadUrl, downloadName, hasPendingUpdate, o
     () => (query.trim() ? lines.filter((l) => l.includes(query)) : lines),
     [lines, query]
   );
+
+  const renderedLines = useMemo(() => ansiTextToNodes(filteredLines.join('\n')), [filteredLines]);
 
   return (
     <div className="flex flex-col gap-2">
@@ -69,7 +72,7 @@ export function LogViewer({ text, downloadUrl, downloadName, hasPendingUpdate, o
       </div>
       <div ref={scrollRef} className="bg-slate-50 border rounded overflow-auto" style={{ maxHeight: expanded ? '64rem' : '32rem' }}>
         <pre className="text-sm p-2 whitespace-pre-wrap break-all">
-          {filteredLines.join('\n')}
+          {renderedLines}
         </pre>
       </div>
       {query && (

@@ -4,7 +4,6 @@ import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir.defs.{Literal, MakeStruct, PartitionReader, ReadPartition, ToStream}
 import is.hail.expr.ir.functions.StringFunctions
 import is.hail.expr.ir.lowering.{LowererUnsupportedOperation, TableStage, TableStageDependency}
@@ -19,6 +18,8 @@ import is.hail.types.physical.stypes.concrete.{SJavaString, SStackStruct, SStack
 import is.hail.types.physical.stypes.interfaces.{SBaseStructValue, SStreamValue}
 import is.hail.types.physical.stypes.primitives.{SInt64, SInt64Value}
 import is.hail.types.virtual._
+
+import scala.collection.immutable.ArraySeq
 
 import org.json4s.{Extraction, Formats, JValue}
 

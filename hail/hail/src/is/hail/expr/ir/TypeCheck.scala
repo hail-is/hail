@@ -10,7 +10,6 @@ import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.utils.StackSafe._
 
-import scala.collection.compat._
 import scala.reflect.ClassTag
 
 object TypeCheck extends Logging {

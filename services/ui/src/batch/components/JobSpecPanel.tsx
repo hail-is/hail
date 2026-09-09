@@ -37,9 +37,10 @@ interface Props {
   instColl?: string;
 }
 
-type SubTab = 'input' | 'main' | 'output';
+type SubTab = 'details' | 'input' | 'main' | 'output';
 
 const SUB_TABS: { id: SubTab; label: string }[] = [
+  { id: 'details', label: 'Details' },
   { id: 'input', label: 'Input' },
   { id: 'main', label: 'Main' },
   { id: 'output', label: 'Output' },
@@ -134,30 +135,10 @@ export function JobSpecPanel({
         </div>
       )}
 
-      {activeSubTab === 'main' && (
+      {activeSubTab === 'details' && (
         <div className="space-y-4 py-2">
           {spec?.process ? (
             <>
-              {spec.process.type === 'docker' && spec.process.image && (
-                <CollapsibleSection title="Image" defaultOpen>
-                  <div className="font-mono text-sm break-all">{spec.process.image}</div>
-                </CollapsibleSection>
-              )}
-              {spec.user_code && (
-                <CollapsibleSection title="User Code" defaultOpen>
-                  <CodeBlock code={spec.user_code} />
-                </CollapsibleSection>
-              )}
-              {spec.process.command && (
-                <CollapsibleSection title="Command" defaultOpen>
-                  <CodeBlock code={spec.process.command.join("' '")} />
-                </CollapsibleSection>
-              )}
-              {spec.process.type === 'jvm' && spec.process.jar_spec && (
-                <CollapsibleSection title="JAR" defaultOpen>
-                  <div className="font-mono text-sm">{spec.process.jar_spec.type}: {spec.process.jar_spec.value}</div>
-                </CollapsibleSection>
-              )}
               {(reqCpu != null || reqMemory != null || reqStorage != null || requestedMachineType != null) && (
                 <CollapsibleSection title="Resources" defaultOpen>
                   <table className="text-sm border-collapse w-full max-w-sm">
@@ -323,6 +304,37 @@ export function JobSpecPanel({
                   )}
                 </div>
               </CollapsibleSection>
+            </>
+          ) : (
+            <div className="text-zinc-400 text-sm">No spec available.</div>
+          )}
+        </div>
+      )}
+
+      {activeSubTab === 'main' && (
+        <div className="space-y-4 py-2">
+          {spec?.process ? (
+            <>
+              {spec.process.type === 'docker' && spec.process.image && (
+                <CollapsibleSection title="Image" defaultOpen>
+                  <div className="font-mono text-sm break-all">{spec.process.image}</div>
+                </CollapsibleSection>
+              )}
+              {spec.user_code && (
+                <CollapsibleSection title="User Code" defaultOpen>
+                  <CodeBlock code={spec.user_code} />
+                </CollapsibleSection>
+              )}
+              {spec.process.command && (
+                <CollapsibleSection title="Command" defaultOpen>
+                  <CodeBlock code={spec.process.command.join("' '")} />
+                </CollapsibleSection>
+              )}
+              {spec.process.type === 'jvm' && spec.process.jar_spec && (
+                <CollapsibleSection title="JAR" defaultOpen>
+                  <div className="font-mono text-sm">{spec.process.jar_spec.type}: {spec.process.jar_spec.value}</div>
+                </CollapsibleSection>
+              )}
             </>
           ) : (
             <div className="text-zinc-400 text-sm">No spec available.</div>

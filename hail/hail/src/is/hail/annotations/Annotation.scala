@@ -1,8 +1,9 @@
 package is.hail.annotations
 
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.types.virtual._
 import is.hail.utils._
+
+import scala.collection.immutable.ArraySeq
 
 import org.apache.spark.sql.Row
 

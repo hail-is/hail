@@ -5,7 +5,6 @@ import is.hail.asm4s.HailClassLoader
 import is.hail.backend._
 import is.hail.backend.spark.SparkBackend
 import is.hail.collection.FastSeq
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.collection.implicits.toRichIterable
 import is.hail.expr.{JSONAnnotationImpex, SparkAnnotationImpex}
 import is.hail.expr.ir._
@@ -25,7 +24,7 @@ import is.hail.utils.implicits.toRichString
 import is.hail.variant.ReferenceGenome
 
 import scala.annotation.nowarn
-import scala.collection.compat._
+import scala.collection.immutable.ArraySeq
 import scala.collection.mutable
 import scala.jdk.CollectionConverters._
 import scala.util.control.NonFatal

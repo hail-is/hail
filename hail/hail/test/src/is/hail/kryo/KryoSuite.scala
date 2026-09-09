@@ -1,7 +1,8 @@
 package is.hail.kryo
 
 import is.hail.ParameterizedTest
-import is.hail.collection.compat.immutable.ArraySeq
+
+import scala.collection.immutable.ArraySeq
 
 import com.esotericsoftware.kryo.Kryo
 import com.esotericsoftware.kryo.io.{Input, Output}

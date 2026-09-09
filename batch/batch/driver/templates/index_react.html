@@ -1,0 +1,17 @@
+{% extends "layout.html" %}
+{% block title %}Batch Driver{% endblock %}
+{% block head %}
+<script type="module" src="{{ base_path }}/batch/static/compiled-js/index.js"></script>
+{% endblock %}
+{% block content %}
+<div class="mb-4">
+  <a id="disable-react-ui-btn" href="#" class="text-sm text-sky-600 hover:underline">Back to classic layout</a>
+</div>
+<script src="{{ base_path }}/batch_driver/static/js/react_toggle.js"></script>
+<div id="batch-driver-react-root"
+  data-base-path="{{ base_path }}">
+  <div class="flex items-center justify-center mt-24">
+    <span class="text-5xl font-light text-sky-600">Loading&hellip;</span>
+  </div>
+</div>
+{% endblock %}

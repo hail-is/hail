@@ -4,13 +4,14 @@ import is.hail.{ParameterizedTest, PrettyVersion}
 import is.hail.TestUtils._
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir._
 import is.hail.expr.ir.defs._
 import is.hail.io.fs.{FakeURL, FileListEntry}
 import is.hail.linalg.BlockMatrixMetadata
 import is.hail.rvd.AbstractRVDSpec
 import is.hail.types.virtual._
+
+import scala.collection.immutable.ArraySeq
 
 import java.io.FileNotFoundException
 import java.lang

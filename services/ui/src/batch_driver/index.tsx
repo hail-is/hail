@@ -1,8 +1,11 @@
 import { createRoot } from 'react-dom/client';
-
-function HelloReact() {
-  return <p style={{ fontFamily: 'sans-serif', padding: '1rem' }}>Hello React (batch-driver)</p>;
-}
+import { DriverDashboard } from './DriverDashboard';
 
 const el = document.getElementById('batch-driver-react-root');
-if (el) createRoot(el).render(<HelloReact />);
+if (el) {
+  createRoot(el).render(
+    <DriverDashboard
+      basePath={el.dataset.basePath ?? ''}
+    />,
+  );
+}

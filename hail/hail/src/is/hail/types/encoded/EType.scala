@@ -4,7 +4,6 @@ import is.hail.annotations.Region
 import is.hail.asm4s.{coerce => _, _}
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir.{
   EmitClassBuilder, EmitCodeBuilder, EmitFunctionBuilder, EmitMethodBuilder, IRParser, ParamType,
   PunctuationToken, TokenIterator,
@@ -15,6 +14,8 @@ import is.hail.types.physical._
 import is.hail.types.physical.stypes.{SType, SValue}
 import is.hail.types.virtual._
 import is.hail.utils._
+
+import scala.collection.immutable.ArraySeq
 
 import java.util
 import java.util.Map.Entry

@@ -6,10 +6,11 @@ import is.hail.TestUtils._
 import is.hail.annotations.RowSeq
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir.defs.{I64, MakeStruct, ReadPartition, Str, ToArray}
 import is.hail.io.avro.AvroPartitionReader
 import is.hail.utils.{fatal, using}
+
+import scala.collection.immutable.ArraySeq
 
 import org.apache.avro.SchemaBuilder
 import org.apache.avro.file.DataFileWriter

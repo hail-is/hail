@@ -2,10 +2,11 @@ package is.hail.utils
 
 import is.hail.TestUtils._
 import is.hail.backend.ExecuteContext
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.collection.implicits.{toRichIterable, toRichOrderedArray, toRichOrderedSeq}
 import is.hail.io.fs.HadoopFS
 import is.hail.sparkextras.implicits._
+
+import scala.collection.immutable.ArraySeq
 
 import org.apache.spark.storage.StorageLevel
 import org.junit.jupiter.api.Test

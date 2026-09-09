@@ -2,11 +2,12 @@ package is.hail.types.physical
 
 import is.hail.annotations.{Annotation, Region}
 import is.hail.backend.HailStateManager
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.collection.implicits._
 import is.hail.types.physical.stypes.concrete.{SIndexablePointer, SIndexablePointerValue}
 import is.hail.types.physical.stypes.interfaces.SIndexableValue
 import is.hail.types.virtual.{TSet, Type}
+
+import scala.collection.immutable.ArraySeq
 
 object PCanonicalSet {
   def coerceArrayCode(contents: SIndexableValue): SIndexableValue =

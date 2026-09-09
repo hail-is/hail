@@ -1,19 +1,26 @@
+import dataclasses
 import os
+import subprocess
 from contextlib import contextmanager
 from pathlib import Path, PurePath
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 
 import orjson
 import pytest
 import yaml
-from typer.testing import CliRunner, Result
 
 import hailtop.batch_client.client as bc
 from hailtop.aiotools.router_fs import RouterAsyncFS
 from hailtop.batch_client.client import BatchClient
 from hailtop.config import ConfigVariable, configuration_of, get_remote_tmpdir
-from hailtop.hailctl.batch import cli
 from hailtop.utils import secret_alnum_string
+
+
+@dataclasses.dataclass
+class SubprocessResult:
+    exit_code: int
+    stdout: str
+    stderr: str
 
 
 @pytest.fixture(scope='function', autouse=True)
@@ -34,11 +41,9 @@ def client():
 
 @pytest.fixture
 def submit(request):
-    runner = CliRunner()
-
-    def invoker(args: List[str], opts: List[str], **kwargs):
+    def invoker(args: List[str], opts: List[str], env: Optional[dict] = None, capture_stderr: bool = False):
         args = [str(arg) for arg in args]
-        command = ['submit', *opts, *args]
+        command = ['hailctl', 'batch', 'submit', *opts, *args]
 
         # For ease of identifying the test in the batch ui
         if '--name' not in command:
@@ -46,15 +51,23 @@ def submit(request):
 
         # hailgenetics/hail is large enough that tests timeout waiting for
         # workers to pull the image.
-        if '--image' not in command and 'HAIL_GENETICS_HAIL_IMAGE' not in kwargs.get('env', {}):
+        if '--image' not in command and 'HAIL_GENETICS_HAIL_IMAGE' not in (env or {}):
             command += ['--image', 'python:3.12-slim', '--shell', '/usr/bin/bash']
 
-        return runner.invoke(
-            cli.app,
+        env = {**os.environ, **(env or {})}
+
+        stderr_dest = subprocess.PIPE if capture_stderr else None
+
+        with subprocess.Popen(
             command,
-            catch_exceptions=kwargs.get('catch_exceptions', False),
-            **kwargs,
-        )
+            stdout=subprocess.PIPE,
+            stderr=stderr_dest,
+            text=True,
+            env=env,
+        ) as proc:
+            stdout, stderr = proc.communicate()
+
+        return SubprocessResult(exit_code=proc.returncode, stdout=stdout, stderr=stderr or '')
 
     return invoker
 
@@ -76,12 +89,12 @@ def tmp_cwd_fixture(tmp_path):
         yield cd
 
 
-def assert_exit_code(res: Result, exit_code: int):
-    assert res.exit_code == exit_code, repr((res.output, res.stdout, res.stderr, res.exception))
+def assert_exit_code(res: SubprocessResult, exit_code: int):
+    assert res.exit_code == exit_code, repr((res.stdout, res.stderr))
 
 
-def get_batch_from_json_output(res: Result, client: BatchClient) -> bc.Batch:
-    batch_id = orjson.loads(res.output)['batch_id']
+def get_batch_from_json_output(res: SubprocessResult, client: BatchClient) -> bc.Batch:
+    batch_id = orjson.loads(res.stdout)['batch_id']
     return client.get_batch(batch_id)
 
 
@@ -153,9 +166,9 @@ def test_workdir(submit, tmp_path, request, client):
 @pytest.mark.parametrize('output', ('json', 'yaml'))
 def test_output(submit, client, output):
     res = submit(['exit', '0'], ['--output', output, '--quiet', '--wait'])
-    job_status = orjson.loads(res.output) if output == 'json' else yaml.safe_load(res.output)
+    job_status = orjson.loads(res.stdout) if output == 'json' else yaml.safe_load(res.stdout)
     from_batch = client.get_batch(job_status['batch_id']).get_job(1).status()
-    assert job_status == from_batch, repr((res.output, res.stdout, res.stderr, res.exception))
+    assert job_status == from_batch, repr((res.stdout, res.stderr))
 
 
 def test_image(submit, tmp_path, client):
@@ -210,19 +223,22 @@ echo "Hello, world!"
 
 @pytest.mark.parametrize("src_dest", ['', ':', ':dst'])
 def test_files_invalid_format(submit, src_dest):
-    res = submit([__file__], ['--wait', '--quiet', '-v', src_dest])
+    res = submit([__file__], ['--wait', '--quiet', '-v', src_dest], capture_stderr=True)
     assert_exit_code(res, 2)
-    assert f"Invalid format: '{src_dest}'" in res.output
+    assert f"Invalid format: '{src_dest}'" in res.stderr
 
 
 def test_files_src_not_directory(submit, tmp_path):
-    with pytest.raises(ValueError, match='does not exist or is not a valid directory'):
-        submit([__file__], ['--wait', '--quiet', '-v', '/garbage_path_does_not_exist/:/'])
+    res = submit([__file__], ['--wait', '--quiet', '-v', '/garbage_path_does_not_exist/:/'], capture_stderr=True)
+    assert res.exit_code != 0
+    # Split and rejoin to avoid problems with newlines like 'does not exist or is not a valid \ndirectory'
+    assert 'does not exist or is not a valid directory' in ' '.join(res.stderr.split())
 
 
 def test_files_copy_rename_not_supported(submit, tmp_path):
-    with pytest.raises(ValueError, match='copy and renaming a directory is not supported'):
-        submit([__file__], ['--wait', '--quiet', '-v', f'{tmp_path}/:/a'])
+    res = submit([__file__], ['--wait', '--quiet', '-v', f'{tmp_path}/:/a'], capture_stderr=True)
+    assert res.exit_code != 0
+    assert 'copy and renaming a directory is not supported' in res.stderr
 
 
 def test_files_copy_rename(submit, tmp_cwd, client):

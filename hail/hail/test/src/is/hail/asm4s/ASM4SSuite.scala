@@ -5,8 +5,8 @@ import is.hail.TestUtils._
 import is.hail.asm4s.Code._
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
-import is.hail.collection.compat.immutable.ArraySeq
 
+import scala.collection.immutable.ArraySeq
 import scala.language.postfixOps
 
 import java.io.PrintWriter

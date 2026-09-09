@@ -5,8 +5,6 @@ import is.hail.asm4s._
 import is.hail.backend.{ExecuteContext, HailTaskContext}
 import is.hail.backend.spark.{unsafeHailClassLoaderForSparkWorkers, SparkTaskContext}
 import is.hail.collection.FastSeq
-import is.hail.collection.compat.immutable.ArraySeq
-import is.hail.collection.compat.mutable.Growable
 import is.hail.collection.implicits.toRichIterable
 import is.hail.expr.ir
 import is.hail.expr.ir._
@@ -17,6 +15,7 @@ import is.hail.types.{tcoerce, TypeWithRequiredness, VirtualTypeWithReq}
 import is.hail.types.physical.stypes.EmitType
 import is.hail.types.virtual._
 
+import scala.collection.immutable.ArraySeq
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 
@@ -524,12 +523,12 @@ object Extract {
     ir: IR,
     env: BindingEnv[BindingState],
     // Bindings in scope for init op arguments. Will also be in scope in post-agg IR.
-    initBindings: Growable[(Name, IR)],
+    initBindings: mutable.Growable[(Name, IR)],
     // set of contained aggs, and the init op for each
     initBuilder: mutable.Buffer[InitOp],
     /* Set of updates for contained aggs, with intermediate let-bound values. Will be wrapped in a
      * Block. */
-    seqBuilder: Growable[(Name, IR)],
+    seqBuilder: mutable.Growable[(Name, IR)],
     /* Map each contained ApplyAggOp, ApplyScanOp, or AggFold, to the index of the corresponding agg
      * state, used to perform CSE on agg ops */
     memo: mutable.Map[IR, Int],

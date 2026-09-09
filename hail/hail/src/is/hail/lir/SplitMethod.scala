@@ -2,9 +2,9 @@ package is.hail.lir
 
 import is.hail.asm4s.{classInfo, BooleanInfo, IntInfo, UnitInfo}
 import is.hail.collection.FastSeq
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.utils._
 
+import scala.collection.immutable.ArraySeq
 import scala.collection.mutable
 
 import org.objectweb.asm._

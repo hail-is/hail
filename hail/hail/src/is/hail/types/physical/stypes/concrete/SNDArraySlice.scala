@@ -2,7 +2,6 @@ package is.hail.types.physical.stypes.concrete
 
 import is.hail.annotations.Region
 import is.hail.asm4s._
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.collection.implicits.toRichIterable
 import is.hail.expr.ir.{EmitCodeBuilder, EmitValue}
 import is.hail.types.physical.{PCanonicalNDArray, PType}
@@ -11,7 +10,7 @@ import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives.SInt64
 import is.hail.types.virtual.{TNDArray, Type}
 
-import scala.collection.compat._
+import scala.collection.immutable.ArraySeq
 
 final case class SNDArraySlice(pType: PCanonicalNDArray) extends SNDArray {
   override def nDims: Int = pType.nDims

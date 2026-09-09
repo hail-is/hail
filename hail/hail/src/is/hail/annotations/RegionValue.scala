@@ -6,8 +6,6 @@ import is.hail.types.physical.PType
 
 import java.io._
 
-import sun.reflect.generics.reflectiveObjects.NotImplementedException
-
 object RegionValue {
   def apply(): RegionValue = new RegionValue(null, 0)
 
@@ -66,8 +64,8 @@ final class RegionValue(
   def pretty(t: PType): String = Region.pretty(t, offset)
 
   private def writeObject(s: ObjectOutputStream): Unit =
-    throw new NotImplementedException()
+    throw new UnsupportedOperationException
 
   private def readObject(s: ObjectInputStream): Unit =
-    throw new NotImplementedException()
+    throw new UnsupportedOperationException
 }

@@ -3,13 +3,14 @@ package is.hail.linalg
 import is.hail.annotations.RowSeq
 import is.hail.backend.{BroadcastValue, ExecuteContext, HailStateManager}
 import is.hail.backend.spark.SparkBackend
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.io.InputBuffer
 import is.hail.io.fs.FS
 import is.hail.rvd.RVDPartitioner
 import is.hail.sparkextras.implicits._
 import is.hail.types.virtual.{TInt64, TStruct}
 import is.hail.utils._
+
+import scala.collection.immutable.ArraySeq
 
 import breeze.linalg.DenseMatrix
 import org.apache.spark.{Partition, Partitioner, TaskContext}

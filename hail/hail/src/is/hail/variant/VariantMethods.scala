@@ -1,7 +1,8 @@
 package is.hail.variant
 
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.utils._
+
+import scala.collection.immutable.ArraySeq
 
 object VariantMethods {
 

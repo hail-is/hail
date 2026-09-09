@@ -9,7 +9,6 @@ import is.hail.scalacheck._
 import is.hail.types.virtual._
 import is.hail.utils.StringEscapeUtils._
 
-import org.json4s._
 import org.json4s.jackson.JsonMethods._
 import org.junit.jupiter.api.Test
 import org.scalacheck.Arbitrary._

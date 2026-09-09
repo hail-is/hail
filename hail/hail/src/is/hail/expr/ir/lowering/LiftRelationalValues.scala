@@ -1,19 +1,18 @@
 package is.hail.expr.ir.lowering
 
 import is.hail.backend.ExecuteContext
-import is.hail.collection.compat.immutable.ArraySeq
-import is.hail.collection.compat.mutable.Growable
 import is.hail.expr.ir._
 import is.hail.expr.ir.defs._
 import is.hail.types.virtual.TVoid
 
+import scala.collection.immutable.ArraySeq
 import scala.collection.mutable
 
 object LiftRelationalValues {
 
   def apply(ctx: ExecuteContext, ir0: BaseIR): BaseIR = {
 
-    def rewrite(ir: BaseIR, ab: Growable[(Name, IR)], memo: mutable.Map[IR, Name]): BaseIR =
+    def rewrite(ir: BaseIR, ab: mutable.Growable[(Name, IR)], memo: mutable.Map[IR, Name]): BaseIR =
       ir match {
         case RelationalLet(name, value, body) =>
           val value2 = rewrite(value, ab, memo).asInstanceOf[IR]

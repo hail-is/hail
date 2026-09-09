@@ -1,12 +1,11 @@
 package is.hail.types.physical
 
 import is.hail.asm4s.{Code, Value}
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.types.physical.stypes.interfaces.SBaseStruct
 import is.hail.types.virtual.{Field, TStruct}
 
-import scala.collection.compat._
+import scala.collection.immutable.ArraySeq
 
 trait PStruct extends PBaseStruct {
   override lazy val virtualType: TStruct =

@@ -2,8 +2,6 @@ package is.hail.expr.ir
 
 import is.hail.expr.ir.defs.Ref
 
-import scala.collection.compat._
-
 object Env {
   type K = Name
 

@@ -1,7 +1,6 @@
 package is.hail.expr.ir.lowering
 
 import is.hail.backend.ExecuteContext
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir.{
   BaseIR, BindingEnv, Bindings, ComputeUsesAndDefs, ContainsAgg, ContainsAggIntermediate,
   ContainsScan, Env, IR, IsPure, Pretty, RefEquality, Scope, UsesAndDefs,
@@ -12,6 +11,7 @@ import is.hail.types.virtual.TStream
 import is.hail.utils.{Logging, TimedBlock}
 
 import scala.collection.Set
+import scala.collection.immutable.ArraySeq
 
 object ForwardLets extends Logging {
   def apply[T <: BaseIR](ctx: ExecuteContext, ir0: T): T =

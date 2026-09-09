@@ -1,9 +1,9 @@
 package is.hail.io.fs
 
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.collection.implicits._
 import is.hail.utils._
 
+import scala.collection.immutable.ArraySeq
 import scala.collection.parallel.CollectionConverters._
 import scala.util.Try
 

@@ -10,7 +10,7 @@ import java.io.InputStream;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.ZipException;
 
-public class BGzipInputStream extends SplitCompressionInputStream {
+public final class BGzipInputStream extends SplitCompressionInputStream {
     private static final int BGZF_MAX_BLOCK_SIZE = 64 * 1024;
     private static final int INPUT_BUFFER_CAPACITY = 2 * BGZF_MAX_BLOCK_SIZE;
     private static final int OUTPUT_BUFFER_CAPACITY = BGZF_MAX_BLOCK_SIZE;

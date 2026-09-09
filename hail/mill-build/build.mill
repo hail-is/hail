@@ -20,14 +20,11 @@ extension [A, F[+X] <: Iterable[X]] (as: F[A])
 
 object `package` extends MillBuildRootModule:
 
-  private val SupportedScalaVersions =
-    Set("2.12", "2.13")
-
   override def mvnDeps: T[Seq[Dep]] =
     Seq(
       `mill-contrib-jmh` :: "1.0.6",
       `mill-scalafix` :::: "0.6.0",
-      `scalac-options` :: "0.1.8",
+      `scalac-options` :: "0.1.11",
     )
     
   private def customSources: T[Seq[PathRef]] =
@@ -46,8 +43,6 @@ object `package` extends MillBuildRootModule:
          |object BuildConfig {
          |  val buildMode =
          |    BuildMode.${buildMode().getOrElse(BuildMode.Release)}
-         |  val enabledScalaVersions =
-         |    ${(enabledScalaVersions() or SupportedScalaVersions.to(ArraySeq)).quoted}
          |}
       """.stripMargin
     )
@@ -63,16 +58,6 @@ object `package` extends MillBuildRootModule:
       }
       .to(ArraySeq)
       .flatMap(_.split(',').map(_.strip))
-
-  def enabledScalaVersions: T[Seq[String]] =
-    Task.Input {
-      getConfig("scala-version").tapEach { ver =>
-        require(
-          SupportedScalaVersions `contains` ver,
-          s"SCALA_VERSION may be one of ${SupportedScalaVersions.quoted.mkString(",")}; found '$ver'."
-        )
-      }
-    }
 
   def buildMode: T[Option[BuildMode]] =
     Task.Input {

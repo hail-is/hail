@@ -44,7 +44,7 @@ from aiohttp import web
 from batch.cloud.terra.azure.worker.worker_api import TerraAzureWorkerAPI
 from gear import json_request, json_response
 from hailtop import aiotools, httpx
-from hailtop.aiotools import AsyncFS
+from hailtop.aiotools import AsyncFS, Copier, Transfer
 from hailtop.aiotools.router_fs import RouterAsyncFS
 from hailtop.batch.hail_genetics_images import HAIL_GENETICS_IMAGES
 from hailtop.config import get_deploy_config
@@ -57,7 +57,6 @@ from hailtop.utils import (
     check_shell,
     check_shell_output,
     dump_all_stacktraces,
-    find_spark_home,
     is_delayed_warning_error,
     parse_docker_image_reference,
     periodically_call,
@@ -78,7 +77,12 @@ from ..cloud.resource_utils import (
     storage_gib_to_bytes,
 )
 from ..file_store import FileStore
-from ..globals import HTTP_CLIENT_MAX_SIZE, RESERVED_STORAGE_GB_PER_CORE, STATUS_FORMAT_VERSION
+from ..globals import (
+    DEFAULT_SPARK_VERSION,
+    HTTP_CLIENT_MAX_SIZE,
+    RESERVED_STORAGE_GB_PER_CORE,
+    STATUS_FORMAT_VERSION,
+)
 from ..instance_config import InstanceConfig
 from ..publicly_available_images import publicly_available_images
 from ..resource_usage import ResourceUsageMonitor
@@ -153,8 +157,12 @@ BATCH_WORKER_IMAGE_ID = os.environ['BATCH_WORKER_IMAGE_ID']
 INTERNET_INTERFACE = os.environ['INTERNET_INTERFACE']
 UNRESERVED_WORKER_DATA_DISK_SIZE_GB = int(os.environ['UNRESERVED_WORKER_DATA_DISK_SIZE_GB'])
 assert UNRESERVED_WORKER_DATA_DISK_SIZE_GB >= 0
+# scripts/upload-qob-jar.sh uploads query jars here for jvm jobs
 ACCEPTABLE_QUERY_JAR_URL_PREFIX = os.environ['ACCEPTABLE_QUERY_JAR_URL_PREFIX']
 assert len(ACCEPTABLE_QUERY_JAR_URL_PREFIX) > 3  # x:// where x is one or more characters
+# scripts/upload-spark-jars.sh uploads spark jar archives here for jvm jobs
+SPARK_ARCHIVE_URL_PREFIX = os.environ['SPARK_ARCHIVE_URL_PREFIX']
+assert len(SPARK_ARCHIVE_URL_PREFIX) > 3  # x:// where x is one or more characters
 
 CLOUD_WORKER_API: Optional[CloudWorkerAPI] = None
 
@@ -174,6 +182,7 @@ log.info(f'BATCH_WORKER_IMAGE_ID {BATCH_WORKER_IMAGE_ID}')
 log.info(f'INTERNET_INTERFACE {INTERNET_INTERFACE}')
 log.info(f'UNRESERVED_WORKER_DATA_DISK_SIZE_GB {UNRESERVED_WORKER_DATA_DISK_SIZE_GB}')
 log.info(f'ACCEPTABLE_QUERY_JAR_URL_PREFIX {ACCEPTABLE_QUERY_JAR_URL_PREFIX}')
+log.info(f'SPARK_ARCHIVE_URL_PREFIX {SPARK_ARCHIVE_URL_PREFIX}')
 log.info(f'REGION {REGION}')
 
 instance_config: Optional[InstanceConfig] = None
@@ -2204,6 +2213,8 @@ class JVMJob(Job):
         assert job_spec['process']['jar_spec']['type'] == 'jar_url'
         self.jar_url = job_spec['process']['jar_spec']['value']
         self.argv = job_spec['process']['command']
+        # jobs submitted before the front end started defaulting this have no spark_version
+        self.spark_version = job_spec['process'].get('spark_version', DEFAULT_SPARK_VERSION)
 
         self.timings = Timings()
         self.state = 'pending'
@@ -2262,40 +2273,59 @@ class JVMJob(Job):
         assert os.path.commonpath([path, self.scratch]) == '/'
         return path
 
-    async def download_jar(self):
+    async def _download_artifact(self, url: str, local_path: str, install: Callable[[str], Awaitable[None]]) -> str:
         assert self.worker
         assert self.worker.pool
 
-        async with self.worker.jar_download_locks[self.jar_url]:
-            unique_key = self.jar_url.replace('_', '__').replace('/', '_')
-            local_jar_location = f'/hail-jars/{unique_key}.jar'
-            if not os.path.isfile(local_jar_location):
-                assert self.jar_url.startswith(ACCEPTABLE_QUERY_JAR_URL_PREFIX)
+        async def download():
+            temporary_file = tempfile.NamedTemporaryFile(delete=False)  # pylint: disable=consider-using-with
+            temporary_file.close()
+            try:
+                assert self.worker.fs is not None
+                xfer = Transfer(url, temporary_file.name, treat_dest_as=Transfer.DEST_IS_TARGET)
+                await Copier.copy(self.worker.fs, asyncio.Semaphore(8), xfer)
+                await install(temporary_file.name)
+            finally:
+                try:
+                    await blocking_to_async(self.worker.pool, os.remove, temporary_file.name)
+                except OSError as err:
+                    if err.errno != errno.ENOENT:
+                        raise
 
-                async def download_jar():
-                    temporary_file = tempfile.NamedTemporaryFile(delete=False)  # pylint: disable=consider-using-with
-                    try:
-                        assert self.worker.fs is not None
-                        async with await self.worker.fs.open(self.jar_url) as jar_data:
-                            while True:
-                                b = await jar_data.read(256 * 1024)
-                                if not b:
-                                    break
-                                written = await blocking_to_async(self.worker.pool, temporary_file.write, b)
-                                assert written == len(b)
-                        temporary_file.close()
-                        os.rename(temporary_file.name, local_jar_location)
-                    finally:
-                        temporary_file.close()  # close is idempotent
-                        try:
-                            await blocking_to_async(self.worker.pool, os.remove, temporary_file.name)
-                        except OSError as err:
-                            if err.errno != errno.ENOENT:
-                                raise
+        if not os.path.exists(local_path):
+            async with self.worker.artifact_download_locks[url]:
+                if not os.path.exists(local_path):
+                    await retry_transient_errors(download)
 
-                await retry_transient_errors(download_jar)
+        return local_path
 
-            return local_jar_location
+    async def _download_jar(self) -> str:
+        assert self.jar_url.startswith(ACCEPTABLE_QUERY_JAR_URL_PREFIX)
+        unique_key = self.jar_url.replace('_', '__').replace('/', '_')
+        local_jar_location = f'/hail-jars/{unique_key}.jar'
+
+        async def install(downloaded: str):
+            os.rename(downloaded, local_jar_location)
+
+        return await self._download_artifact(self.jar_url, local_jar_location, install)
+
+    async def _download_spark_jars(self) -> str:
+        local_spark_dir = f'/spark/{self.spark_version}'
+        archive_url = f'{SPARK_ARCHIVE_URL_PREFIX}/spark-{self.spark_version}.tar.gz'
+
+        async def install(downloaded: str):
+            # extract into a scratch dir and rename so that a partial
+            # extraction can never be mistaken for the real thing
+            await check_shell(
+                f'rm -rf {local_spark_dir}.tmp && '
+                f'mkdir {local_spark_dir}.tmp && '
+                f'tar -xzf {downloaded} -C {local_spark_dir}.tmp && '
+                f'mv {local_spark_dir}.tmp {local_spark_dir}'
+            )
+
+        # the front end validated that the archive exists on job creation, so
+        # a failure here is batch's fault, not the user's
+        return await self._download_artifact(archive_url, local_spark_dir, install)
 
     async def run(self):
         async with self.worker.cpu_sem(self.cpu_in_mcpu):
@@ -2360,10 +2390,14 @@ class JVMJob(Job):
                     local_jar_location = '/hail-jars/hail-all-spark.jar'
                 else:
                     with self.step('downloading_jar'):
-                        local_jar_location = await self.download_jar()
+                        local_jar_location = await self._download_jar()
+
+                with self.step('downloading_spark_jars'):
+                    spark_jars_dir = await self._download_spark_jars()
 
                 with self.step('running'):
                     await self.jvm.execute(
+                        spark_jars_dir,
                         local_jar_location,
                         self.scratch,
                         self.log_file,
@@ -2584,19 +2618,21 @@ class JVMContainer:
 
         command = [
             'java',
+            # java 24+ (JEP 472) requires this grant for JNI, e.g. junixsocket, hail natives
+            '--enable-native-access=ALL-UNNAMED',
             f'-Xmx{heap_memory_mib}M',
             '-cp',
-            f'{JVM.SPARK_HOME}/jars/*:/jvm-entryway/jvm-entryway.jar',
+            '/jvm-entryway/jvm-entryway.jar',
             'is.hail.JVMEntryway',
             socket_file,
         ]
 
         volume_mounts: List[MountSpecification] = [
             {
-                'source': JVM.SPARK_HOME,
-                'destination': JVM.SPARK_HOME,
+                'source': '/spark',
+                'destination': '/spark',
                 'type': 'none',
-                'options': ['bind', 'rw', 'private'],
+                'options': ['bind', 'ro', 'private'],
             },
             {
                 'source': '/jvm-entryway',
@@ -2725,8 +2761,6 @@ class JVMProfiler:
 
 
 class JVM:
-    SPARK_HOME = find_spark_home()
-
     FINISH_USER_EXCEPTION = 0
     FINISH_ENTRYWAY_EXCEPTION = 1
     FINISH_NORMAL = 2
@@ -2896,7 +2930,8 @@ class JVM:
 
     async def execute(
         self,
-        classpath: str,
+        spark_classpath: str,
+        jar_classpath: str,
         scratch_dir: str,
         log_file: str,
         jar_url: str,
@@ -2912,7 +2947,15 @@ class JVM:
             reader, writer = await self.new_connection()
             stack.callback(writer.close)
 
-            command = [classpath, 'is.hail.backend.service.Main', scratch_dir, log_file, jar_url, *argv]
+            command = [
+                spark_classpath,
+                jar_classpath,
+                'is.hail.backend.service.Main',
+                scratch_dir,
+                log_file,
+                jar_url,
+                *argv,
+            ]
 
             write_int(writer, len(command))
             for part in command:
@@ -3040,7 +3083,8 @@ class Worker:
         self.stop_event = asyncio.Event()
         self.task_manager = aiotools.BackgroundTaskManager()
         os.makedirs('/hail-jars/', exist_ok=True)
-        self.jar_download_locks: Dict[str, asyncio.Lock] = defaultdict(asyncio.Lock)
+        os.makedirs('/spark/', exist_ok=True)
+        self.artifact_download_locks: Dict[str, asyncio.Lock] = defaultdict(asyncio.Lock)
         self.client_session = httpx.client_session()
 
         self.image_data: Dict[str, ImageData] = defaultdict(ImageData)

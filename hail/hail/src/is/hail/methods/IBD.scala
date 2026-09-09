@@ -3,7 +3,6 @@ package is.hail.methods
 import is.hail.annotations._
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.collection.implicits.toRichOption
 import is.hail.expr.ir._
 import is.hail.expr.ir.functions.MatrixToTableFunction
@@ -13,6 +12,8 @@ import is.hail.types.physical.{PCanonicalString, PCanonicalStruct, PFloat64, PIn
 import is.hail.types.virtual.{MatrixType, TFloat64, TStruct, TableType}
 import is.hail.utils._
 import is.hail.variant.{AllelePair, Call, Genotype, HardCallView}
+
+import scala.collection.immutable.ArraySeq
 
 import org.apache.spark.sql.Row
 

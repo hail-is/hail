@@ -2,12 +2,13 @@ package is.hail.backend
 
 import is.hail.annotations.Region
 import is.hail.asm4s._
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.collection.implicits.toRichIndexedSeq
 import is.hail.expr.ir.Compiled
 import is.hail.expr.ir.analyses.SemanticHash
 import is.hail.expr.ir.lowering.TableStageDependency
 import is.hail.utils._
+
+import scala.collection.immutable.ArraySeq
 
 object BackendUtils {
   type F = AsmFunction3[Region, Array[Byte], Array[Byte], Array[Byte]]

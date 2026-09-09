@@ -3,7 +3,6 @@ package is.hail.expr.ir
 import is.hail.annotations._
 import is.hail.backend.{ExecuteContext, HailStateManager}
 import is.hail.collection.FastSeq
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.collection.implicits.toRichIterable
 import is.hail.expr.ir.TableNativeWriter.writeFileReadMe
 import is.hail.expr.ir.lowering.LowerMatrixIR
@@ -16,7 +15,7 @@ import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.variant._
 
-import scala.collection.compat._
+import scala.collection.immutable.ArraySeq
 
 import org.apache.spark.SparkContext
 import org.apache.spark.sql.Row

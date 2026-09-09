@@ -1,72 +1,59 @@
-//| mill-version: 1.0.6
-//| mill-jvm-version: 17
-//| mvnDeps:
-//| - com.goyeau::mill-scalafix::0.6.0
-//| - org.typelevel::scalac-options:0.1.8
+//| mill-version: 1.1.8
+//| mill-jvm-version: 21
 
 package build
 
-import com.goyeau.mill.scalafix.ScalafixModule
 import mill.*
+import mill.javalib.palantirformat.*
 import mill.scalalib.*
-import mill.scalalib.Assembly.Rule
-import mill.scalalib.scalafmt.ScalafmtModule
-import org.typelevel.scalacoptions.*
 
-object `package` extends ScalafixModule with ScalafmtModule {
+object `package` extends JavaModule with PalantirFormatModule {
 
-  override def jvmId: T[String] =
-    "11"
-
-  override def scalaVersion: T[String] =
-    "2.12.18"
+  // Do not bump past 21: JDK 24+ removed Subject.getSubject (JEP 486), which
+  // hadoop-client < 3.4.3 calls in FileSystem.get, breaking hail versions that
+  // use spark < 4. To use a newer JDK, patch the deployed spark tarballs
+  // (eg spark-3.5.3.tar.gz) by replacing hadoop-client-api/runtime 3.3.4 with
+  // >= 3.4.3. Alternatively, bypass the FileSystem cache by adding a conf/core-site.xml
+  // with the following:
+  //
+  //   <configuration>
+  //     <property>
+  //       <name>fs.file.impl.disable.cache</name>
+  //       <value>true</value>
+  //     </property>
+  //   </configuration>
+  override def jvmVersion: T[String] =
+    "21"
 
   override def bomMvnDeps: T[Seq[Dep]] =
     Seq(
-      mvn"org.apache.logging.log4j:log4j-bom:2.22.0",
-    )
-
-  override def scalafixIvyDeps: T[Seq[Dep]] =
-    Seq(
-      mvn"io.github.tanin47::scalafix-forbidden-symbol:1.0.0",
+      mvn"org.apache.logging.log4j:log4j-bom:2.24.3",
     )
 
   override def compileMvnDeps: T[Seq[Dep]] =
     Seq(
-      mvn"org.apache.logging.log4j:log4j-api",
       mvn"com.google.code.findbugs:annotations:3.0.1",
       mvn"com.kohlschutter:compiler-annotations:1.8.2",
     )
-    
+
   override def mvnDeps: T[Seq[Dep]] =
     Seq(
+      mvn"org.apache.logging.log4j:log4j-api",
       mvn"org.apache.logging.log4j:log4j-core",
-      mvn"com.kohlschutter.junixsocket:junixsocket-core:2.6.2",
+      mvn"com.kohlschutter.junixsocket:junixsocket-core:2.11.0",
     )
 
   override def javacOptions: T[Seq[String]] =
     Seq(
-      "-Xlint:all",
-      "-source",
-      "11",
-      "-target",
-      "11",
-    )
-
-  override def scalacOptions: T[Seq[String]] = 
-    ScalacOptions.tokensForVersion(
-      ScalaVersion.unsafeFromString(scalaVersion()),
-      ScalacOptions.default +
-        ScalacOptions.warnAll +
-        ScalacOptions.optimizerInline +
-        ScalacOptions.optimizerInlineFrom("is.hail.**"),
+      "-Xlint:all,-processing",
+      // do not generate META-INF/.../Log4j2Plugins.dat: mill's assembly would keep
+      // it over log4j-core's, unregistering the built-in plugins. QoBAppender is
+      // found via the `packages` property in log4j2.properties instead.
+      "-proc:none",
+      "--release",
+      "21",
     )
 
   override def mainClass: T[Option[String]] =
     Some("is.hail.JVMEntryway")
-
-  override def assemblyRules: Seq[Assembly.Rule] =
-    Seq(
-      Rule.ExcludePattern("^scala")
-    )
 }

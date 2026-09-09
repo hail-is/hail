@@ -5,8 +5,6 @@ import is.hail.backend.HailStateManager
 import is.hail.collection.FastSeq
 import is.hail.collection.implicits.{toRichMap, toRichOption}
 
-import scala.collection.compat._
-
 import org.json4s.jackson.JsonMethods
 
 final case class TDict(keyType: Type, valueType: Type) extends TContainer {

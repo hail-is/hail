@@ -4,12 +4,13 @@ import is.hail.ParameterizedTest
 import is.hail.TestUtils._
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.Nat
 import is.hail.expr.ir._
 import is.hail.expr.ir.defs._
 import is.hail.expr.ir.implicits.forTesting._
 import is.hail.types.virtual._
+
+import scala.collection.immutable.ArraySeq
 
 import org.junit.jupiter.api.{BeforeEach, Test}
 

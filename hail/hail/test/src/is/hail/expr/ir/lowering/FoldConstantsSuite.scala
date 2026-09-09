@@ -3,10 +3,11 @@ package is.hail.expr.ir.lowering
 import is.hail.ParameterizedTest
 import is.hail.TestUtils._
 import is.hail.backend.ExecuteContext
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir.{freshName, invoke, Add, IR, Sum}
 import is.hail.expr.ir.defs._
 import is.hail.types.virtual.{TFloat64, TInt32}
+
+import scala.collection.immutable.ArraySeq
 
 import org.junit.jupiter.api.Test
 

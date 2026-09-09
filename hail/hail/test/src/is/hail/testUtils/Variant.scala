@@ -1,9 +1,9 @@
 package is.hail.testUtils
 
 import is.hail.annotations.Annotation
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.variant._
 
+import scala.collection.immutable.ArraySeq
 import scala.jdk.CollectionConverters._
 
 import org.apache.spark.sql.Row

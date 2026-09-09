@@ -85,7 +85,7 @@ class HailExtension extends AfterAllCallback with ParameterResolver {
   import HailExtension._
 
   private def shared(context: ExtensionContext): SharedResources =
-    context.getRoot.getStore(Namespace.GLOBAL).getOrComputeIfAbsent(
+    context.getRoot.getStore(Namespace.GLOBAL).computeIfAbsent(
       SHARED_KEY,
       (_: String) => {
         RVD.CheckRvdKeyOrderingForTesting = true

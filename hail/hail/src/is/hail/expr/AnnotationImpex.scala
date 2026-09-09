@@ -1,7 +1,6 @@
 package is.hail.expr
 
 import is.hail.annotations.{Annotation, NDArray, RowSeq, SafeNDArray}
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.collection.implicits._
 import is.hail.types.physical.{
   PBoolean, PCanonicalArray, PCanonicalBinary, PCanonicalString, PCanonicalStruct, PFloat32,
@@ -11,7 +10,7 @@ import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.variant._
 
-import scala.collection.compat._
+import scala.collection.immutable.ArraySeq
 import scala.collection.mutable
 
 import org.apache.spark.sql.Row

@@ -3,10 +3,11 @@ package is.hail.expr.ir
 import is.hail.asm4s._
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.types.physical.stypes.concrete.{
   SCanonicalRNGStateSettable, SCanonicalRNGStateValue, SRNGState, SRNGStateStaticSizeValue,
 }
+
+import scala.collection.immutable.ArraySeq
 
 import org.apache.commons.math3.distribution.ChiSquaredDistribution
 import org.junit.jupiter.api.Test

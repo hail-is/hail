@@ -1,10 +1,10 @@
 package is.hail.expr.ir
 
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir.Scope.{AGG, EVAL, SCAN}
 import is.hail.expr.ir.defs.{Atom, Binding, Block, Ref}
 
 import scala.annotation.tailrec
+import scala.collection.immutable.ArraySeq
 
 object IRBuilder {
   def scoped(f: IRBuilder => IR): IR = {

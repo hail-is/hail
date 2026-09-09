@@ -2,7 +2,6 @@ package is.hail.expr.ir.functions
 
 import is.hail.asm4s.Code
 import is.hail.collection.FastSeq
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir.EmitValue
 import is.hail.expr.ir.defs.{Cast, ErrorIDs}
 import is.hail.stats._
@@ -11,6 +10,8 @@ import is.hail.types.physical.stypes.interfaces.primitive
 import is.hail.types.physical.stypes.primitives._
 import is.hail.types.virtual._
 import is.hail.utils._
+
+import scala.collection.immutable.ArraySeq
 
 import org.apache.commons.math3.special.Gamma
 

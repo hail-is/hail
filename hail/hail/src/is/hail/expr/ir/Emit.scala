@@ -5,7 +5,6 @@ import is.hail.asm4s._
 import is.hail.asm4s.implicits.{codeToRichCodeRegion, valueToRichCodeRegion}
 import is.hail.backend.{DriverRuntimeContext, ExecuteContext, HailTaskContext}
 import is.hail.collection.{ByteArrayArrayBuilder, FastSeq}
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir.Emit.{EmitBlockMaxChunkSize, EmitBlockSizeThreshold}
 import is.hail.expr.ir.agg.{AggStateSig, ArrayAggStateSig, GroupedStateSig}
 import is.hail.expr.ir.analyses.{ComputeMethodSplits, ControlFlowPreventsSplit, SemanticHash}
@@ -27,7 +26,7 @@ import is.hail.utils._
 import is.hail.variant.ReferenceGenome
 
 import scala.annotation.{nowarn, tailrec}
-import scala.collection.compat._
+import scala.collection.immutable.ArraySeq
 import scala.collection.mutable
 
 import java.io._

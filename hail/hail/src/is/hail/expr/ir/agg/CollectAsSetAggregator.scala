@@ -6,7 +6,6 @@ import is.hail.asm4s.implicits.{
   valueToRichCodeInputBuffer, valueToRichCodeOutputBuffer, valueToRichCodeRegion,
 }
 import is.hail.backend.ExecuteContext
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder, EmitValue, IEmitCode}
 import is.hail.expr.ir.orderings.CodeOrdering
 import is.hail.io._
@@ -16,6 +15,8 @@ import is.hail.types.physical._
 import is.hail.types.physical.stypes.{EmitType, SValue}
 import is.hail.types.physical.stypes.concrete.SIndexablePointer
 import is.hail.types.virtual.Type
+
+import scala.collection.immutable.ArraySeq
 
 class TypedKey(typ: PType, kb: EmitClassBuilder[_], region: Value[Region]) extends BTreeKey {
   override val storageType: PTuple = PCanonicalTuple(false, typ, PCanonicalTuple(false))

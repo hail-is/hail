@@ -3,7 +3,6 @@ package is.hail.types
 import is.hail.annotations.{Annotation, NDArray}
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir.{ComputeUsesAndDefs, Env, IR}
 import is.hail.expr.ir.lowering.TableStage
 import is.hail.types.physical._
@@ -13,7 +12,7 @@ import is.hail.types.physical.stypes.interfaces.{SBaseStruct, SInterval, SNDArra
 import is.hail.types.virtual._
 import is.hail.utils.{toMapFast, Interval}
 
-import scala.collection.compat._
+import scala.collection.immutable.ArraySeq
 
 import org.apache.spark.sql.Row
 

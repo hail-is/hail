@@ -2,14 +2,13 @@ package is.hail.types.physical.stypes.concrete
 
 import is.hail.annotations.Region
 import is.hail.asm4s.{Settable, TypeInfo, Value}
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir.{EmitCodeBuilder, EmitSettable, EmitValue, IEmitCode}
 import is.hail.types.physical.{PCanonicalStruct, PType}
 import is.hail.types.physical.stypes.{EmitType, SType, SValue}
 import is.hail.types.physical.stypes.interfaces.{SBaseStruct, SBaseStructSettable, SBaseStructValue}
 import is.hail.types.virtual.{TStruct, Type}
 
-import scala.collection.compat._
+import scala.collection.immutable.ArraySeq
 
 final case class SInsertFieldsStruct(
   virtualType: TStruct,

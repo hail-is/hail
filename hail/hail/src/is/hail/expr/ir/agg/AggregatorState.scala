@@ -5,7 +5,6 @@ import is.hail.asm4s._
 import is.hail.asm4s.implicits.{
   valueToRichCodeInputBuffer, valueToRichCodeOutputBuffer, valueToRichCodeRegion,
 }
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir._
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer, TypedCodecSpec}
 import is.hail.types.VirtualTypeWithReq
@@ -14,6 +13,8 @@ import is.hail.types.physical.stypes.SValue
 import is.hail.types.physical.stypes.concrete.SStackStruct
 import is.hail.types.physical.stypes.interfaces.SBinaryValue
 import is.hail.utils._
+
+import scala.collection.immutable.ArraySeq
 
 trait AggregatorState {
   def kb: EmitClassBuilder[_]

@@ -2,10 +2,9 @@ package is.hail.types.virtual
 
 import is.hail.annotations.{ExtendedOrdering, RowSeq}
 import is.hail.backend.HailStateManager
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.collection.implicits.toRichIterable
 
-import scala.collection.compat._
+import scala.collection.immutable.ArraySeq
 
 import org.apache.spark.sql.Row
 

@@ -5,7 +5,6 @@ import is.hail.asm4s._
 import is.hail.backend.{ExecuteContext, HailTaskContext}
 import is.hail.backend.spark.SparkTaskContext
 import is.hail.collection.FastSeq
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.collection.implicits._
 import is.hail.expr.ir.analyses.PartitionCounts
 import is.hail.expr.ir.defs._
@@ -20,7 +19,7 @@ import is.hail.types.tcoerce
 import is.hail.types.virtual._
 import is.hail.utils._
 
-import scala.collection.compat._
+import scala.collection.immutable.ArraySeq
 import scala.util.control.ControlThrowable
 
 import org.apache.spark.sql.Row

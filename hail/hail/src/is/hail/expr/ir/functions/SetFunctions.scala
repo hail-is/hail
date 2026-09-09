@@ -1,9 +1,10 @@
 package is.hail.expr.ir.functions
 
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir.{Memoized => M, _}
 import is.hail.expr.ir.defs._
 import is.hail.types.virtual._
+
+import scala.collection.immutable.ArraySeq
 
 object SetFunctions extends RegistryFunctions {
   def contains(set: Atom, elem: Atom): IR =

@@ -5,7 +5,6 @@ import is.hail.asm4s._
 import is.hail.backend.{BroadcastValue, ExecuteContext, HailStateManager}
 import is.hail.backend.spark.SparkBackend
 import is.hail.collection.{FastSeq, MissingArrayBuilder}
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.collection.implicits.toRichIterable
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir.{
@@ -32,7 +31,7 @@ import is.hail.variant._
 import scala.annotation.meta.param
 import scala.annotation.switch
 import scala.collection.BufferedIterator
-import scala.collection.compat._
+import scala.collection.immutable.ArraySeq
 import scala.jdk.CollectionConverters._
 
 import htsjdk.variant.vcf._

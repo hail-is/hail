@@ -1,7 +1,8 @@
 package is.hail.sparkextras.implicits
 
 import is.hail.annotations.RowSeq
-import is.hail.collection.compat.immutable.ArraySeq
+
+import scala.collection.immutable.ArraySeq
 
 import org.apache.spark.sql.Row
 

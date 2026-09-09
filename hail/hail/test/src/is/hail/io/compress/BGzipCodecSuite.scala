@@ -3,13 +3,13 @@ package is.hail.io.compress
 import is.hail.TestUtils._
 import is.hail.annotations.RowSeq
 import is.hail.backend.ExecuteContext
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.collection.implicits.toRichIterator
 import is.hail.expr.ir.GenericLines
 import is.hail.scalacheck.ApplicativeGenOps
 import is.hail.sparkextras.implicits._
 import is.hail.utils._
 
+import scala.collection.immutable.ArraySeq
 import scala.collection.mutable
 import scala.io.Source
 import scala.jdk.CollectionConverters._

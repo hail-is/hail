@@ -4,10 +4,11 @@ import is.hail.ParameterizedTest
 import is.hail.TestUtils.cartesian
 import is.hail.annotations.{ExtendedOrdering, RowSeq}
 import is.hail.backend.{ExecuteContext, HailStateManager}
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.collection.implicits.toRichIterable
 import is.hail.rvd.RVDPartitioner
 import is.hail.types.virtual.{TInt32, TStruct}
+
+import scala.collection.immutable.ArraySeq
 
 import org.junit.jupiter.api.{BeforeEach, Test}
 

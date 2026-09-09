@@ -6,7 +6,6 @@ import is.hail.TestUtils._
 import is.hail.annotations.{BroadcastRow, ExtendedOrdering, RowSeq, SafeNDArray}
 import is.hail.backend.ExecuteContext
 import is.hail.collection.{FastSeq, IntArrayBuilder}
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.collection.implicits.toRichIterable
 import is.hail.expr.Nat
 import is.hail.expr.ir.TestUtils._
@@ -28,7 +27,7 @@ import is.hail.types.virtual.TIterable.elementType
 import is.hail.utils._
 import is.hail.variant.{Call2, Locus}
 
-import scala.collection.compat._
+import scala.collection.immutable.ArraySeq
 import scala.collection.mutable
 
 import org.apache.spark.sql.Row

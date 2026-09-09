@@ -3,7 +3,6 @@ package is.hail.io.index
 import is.hail.annotations._
 import is.hail.asm4s.HailClassLoader
 import is.hail.backend.{ExecuteContext, HailStateManager}
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.collection.implicits.toRichIndexedSeq
 import is.hail.io._
 import is.hail.io.fs.{FS, SeekableDataInputStream}
@@ -11,6 +10,8 @@ import is.hail.rvd.{AbstractIndexSpec, PartitionBoundOrdering}
 import is.hail.types.physical.PStruct
 import is.hail.types.virtual.{TStruct, Type, TypeSerializer}
 import is.hail.utils._
+
+import scala.collection.immutable.ArraySeq
 
 import java.io.InputStream
 import java.util

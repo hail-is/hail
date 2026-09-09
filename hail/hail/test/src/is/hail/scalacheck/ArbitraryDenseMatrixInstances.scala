@@ -1,7 +1,8 @@
 package is.hail.scalacheck
 
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.utils.roundWithConstantSum
+
+import scala.collection.immutable.ArraySeq
 
 import breeze.linalg.DenseMatrix
 import org.scalacheck.{Arbitrary, Gen}

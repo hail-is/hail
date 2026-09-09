@@ -3,7 +3,6 @@ package is.hail.expr.ir.agg
 import is.hail.annotations.{Region, RegionValueBuilder, UnsafeRow}
 import is.hail.asm4s._
 import is.hail.backend.{ExecuteContext, HailStateManager}
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder, IEmitCode}
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.EmitType
@@ -12,6 +11,8 @@ import is.hail.types.physical.stypes.concrete.{
 }
 import is.hail.types.physical.stypes.interfaces.SIndexableValue
 import is.hail.types.virtual.{TArray, TFloat64, TInt32, Type}
+
+import scala.collection.immutable.ArraySeq
 
 import breeze.linalg.{diag, inv, DenseMatrix, DenseVector}
 

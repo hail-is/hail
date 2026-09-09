@@ -3,7 +3,6 @@ package is.hail.expr.ir
 import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.backend.ExecuteContext
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.Nat
 import is.hail.expr.ir.defs.{MetadataWriter, Str, UUID4, WriteMetadata, WriteValue}
 import is.hail.expr.ir.lowering.{BlockMatrixStage2, LowererUnsupportedOperation}
@@ -15,6 +14,8 @@ import is.hail.types.TypeWithRequiredness
 import is.hail.types.encoded.{EBlockMatrixNDArray, EType}
 import is.hail.types.virtual._
 import is.hail.utils._
+
+import scala.collection.immutable.ArraySeq
 
 import java.io.DataOutputStream
 

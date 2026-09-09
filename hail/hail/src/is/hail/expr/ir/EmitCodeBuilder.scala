@@ -8,8 +8,6 @@ import is.hail.types.physical.stypes.{SSettable, SType, SValue}
 import is.hail.types.physical.stypes.interfaces.{SStream, SStreamValue}
 import is.hail.utils._
 
-import scala.collection.compat._
-
 object EmitCodeBuilder {
   def apply(mb: EmitMethodBuilder[_]): EmitCodeBuilder = new EmitCodeBuilder(mb, Code._empty)
 
