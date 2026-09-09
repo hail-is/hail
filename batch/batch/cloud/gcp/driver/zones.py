@@ -12,27 +12,11 @@ from ....utils import WindowFractionCounter
 
 log = logging.getLogger('zones')
 
-# IMPORTANT TERMINOLOGY BEFORE READING THIS SCRIPT:
-# region: us-central1
-# zone: us-central1-b
-# I have confused zone vs. region so many times,
-# and there are almost certainly places in the codebase
-# that conflate the two. Be careful and be deliberate.
-
-# NB (2026-08-13, checked against a live hail-vdc N4 test VM): n4's CPU quota ("CPUs per VM
-# family", dimensioned by vm_family=N4) and its Hyperdisk Balanced capacity quota both live in
-# GCP's newer per-dimension Cloud Quotas system, NOT in the classic quotas[] list returned by the
-# `compute.regions.get` API that `fetch_region_quotas` below calls -- that legacy list only ever
-# has per-family entries for families GCP migrated before the Cloud Quotas cutover (n2/n2d/e2/c3/
-# etc), and n4/Hyperdisk aren't in it at all, under any name. Reading the real numbers you saw in
-# the console would require integrating GCP's Cloud Quotas / Service Usage API, which hailtop does
-# not currently have a client for -- a real follow-up task, not a metric-name fix. Until that
-# lands, `compute_zone_weights` deliberately treats both n4 CPU and Hyperdisk disk quota as
-# *unknown* rather than guessing: it does NOT fall back to the generic CPUS metric for CPU (n4
-# usage isn't counted against it, so that number would be actively misleading, unlike n1 which
-# genuinely shares that legacy bucket), and it skips the disk-quota constraint the same way.
-# Net effect: zone selection for n4 is not quota-aware yet -- every candidate zone gets an equal
-# baseline weight, and real quota/capacity exhaustion still surfaces as a normal GCE creation error.
+# IMPORTANT TERMINOLOGY BEFORE READING THIS MODULE:
+#   region: us-central1
+#   zone:   us-central1-b
+# These two are easy to conflate, and there are almost certainly places in the
+# codebase that do. Be careful and be deliberate about which one you mean.
 
 
 class ZoneWeight:
@@ -161,9 +145,11 @@ class ZoneMonitor(CloudLocationMonitor):
             quota_remaining = {q['metric']: q['limit'] - q['usage'] for q in r['quotas']}
 
             if machine_family == 'n4':
-                # No visibility into n4's CPU or Hyperdisk quota via this API (see note above) --
-                # every candidate zone gets the same baseline weight rather than one computed from
-                # a quota metric (the legacy CPUS aggregate) that doesn't reflect n4's real limits.
+                # n4 has no quota metric in this API: its CPU and Hyperdisk quotas live in GCP's
+                # newer Cloud Quotas system, and the generic CPUS metric doesn't count n4 usage
+                # (unlike n1). With no signal, weight all candidate zones equally; quota
+                # exhaustion surfaces as an ordinary GCE creation error.
+                # TODO: needs a Cloud Quotas / Service Usage client, which hailtop lacks.
                 weight = 1.0
             else:
                 cpu_label = 'PREEMPTIBLE_CPUS' if preemptible else 'CPUS'
