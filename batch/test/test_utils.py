@@ -1,7 +1,7 @@
 import pytest
 
 from batch.cloud.azure.resource_utils import MACHINE_TYPE_TO_PARTS as MACHINE_TYPE_TO_PARTS_AZURE
-from batch.cloud.gcp.instance_config import region_from_location
+from batch.cloud.gcp.instance_config import GCPSlimInstanceConfig, region_from_location
 from batch.cloud.gcp.resource_utils import (
     GCP_HYPERDISK_BALANCED_FREE_IOPS,
     GCP_HYPERDISK_BALANCED_FREE_THROUGHPUT_MIB_PER_SEC,
@@ -19,6 +19,7 @@ from batch.cloud.gcp.resource_utils import (
 )
 from batch.cloud.gcp.resources import GCPAcceleratorResource, gcp_resource_from_dict
 from batch.cloud.resource_utils import adjust_cores_for_packability
+from batch.driver.billing_manager import ProductVersions
 from batch.driver.exceptions import LocalSSDNotSupportedError
 from batch.driver.naming import build_inst_coll_regex, make_machine_name
 from batch.utils import rewrite_dockerhub_image
@@ -132,6 +133,37 @@ def test_gcp_local_ssd_count_rejects_n4():
     # n4 supports zero local SSDs; it must never fall through to the generic non-n2 default of 1.
     with pytest.raises(LocalSSDNotSupportedError):
         gcp_local_ssd_count('n4', 16)
+
+
+def test_gcp_instance_config_rejects_local_ssd_on_n4():
+    # An unprovisionable combination must be rejected where the config is built, before any
+    # billing resources exist for it. The empty ProductVersions asserts that: no product
+    # lookup happens before the check.
+    with pytest.raises(LocalSSDNotSupportedError):
+        GCPSlimInstanceConfig.create(
+            product_versions=ProductVersions({}),
+            machine_type='n4-standard-16',
+            preemptible=False,
+            local_ssd_data_disk=True,
+            data_disk_size_gb=375,
+            boot_disk_size_gb=30,
+            job_private=False,
+            location='us-central1-a',
+        )
+
+
+def test_gcp_instance_config_rejects_unknown_machine_type():
+    with pytest.raises(ValueError, match='bad machine_type'):
+        GCPSlimInstanceConfig.create(
+            product_versions=ProductVersions({}),
+            machine_type='n4-nonsense-16',
+            preemptible=False,
+            local_ssd_data_disk=False,
+            data_disk_size_gb=375,
+            boot_disk_size_gb=30,
+            job_private=False,
+            location='us-central1-a',
+        )
 
 
 def test_gcp_disk_type_helpers():

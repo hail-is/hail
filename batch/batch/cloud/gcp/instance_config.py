@@ -1,6 +1,7 @@
 from typing import List, Union
 
 from ...driver.billing_manager import ProductVersions
+from ...driver.exceptions import LocalSSDNotSupportedError
 from ...instance_config import InstanceConfig
 from .resource_utils import (
     gcp_boot_disk_type,
@@ -51,8 +52,12 @@ class GCPSlimInstanceConfig(InstanceConfig):
         region = region_from_location(location)
 
         machine_type_parts = gcp_machine_type_to_parts(machine_type)
-        assert machine_type_parts is not None, machine_type
+        if machine_type_parts is None:
+            raise ValueError(f'bad machine_type: {machine_type}')
         instance_family = machine_type_parts.machine_family
+
+        if local_ssd_data_disk and instance_family == 'n4':
+            raise LocalSSDNotSupportedError(instance_family)
 
         data_disk_resource: Union[GCPLocalSSDStaticSizedDiskResource, GCPStaticSizedDiskResource]
         if local_ssd_data_disk:
