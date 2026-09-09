@@ -4277,6 +4277,7 @@ steps:
       - hailgenetics_hailtop_image
       - deploy_batch
       - test_batch
+      - test_batch_job_private_machines
       - test_ci
       - test_hailtop_python
       - test_hail_python_service_backend_gcp
