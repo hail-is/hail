@@ -236,7 +236,7 @@ class Step(abc.ABC):
         return config
 
     def deps_parents(self):
-        parents = flatten([d.wrapped_job() for d in self.deps + self.after_steps])
+        parents = list(dict.fromkeys(flatten([d.wrapped_job() for d in self.deps + self.after_steps])))
         return parents or None
 
     def all_deps(self):
