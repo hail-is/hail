@@ -55,7 +55,31 @@ class GCPConfig:
         return str(data)
 
 
+class AWSConfig:
+    @staticmethod
+    def from_global_config(global_config):
+        regions: Set[str] = set(json.loads(global_config['batch_aws_regions']))
+        region = global_config['aws_region']
+        regions.add(region)
+        return AWSConfig(
+            region,
+            regions,
+        )
+
+    def __init__(self, region, regions):
+        self.region = region
+        self.regions = regions
+
+    def __str__(self):
+        data = {
+            'region': self.region,
+            'regions': self.regions,
+        }
+        return str(data)
+
+
 azure_config = None
+aws_config = None
 gcp_config = None
 global_config = None
 
@@ -72,6 +96,13 @@ def get_azure_config() -> AzureConfig:
     if azure_config is None:
         azure_config = AzureConfig.from_global_config(get_global_config())
     return azure_config
+
+
+def get_aws_config() -> AWSConfig:
+    global aws_config
+    if aws_config is None:
+        aws_config = AWSConfig.from_global_config(get_global_config())
+    return aws_config
 
 
 def get_gcp_config() -> GCPConfig:
