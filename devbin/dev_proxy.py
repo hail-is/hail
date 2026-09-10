@@ -140,7 +140,7 @@ for _service, _verb, _path, _template, _extra_ctx in _LOCAL_REACT_ROUTES:
         return await _render_html(request, _s, _FAKE_DEV_USERDATA, _t, {'use_tailwind': True, **_ctx, **request.match_info})
     if _template.startswith('swagger/'):
         _decorator = web_security_headers_swagger
-    elif _template == 'index_react.html':
+    elif _template in ('index_react.html', 'pr_react.html'):
         _decorator = web_security_headers_inline_styles
     else:
         _decorator = web_security_headers
