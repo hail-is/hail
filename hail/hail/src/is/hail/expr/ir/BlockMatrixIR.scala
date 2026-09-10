@@ -8,8 +8,7 @@ import is.hail.expr.ir.defs._
 import is.hail.expr.ir.lowering.{BMSContexts, BlockMatrixStage2, LowererUnsupportedOperation}
 import is.hail.io.TypedCodecSpec
 import is.hail.io.fs.FS
-import is.hail.linalg.{BlockMatrix, BlockMatrixMetadata, MatrixSparsity}
-import is.hail.linalg.implicits.RichDenseMatrixDouble
+import is.hail.linalg.{BlockMatrix, BlockMatrixMetadata, DenseMatrix, MatrixSparsity}
 import is.hail.types.encoded.{EBlockMatrixNDArray, EFloat64}
 import is.hail.types.virtual._
 import is.hail.utils._
@@ -17,7 +16,6 @@ import is.hail.utils._
 import scala.collection.immutable.{ArraySeq, NumericRange}
 import scala.collection.mutable.ArrayBuffer
 
-import breeze.linalg.DenseMatrix
 import breeze.numerics
 import org.json4s.{DefaultFormats, Extraction, Formats, JValue, ShortTypeHints}
 
@@ -38,9 +36,9 @@ object BlockMatrixIR {
     data: Array[Double],
     blockSize: Int = BlockMatrix.defaultBlockSize,
   ): BlockMatrix =
-    BlockMatrix.fromBreezeMatrix(
+    BlockMatrix.fromDenseMatrix(
       ctx,
-      new DenseMatrix[Double](nRows, nCols, data, 0, nCols, isTranspose = true),
+      DenseMatrix(nRows, nCols, data, isTranspose = true),
       blockSize,
     )
 }
@@ -205,15 +203,15 @@ case class BlockMatrixBinaryReader(path: String, shape: IndexedSeq[Long], blockS
     BlockMatrixType.dense(TFloat64, nRows, nCols, blockSize)
 
   override def apply(ctx: ExecuteContext): BlockMatrix = {
-    val breezeMatrix =
-      RichDenseMatrixDouble.importFromDoubles(
+    val lm =
+      DenseMatrix.importFromDoubles(
         ctx.fs,
         path,
         nRows.toInt,
         nCols.toInt,
         rowMajor = true,
       )
-    BlockMatrix.fromBreezeMatrix(ctx, breezeMatrix, blockSize)
+    BlockMatrix.fromDenseMatrix(ctx, lm, blockSize)
   }
 
   override def lower(ctx: ExecuteContext, evalCtx: IRBuilder): BlockMatrixStage2 = {
@@ -282,11 +280,14 @@ case class BlockMatrixMap(child: BlockMatrixIR, eltName: Name, f: IR, needsDense
     res.asInstanceOf[Double]
   }
 
-  private def binaryOp(scalar: Double, f: (DenseMatrix[Double], Double) => DenseMatrix[Double])
-    : DenseMatrix[Double] => DenseMatrix[Double] =
+  private def binaryOp(scalar: Double, f: (DenseMatrix, Double) => DenseMatrix)
+    : DenseMatrix => DenseMatrix =
     f(_, scalar)
 
   override protected[ir] def execute(ctx: ExecuteContext): BlockMatrix = {
+    // for scalar-left operators (`s - m`); file-scoped, it would hijack
+    // json4s's `\`
+
     assert(
       f.isInstanceOf[ApplyUnaryPrimOp]
         || f.isInstanceOf[Apply]
@@ -310,8 +311,8 @@ case class BlockMatrixMap(child: BlockMatrixIR, eltName: Name, f: IR, needsDense
         "BlockMatrix entries. Use predefined functions like `BlockMatrix.abs`.",
     )
 
-    val (name, breezeF): (String, DenseMatrix[Double] => DenseMatrix[Double]) = f match {
-      case ApplyUnaryPrimOp(Negate, _) => ("negate", BlockMatrix.negationOp)
+    val (name, blockF): (String, DenseMatrix => DenseMatrix) = f match {
+      case ApplyUnaryPrimOp(Negate, _) => ("negate", -(_))
       case Apply("abs", _, _, _, _) => ("abs", numerics.abs(_))
       case Apply("log", _, _, _, _) => ("log", numerics.log(_))
       case Apply("sqrt", _, _, _, _) => ("sqrt", numerics.sqrt(_))
@@ -326,17 +327,17 @@ case class BlockMatrixMap(child: BlockMatrixIR, eltName: Name, f: IR, needsDense
         ("+", binaryOp(evalIR(ctx, l), _ + _))
       case ApplyBinaryPrimOp(Multiply(), Ref(`eltName`, _), r) if !Mentions(r, eltName) =>
         val i = evalIR(ctx, r)
-        ("*", binaryOp(i, _ *:* _))
+        ("*", binaryOp(i, _ * _))
       case ApplyBinaryPrimOp(Multiply(), l, Ref(`eltName`, _)) if !Mentions(l, eltName) =>
         val i = evalIR(ctx, l)
-        ("*", binaryOp(i, _ *:* _))
+        ("*", binaryOp(i, _ * _))
       case ApplyBinaryPrimOp(Subtract(), Ref(`eltName`, _), r) if !Mentions(r, eltName) =>
         ("-", binaryOp(evalIR(ctx, r), (m, s) => m - s))
       case ApplyBinaryPrimOp(Subtract(), l, Ref(`eltName`, _)) if !Mentions(l, eltName) =>
-        ("-", binaryOp(evalIR(ctx, l), (m, s) => s - m))
+        ("-", binaryOp(evalIR(ctx, l), (m, s) => m.map(s - _)))
       case ApplyBinaryPrimOp(FloatingPointDivide(), Ref(`eltName`, _), r)
           if !Mentions(r, eltName) =>
-        ("/", binaryOp(evalIR(ctx, r), (m, s) => m /:/ s))
+        ("/", binaryOp(evalIR(ctx, r), _ / _))
       case ApplyBinaryPrimOp(FloatingPointDivide(), l, Ref(`eltName`, _))
           if !Mentions(l, eltName) =>
         ("/", binaryOp(evalIR(ctx, l), BlockMatrix.reverseScalarDiv))
@@ -348,7 +349,7 @@ case class BlockMatrixMap(child: BlockMatrixIR, eltName: Name, f: IR, needsDense
       case _ => fatal(s"Unsupported operation on BlockMatrices: ${Pretty(ctx, f)}")
     }
 
-    prev.blockMap(breezeF, name, reqDense = needsDense)
+    prev.blockMap(blockF, name, reqDense = needsDense)
   }
 }
 
@@ -475,7 +476,7 @@ case class BlockMatrixMap2(
             assert(numRows == 1L || numCols == 1L)
             vector.getRowMajorElements().asInstanceOf[IndexedSeq[Double]].toArray
         }
-      case _ => ir.execute(ctx).toBreezeMatrix().data
+      case _ => ir.execute(ctx).toDenseMatrix().data
     }
   }
 
@@ -645,10 +646,10 @@ case class BlockMatrixBroadcast(
         BlockMatrix.fill(nRows, nCols, scalar, blockSize)
       case IndexedSeq(0) =>
         BlockMatrixIR.checkFitsIntoArray(nRows, nCols)
-        broadcastColVector(ctx, childBm.toBreezeMatrix().data, nRows.toInt, nCols.toInt)
+        broadcastColVector(ctx, childBm.toDenseMatrix().data, nRows.toInt, nCols.toInt)
       case IndexedSeq(1) =>
         BlockMatrixIR.checkFitsIntoArray(nRows, nCols)
-        broadcastRowVector(ctx, childBm.toBreezeMatrix().data, nRows.toInt, nCols.toInt)
+        broadcastRowVector(ctx, childBm.toDenseMatrix().data, nRows.toInt, nCols.toInt)
       // FIXME: I'm pretty sure this case is broken.
       case IndexedSeq(0, 0) =>
         BlockMatrixIR.checkFitsIntoArray(nRows, nCols)

@@ -7,7 +7,6 @@ import is.hail.io.fs.FS
 
 import scala.collection.immutable.ArraySeq
 
-import breeze.linalg.DenseMatrix
 import org.junit.jupiter.api.Test
 
 class RowMatrixSuite {
@@ -32,12 +31,12 @@ class RowMatrixSuite {
     )
   }
 
-  private def rowArrayToLocalMatrix(a: IndexedSeq[Array[Double]]): DenseMatrix[Double] = {
+  private def rowArrayToLocalMatrix(a: IndexedSeq[Array[Double]]): DenseMatrix = {
     require(a.nonEmpty)
     val nRows = a.length
     val nCols = a(0).length
 
-    new DenseMatrix[Double](nRows, nCols, a.view.flatten.toArray, 0, nCols, isTranspose = true)
+    DenseMatrix(nRows, nCols, a.view.flatten.toArray, isTranspose = true)
   }
 
   @Test
@@ -52,43 +51,43 @@ class RowMatrixSuite {
     val rowMatrix = rowArrayToRowMatrix(rowArrays)
     val localMatrix = rowArrayToLocalMatrix(rowArrays)
 
-    BlockMatrix.fromBreezeMatrix(ctx, localMatrix).write(ctx, fname)
+    BlockMatrix.fromDenseMatrix(ctx, localMatrix).write(ctx, fname)
 
-    assertEq(rowMatrix.toBreezeMatrix(), localMatrix)
+    assertEq(rowMatrix.toDenseMatrix(), localMatrix)
   }
 
   @Test
   def readBlockSmall(implicit ctx: ExecuteContext): Unit = {
     val fname = ctx.createTmpPath("test")
 
-    val localMatrix = DenseMatrix(
+    val localMatrix = rowArrayToLocalMatrix(ArraySeq(
       Array(1.0, 2.0, 3.0),
       Array(4.0, 5.0, 6.0),
-    )
+    ))
 
-    BlockMatrix.fromBreezeMatrix(ctx, localMatrix).write(ctx, fname, forceRowMajor = true)
+    BlockMatrix.fromDenseMatrix(ctx, localMatrix).write(ctx, fname, forceRowMajor = true)
 
     val rowMatrixFromBlock = RowMatrix.readBlockMatrix(ctx, fname, 1)
 
-    assertEq(rowMatrixFromBlock.toBreezeMatrix(), localMatrix)
+    assertEq(rowMatrixFromBlock.toDenseMatrix(), localMatrix)
   }
 
   @Test
   def readBlock(implicit ctx: ExecuteContext): Unit = {
-    val lm = DenseMatrix.create(9, 10, Array.tabulate(9 * 10)(_.toDouble))
+    val lm = DenseMatrix(9, 10, Array.tabulate(9 * 10)(_.toDouble))
     val fname = ctx.createTmpPath("test")
     cartesian(
       Seq(1, 3, 4, 7, 9, 10),
       Seq(1, 2, 5, 11),
     ).foreach { case (blockSize, partSize) =>
-      BlockMatrix.fromBreezeMatrix(ctx, lm, blockSize).write(
+      BlockMatrix.fromDenseMatrix(ctx, lm, blockSize).write(
         ctx,
         fname,
         overwrite = true,
         forceRowMajor = true,
       )
       val rowMatrix = RowMatrix.readBlockMatrix(ctx, fname, partSize)
-      assertEq(rowMatrix.toBreezeMatrix(), lm)
+      assertEq(rowMatrix.toDenseMatrix(), lm)
     }
   }
 

@@ -6,9 +6,6 @@ import org.apache.spark.mllib.{linalg => spark}
 import org.apache.spark.mllib.linalg.distributed.{IndexedRow, IndexedRowMatrix}
 
 package object implicits {
-  implicit def toRichDenseMatrixDouble(m: breeze.DenseMatrix[Double]): RichDenseMatrixDouble =
-    new RichDenseMatrixDouble(m)
-
   implicit def toRichIndexedRowMatrix(irm: IndexedRowMatrix): RichIndexedRowMatrix =
     new RichIndexedRowMatrix(irm)
 

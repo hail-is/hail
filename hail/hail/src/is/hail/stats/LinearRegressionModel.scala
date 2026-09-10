@@ -1,9 +1,10 @@
 package is.hail.stats
 
 import is.hail.annotations.Annotation
+import is.hail.linalg.DenseMatrix
 import is.hail.types.virtual.{TFloat64, TStruct}
 
-import breeze.linalg.{Matrix, Vector}
+import breeze.linalg.Vector
 import net.sourceforge.jdistlib.T
 
 object LinearRegressionModel {
@@ -18,7 +19,7 @@ object LinearRegressionModel {
     x: Vector[Double],
     y: Vector[Double],
     yyp: Double,
-    qt: Matrix[Double],
+    qt: DenseMatrix,
     qty: Vector[Double],
     d: Int,
   ): Annotation = {

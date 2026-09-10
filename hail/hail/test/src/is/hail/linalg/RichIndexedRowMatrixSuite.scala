@@ -5,7 +5,6 @@ import is.hail.backend.ExecuteContext
 import is.hail.linalg.BlockMatrix.ops._
 import is.hail.linalg.implicits.toRichIndexedRowMatrix
 
-import breeze.linalg.{DenseMatrix => BDM}
 import org.apache.spark.mllib.linalg.Vectors
 import org.apache.spark.mllib.linalg.distributed.{IndexedRow, IndexedRowMatrix}
 import org.apache.spark.rdd.RDD
@@ -37,10 +36,10 @@ class RichIndexedRowMatrixSuite {
       val blockMat = irm.toHailBlockMatrix(blockSize)
       assertEq(blockMat.nRows, nRows)
       assertEq(blockMat.nCols, nCols)
-      val blockMatAsBreeze = blockMat.toBreezeMatrix()
-      assertEq(blockMatAsBreeze.rows, irmLocal.numRows)
-      assertEq(blockMatAsBreeze.cols, irmLocal.numCols)
-      assertEq(blockMatAsBreeze.toArray.toIndexedSeq, irmLocal.toArray.toIndexedSeq)
+      val blockMatAsDense = blockMat.toDenseMatrix()
+      assertEq(blockMatAsDense.rows, irmLocal.numRows)
+      assertEq(blockMatAsDense.cols, irmLocal.numCols)
+      assertEq(blockMatAsDense.toArray.toIndexedSeq, irmLocal.toArray.toIndexedSeq)
     }
 
     intercept[IllegalArgumentException] {
@@ -68,15 +67,15 @@ class RichIndexedRowMatrixSuite {
     val m = irm.toHailBlockMatrix(2)
     assertEq(m.nRows, nRows.toLong)
     assertEq(m.nCols, nCols.toLong)
-    val blockMatAsBreeze = m.toBreezeMatrix()
-    assertEq(blockMatAsBreeze.toArray.toIndexedSeq, irmLocal.toArray.toIndexedSeq)
+    val blockMatAsDense = m.toDenseMatrix()
+    assertEq(blockMatAsDense.toArray.toIndexedSeq, irmLocal.toArray.toIndexedSeq)
     assertEq(m.blocks.count(), 5L)
 
-    m.dot(m.T).toBreezeMatrix(): Unit // assert no exception
+    m.dot(m.T).toDenseMatrix(): Unit // assert no exception
 
     assertEq(
-      m.mapWithIndex { case (i, j, v) => i + 10 * j + v }.toBreezeMatrix(),
-      new BDM[Double](
+      m.mapWithIndex { case (i, j, v) => i + 10 * j + v }.toDenseMatrix(),
+      DenseMatrix(
         nRows,
         nCols,
         Array[Double](
