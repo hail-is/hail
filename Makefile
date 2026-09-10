@@ -214,6 +214,12 @@ ci/ci/static/compiled-js/flaky_tests.js: services/ui/dist/.built
 
 ci-image: ci/ci/static/compiled-js/flaky_tests.js
 
+ci/ci/static/compiled-js/pr.js: services/ui/dist/.built
+	mkdir -p $(@D)
+	cp services/ui/dist/ci/pr.js $@
+
+ci-image: ci/ci/static/compiled-js/pr.js
+
 batch/batch/front_end/static/compiled-js/job.js: services/ui/dist/.built
 	mkdir -p $(@D)
 	cp services/ui/dist/batch/job.js $@
@@ -327,6 +333,7 @@ tailwind-compile-watch:
 	cd web_common && npx tailwindcss --watch -i input.css -o web_common/static/css/output.css
 
 run-dev-proxy: ci/ci/static/compiled-js/flaky_tests.js \
+    ci/ci/static/compiled-js/pr.js \
     batch/batch/front_end/static/compiled-js/job.js \
     batch/batch/driver/static/compiled-js/index.js \
     monitoring/monitoring/static/compiled-js/index.js \
@@ -335,7 +342,7 @@ run-dev-proxy: ci/ci/static/compiled-js/flaky_tests.js \
     ci/ci/static/compiled-js/swagger.js \
     monitoring/monitoring/static/compiled-js/swagger.js \
     auth/auth/static/compiled-js/swagger.js
-DEVSERVER_TARGETS = tailwind-compile-watch run-dev-proxy ui-js-watch ui-js-watch-batch ui-js-watch-batch-driver ui-js-watch-monitoring ui-js-watch-auth ui-js-watch-swagger
+DEVSERVER_TARGETS = tailwind-compile-watch run-dev-proxy ui-js-watch ui-js-watch-pr ui-js-watch-batch ui-js-watch-batch-driver ui-js-watch-monitoring ui-js-watch-auth ui-js-watch-swagger
 
 .PHONY: run-dev-proxy
 run-dev-proxy:
@@ -347,6 +354,10 @@ services/ui/node_modules/.package-lock.json: services/ui/package.json services/u
 .PHONY: ui-js-watch
 ui-js-watch: services/ui/node_modules/.package-lock.json
 	cd services/ui && npx esbuild src/ci/flaky_tests.tsx --bundle --jsx=automatic --format=esm --outfile=../../ci/ci/static/compiled-js/flaky_tests.js --minify --watch=forever
+
+.PHONY: ui-js-watch-pr
+ui-js-watch-pr: services/ui/node_modules/.package-lock.json
+	cd services/ui && npx esbuild src/ci/pr.tsx --bundle --jsx=automatic --format=esm --outfile=../../ci/ci/static/compiled-js/pr.js --minify --watch=forever
 
 .PHONY: ui-js-watch-batch
 ui-js-watch-batch: services/ui/node_modules/.package-lock.json

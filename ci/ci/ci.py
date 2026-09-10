@@ -207,7 +207,7 @@ async def _populate_batch_context(page_context: Dict[str, Any], batch: Batch) ->
         page_context['logging_queries'] = None
 
 
-async def _active_pr_json(wb: WatchedBranch, pr: PR) -> dict:
+async def _active_pr_json(wb: WatchedBranch, pr: PR, db: Database) -> dict:
     _do_not_merge = frozenset(('WIP', 'stacked PR'))
     deploy_batch = wb.deploy_batch
     blocking_deploy_batch_id = (
@@ -215,14 +215,18 @@ async def _active_pr_json(wb: WatchedBranch, pr: PR) -> dict:
     )
     batch = pr.batch
     batch_summary = None
-    if batch and isinstance(batch, Batch):
-        status = await batch.last_known_status()
-        batch_summary = {
-            'id': batch.id,
-            'state': status.get('state'),
-            'cost': status.get('cost'),
-            'artifacts_uri': f'{STORAGE_URI}/build/{batch.attributes["token"]}',
-        }
+    exception = None
+    if batch:
+        if isinstance(batch, Batch):
+            status = await batch.last_known_status()
+            batch_summary = {
+                'id': batch.id,
+                'state': status.get('state'),
+                'cost': status.get('cost'),
+                'artifacts_uri': f'{STORAGE_URI}/build/{batch.attributes["token"]}',
+            }
+        else:
+            exception = '\n'.join(traceback.format_exception(None, batch.exception, batch.exception.__traceback__))
     return {
         'review_approved': pr.review_state == 'approved',
         'checks_all_pass': len(pr.last_known_github_status) > 0 and pr.build_succeeding_on_all_platforms(),
@@ -241,6 +245,10 @@ async def _active_pr_json(wb: WatchedBranch, pr: PR) -> dict:
         'is_merge_candidate': wb.merge_candidate is not None and wb.merge_candidate.number == pr.number,
         'blocking_deploy_batch_id': blocking_deploy_batch_id,
         'batch': batch_summary,
+        'pr_authorized': await pr.authorized(db),
+        'exception': exception,
+        'source_sha': pr.source_sha,
+        'pending_build_reason': pr.pending_build_reason if pr.pending_build_reason != 'unknown' else None,
     }
 
 
@@ -253,7 +261,7 @@ async def _populate_active_pr_context(
     page_context['pr_authorized'] = await pr.authorized(db)
     page_context['build_failing'] = pr.build_failed_on_at_least_one_platform()
 
-    active_data = await _active_pr_json(wb, pr)
+    active_data = await _active_pr_json(wb, pr, db)
     page_context.update(active_data)
     page_context.pop('batch', None)
 
@@ -300,6 +308,19 @@ async def get_pr(request: web.Request, userdata: UserData) -> web.Response:
     if watched_branch_index < 0 or watched_branch_index >= len(watched_branches):
         raise web.HTTPNotFound()
     wb = watched_branches[watched_branch_index]
+
+    if request.cookies.get('hail_react_ui') == '1':
+        return await render_template(
+            'ci',
+            request,
+            userdata,
+            'pr_react.html',
+            {
+                'use_tailwind': True,
+                'watched_branch_index': watched_branch_index,
+                'pr_number': pr_number,
+            },
+        )
 
     page_context: Dict[str, Any] = {'repo': wb.branch.repo.short_str(), 'wb': wb}
 
@@ -355,7 +376,12 @@ def storage_uri_to_url(uri: str) -> str:
 
 
 async def _retry_pr_core(
-    wb: WatchedBranch, pr: PR, app: web.Application, username: str, tactical: bool = False
+    wb: WatchedBranch,
+    pr: PR,
+    app: web.Application,
+    username: str,
+    tactical: bool = False,
+    wait_for_build: bool = True,
 ) -> Optional[str]:
     """Executes the retry logic. Returns an error message on failure, None on success."""
     if pr.batch is None:
@@ -394,9 +420,13 @@ async def _retry_pr_core(
     pr.pending_build_reason = f'{"tactical " if tactical else ""}retry by {username}'
     pr.batch = None
     pr.set_build_state(None)
-    await wb.notify_batch_changed(
+    notify = wb.notify_batch_changed(
         db, app[AppKeys.BATCH_CLIENT], app[AppKeys.GH_CLIENT], app[AppKeys.FROZEN_MERGE_DEPLOY]
     )
+    if wait_for_build:
+        await notify
+    else:
+        app[AppKeys.TASK_MANAGER].ensure_future(notify)
     log.info(f'retry requested for PR: {pr.number}')
     return None
 
@@ -1071,7 +1101,7 @@ async def api_watched_branch_pr(request: web.Request, _) -> web.Response:
     if wb.prs and pr_number in wb.prs:
         pr = wb.prs[pr_number]
         result = _pr_config_json(await pr_config(request.app, pr))
-        result.update(await _active_pr_json(wb, pr))
+        result.update(await _active_pr_json(wb, pr, request.app[AppKeys.DB]))
         return json_response(result)
 
     try:
@@ -1233,7 +1263,9 @@ async def api_retry_pr(request: web.Request, userdata: UserData) -> web.Response
     tactical = params.get('tactical', False)
     if not isinstance(tactical, bool):
         raise web.HTTPBadRequest(text="'tactical' must be a JSON boolean")
-    error = await asyncio.shield(_retry_pr_core(wb, pr, request.app, userdata['username'], tactical=tactical))
+    error = await asyncio.shield(
+        _retry_pr_core(wb, pr, request.app, userdata['username'], tactical=tactical, wait_for_build=False)
+    )
     if error:
         raise web.HTTPBadRequest(text=error)
     return web.Response(status=200)
