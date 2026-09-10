@@ -356,20 +356,20 @@ function BadJobsCell({
 }
 
 function BatchHistoryTable({ batches, batchBaseUrl }: { batches: BatchHistoryEntry[]; batchBaseUrl: string }): JSX.Element {
-  const [badJobs, setBadJobs] = useState<Record<number, BadJobsState> | null>(null);
+  const [badJobs, setBadJobs] = useState<Map<number, BadJobsState> | null>(null);
 
   const loadBadJobs = useCallback(async () => {
-    setBadJobs(Object.fromEntries(batches.map((b) => [b.id, { status: 'pending' } as BadJobsState])));
+    setBadJobs(new Map(batches.map((b) => [b.id, { status: 'pending' } as BadJobsState])));
     for (const b of batches) {
-      setBadJobs((prev) => (prev ? { ...prev, [b.id]: { status: 'loading' } } : prev));
+      setBadJobs((prev) => (prev ? new Map(prev).set(b.id, { status: 'loading' }) : prev));
       try {
         const jobs = await fetchFirstBadJobs(batchBaseUrl, b.id);
         const truncated = jobs.length > FAILED_JOBS_DISPLAY_LIMIT;
         setBadJobs((prev) =>
-          prev ? { ...prev, [b.id]: { status: 'loaded', jobs: jobs.slice(0, FAILED_JOBS_DISPLAY_LIMIT), truncated } } : prev
+          prev ? new Map(prev).set(b.id, { status: 'loaded', jobs: jobs.slice(0, FAILED_JOBS_DISPLAY_LIMIT), truncated }) : prev
         );
       } catch (e) {
-        setBadJobs((prev) => (prev ? { ...prev, [b.id]: { status: 'error', message: 'failed to load' } } : prev));
+        setBadJobs((prev) => (prev ? new Map(prev).set(b.id, { status: 'error', message: 'failed to load' }) : prev));
       }
     }
   }, [batches, batchBaseUrl]);
@@ -380,7 +380,7 @@ function BatchHistoryTable({ batches, batchBaseUrl }: { batches: BatchHistoryEnt
   // that showed up in *every* loaded row are also sized up, so a solid vertical line of matches
   // down the column pops out.
   const loadedNameSets = badJobs
-    ? Object.values(badJobs)
+    ? [...badJobs.values()]
         .filter((s): s is Extract<BadJobsState, { status: 'loaded' }> => s.status === 'loaded')
         .map((s) => new Set(s.jobs.map((j) => j.name ?? '').filter((name) => name !== '')))
     : [];
@@ -426,7 +426,7 @@ function BatchHistoryTable({ batches, batchBaseUrl }: { batches: BatchHistoryEnt
             <td className="px-3 py-0.5 whitespace-nowrap">{b.state ? <BatchStateIcon state={b.state} /> : null} {b.state}</td>
             <td className="px-3 py-0.5">
               <BadJobsCell
-                state={badJobs?.[b.id]}
+                state={badJobs?.get(b.id)}
                 repeatedNames={repeatedNames}
                 alwaysFailingNames={alwaysFailingNames}
                 batchBaseUrl={batchBaseUrl}
@@ -912,6 +912,7 @@ function PrPage({ basePath, batchBaseUrl, wbIndex, prNumber }: {
 
       <div className="mt-1 text-sm">
         <button
+          type="button"
           onClick={() => { document.cookie = 'hail_react_ui=; max-age=0; path=/; SameSite=Lax'; location.reload(); }}
           className="text-sky-600 hover:underline cursor-pointer"
         >
