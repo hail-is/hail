@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { createRoot } from 'react-dom/client';
-import { hailApiFetch as apiFetch } from '../shared/hailApiFetch';
+import { hailApiFetch as apiFetch, hailApiFetchVoid as apiFetchVoid } from '../shared/hailApiFetch';
 import { hasPermission } from '../shared/authUtils';
 import { SegmentedBar, Segment } from '../shared/SegmentedBar';
 import { StateIcon } from '../batch/components/StateIcon';
@@ -688,7 +688,7 @@ function RetryButton({ basePath, wbBranchName, prNumber, tactical, setError, dis
       onClick={() => {
         setError(null);
         setRetrying(true);
-        apiFetch(`${basePath}/api/v1alpha/watched_branches/${encodeURIComponent(wbBranchName)}/prs/${prNumber}/retry`, {
+        apiFetchVoid(`${basePath}/api/v1alpha/watched_branches/${encodeURIComponent(wbBranchName)}/prs/${prNumber}/retry`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ tactical }),
@@ -718,7 +718,7 @@ function AuthorizeButton({ basePath, sha, authorizing, setAuthorizing, setError 
       onClick={() => {
         setError(null);
         setAuthorizing(true);
-        apiFetch(`${basePath}/api/v1alpha/authorize_sha`, {
+        apiFetchVoid(`${basePath}/api/v1alpha/authorize_sha`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ sha }),
