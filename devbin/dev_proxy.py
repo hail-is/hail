@@ -1,4 +1,5 @@
 import os
+import re
 
 import aiohttp_jinja2
 import jinja2
@@ -87,6 +88,14 @@ _FAKE_DEV_USERDATA = {'username': 'dev', 'system_permissions': {p.value: True fo
 
 BC = web.AppKey('backend_client', Session)
 
+# ci's PR retry endpoint is not idempotent (each call invalidates the PR's current batch and
+# kicks off a new one) and can legitimately take far longer than the client's default timeout,
+# since it blocks on the whole build-submission pipeline. The default Session retries any
+# transient error (including a client-side timeout) for every method, so without this override a
+# slow-but-successful retry gets silently resubmitted once the default timeout elapses, and the
+# resubmission fails because the first call already cleared the PR's batch.
+_NON_IDEMPOTENT_LONG_TIMEOUT_ROUTES = ((re.compile(r'^/ci/api/v1alpha/watched_branches/[^/]+/prs/\d+/retry$'), 'POST'),)
+
 
 def _service_from_path(path: str) -> str | None:
     first_segment = path.lstrip('/').split('/')[0]
@@ -146,8 +155,13 @@ async def default_proxied_api_route(request: web.Request) -> web.Response:
         raise web.HTTPNotFound()
     backend_client = request.app[BC]
     backend_route = _backend_url(service, request.raw_path)
+    request_kwargs = {}
+    for pattern, method in _NON_IDEMPOTENT_LONG_TIMEOUT_ROUTES:
+        if request.method == method and pattern.match(request.path):
+            request_kwargs = {'retry': False, 'timeout': 120}
+            break
     try:
-        async with await backend_client.request(request.method, backend_route) as resp:
+        async with await backend_client.request(request.method, backend_route, **request_kwargs) as resp:
             body = await resp.read()
             content_type = resp.content_type
     except httpx.ClientResponseError as e:
