@@ -52,20 +52,12 @@ class eigSymDSuite {
     val c = 1 / math.sqrt(2)
 
     val eigSymDK2 = eigSymD(K2)
-    val eigSymRK2 = eigSymR(K2)
     assert(D_==(eigSymDK2.eigenvalues(0), 1.0))
     assert(D_==(eigSymDK2.eigenvalues(1), 3.0))
     assert(D_==(math.abs(eigSymDK2.eigenvectors(0, 0)), c))
     assert(D_==(math.abs(eigSymDK2.eigenvectors(1, 0)), c))
     assert(D_==(math.abs(eigSymDK2.eigenvectors(0, 1)), c))
     assert(D_==(math.abs(eigSymDK2.eigenvectors(1, 1)), c))
-
-    assert(D_==(eigSymRK2.eigenvalues(0), 1.0))
-    assert(D_==(eigSymRK2.eigenvalues(1), 3.0))
-    assert(D_==(math.abs(eigSymRK2.eigenvectors(0, 0)), c))
-    assert(D_==(math.abs(eigSymRK2.eigenvectors(1, 0)), c))
-    assert(D_==(math.abs(eigSymRK2.eigenvectors(0, 1)), c))
-    assert(D_==(math.abs(eigSymRK2.eigenvectors(1, 1)), c))
   }
 
   def symEigSpeedTest(): Unit = {
@@ -87,8 +79,6 @@ class eigSymDSuite {
         printTime({ svd(K) }): Unit
         print("eigSym:  ")
         printTime({ eigSymD(K) }): Unit
-        print("eigSymR: ")
-        printTime({ eigSymR(K) }): Unit
         print("eigSymD: ")
         printTime({ eigSym(K) }): Unit
         println()
