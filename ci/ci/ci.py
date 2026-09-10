@@ -248,6 +248,7 @@ async def _active_pr_json(wb: WatchedBranch, pr: PR, db: Database) -> dict:
         'pr_authorized': await pr.authorized(db),
         'exception': exception,
         'source_sha': pr.source_sha,
+        'pending_build_reason': pr.pending_build_reason if pr.pending_build_reason != 'unknown' else None,
     }
 
 
@@ -375,7 +376,12 @@ def storage_uri_to_url(uri: str) -> str:
 
 
 async def _retry_pr_core(
-    wb: WatchedBranch, pr: PR, app: web.Application, username: str, tactical: bool = False
+    wb: WatchedBranch,
+    pr: PR,
+    app: web.Application,
+    username: str,
+    tactical: bool = False,
+    wait_for_build: bool = True,
 ) -> Optional[str]:
     """Executes the retry logic. Returns an error message on failure, None on success."""
     if pr.batch is None:
@@ -414,9 +420,13 @@ async def _retry_pr_core(
     pr.pending_build_reason = f'{"tactical " if tactical else ""}retry by {username}'
     pr.batch = None
     pr.set_build_state(None)
-    await wb.notify_batch_changed(
+    notify = wb.notify_batch_changed(
         db, app[AppKeys.BATCH_CLIENT], app[AppKeys.GH_CLIENT], app[AppKeys.FROZEN_MERGE_DEPLOY]
     )
+    if wait_for_build:
+        await notify
+    else:
+        app[AppKeys.TASK_MANAGER].ensure_future(notify)
     log.info(f'retry requested for PR: {pr.number}')
     return None
 
@@ -1253,7 +1263,9 @@ async def api_retry_pr(request: web.Request, userdata: UserData) -> web.Response
     tactical = params.get('tactical', False)
     if not isinstance(tactical, bool):
         raise web.HTTPBadRequest(text="'tactical' must be a JSON boolean")
-    error = await asyncio.shield(_retry_pr_core(wb, pr, request.app, userdata['username'], tactical=tactical))
+    error = await asyncio.shield(
+        _retry_pr_core(wb, pr, request.app, userdata['username'], tactical=tactical, wait_for_build=False)
+    )
     if error:
         raise web.HTTPBadRequest(text=error)
     return web.Response(status=200)

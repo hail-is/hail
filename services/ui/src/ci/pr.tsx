@@ -53,6 +53,7 @@ interface WatchedBranchPr {
   pr_authorized?: boolean;
   exception?: string | null;
   source_sha?: string;
+  pending_build_reason?: string | null;
   // Historical-PR fields (GitHub fallback branch).
   merged?: boolean | null;
   merge_commit_sha?: string | null;
@@ -466,6 +467,7 @@ function missingActivePrFields(pr: WatchedBranchPr): string[] {
   if (pr.pr_authorized === undefined) missing.push('pr_authorized');
   if (pr.exception === undefined) missing.push('exception');
   if (pr.source_sha === undefined) missing.push('source_sha');
+  if (pr.pending_build_reason === undefined) missing.push('pending_build_reason');
   return missing;
 }
 
@@ -629,7 +631,11 @@ function BuildPanel({ pr, basePath, batchBaseUrl, wbBranchName, prNumber, batchS
       <div className="mt-4">
         <h2 className="text-lg font-semibold text-zinc-700 mb-2">Current Build</h2>
         {warning}
-        <p className="text-sm text-zinc-600">No current build — waiting for a build slot (or a retry is being processed).</p>
+        <p className="text-sm text-zinc-600">
+          {pr.pending_build_reason
+            ? `Waiting for a build slot (${pr.pending_build_reason})…`
+            : 'No current build — waiting for a build slot (or a retry is being processed).'}
+        </p>
       </div>
     );
   }
@@ -816,14 +822,27 @@ function PrPage({ basePath, batchBaseUrl, wbIndex, prNumber }: {
       .catch((e: unknown) => { setWbError(e instanceof Error ? e.message : String(e)); });
   }, [basePath, wbIndex]);
 
+  const refreshPr = useCallback(async () => {
+    if (wbBranchName === null) return;
+    try {
+      setPr(await apiFetch<WatchedBranchPr>(`${basePath}/api/v1alpha/watched_branches/${encodeURIComponent(wbBranchName)}/prs/${prNumber}`));
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  }, [basePath, wbBranchName, prNumber]);
+
   useEffect(() => {
     if (wbBranchName === null) return;
     setLoading(true);
-    apiFetch<WatchedBranchPr>(`${basePath}/api/v1alpha/watched_branches/${encodeURIComponent(wbBranchName)}/prs/${prNumber}`)
-      .then(setPr)
-      .catch((e: unknown) => { setError(e instanceof Error ? e.message : String(e)); })
-      .finally(() => { setLoading(false); });
-  }, [basePath, wbBranchName, prNumber]);
+    void refreshPr().finally(() => { setLoading(false); });
+  }, [wbBranchName, refreshPr]);
+
+  // A build was requested (new PR or retry) but hasn't been assigned a batch yet — poll until it is.
+  useEffect(() => {
+    if (!pr || pr.batch || !pr.pending_build_reason || !autoRefresh) return;
+    const id = setInterval(() => { void refreshPr(); }, REFRESH_INTERVAL_MS);
+    return () => { clearInterval(id); };
+  }, [pr, refreshPr, autoRefresh]);
 
   useEffect(() => {
     if (wbBranch === null) return;
