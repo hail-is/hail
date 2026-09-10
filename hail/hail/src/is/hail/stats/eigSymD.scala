@@ -1,7 +1,8 @@
 package is.hail.stats
 
-import breeze.generic.UFunc
-import breeze.linalg._
+import is.hail.linalg.{DenseMatrix, MatrixSingularException, NotConvergedException}
+
+import breeze.linalg.DenseVector
 import dev.ludovic.netlib.lapack.LAPACK.{getInstance => lapack}
 import org.netlib.util.intW
 
@@ -12,36 +13,27 @@ import org.netlib.util.intW
   * Based on eigSym in breeze.linalg.eig but replaces dsyev with dsyevd for higher performance:
   * http://www.netlib.org/lapack/lawnspdf/lawn183.pdf
   */
-object eigSymD extends UFunc {
-  case class EigSymD[V, M](eigenvalues: V, eigenvectors: M)
-  type DenseEigSymD = EigSymD[DenseVector[Double], DenseMatrix[Double]]
+object eigSymD {
+  case class EigSymD(eigenvalues: DenseVector[Double], eigenvectors: DenseMatrix)
 
-  implicit object eigSymD_DM_Impl extends Impl[DenseMatrix[Double], DenseEigSymD] {
-    override def apply(X: DenseMatrix[Double]): DenseEigSymD =
-      doeigSymD(X, rightEigenvectors = true) match {
-        case (ev, Some(rev)) => EigSymD(ev, rev)
-        case _ => throw new RuntimeException("Shouldn't be here!")
-      }
-
-  }
-
-  object justEigenvalues extends UFunc {
-    implicit object eigSymD_DM_Impl extends Impl[DenseMatrix[Double], DenseVector[Double]] {
-      override def apply(X: DenseMatrix[Double]): DenseVector[Double] =
-        doeigSymD(X, rightEigenvectors = false)._1
+  def apply(x: DenseMatrix): EigSymD =
+    doeigSymD(x, rightEigenvectors = true) match {
+      case (ev, Some(rev)) => EigSymD(ev, rev)
+      case _ => throw new RuntimeException("Shouldn't be here!")
     }
 
-  }
+  def justEigenvalues(x: DenseMatrix): DenseVector[Double] =
+    doeigSymD(x, rightEigenvectors = false)._1
 
-  def doeigSymD(X: Matrix[Double], rightEigenvectors: Boolean)
-    : (DenseVector[Double], Option[DenseMatrix[Double]]) = {
+  def doeigSymD(X: DenseMatrix, rightEigenvectors: Boolean)
+    : (DenseVector[Double], Option[DenseMatrix]) = {
     // assumes X is non-empty and symmetric, caller should check if necessary
 
     val JOBZ =
       if (rightEigenvectors) "V" else "N" /* eigenvalues N, eigenvalues & eigenvectors "V" */
     val UPLO = "L"
     val N = X.rows
-    val A = lowerTriangular(X)
+    val A = DenseMatrix.lowerTriangular(X)
     val LDA = scala.math.max(1, N)
     val W = DenseVector.zeros[Double](N)
     val LWORK =
@@ -76,7 +68,7 @@ object TriSolve {
   /* Solve for x in A * x = b with upper triangular A
    * http://www.netlib.org/lapack/explore-html/da/dba/group__double_o_t_h_e_rcomputational_ga4e87e579d3e1a56b405d572f868cd9a1.html */
 
-  def apply(A: DenseMatrix[Double], b: DenseVector[Double]): DenseVector[Double] = {
+  def apply(A: DenseMatrix, b: DenseVector[Double]): DenseVector[Double] = {
     require(A.rows == A.cols)
     require(A.rows == b.length)
 

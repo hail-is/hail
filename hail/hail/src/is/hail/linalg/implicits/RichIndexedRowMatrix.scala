@@ -3,7 +3,6 @@ package is.hail.linalg.implicits
 import is.hail.linalg._
 import is.hail.sparkextras.implicits._
 
-import breeze.linalg.{DenseMatrix => BDM}
 import org.apache.spark._
 import org.apache.spark.mllib.linalg.distributed.IndexedRowMatrix
 import org.apache.spark.rdd.RDD
@@ -69,15 +68,15 @@ class RichIndexedRowMatrix(indexedRowMatrix: IndexedRowMatrix) {
       rowSegments.iterator
     }.aggregateByKey(null: Array[Double], gp)(seqOp(gp), combOp)
       .mapValuesWithKey { case ((i, j), data) =>
-        new BDM[Double](gp.blockRowNRows(i), gp.blockColNCols(j), data)
+        DenseMatrix(gp.blockRowNRows(i), gp.blockColNCols(j), data)
       }
 
     new BlockMatrix(new EmptyPartitionIsAZeroMatrixRDD(blocks), blockSize, nRows, nCols)
   }
 }
 
-private class EmptyPartitionIsAZeroMatrixRDD(blocks: RDD[((Int, Int), BDM[Double])])
-    extends RDD[((Int, Int), BDM[Double])](
+private class EmptyPartitionIsAZeroMatrixRDD(blocks: RDD[((Int, Int), DenseMatrix)])
+    extends RDD[((Int, Int), DenseMatrix)](
       blocks.sparkContext,
       Seq[Dependency[_]](new OneToOneDependency(blocks)),
     ) {
@@ -86,13 +85,13 @@ private class EmptyPartitionIsAZeroMatrixRDD(blocks: RDD[((Int, Int), BDM[Double
   }
 
   override def compute(split: Partition, context: TaskContext)
-    : Iterator[((Int, Int), BDM[Double])] = {
+    : Iterator[((Int, Int), DenseMatrix)] = {
     val p = split.asInstanceOf[BlockPartition]
     val it = blocks.iterator(split, context)
     if (it.hasNext)
       it
     else
-      Iterator.single(p.blockCoordinates -> BDM.zeros[Double](p.blockDims._1, p.blockDims._2))
+      Iterator.single(p.blockCoordinates -> DenseMatrix.zeros(p.blockDims._1, p.blockDims._2))
   }
 
   override protected def getPartitions: Array[Partition] =

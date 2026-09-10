@@ -5,14 +5,14 @@ import is.hail.backend.ExecuteContext
 import is.hail.collection.{FastSeq, IntArrayBuilder}
 import is.hail.expr.ir.{MatrixValue, TableValue}
 import is.hail.expr.ir.functions.MatrixToTableFunction
-import is.hail.linalg.implicits._
+import is.hail.linalg.{DenseMatrix, MatrixSingularException, NotConvergedException}
 import is.hail.stats.{
   eigSymD, GeneralizedChiSquaredDistribution, LogisticRegressionModel, RegressionUtils,
 }
 import is.hail.types.virtual.{MatrixType, TFloat64, TInt32, TStruct, TableType, Type}
 import is.hail.utils._
 
-import breeze.linalg.{DenseMatrix => BDM, DenseVector => BDV, _}
+import breeze.linalg.{DenseMatrix => _, DenseVector => BDV, _}
 import breeze.numerics._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
@@ -50,7 +50,7 @@ import org.apache.spark.sql.Row
 case class SkatTuple(q: Double, a: BDV[Double], b: BDV[Double])
 
 object Skat {
-  def computeGramianSmallN(st: Array[SkatTuple]): (Double, BDM[Double]) = {
+  def computeGramianSmallN(st: Array[SkatTuple]): (Double, DenseMatrix) = {
     require(st.nonEmpty)
     val st0 = st(0)
 
@@ -78,13 +78,13 @@ object Skat {
       i += 1
     }
 
-    val A = new BDM[Double](n, m, AData)
-    val B = new BDM[Double](k, m, BData)
+    val A = DenseMatrix(n, m, AData)
+    val B = DenseMatrix(k, m, BData)
 
     (q, A.t * A - B.t * B)
   }
 
-  def computeGramianLargeN(st: Array[SkatTuple]): (Double, BDM[Double]) = {
+  def computeGramianLargeN(st: Array[SkatTuple]): (Double, DenseMatrix) = {
     require(st.nonEmpty)
 
     val m = st.length
@@ -107,16 +107,16 @@ object Skat {
       i += 1
     }
 
-    (q, new BDM[Double](m, m, data))
+    (q, DenseMatrix(m, m, data))
   }
 
-  def computeGramian(st: Array[SkatTuple], useSmallN: Boolean): (Double, BDM[Double]) =
+  def computeGramian(st: Array[SkatTuple], useSmallN: Boolean): (Double, DenseMatrix) =
     if (useSmallN) computeGramianSmallN(st) else computeGramianLargeN(st)
 
   /* gramian is the m x m matrix (G * sqrt(W)).t * P_0 * (G * sqrt(W)) which has the same non-zero
    * eigenvalues */
   // as the n x n matrix in the paper P_0^{1/2} * (G * W * G.t) * P_0^{1/2}
-  def computePval(q: Double, gramian: BDM[Double], accuracy: Double, iterations: Int)
+  def computePval(q: Double, gramian: DenseMatrix, accuracy: Double, iterations: Int)
     : (Double, Int) = {
     val allEvals = eigSymD.justEigenvalues(gramian)
 
@@ -210,10 +210,9 @@ case class Skat(
     def linearSkat(): RDD[Row] = {
       // fit null model
       val (qt, res) =
-        if (k == 0)
-          (BDM.zeros[Double](0, n), y)
+        if (k == 0) (DenseMatrix.zeros(0, n), y)
         else {
-          val QR = qr.reduced(cov)
+          val QR = DenseMatrix.qrReduced(cov)
           val Qt = QR.q.t
           val R = QR.r
           val beta = R \ (Qt * y)
@@ -269,22 +268,21 @@ case class Skat(
           val VX = cov(::, *) *:* V
           val XtVX = cov.t * VX
           XtVX.forceSymmetry()
-          var Cinv: BDM[Double] = null
-          try
-            Cinv = inv(cholesky(XtVX))
-          catch {
-            case e: MatrixSingularException =>
-              fatal(
-                "Singular matrix exception while computing Cholesky factor of X.t * V * X.\n" + e.getMessage
-              )
-            case e: NotConvergedException =>
-              fatal(
-                "Not converged exception while inverting Cholesky factor of X.t * V * X.\n" + e.getMessage
-              )
-          }
+          val Cinv: DenseMatrix =
+            try XtVX.cholesky.inv
+            catch {
+              case e: MatrixSingularException =>
+                fatal(
+                  "Singular matrix exception while computing Cholesky factor of X.t * V * X.\n" + e.getMessage
+                )
+              case e: NotConvergedException =>
+                fatal(
+                  "Not converged exception while inverting Cholesky factor of X.t * V * X.\n" + e.getMessage
+                )
+            }
           (sqrt(V), y - mu, Cinv * VX.t)
         } else
-          (BDV.fill(n)(0.5), y, new BDM[Double](0, n))
+          (BDV.fill(n)(0.5), y, DenseMatrix.zeros(0, n))
 
       val sqrtVBc = backend.broadcast(sqrtV)
       val resBc = backend.broadcast(res)

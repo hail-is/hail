@@ -73,11 +73,7 @@ object `package` extends HailScalaModule:
 
   override def compileMvnDeps: T[Seq[Dep]] =
     Seq[Dep](
-      // WARNING WARNING WARNING
-      // Before changing the breeze version review:
-      // - https://hail.zulipchat.com/#narrow/stream/123011-Hail-Query-Dev/topic/new.20spark.20ndarray.20failures/near/41645
-      // - https://github.com/hail-is/hail/pull/11555
-      `breeze` :: "1.1",
+      `breeze` :: "2.1.0",
       `blas` :: "3.0.4",
       `arpack` :: "3.0.4",
       `avro` :: "1.12.1",
@@ -135,11 +131,6 @@ object `package` extends HailScalaModule:
 
   override def runMvnDeps: T[Seq[Dep]] =
     Seq(
-      (`breeze-natives` :: "1.1")
-        .excludeOrg(
-          "org.apache.commons",
-          "org.slf4j",
-        ),
       `junixsocket-core` :: "2.6.1",
     )
 
@@ -148,7 +139,6 @@ object `package` extends HailScalaModule:
       Rule.Exclude("META-INF/INDEX.LIST"),
       Rule.ExcludePattern("^scala/(?!collection/compat).*"),
       Rule.AppendPattern("META-INF/services/.*", "\n"),
-      Rule.Relocate("breeze.**", "is.hail.relocated.@0"),
       Rule.Relocate("com.google.**", "is.hail.relocated.@0"),
     )
 
