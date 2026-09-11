@@ -138,8 +138,6 @@ class BuildConfiguration:
                 for s in config['steps']
                 if s.get('name') in name_step and name_step[s['name']].can_run_in_scope(scope)
             ]
-            # See select_steps' docstring for why tactically_succeeded_always_run_steps
-            # must be excluded here rather than left to select_steps.
             always_run_steps = set(config.get('alwaysRunSteps', [])) - tactically_succeeded_always_run_steps
             # follow_forward=False for dev/deploy: see select_steps' docstring.
             selected_names = select_steps(seeds, valid_raw_steps, always_run_steps, follow_forward=scope == 'test')

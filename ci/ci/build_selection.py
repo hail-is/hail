@@ -106,37 +106,22 @@ def select_steps(
     always_run_steps: AbstractSet[str] = frozenset(),
     follow_forward: bool = True,
 ) -> Set[str]:
-    """Return the full set of step names that should run given a seed set.
+    """Return the full set of step names that should run, given a seed set.
 
     Algorithm:
       1. Forward pass (only if follow_forward) — expand seeds to include steps
          whose ordering predecessors (`dependsOn` *or* `after`) are selected.
-         This is appropriate when seeds come from what actually changed (a PR
-         diff, or a tactical retry within that same build) -- steps downstream
-         of a real change should re-run. It is NOT appropriate when seeds are an
-         explicit, hand-picked list (a dev deploy's `-s ...`, or a deploy's
-         DEPLOY_STEPS) -- there, the caller asked for exactly those steps, not
-         everything that happens to depend on them.
-      2. Backward pass — for every selected step (including always_run_steps,
-         mixed in after the forward pass), pull in hard dependsOn ancestors.
-         after edges are NOT followed here, so a cleanup step never forces its
-         ordering predecessors to re-run.
-
-    `always_run_steps` are force-included unconditionally by this function, so a
-    caller that already knows one of them succeeded (e.g. a tactical retry that
-    scanned prior batches) must exclude it beforehand -- otherwise a fully-succeeded
-    retry can never be a true no-op.
+         Appropriate when we want "X and everything that might be affected by
+         X".
+      2. Backward pass — for every selected step, pull in the `dependsOn`
+         dependencies. This makes sure we include everything necessary to run
+         the steps we want to run.
     """
     run_if_requested = {s['name'] for s in ordered_steps if s.get('runIfRequested')}
     eligible = [s for s in ordered_steps if not s.get('runIfRequested')]
     node_names = {s['name'] for s in ordered_steps}
 
-    # Hard-dep map over ALL steps (including runIfRequested ones), so that an
-    # explicitly-requested runIfRequested step still has its own dependsOn edges
-    # available for the backward pass below. Edges TO a runIfRequested step, or to
-    # a step that isn't in ordered_steps at all (e.g. filtered out by the caller for
-    # scope/cloud), are dropped, so a step never transitively drags in a step that
-    # can't actually run here.
+    # build the map of dependencies which are eligible to be included in the backward pass
     deps_map: Dict[str, List[str]] = {
         s['name']: [d for d in s.get('dependsOn', []) if d not in run_if_requested and d in node_names]
         for s in ordered_steps
@@ -159,14 +144,9 @@ def compute_requested_steps(
     scope: str,
     cloud: Optional[str] = None,
 ) -> Set[str]:
-    """Select which build steps are genuinely affected by the changed files in a PR.
+    """Select which build steps are potentially affected by files changed in a PR.
 
-    set(directly affected steps + their descendants)
-
-    Deliberately does NOT include alwaysRunSteps -- those carry no file-driven
-    signal of their own and must not be treated as seeds by select_steps's forward
-    pass (see select_steps' docstring). Callers that need them unconditionally
-    present should pass alwaysRunSteps to select_steps separately.
+    Includes directly affected steps AND their descendants, but NOT always-run steps.
     """
     config = yaml.safe_load(config_str)
     repo_prefix: str = config.get('repoPrefix', '/repo')
