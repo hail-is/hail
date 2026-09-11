@@ -1,6 +1,7 @@
 alpine:3.8
 debian:9.5
 envoyproxy/envoy:v1.33.0
+envoyproxy/envoy:v1.33.14
 ghost:3.0-alpine
 google/cloud-sdk:305.0.0-slim
 grafana/grafana:9.1.4
