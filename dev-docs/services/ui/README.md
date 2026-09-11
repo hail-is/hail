@@ -94,8 +94,11 @@ Source files are organised by owning service under `src/<service>/`. For example
 cd services/ui
 npm ci           # install deps from lockfile (first time or after package changes)
 npm run build    # esbuild → dist/
+npm test         # vitest run
 npm run check    # tsc --noEmit — type-check only, no output
 ```
+
+`npm test`/`npm run check` must be run with `services/ui` as the working directory — running `vitest` from a subdirectory silently narrows which test files it picks up, with no error indicating anything was skipped.
 
 ### How artifacts get into a service
 
@@ -115,6 +118,62 @@ The service image target depends on the copy target, so building the image alway
 In `build.yaml`, two steps run before any service image that depends on compiled JS is built:
 - `build_ui` — runs `npm ci && npm run build`, uploads `dist/` as an artifact.
 - `check_ui` — runs `npm ci && npm run check` for type safety.
+
+## Coding conventions
+
+### Component organization
+
+- `services/ui/src/shared/` — genuinely generic components/hooks/utils with no domain-specific coupling (e.g. `Panel`, `SpinnerIcon`, `useLegendToggle`, `timeUtils`). These are candidates for reuse across services.
+- `services/ui/src/<service>/components/` — pure functions, types, and components that are cleanly factored but only make sense for one feature or service today (e.g. dollar formatting, stats helpers for a specific dashboard). Don't promote something to `shared/` just because it's generically *coded* — promote it once a second consumer actually needs it. Until then, keeping it service-local signals its actual scope honestly. See `batch/components/jobModels.ts` for a precedent (pure types/utils colocated with a service's components, not in `shared/`).
+
+### Reuse before you build
+
+- **Don't write a new API endpoint if an existing one already covers it.** Check the service's `/openapi.yaml` (and the other `hailApi` client namespaces) for something that already returns the data you need, even under a name that doesn't obviously match what you're building — before adding a new backend endpoint.
+- **Don't spam out near-identical components.** If you're about to write something that looks like an existing component with a small tweak, generalize the existing one (an extra prop, a format function, a variant) instead of copy-pasting it into a new file. See "Component organization" above for where a generalized version should live — most near-duplicates turn out to belong in `shared/` once you factor out the difference.
+
+### `Map` vs `Record` vs a typed interface
+
+- If a value's field set is known and fixed at compile time, use a proper typed interface/class with named properties — not a dynamic collection at all.
+- If the field set is dynamic/unknown (e.g. keyed by external data like GCP service/SKU names, or billing project names), prefer `Map<string, T>` over `Record<string, T>`. Bracket access/assignment on a plain object with a computed key is what `eslint-plugin-security`'s `detect-object-injection` rule (wired into Codacy for this repo) flags — a key that ever equals `__proto__`/`constructor` can mutate `Object.prototype` via bracket-assignment on a `Record`, but `Map.set`/`.get` are immune to this regardless of key value.
+- **Gotcha when converting `Record` → `Map`:** `Object.entries`/`Object.values`/`Object.keys` on a `Map` instance do **not** raise a TypeScript error (they fall through to a loosely-typed `any`-returning overload) but silently return `[]` at runtime, since a `Map`'s entries aren't stored as the object's own enumerable string-keyed properties. Converting a field from `Record` to `Map` is only safe if you also grep the whole file for `Object.entries(field)` / `Object.values(field)` / `Object.keys(field)` and convert those to `[...field]` / `[...field.values()]` / `[...field.keys()]` (or direct `for...of` iteration — `Map` is natively iterable as `[k, v]` pairs). `tsc --noEmit` reliably catches stray bracket-access sites during this kind of migration, but it will not catch this one — check for it by hand.
+- Two cases where a computed-key access is fine as a plain `Record`/array and doesn't need converting: the value is handed directly to a library that requires a plain object (e.g. a recharts `data` row — though check what actually reaches the library first; a same-named intermediate variable often turns out never to reach it), or it's plain numeric array indexing inside a bounded loop (`arr[i]` in `.map((d, i) => ...)`) — there's no external key involved and no alternative to positional indexing for arrays. If a fix is possible there, it's usually restructuring to avoid needing the parallel index at all (fuse two arrays that were only correlated by position into one).
+
+### Button, label, and list-key hygiene
+
+- Every `<button>` needs an explicit `type="button"` unless it's meant to submit a form — a bare `<button>` inside a `<form>` defaults to `type="submit"`, which these dashboards never want.
+- Every `<label>` needs to be associated with its input, via matching `htmlFor`/`id` or by wrapping the input in the label.
+- A purely decorative `<svg>` icon needs `aria-hidden="true"`.
+- Use a stable field from the data as a list `key`, never the array index — an index key can cause React to misattribute rows across re-renders, especially once the list can be re-sorted (e.g. a tooltip re-sorting entries by value on every render).
+
+### A few small TypeScript/JS style preferences
+
+- `Number.isFinite`/`Number.isNaN`, not the global `isFinite`/`isNaN` — the global versions coerce their argument first, which can hide bugs.
+- Always pass a radix to `parseInt`: `parseInt(x, 10)`.
+- Prefer `??` over `||` — but only swap it in where the left side can't legitimately be `0`/`''`/`false` as a meaningful value; check case by case rather than blanket-replacing.
+- Give an arrow function's body braces rather than an implicit `void`-returning expression: `onClick={() => { setX(y); }}`, not `onClick={() => setX(y)}`.
+- A function *type* signature's parameter name (e.g. `format: (v: number) => string`) can be prefixed with `_` if it looks unused — that's not a real unused variable, since TypeScript never actually uses type-position parameter names for anything; it's just the naming convention for "must be named, never used."
+- After removing a dead value, check whether that made its own dependency newly unused too — dead code often cascades one removal at a time rather than showing up all at once.
+- Use `import type { Foo }` (or the inline `type` modifier) for anything only ever used as a type.
+
+### This is a plain React codebase, not Qwik
+
+If a lint suggestion asks you to wrap an expression in `$(...)` ("non-serializable expression"), ignore it — that's a Qwik-framework reactivity rule, this codebase doesn't use Qwik, and the suggested syntax isn't even valid here. Treat it as a misconfigured rule to flag for disabling, not something to restructure code around.
+
+### CSP headers — pick the right decorator, in both places
+
+Every route handler is wrapped in one of `web_security_headers` / `web_security_headers_inline_styles` / `web_security_headers_swagger` (from `web_common`), which controls the response's `Content-Security-Policy`. The default (`web_security_headers`) has no `style-src 'unsafe-inline'`, so **any page whose React tree emits an inline `style=` attribute must use `web_security_headers_inline_styles` instead**, or the browser silently drops those styles (broken chart sizing/layout, no error in the console). This bites recharts-heavy pages especially, since recharts computes a lot of its layout via inline styles.
+
+This has to be set in **two** places, and it's easy to fix one and forget the other:
+- The real route handler (e.g. `monitoring/monitoring/monitoring.py`).
+- The matching entry in `_LOCAL_REACT_ROUTES` in `devbin/dev_proxy.py`, which picks a decorator by template name (see the `_template == 'index_react.html'` check). If your new template isn't in that check, local dev silently gets the wrong CSP and won't reproduce the production bug — you have to add it explicitly.
+
+When adding a new React page, check what decorator the closest existing page of the same shape uses (e.g. `/billing` for anything chart-heavy) rather than defaulting to plain `web_security_headers`.
+
+### Fetching data: use the `hailApi` client objects
+
+When calling an API from a page, use the per-service `hailApi` client objects (e.g. `services/ui/src/monitoring/components/hailApi.ts`, built on `hailApiFetch` from `services/ui/src/shared/hailApiFetch.ts`) — not a raw `fetch()`. They handle the CSRF header, credentials, and JSON parsing/error handling for you, and type both the call and the response.
+
+If the endpoint you need isn't in the client yet, add it — write its signature and response type by reference to that service's `/openapi.yaml`, not by guessing from the Python handler. Only add endpoints a page actually calls; these clients are a mirror of current usage, not the full API surface.
 
 ## Local development with the dev-proxy
 

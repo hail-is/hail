@@ -461,11 +461,14 @@ async def on_cleanup(app):
     await app[AppKeys.EXIT_STACK].aclose()
 
 
-@routes.get('/helloreact')
+@routes.get('/cost-analysis')
 @web_security_headers_inline_styles
-@auth.authenticated_users_with_permission(SystemPermission.VIEW_MONITORING_DASHBOARDS)
-async def hello_react(request: web.Request, userdata) -> web.Response:
-    return await render_template('monitoring', request, userdata, 'hello_react.html', {'use_tailwind': True})
+@auth.authenticated_users_with_permission([
+    SystemPermission.VIEW_MONITORING_DASHBOARDS,
+    SystemPermission.READ_ALL_BILLING_PROJECTS,
+])
+async def cost_analysis(request: web.Request, userdata) -> web.Response:
+    return await render_template('monitoring', request, userdata, 'cost_analysis.html', {'use_tailwind': True})
 
 
 @routes.get('/swagger')
