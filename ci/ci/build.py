@@ -108,6 +108,7 @@ class BuildConfiguration:
         excluded_step_names: Sequence[str] = (),
         pr_labels: FrozenSet[str] = frozenset(),
         is_release: bool = False,
+        tactically_succeeded_always_run_steps: FrozenSet[str] = frozenset(),
     ):
         if len(excluded_step_names) > 0 and scope != 'dev':
             raise BuildConfigurationError('Excluding build steps is only permitted in a dev scope')
@@ -132,8 +133,14 @@ class BuildConfiguration:
                 step.name for step in runnable_steps if step.is_forced_by_labels(pr_labels)
             }
             # Use raw step configs so the selection logic stays pure and testable.
-            valid_raw_steps = [s for s in config['steps'] if s.get('name') in name_step]
-            selected_names = select_steps(seeds, valid_raw_steps)
+            valid_raw_steps = [
+                s
+                for s in config['steps']
+                if s.get('name') in name_step and name_step[s['name']].can_run_in_scope(scope)
+            ]
+            always_run_steps = set(config.get('alwaysRunSteps', [])) - tactically_succeeded_always_run_steps
+            # follow_forward=False for dev/deploy: see select_steps' docstring.
+            selected_names = select_steps(seeds, valid_raw_steps, always_run_steps, follow_forward=scope == 'test')
             self.steps = [
                 step
                 for step in runnable_steps
