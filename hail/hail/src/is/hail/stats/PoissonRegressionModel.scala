@@ -1,8 +1,9 @@
 package is.hail.stats
 
+import is.hail.linalg.{DenseMatrix, MatrixSingularException, NotConvergedException}
 import is.hail.types.virtual.{TFloat64, TStruct}
 
-import breeze.linalg._
+import breeze.linalg.{DenseMatrix => _, _}
 import breeze.numerics._
 
 object PoissonRegressionTest {
@@ -16,7 +17,7 @@ object PoissonScoreTest extends GLMTest {
   )
 
   override def test(
-    X: DenseMatrix[Double],
+    X: DenseMatrix,
     y: DenseVector[Double],
     nullFit: GLMFit,
     link: String,
@@ -31,7 +32,7 @@ object PoissonScoreTest extends GLMTest {
         val m = X.cols
         val b = DenseVector.zeros[Double](m)
         val score = DenseVector.zeros[Double](m)
-        val fisher = DenseMatrix.zeros[Double](m, m)
+        val fisher = DenseMatrix.zeros(m, m)
 
         val m0 = nullFit.b.length
 
@@ -55,8 +56,8 @@ object PoissonScoreTest extends GLMTest {
 
         Some(ScoreStats(chi2, p))
       } catch {
-        case _: breeze.linalg.MatrixSingularException => None
-        case _: breeze.linalg.NotConvergedException => None
+        case _: MatrixSingularException => None
+        case _: NotConvergedException => None
       }
     }
 
@@ -64,8 +65,7 @@ object PoissonScoreTest extends GLMTest {
   }
 }
 
-class PoissonRegressionModel(X: DenseMatrix[Double], y: DenseVector[Double])
-    extends GeneralLinearModel {
+class PoissonRegressionModel(X: DenseMatrix, y: DenseVector[Double]) extends GeneralLinearModel {
   require(y.length == X.rows)
 
   val n: Int = X.rows
@@ -84,7 +84,7 @@ class PoissonRegressionModel(X: DenseMatrix[Double], y: DenseVector[Double])
     val b = DenseVector.zeros[Double](m)
     val mu = DenseVector.zeros[Double](n)
     val score = DenseVector.zeros[Double](m)
-    val fisher = DenseMatrix.zeros[Double](m, m)
+    val fisher = DenseMatrix.zeros(m, m)
 
     optNullFit match {
       case None =>
@@ -133,8 +133,8 @@ class PoissonRegressionModel(X: DenseMatrix[Double], y: DenseVector[Double])
           fisher := X.t * (X(::, *) *:* mu): Unit
         }
       } catch {
-        case _: breeze.linalg.MatrixSingularException => exploded = true
-        case _: breeze.linalg.NotConvergedException => exploded = true
+        case _: MatrixSingularException => exploded = true
+        case _: NotConvergedException => exploded = true
       }
     }
 

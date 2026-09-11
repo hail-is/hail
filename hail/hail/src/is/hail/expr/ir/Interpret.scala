@@ -952,10 +952,10 @@ object Interpret extends Logging {
         function.execute(ctx, child.execute(ctx))
       case BlockMatrixCollect(child) =>
         val bm = child.execute(ctx)
-        // transpose because breeze toArray is column major
-        val breezeMat = bm.transpose().toBreezeMatrix()
+        // transpose because DenseMatrix.toArray is column major
+        val lm = bm.transpose().toDenseMatrix()
         val shape = IndexedSeq(bm.nRows, bm.nCols)
-        SafeNDArray(shape, ArraySeq.unsafeWrapArray(breezeMat.toArray))
+        SafeNDArray(shape, ArraySeq.unsafeWrapArray(lm.toArray))
       case x @ TableAggregate(child, query) =>
         val value = ExecuteRelational(ctx, child).asTableValue(ctx)
         val fsBc = ctx.fsBc

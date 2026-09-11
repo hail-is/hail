@@ -1,10 +1,11 @@
 package is.hail.stats
 
 import is.hail.annotations.RegionValueBuilder
+import is.hail.linalg.{DenseMatrix, MatrixSingularException, NotConvergedException}
 import is.hail.types.virtual._
 import is.hail.utils.fatal
 
-import breeze.linalg._
+import breeze.linalg.{DenseMatrix => _, _}
 import breeze.numerics._
 
 object LogisticRegressionTest {
@@ -18,7 +19,7 @@ object LogisticRegressionTest {
 
 abstract class GLMTest extends Serializable {
   def test(
-    X: DenseMatrix[Double],
+    X: DenseMatrix,
     y: DenseVector[Double],
     nullFit: GLMFit,
     link: String,
@@ -62,7 +63,7 @@ object WaldTest extends GLMTest {
   )
 
   override def test(
-    X: DenseMatrix[Double],
+    X: DenseMatrix,
     y: DenseVector[Double],
     nullFit: GLMFit,
     link: String,
@@ -80,14 +81,14 @@ object WaldTest extends GLMTest {
 
     val waldStats = if (fit.converged) {
       try {
-        val se = sqrt(diag(inv(fit.fisher.get)))
+        val se = sqrt(fit.fisher.get.inv.diag)
         val z = fit.b /:/ se
         val p = z.map(zi => 2 * pnorm(-math.abs(zi)))
 
         Some(WaldStats(fit.b, se, z, p))
       } catch {
-        case _: breeze.linalg.MatrixSingularException => None
-        case _: breeze.linalg.NotConvergedException => None
+        case _: MatrixSingularException => None
+        case _: NotConvergedException => None
       }
     } else
       None
@@ -119,7 +120,7 @@ object LikelihoodRatioTest extends GLMTest {
   )
 
   override def test(
-    X: DenseMatrix[Double],
+    X: DenseMatrix,
     y: DenseVector[Double],
     nullFit: GLMFit,
     link: String,
@@ -165,7 +166,7 @@ object LogisticFirthTest extends GLMTest {
   )
 
   override def test(
-    X: DenseMatrix[Double],
+    X: DenseMatrix,
     y: DenseVector[Double],
     nullFit: GLMFit,
     link: String,
@@ -215,7 +216,7 @@ object LogisticScoreTest extends GLMTest {
   )
 
   override def test(
-    X: DenseMatrix[Double],
+    X: DenseMatrix,
     y: DenseVector[Double],
     nullFit: GLMFit,
     link: String,
@@ -230,7 +231,7 @@ object LogisticScoreTest extends GLMTest {
         val m = X.cols
         val b = DenseVector.zeros[Double](m)
         val score = DenseVector.zeros[Double](m)
-        val fisher = DenseMatrix.zeros[Double](m, m)
+        val fisher = DenseMatrix.zeros(m, m)
 
         val m0 = nullFit.b.length
 
@@ -254,8 +255,8 @@ object LogisticScoreTest extends GLMTest {
 
         Some(ScoreStats(chi2, p))
       } catch {
-        case _: breeze.linalg.MatrixSingularException => None
-        case _: breeze.linalg.NotConvergedException => None
+        case _: MatrixSingularException => None
+        case _: NotConvergedException => None
       }
     }
 
@@ -276,8 +277,7 @@ abstract class GeneralLinearModel {
   def fit(optNullFit: Option[GLMFit], maxIter: Int, tol: Double): GLMFit
 }
 
-class LogisticRegressionModel(X: DenseMatrix[Double], y: DenseVector[Double])
-    extends GeneralLinearModel {
+class LogisticRegressionModel(X: DenseMatrix, y: DenseVector[Double]) extends GeneralLinearModel {
   require(y.length == X.rows)
 
   val n: Int = X.rows
@@ -296,7 +296,7 @@ class LogisticRegressionModel(X: DenseMatrix[Double], y: DenseVector[Double])
     val b = DenseVector.zeros[Double](m)
     val mu = DenseVector.zeros[Double](n)
     val score = DenseVector.zeros[Double](m)
-    val fisher = DenseMatrix.zeros[Double](m, m)
+    val fisher = DenseMatrix.zeros(m, m)
 
     optNullFit match {
       case None =>
@@ -345,8 +345,8 @@ class LogisticRegressionModel(X: DenseMatrix[Double], y: DenseVector[Double])
           fisher := X.t * (X(::, *) *:* (mu *:* (1d - mu))): Unit
         }
       } catch {
-        case _: breeze.linalg.MatrixSingularException => exploded = true
-        case _: breeze.linalg.NotConvergedException => exploded = true
+        case _: MatrixSingularException => exploded = true
+        case _: NotConvergedException => exploded = true
       }
     }
 
@@ -370,7 +370,7 @@ class LogisticRegressionModel(X: DenseMatrix[Double], y: DenseVector[Double])
       try {
         val mu = sigmoid(X(::, 0 until m0) * b)
         val sqrtW = sqrt(mu *:* (1d - mu))
-        val QR = qr.reduced(X(::, *) *:* sqrtW)
+        val QR = DenseMatrix.qrReduced(X(::, *) *:* sqrtW)
         val h = QR.q(*, ::).map(r => r dot r)
         val deltaB = TriSolve(
           QR.r(0 until m0, 0 until m0),
@@ -382,14 +382,14 @@ class LogisticRegressionModel(X: DenseMatrix[Double], y: DenseVector[Double])
         } else if (max(abs(deltaB)) < tol && iter > 1) {
           converged = true
           logLkhd = sum(breeze.numerics.log((y *:* mu) + ((1d - y) *:* (1d - mu)))) + sum(
-            log(abs(diag(QR.r)))
+            log(abs(QR.r.diag))
           )
         } else {
           b += deltaB
         }
       } catch {
-        case _: breeze.linalg.MatrixSingularException => exploded = true
-        case _: breeze.linalg.NotConvergedException => exploded = true
+        case _: MatrixSingularException => exploded = true
+        case _: NotConvergedException => exploded = true
       }
     }
 
@@ -408,7 +408,7 @@ object GLMFit {
 case class GLMFit(
   b: DenseVector[Double],
   score: Option[DenseVector[Double]],
-  fisher: Option[DenseMatrix[Double]],
+  fisher: Option[DenseMatrix],
   logLkhd: Double,
   nIter: Int,
   converged: Boolean,

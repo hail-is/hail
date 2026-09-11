@@ -3,11 +3,12 @@ package is.hail.stats
 import is.hail.annotations.Region
 import is.hail.collection.IntArrayBuilder
 import is.hail.expr.ir.MatrixValue
+import is.hail.linalg.DenseMatrix
 import is.hail.types.physical.{PArray, PStruct}
 import is.hail.types.virtual.TFloat64
 import is.hail.utils._
 
-import breeze.linalg._
+import breeze.linalg.DenseVector
 import org.apache.spark.sql.Row
 
 object RegressionUtils extends Logging {
@@ -76,7 +77,7 @@ object RegressionUtils extends Logging {
     mv: MatrixValue,
     yField: String,
     covFields: Array[String],
-  ): (DenseVector[Double], DenseMatrix[Double], Array[Int]) = {
+  ): (DenseVector[Double], DenseMatrix, Array[Int]) = {
 
     val (y, covs, completeSamples) = getPhenosCovCompleteSamples(mv, Array(yField), covFields)
 
@@ -87,7 +88,7 @@ object RegressionUtils extends Logging {
     mv: MatrixValue,
     yFields: Array[String],
     covFields: Array[String],
-  ): (DenseMatrix[Double], DenseMatrix[Double], Array[Int]) = {
+  ): (DenseMatrix, DenseMatrix, Array[Int]) = {
 
     val nPhenos = yFields.length
     val nCovs = covFields.length
@@ -112,12 +113,10 @@ object RegressionUtils extends Logging {
       fatal("No complete samples: each sample is missing its phenotype or some covariate")
 
     val yArray = yForCompleteSamples.flatMap(_.map(_.get)).toArray
-    val y = new DenseMatrix(rows = n, cols = nPhenos, data = yArray, offset = 0,
-      majorStride = nPhenos, isTranspose = true)
+    val y = DenseMatrix(n, nPhenos, yArray, isTranspose = true)
 
     val covArray = covForCompleteSamples.flatMap(_.map(_.get)).toArray
-    val cov = new DenseMatrix(rows = n, cols = nCovs, data = covArray, offset = 0,
-      majorStride = nCovs, isTranspose = true)
+    val cov = DenseMatrix(n, nCovs, covArray, isTranspose = true)
 
     if (n < nCols)
       logger.warn(s"${nCols - n} of $nCols samples have a missing phenotype or covariate.")

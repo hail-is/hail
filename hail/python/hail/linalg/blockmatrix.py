@@ -2627,32 +2627,10 @@ def _ndarray_from_jarray(ja):
         return np.fromfile(path)
 
 
-def _breeze_fromfile(uri, n_rows, n_cols):
-    _check_entries_size(n_rows, n_cols)
-
-    return Env.hail().linalg.implicits.RichDenseMatrixDouble.importFromDoubles(
-        Env.spark_backend('_breeze_fromfile').fs._jfs, uri, n_rows, n_cols, True
-    )
-
-
 def _check_entries_size(n_rows, n_cols):
     n_entries = n_rows * n_cols
     if n_entries >= 1 << 31:
         raise ValueError(f'number of entries must be less than 2^31, found {n_entries}')
-
-
-def _breeze_from_ndarray(nd):
-    if any(i == 0 for i in nd.shape):
-        raise ValueError(f'from_numpy: ndarray dimensions must be non-zero, found shape {nd.shape}')
-
-    nd = _ndarray_as_2d(nd)
-    nd = _ndarray_as_float64(nd)
-    n_rows, n_cols = nd.shape
-
-    with with_local_temp_file() as path:
-        uri = local_path_uri(path)
-        nd.tofile(path)
-        return _breeze_fromfile(uri, n_rows, n_cols)
 
 
 def _svd(a, full_matrices=True, compute_uv=True, overwrite_a=False, check_finite=True):
