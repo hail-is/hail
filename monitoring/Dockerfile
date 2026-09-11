@@ -1,6 +1,11 @@
 ARG BASE_IMAGE={{ hail_ubuntu_image.image }}
 FROM $BASE_IMAGE
 
+RUN curl -sLO https://github.com/tailwindlabs/tailwindcss/releases/download/v3.4.3/tailwindcss-linux-x64 && \
+    echo "3cea66f5fd87986538701a551c7342c29a0ae3e3139eed57c5bd9151f66dab96  tailwindcss-linux-x64" | sha256sum --status -c && \
+    chmod +x tailwindcss-linux-x64 && \
+    mv tailwindcss-linux-x64 /usr/bin/tailwindcss
+
 COPY hail/python/hailtop/pinned-requirements.txt hailtop-requirements.txt
 COPY gear/pinned-requirements.txt gear-requirements.txt
 COPY web_common/pinned-requirements.txt web_common-requirements.txt
@@ -16,11 +21,15 @@ COPY hail/python/hailtop /hailtop/hailtop/
 COPY gear/pyproject.toml /gear/pyproject.toml
 COPY gear/gear /gear/gear/
 
-COPY web_common/pyproject.toml web_common/MANIFEST.in /web_common/
+COPY web_common/pyproject.toml web_common/MANIFEST.in web_common/input.css web_common/tailwind.config.js /web_common/
 COPY web_common/web_common /web_common/web_common/
 
 COPY monitoring/pyproject.toml /monitoring/
 COPY monitoring/monitoring /monitoring/monitoring/
+
+RUN cd web_common && \
+    mkdir web_common/static/css && \
+    tailwindcss -i input.css -o web_common/static/css/output.css
 
 RUN hail-pip-install /hailtop /gear /web_common /monitoring
 
