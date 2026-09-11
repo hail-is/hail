@@ -109,6 +109,9 @@ class DeployConfig:
             return ''
         return f'{self._base_path}/{service}'
 
+    def origin(self, service) -> str:
+        return f'{self.scheme()}://{self.domain(service)}'
+
     def base_url(self, service, base_scheme='http'):
         return f'{self.scheme(base_scheme)}://{self.domain(service)}{self.base_path(service)}'
 

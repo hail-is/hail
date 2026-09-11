@@ -149,9 +149,20 @@ def web_security_headers_login_page(fun):
     )
 
 
+HAIL_SERVICES = ['auth', 'batch', 'batch-driver', 'ci', 'monitoring']
+
+
 def web_security_header_generator(
-    fun, extra_script: str = '', extra_style: str = '', extra_img: str = '', extra_form_action: str = ''
+    fun,
+    extra_script: str = '',
+    extra_style: str = '',
+    extra_img: str = '',
+    extra_form_action: str = '',
 ):
+    # Every hail service is part of the same trust boundary (shared auth, shared org), so any
+    # page may freely call any other hail service, e.g. the batch UI fetching from monitoring.
+    connect_src = f"connect-src 'self' {' '.join(deploy_config.origin(service) for service in HAIL_SERVICES)};"
+
     @wraps(fun)
     async def wrapped(request, *args, **kwargs):
         response = await fun(request, *args, **kwargs)
@@ -165,7 +176,7 @@ def web_security_header_generator(
         form_action = f"form-action 'self'{' ' + extra_form_action if extra_form_action else ''};"
 
         response.headers['Content-Security-Policy'] = (
-            f'{default_src} {font_src} {style_src} {script_src} {img_src} {frame_ancestors} {form_action}'
+            f'{default_src} {font_src} {style_src} {script_src} {img_src} {connect_src} {frame_ancestors} {form_action}'
         )
         return response
 
