@@ -1,7 +1,6 @@
 package is.hail.expr.ir
 
 import is.hail.expr.ir.defs.Ref
-import is.hail.types.virtual.Type
 
 import scala.collection.mutable
 
@@ -16,8 +15,8 @@ case class FreeVariableEnv(boundVars: Env[Unit], freeVars: mutable.Set[Name]) {
     if (!boundVars.contains(name))
       freeVars += name
 
-  def bindIterable(bindings: Seq[(Name, Type)]): FreeVariableEnv =
-    copy(boundVars.bindIterable(bindings.view.map(b => (b._1, ()))))
+  def bindIterable(bindings: Seq[(Name, Unit)]): FreeVariableEnv =
+    copy(boundVars.bindIterable(bindings))
 
   def getFreeVars: Env[Unit] = new Env[Unit].bindIterable(freeVars.view.map(n => (n, ())))
 }
@@ -26,8 +25,10 @@ case class FreeVariableBindingEnv(
   evalVars: Option[FreeVariableEnv],
   aggVars: Option[FreeVariableEnv],
   scanVars: Option[FreeVariableEnv],
-) extends GenericBindingEnv[FreeVariableBindingEnv, Type] {
-  override def extend(bindings: Bindings[Type]): FreeVariableBindingEnv = {
+) extends GenericBindingEnv[FreeVariableBindingEnv] {
+  type Value = Unit
+
+  override def extend(bindings: Bindings[Unit]): FreeVariableBindingEnv = {
     val Bindings(all, eval, agg, scan, relational, dropEval) = bindings
     var newEnv = this
     if (dropEval) newEnv = newEnv.noEval
@@ -70,15 +71,15 @@ case class FreeVariableBindingEnv(
   override def promoteScan: FreeVariableBindingEnv =
     copy(evalVars = scanVars, scanVars = None)
 
-  override def bindEval(bindings: (Name, Type)*): FreeVariableBindingEnv =
+  override def bindEval(bindings: (Name, Unit)*): FreeVariableBindingEnv =
     copy(evalVars = evalVars.map(_.bindIterable(bindings)))
 
   override def noEval: FreeVariableBindingEnv = copy(evalVars = None)
 
-  override def bindAgg(bindings: (Name, Type)*): FreeVariableBindingEnv =
+  override def bindAgg(bindings: (Name, Unit)*): FreeVariableBindingEnv =
     copy(aggVars = aggVars.map(_.bindIterable(bindings)))
 
-  override def bindScan(bindings: (Name, Type)*): FreeVariableBindingEnv =
+  override def bindScan(bindings: (Name, Unit)*): FreeVariableBindingEnv =
     copy(scanVars = scanVars.map(_.bindIterable(bindings)))
 
   override def createAgg: FreeVariableBindingEnv = copy(aggVars = evalVars)
@@ -92,7 +93,7 @@ case class FreeVariableBindingEnv(
   override def onlyRelational(keepAggCapabilities: Boolean): FreeVariableBindingEnv =
     FreeVariableBindingEnv(None, None, None)
 
-  override def bindRelational(bindings: (Name, Type)*): FreeVariableBindingEnv =
+  override def bindRelational(bindings: (Name, Unit)*): FreeVariableBindingEnv =
     this
 }
 

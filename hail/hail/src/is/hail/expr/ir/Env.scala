@@ -12,22 +12,26 @@ object Env {
   def fromSeq[V](bindings: Iterable[(Name, V)]): Env[V] = empty[V].bindIterable(bindings)
 }
 
-trait GenericBindingEnv[Self, V] {
-  def extend(bindings: Bindings[V]): Self
+trait GenericBindingEnv[Self] {
+
+  // the type of value each name is bound to
+  type Value
+
+  def extend(bindings: Bindings[Value]): Self
 
   def promoteAgg: Self
 
   def promoteScan: Self
 
-  def bindEval(bindings: (Name, V)*): Self
+  def bindEval(bindings: (Name, Value)*): Self
 
   def noEval: Self
 
-  def bindAgg(bindings: (Name, V)*): Self
+  def bindAgg(bindings: (Name, Value)*): Self
 
-  def bindScan(bindings: (Name, V)*): Self
+  def bindScan(bindings: (Name, Value)*): Self
 
-  def bindInScope(name: Name, v: V, scope: Scope): Self = scope match {
+  def bindInScope(name: Name, v: Value, scope: Scope): Self = scope match {
     case Scope.EVAL => bindEval(name -> v)
     case Scope.AGG => bindAgg(name -> v)
     case Scope.SCAN => bindScan(name -> v)
@@ -43,7 +47,14 @@ trait GenericBindingEnv[Self, V] {
 
   def onlyRelational(keepAggCapabilities: Boolean = false): Self
 
-  def bindRelational(bindings: (Name, V)*): Self
+  def bindRelational(bindings: (Name, Value)*): Self
+}
+
+object GenericBindingEnv {
+  // Pins the type member as a parameter: in a value-argument position it lets
+  // inference solve V from the env's definition, and as an F-bound it carries
+  // the equality into recursive generic calls (see BaseIR.mapChildrenWithEnv).
+  type Aux[S, V] = GenericBindingEnv[S] { type Value = V }
 }
 
 object BindingEnv {
@@ -58,7 +69,8 @@ case class BindingEnv[V](
   agg: Option[Env[V]] = None,
   scan: Option[Env[V]] = None,
   relational: Env[V] = Env.empty[V],
-) extends GenericBindingEnv[BindingEnv[V], V] {
+) extends GenericBindingEnv[BindingEnv[V]] {
+  type Value = V
 
   private def modifyWithoutNewBindings[T](bindings: Bindings[T]): BindingEnv[V] = {
     def error(): Unit =
