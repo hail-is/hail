@@ -493,6 +493,32 @@ async def _read_job_container_log_from_cloud_storage(
 async def _get_job_container_log(
     app, batch_id, job_id, container, job_record, override_attempt_id=None
 ) -> Optional[bytes]:
+    if CLOUD == 'gcp':
+        attempt_id = override_attempt_id if override_attempt_id is not None else attempt_id_from_spec(job_record)
+        if attempt_id is None:
+            return None
+        # A container of the current attempt may simply not have started yet (e.g. a slow
+        # `input` step ahead of `main`, or `output` before `main` finishes) -- a request for
+        # any other (necessarily already-completed) attempt doesn't get this leniency, since
+        # its log should already exist regardless of the job's current state.
+        is_current_attempt = attempt_id == job_record['attempt_id']
+        if is_current_attempt and job_record['state'] in ('Pending', 'Ready', 'Creating'):
+            # Skip the guaranteed-404 GCS read.
+            return b''
+        try:
+            return await app['file_store'].read_log_file(
+                BatchFormatVersion(job_record['format_version']), batch_id, job_id, attempt_id, container
+            )
+        except FileNotFoundError:
+            if is_current_attempt and job_record['state'] not in complete_states:
+                # Match the pre-GCS-reads behavior of returning an empty log rather than
+                # surfacing an error for this.
+                return b''
+            id = (batch_id, job_id)
+            log.exception(f'missing log file for {id} and container {container}')
+            return b'ERROR: could not find log file'
+
+    # Legacy path: proxy live logs from the worker, fall back to cloud storage for completed attempts.
     if not has_resource_available(job_record):
         return None
 
