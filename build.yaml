@@ -4196,8 +4196,8 @@ steps:
       - test_hail_scala_fs
       - test_hail_services_java
       - test_hail_spark_conf_requester_pays_parsing
-      # - test_dataproc-37
-      # - test_dataproc-38
+      - test_dataproc-37
+      - test_dataproc-38
       - make_docs
     clouds:
       - gcp
