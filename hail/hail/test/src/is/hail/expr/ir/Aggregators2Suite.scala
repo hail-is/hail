@@ -1,11 +1,12 @@
 package is.hail.expr.ir
 
-import is.hail.ExecStrategy
+import is.hail.{ExecStrategy, ParameterizedTest}
 import is.hail.TestUtils._
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
+import is.hail.expr.Nat
 import is.hail.expr.ir.agg._
 import is.hail.expr.ir.defs._
 import is.hail.io.BufferSpec
@@ -1174,5 +1175,48 @@ class Aggregators2Suite {
     }
 
     assertEvalsTo(x, FastSeq(null, -1L, 2L, 3L, null, null, -1L, 2L, 0L))
+  }
+
+  def testAggregationReleasesScratchRegions(): ArraySeq[(String, IR)] = {
+    // The seqOp takes a scratch region for the first row (sum) or every row
+    // (multiply-add).
+    def ndAgg(op: AggOp, arity: Int): IR = {
+      val nd = Literal(
+        TNDArray(TFloat64, Nat(2)),
+        SafeNDArray(IndexedSeq(2L, 2L), IndexedSeq(1.0, 1.0, 1.0, 1.0)),
+      )
+      NDArrayRef(
+        rangeIR(2).streamMap(_ => nd).streamAgg(x => ApplyAggOp(op)(Seq.fill[IR](arity)(x): _*)),
+        FastSeq(I64(0), I64(0)),
+        -1,
+      )
+    }
+
+    // Min over no values is missing; the RunAgg container region must be
+    // released on that exit path too.
+    val sig = PhysicalAggSig(Min(), TypedStateSig(VirtualTypeWithReq(PFloat64(false))))
+    val missingMin =
+      RunAgg(InitOp(0, FastSeq(), sig), ResultOp(0, sig), FastSeq(sig.state)).orElse(F64(0.0))
+
+    ArraySeq(
+      ("RunAgg with missing result", missingMin),
+      ("NDArraySum", ndAgg(NDArraySum(), 1)),
+      ("NDArrayMultiplyAdd", ndAgg(NDArrayMultiplyAdd(), 2)),
+    )
+  }
+
+  @ParameterizedTest
+  def testAggregationReleasesScratchRegions(name: String, agg: IR)(implicit ctx: ExecuteContext)
+    : Unit = {
+    // Peak usage must not scale with the number of aggregations. The outer
+    // stream needs per-element regions so each result is freed in turn.
+    def sumOfAggs(n: Int): IR =
+      StreamRange(0, n, 1, true)
+        .streamMap(_ => agg)
+        .streamFold(F64(0.0))(_ + _)
+
+    val (_, memUsed) = measuringHighestTotalMemoryUsage(eval(sumOfAggs(10))(_))
+    val (_, memUsed2) = measuringHighestTotalMemoryUsage(eval(sumOfAggs(100))(_))
+    assert(memUsed == memUsed2, s"$name: peak usage grew from $memUsed to $memUsed2 bytes")
   }
 }

@@ -142,6 +142,9 @@ class IROps(val ir: IR) extends AnyVal {
   def enumerate(f: (Atom, Atom) => IR): IR =
     zip(iota(0, 1), ArrayZipBehavior.TakeMinLength)(f)
 
+  def streamFold(zero: IR)(f: (Atom, Atom) => IR): IR =
+    foldIR(ir, zero)(f)
+
   def streamFor(f: Atom => IR): IR =
     forIR(ir)(f)
 

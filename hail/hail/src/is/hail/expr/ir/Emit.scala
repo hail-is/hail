@@ -2782,11 +2782,13 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
         emitVoid(body, container = Some(newContainer))
         val codeRes = emitI(result, container = Some(newContainer))
 
-        codeRes.map(cb) { pc =>
-          val res = cb.memoizeField(pc, "agg_res")
-          newContainer.cleanup()
-          res
-        }
+        codeRes
+          .mapMissing(cb)(newContainer.cleanup())
+          .map(cb) { pc =>
+            val res = cb.memoizeField(pc, "agg_res")
+            newContainer.cleanup()
+            res
+          }
 
       case ResultOp(idx, sig) =>
         val AggContainer(_, sc, _) = container.get
@@ -3040,21 +3042,25 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
 
         cb.define(loopStartLabel)
 
-        val result = emitI(
-          body,
-          region = loopRef.r1,
-          env = argEnv,
-          loopEnv = Some(newLoopEnv.bind(name, loopRef)),
-        ).map(cb) { pc =>
-          val answerInRightRegion = pc.copyToRegion(cb, region, pc.st)
-          cb.append(loopRef.r1.clearRegion())
-          cb.append(loopRef.r2.clearRegion())
-          answerInRightRegion
+        def releaseLoopRegions() = {
+          cb += loopRef.r1.invalidate()
+          cb += loopRef.r2.invalidate()
         }
+
+        val result =
+          emitI(body, loopRef.r1, argEnv, loopEnv = Some(newLoopEnv.bind(name, loopRef)))
+            .mapMissing(cb)(releaseLoopRegions())
+            .map(cb) { pc =>
+              val answerInRightRegion = pc.copyToRegion(cb, region, pc.st)
+              releaseLoopRegions()
+              answerInRightRegion
+            }
+
         assert(
           result.emitType == resultEmitType,
           s"loop type mismatch: emitted=${result.emitType}, expected=$resultEmitType",
         )
+
         result
 
       case Recur(name, args, _) =>

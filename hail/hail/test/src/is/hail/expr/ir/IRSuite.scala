@@ -4306,6 +4306,28 @@ class IRSuite {
     assert(memUsed == memUsed2)
   }
 
+  def testTailLoopReleasesRegionsPerEvaluation() = ArraySeq(false, true)
+
+  @ParameterizedTest
+  def testTailLoopReleasesRegionsPerEvaluation(missing: Boolean)(implicit ctx: ExecuteContext)
+    : Unit = {
+    // Each evaluation of a TailLoop takes two regions from the pool and must
+    // release them on both the present and the missing exit. Peak usage must
+    // not scale with how many times the loop is evaluated.
+    def sumOfTriangles(n: Int): IR =
+      rangeIR(n)
+        .streamMap { i =>
+          tailLoop(TInt32, i, I32(0)) { case (recur, Seq(x, acc)) =>
+            If(x <= 0, if (missing) NA(TInt32) else acc, recur(FastSeq(x - 1, acc + x)))
+          }.orElse(I32(0))
+        }
+        .sum
+
+    val (_, memUsed) = measuringHighestTotalMemoryUsage(eval(sumOfTriangles(10))(_))
+    val (_, memUsed2) = measuringHighestTotalMemoryUsage(eval(sumOfTriangles(100))(_))
+    assert(memUsed == memUsed2, s"peak usage grew from $memUsed to $memUsed2 bytes")
+  }
+
   @Test def freeVariables(implicit ctx: ExecuteContext): Unit = {
     val stream = rangeIR(5)
     val y = Ref(freshName(), TInt32)
