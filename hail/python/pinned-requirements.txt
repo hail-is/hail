@@ -55,11 +55,11 @@ azure-storage-blob==12.30.1
     #   -r hail/python/hailtop/requirements.txt
 bokeh==3.10.0
     # via -r hail/python/requirements.txt
-boto3==1.43.88
+boto3==1.43.92
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   -r hail/python/hailtop/requirements.txt
-botocore==1.43.88
+botocore==1.43.92
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   -r hail/python/hailtop/requirements.txt
@@ -109,7 +109,7 @@ frozenlist==1.8.0
     #   -r hail/python/hailtop/requirements.txt
     #   aiohttp
     #   aiosignal
-google-auth==2.57.1
+google-auth==2.58.0
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   -r hail/python/hailtop/requirements.txt
@@ -162,18 +162,18 @@ msrest==0.7.1
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   azure-mgmt-storage
-multidict==6.7.1
+multidict==6.8.0
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   aiohttp
     #   yarl
-narwhals==2.25.0
+narwhals==2.26.0
     # via bokeh
 nest-asyncio==1.6.0
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   -r hail/python/hailtop/requirements.txt
-numpy==2.5.2
+numpy==2.5.3
     # via
     #   -r hail/python/requirements.txt
     #   bokeh
@@ -250,7 +250,7 @@ pyyaml==6.0.3
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   -r hail/python/hailtop/requirements.txt
     #   bokeh
-regex==2026.9.3
+regex==2026.9.10
     # via parsimonious
 requests==2.34.2
     # via
@@ -327,7 +327,7 @@ uvloop==0.22.1
     #   -r hail/python/hailtop/requirements.txt
 wrapt==1.17.3
     # via deprecated
-xyzservices==2026.3.0
+xyzservices==2026.9.1
     # via bokeh
 yarl==1.24.5
     # via

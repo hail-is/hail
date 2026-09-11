@@ -64,7 +64,7 @@ google-api-core==2.36.0
     # via google-api-python-client
 google-api-python-client==2.200.0
     # via google-cloud-profiler
-google-auth==2.57.1
+google-auth==2.58.0
     # via
     #   -c gear/../hail/python/hailtop/pinned-requirements.txt
     #   -c gear/../hail/python/pinned-requirements.txt
@@ -93,7 +93,7 @@ idna==3.19
     #   yarl
 kubernetes-asyncio==19.15.1
     # via -r gear/requirements.txt
-multidict==6.7.1
+multidict==6.8.0
     # via
     #   -c gear/../hail/python/dev/pinned-requirements.txt
     #   -c gear/../hail/python/hailtop/pinned-requirements.txt
