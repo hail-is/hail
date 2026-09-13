@@ -252,12 +252,27 @@ class AsyncFSURL(abc.ABC):
 
 
 class AsyncFS(abc.ABC):
+    """Abstract asynchronous filesystem interface.
+
+    Implementations expose URL-addressed file operations for one storage
+    backend. Public methods accept URL strings in the schemes returned by
+    :meth:`schemes`; they return byte streams, status objects, directory
+    entries, or booleans without interpreting file contents.
+
+    Filesystem instances may own network clients or thread pools, so callers
+    should either close them explicitly or use them as async context managers.
+    The public :meth:`open_from` method handles common zero-length reads and
+    delegates non-empty ranged reads to the implementation-private
+    :meth:`_open_from`.
+    """
+
     FILE = "file"
     DIR = "dir"
 
     @staticmethod
     @abc.abstractmethod
     def schemes() -> Set[str]:
+        """Return URL schemes accepted by this filesystem."""
         pass
 
     @staticmethod
@@ -269,18 +284,22 @@ class AsyncFS(abc.ABC):
     @staticmethod
     @abc.abstractmethod
     def valid_url(url: str) -> bool:
+        """Return whether ``url`` can be handled by this filesystem."""
         pass
 
     @staticmethod
     @abc.abstractmethod
     def parse_url(url: str, *, error_if_bucket: bool = False) -> AsyncFSURL:
+        """Parse ``url`` into a filesystem-specific URL object."""
         pass
 
     @abc.abstractmethod
     async def open(self, url: str) -> ReadableStream:
+        """Open ``url`` for reading from the beginning."""
         pass
 
     async def open_from(self, url: str, start: int, *, length: Optional[int] = None) -> ReadableStream:
+        """Open ``url`` for reading at ``start`` with an optional byte length."""
         if length == 0:
             fs_url = self.parse_url(url)
             if fs_url.path.endswith("/"):
@@ -301,36 +320,44 @@ class AsyncFS(abc.ABC):
 
     @abc.abstractmethod
     async def _open_from(self, url: str, start: int, *, length: Optional[int] = None) -> ReadableStream:
+        """Implementation hook for non-empty ranged reads."""
         pass
 
     @abc.abstractmethod
     async def create(self, url: str, *, retry_writes: bool = True) -> AsyncContextManager[WritableStream]:
+        """Open ``url`` for writing, replacing any existing object."""
         pass
 
     @abc.abstractmethod
     async def multi_part_create(self, sema: asyncio.Semaphore, url: str, num_parts: int) -> MultiPartCreate:
+        """Create ``url`` by writing ``num_parts`` independent byte ranges."""
         pass
 
     @abc.abstractmethod
     async def mkdir(self, url: str) -> None:
+        """Create the directory represented by ``url`` when supported."""
         pass
 
     @abc.abstractmethod
     async def makedirs(self, url: str, exist_ok: bool = False) -> None:
+        """Create the directory represented by ``url`` and any missing parents."""
         pass
 
     @abc.abstractmethod
     async def statfile(self, url: str) -> FileStatus:
+        """Return status for the file represented by ``url``."""
         pass
 
     @abc.abstractmethod
     async def listfiles(
         self, url: str, recursive: bool = False, exclude_trailing_slash_files: bool = True
     ) -> AsyncIterator[FileListEntry]:
+        """List entries under the directory represented by ``url``."""
         pass
 
     @abc.abstractmethod
     async def staturl(self, url: str) -> str:
+        """Return :attr:`FILE` or :attr:`DIR` for ``url``."""
         pass
 
     async def _staturl_parallel_isfile_isdir(self, url: str) -> str:
@@ -357,14 +384,17 @@ class AsyncFS(abc.ABC):
 
     @abc.abstractmethod
     async def isfile(self, url: str) -> bool:
+        """Return whether ``url`` exists as a file."""
         pass
 
     @abc.abstractmethod
     async def isdir(self, url: str) -> bool:
+        """Return whether ``url`` exists as a directory."""
         pass
 
     @abc.abstractmethod
     async def remove(self, url: str) -> None:
+        """Remove the file represented by ``url``."""
         pass
 
     async def _remove_doesnt_exist_ok(self, url):
@@ -376,6 +406,7 @@ class AsyncFS(abc.ABC):
     async def rmtree(
         self, sema: Optional[asyncio.Semaphore], url: str, listener: Optional[Callable[[int], None]] = None
     ) -> None:
+        """Remove the directory tree represented by ``url`` if it exists."""
         if listener is None:
             listener = lambda _: None
         if sema is None:
@@ -398,23 +429,28 @@ class AsyncFS(abc.ABC):
                 await pool.wait(tasks)
 
     async def touch(self, url: str) -> None:
+        """Create an empty file at ``url`` or replace an existing file."""
         async with await self.create(url):
             pass
 
     async def read(self, url: str) -> bytes:
+        """Read the complete contents of ``url`` into memory."""
         async with await self.open(url) as f:
             return await f.read()
 
     async def read_from(self, url: str, start: int) -> bytes:
+        """Read from ``url`` starting at byte offset ``start``."""
         async with await self.open_from(url, start) as f:
             return await f.read()
 
     async def read_range(self, url: str, start: int, end: int, *, end_inclusive=True) -> bytes:
+        """Read bytes from ``start`` through ``end`` from ``url``."""
         n = (end - start) + bool(end_inclusive)
         async with await self.open_from(url, start, length=n) as f:
             return await f.readexactly(n)
 
     async def write(self, url: str, data: bytes) -> None:
+        """Write ``data`` to ``url``, replacing any existing file."""
         async def _write() -> None:
             async with await self.create(url, retry_writes=False) as f:
                 await f.write(data)
@@ -422,6 +458,7 @@ class AsyncFS(abc.ABC):
         await retry_transient_errors(_write)
 
     async def exists(self, url: str) -> bool:
+        """Return whether ``url`` exists as a file."""
         try:
             await self.statfile(url)
         except FileNotFoundError:
@@ -429,6 +466,7 @@ class AsyncFS(abc.ABC):
         return True
 
     async def close(self) -> None:
+        """Release resources owned by this filesystem."""
         pass
 
     async def __aenter__(self) -> Self:
