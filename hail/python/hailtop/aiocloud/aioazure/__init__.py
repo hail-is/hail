@@ -7,11 +7,10 @@ from .client import (
     AzureResourcesClient,
 )
 from .credentials import AzureCredentials
-from .fs import AzureAsyncFS, AzureAsyncFSFactory, AzureAsyncFSURL
+from .fs import AzureAsyncFS, AzureAsyncFSURL
 
 __all__ = [
     'AzureAsyncFS',
-    'AzureAsyncFSFactory',
     'AzureAsyncFSURL',
     'AzureComputeClient',
     'AzureCredentials',
