@@ -11,7 +11,7 @@ import yaml
 from gear.cloud_config import get_global_config
 from hailtop.utils import RETRY_FUNCTION_SCRIPT, flatten
 
-from .build_selection import select_steps
+from .build_selection import _ancestors_closure, select_steps
 from .environment import (
     BUILDKIT_IMAGE,
     CI_UTILS_IMAGE,
@@ -108,6 +108,7 @@ class BuildConfiguration:
         excluded_step_names: Sequence[str] = (),
         pr_labels: FrozenSet[str] = frozenset(),
         is_release: bool = False,
+        tactically_succeeded_always_run_steps: FrozenSet[str] = frozenset(),
     ):
         if len(excluded_step_names) > 0 and scope != 'dev':
             raise BuildConfigurationError('Excluding build steps is only permitted in a dev scope')
@@ -127,13 +128,22 @@ class BuildConfiguration:
                 name_step[step.name] = step
                 runnable_steps.append(step)
 
+        forced_step_names = {step.name for step in runnable_steps if step.is_forced_by_labels(pr_labels)}
+        full_deps_map: Dict[str, List[str]] = {step.name: [d.name for d in step.deps] for step in runnable_steps}
+        self.transitively_forced: Set[str] = _ancestors_closure(forced_step_names, full_deps_map)
+
         if requested_step_names is not None:
-            seeds = set(requested_step_names) | {
-                step.name for step in runnable_steps if step.is_forced_by_labels(pr_labels)
-            }
+            seeds = set(requested_step_names) | forced_step_names
             # Use raw step configs so the selection logic stays pure and testable.
-            valid_raw_steps = [s for s in config['steps'] if s.get('name') in name_step]
-            selected_names = select_steps(seeds, valid_raw_steps)
+            valid_raw_steps = [
+                s
+                for s in config['steps']
+                if s.get('name') in name_step
+                and (name_step[s['name']].can_run_in_scope(scope) or s['name'] in self.transitively_forced)
+            ]
+            always_run_steps = set(config.get('alwaysRunSteps', [])) - tactically_succeeded_always_run_steps
+            # follow_forward=False for dev/deploy: see select_steps' docstring.
+            selected_names = select_steps(seeds, valid_raw_steps, always_run_steps, follow_forward=scope == 'test')
             self.steps = [
                 step
                 for step in runnable_steps
@@ -156,7 +166,7 @@ class BuildConfiguration:
         assert scope in ('deploy', 'test', 'dev')
 
         for step in self.steps:
-            if step.can_run_in_scope(scope) or step.is_forced_by_labels(self.pr_labels):
+            if step.can_run_in_scope(scope) or step.name in self.transitively_forced:
                 assert step.can_run_in_current_cloud()
                 step.build(batch, code, scope)
 
@@ -175,7 +185,7 @@ class BuildConfiguration:
                 f"Cleanup {step.name} after running {[parent_step.name for parent_step in step_to_parent_steps[step]]}"
             )
 
-            if step.can_run_in_scope(scope) or step.is_forced_by_labels(self.pr_labels):
+            if step.can_run_in_scope(scope) or step.name in self.transitively_forced:
                 step.cleanup(batch, scope, parent_jobs)
 
     def namespace(self) -> Optional[str]:

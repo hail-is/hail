@@ -9,12 +9,13 @@ import re
 import secrets
 import time
 from shlex import quote as shq
-from typing import Any, Dict, Iterable, List, Optional, Protocol, Sequence, Set, Union
+from typing import Any, Dict, FrozenSet, Iterable, List, Optional, Protocol, Sequence, Set, Union
 
 import aiohttp
 import aiohttp.client_exceptions
 import gidgethub
 import prometheus_client as pc  # type: ignore
+import yaml
 import zulip
 from gidgethub import aiohttp as gh_aiohttp
 
@@ -554,6 +555,7 @@ mkdir -p {shq(repo_dir)}
 
             with open(f'{repo_dir}/build.yaml', 'r', encoding='utf-8') as f:
                 build_yaml = f.read()
+            always_run_steps = set(yaml.safe_load(build_yaml).get('alwaysRunSteps', []))
             # None means run everything; a list (possibly empty) means run only those steps + label-forced.
             if RERUN_ALL_TESTS in self.labels or 'build.yaml' in changed_files:
                 log.info(f'PR #{self.number} running full test suite (rerun all tests label or build.yaml changed)')
@@ -565,9 +567,11 @@ mkdir -p {shq(repo_dir)}
 
             tactical = self.tactical
             tactical_skipped: Dict[str, int] = {}
+            tactically_succeeded_always_run_steps: FrozenSet[str] = frozenset()
             if tactical and requested_step_names is not None:
                 succeeded_steps: Dict[str, int] = {}
-                requested_steps_set = set(requested_step_names)
+                # See select_steps' docstring for why alwaysRunSteps need to be in this scan too.
+                requested_steps_set = set(requested_step_names) | always_run_steps
                 async for b in batch_client.list_batches(
                     f'test=1 pr={self.number} source_sha={self.source_sha} target_sha={self.target_branch.sha} user:ci',
                     limit=50,
@@ -593,6 +597,7 @@ mkdir -p {shq(repo_dir)}
                         break
                 tactical_skipped = {s: succeeded_steps[s] for s in requested_step_names if s in succeeded_steps}
                 requested_step_names = [s for s in requested_step_names if s not in succeeded_steps]
+                tactically_succeeded_always_run_steps = frozenset(always_run_steps & succeeded_steps.keys())
                 log.info(
                     f'PR #{self.number} tactical retry: skipping {len(tactical_skipped)} already-succeeded steps: {list(tactical_skipped)}'
                 )
@@ -602,6 +607,7 @@ mkdir -p {shq(repo_dir)}
                 build_yaml,
                 scope='test',
                 requested_step_names=requested_step_names,
+                tactically_succeeded_always_run_steps=tactically_succeeded_always_run_steps,
                 pr_labels=frozenset(self.labels),
             )
             namespace: Optional[str] = config.namespace()

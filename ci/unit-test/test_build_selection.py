@@ -1,4 +1,5 @@
 import pathlib
+from typing import AbstractSet, Set
 
 import pytest
 import yaml
@@ -262,28 +263,29 @@ steps:
 @pytest.mark.parametrize(
     'config_str, changed_files, scope, cloud, expected_steps',
     [
-        # empty changed_files -> nothing runs except alwaysRunSteps (ie merge_code)
-        (_SIMPLE_CONFIG, [], 'test', None, {'merge_code'}),
-        # ci change affects check_ci; merge_code always included
-        (_SIMPLE_CONFIG, ['ci/foo.py'], 'test', None, ['check_ci', 'merge_code']),
-        # hail change affects check_hail; merge_code always included
-        (_SIMPLE_CONFIG, ['hail/foo.py'], 'test', None, ['check_hail', 'merge_code']),
+        # empty changed_files -> nothing genuinely affected (alwaysRunSteps are not this
+        # function's concern; select_steps adds them separately)
+        (_SIMPLE_CONFIG, [], 'test', None, set()),
+        # ci change affects check_ci
+        (_SIMPLE_CONFIG, ['ci/foo.py'], 'test', None, ['check_ci']),
+        # hail change affects check_hail
+        (_SIMPLE_CONFIG, ['hail/foo.py'], 'test', None, ['check_hail']),
         # README.md under ci/ affects check_ci just like any other file there
-        (_SIMPLE_CONFIG, ['ci/README.md'], 'test', None, ['check_ci', 'merge_code']),
+        (_SIMPLE_CONFIG, ['ci/README.md'], 'test', None, ['check_ci']),
         # multiple ci/ files both affect check_ci
-        (_SIMPLE_CONFIG, ['ci/README.md', 'ci/foo.py'], 'test', None, ['check_ci', 'merge_code']),
-        # deploy scope: check_ci scoped to [test,dev] is not affected; merge_code always included
-        (_SIMPLE_CONFIG, ['ci/foo.py'], 'deploy', None, ['merge_code']),
-        # gcp cloud filter — test_gcp + merge_code
-        (_CLOUD_CONFIG, ['ci/foo.py'], 'test', 'gcp', ['merge_code', 'test_gcp']),
+        (_SIMPLE_CONFIG, ['ci/README.md', 'ci/foo.py'], 'test', None, ['check_ci']),
+        # deploy scope: check_ci scoped to [test,dev] is not affected
+        (_SIMPLE_CONFIG, ['ci/foo.py'], 'deploy', None, []),
+        # gcp cloud filter — test_gcp only
+        (_CLOUD_CONFIG, ['ci/foo.py'], 'test', 'gcp', ['test_gcp']),
         # azure cloud filter
-        (_CLOUD_CONFIG, ['ci/foo.py'], 'test', 'azure', ['merge_code', 'test_azure']),
-        # no cloud filter -> both cloud-specific steps + merge_code
-        (_CLOUD_CONFIG, ['ci/foo.py'], 'test', None, ['merge_code', 'test_azure', 'test_gcp']),
+        (_CLOUD_CONFIG, ['ci/foo.py'], 'test', 'azure', ['test_azure']),
+        # no cloud filter -> both cloud-specific steps
+        (_CLOUD_CONFIG, ['ci/foo.py'], 'test', None, ['test_azure', 'test_gcp']),
         # runIfRequested step is never auto-selected as a descendant
-        (_RUN_IF_REQUESTED_CONFIG, ['ci/foo.py'], 'test', None, ['check_ci', 'merge_code']),
+        (_RUN_IF_REQUESTED_CONFIG, ['ci/foo.py'], 'test', None, ['check_ci']),
         # custom repoPrefix in config: ci change affects check_ci
-        (_CUSTOM_PREFIX_CONFIG, ['ci/foo.py'], 'test', None, ['check_ci', 'merge_code']),
+        (_CUSTOM_PREFIX_CONFIG, ['ci/foo.py'], 'test', None, ['check_ci']),
     ],
 )
 def test_compute_requested_steps(config_str, changed_files, scope, cloud, expected_steps):
@@ -367,12 +369,72 @@ def test_select_steps_forwards_not_backwards():
     }
 
 
+def test_select_steps_always_run_steps_do_not_seed_forward_pass():
+    steps = [
+        {'name': 'root_image'},
+        {'name': 'merge_code', 'dependsOn': ['root_image']},
+        {'name': 'unrelated_build', 'dependsOn': ['merge_code']},
+    ]
+    result = select_steps(set(), steps, always_run_steps={'merge_code'})
+
+    assert result == {'merge_code', 'root_image'}
+    assert 'unrelated_build' not in result
+
+
+def test_select_steps_empty_seeds_and_always_run_steps_is_a_true_no_op():
+    # See select_steps' docstring re always_run_steps and tactical retries.
+    steps = [
+        {'name': 'root_image'},
+        {'name': 'merge_code', 'dependsOn': ['root_image']},
+    ]
+    assert select_steps(set(), steps, always_run_steps=set()) == set()
+
+
+def test_select_steps_genuinely_selected_always_run_step_still_forward_propagates():
+    steps = [
+        {'name': 'root_image'},
+        {'name': 'merge_code', 'dependsOn': ['root_image']},
+        {'name': 'downstream_of_merge_code', 'dependsOn': ['merge_code']},
+    ]
+    result = select_steps({'merge_code'}, steps, always_run_steps={'merge_code'})
+
+    assert result == {'merge_code', 'root_image', 'downstream_of_merge_code'}
+
+
+def test_select_steps_requested_run_if_requested_step_pulls_in_its_ancestors():
+    steps = [
+        {'name': 'A'},
+        {'name': 'B', 'dependsOn': ['A']},
+        {'name': 'C', 'runIfRequested': True, 'dependsOn': ['B']},
+    ]
+    assert select_steps({'C'}, steps) == {'A', 'B', 'C'}
+
+
+def test_select_steps_unrequested_run_if_requested_step_not_pulled_in_forward_via_after():
+    steps = [
+        {'name': 'X'},
+        {'name': 'Y', 'runIfRequested': True, 'after': ['X']},
+    ]
+    assert select_steps({'X'}, steps) == {'X'}
+
+
 # ---------------------------------------------------------------------------
 # Unit tests against the real build.yaml
 # ---------------------------------------------------------------------------
 
 _BUILD_YAML = (pathlib.Path(__file__).parents[2] / 'build.yaml').read_text()
-_BUILD_STEPS = [s for s in yaml.safe_load(_BUILD_YAML)['steps'] if _valid_step(s, 'test', 'gcp')]
+_ALL_RAW_STEPS = yaml.safe_load(_BUILD_YAML)['steps']
+_BUILD_STEPS = [s for s in _ALL_RAW_STEPS if _valid_step(s, 'test', 'gcp')]
+
+
+def _steps_for_scope(scope, cloud='gcp'):
+    # Mirrors build.py's valid_raw_steps construction: filtered by scope and cloud,
+    # but runIfRequested steps are kept (select_steps needs them for the backward pass).
+    return [
+        s
+        for s in _ALL_RAW_STEPS
+        if (s.get('clouds') is None or cloud in s['clouds']) and (s.get('scopes') is None or scope in s['scopes'])
+    ]
 
 
 def test_batch_file_change_selects_batch_steps():
@@ -382,6 +444,121 @@ def test_batch_file_change_selects_batch_steps():
     result = compute_requested_steps(_BUILD_YAML, ['batch/batch/driver/main.py'], scope='test', cloud='gcp')
     assert 'test_batch' in result
     assert 'cancel_all_running_test_batches' in result
+
+
+_ALWAYS_RUN_STEPS = set(yaml.safe_load(_BUILD_YAML).get('alwaysRunSteps', []))
+
+
+def _assert_selection(scope: str, seed: Set[str], must_include: Set[str], must_exclude: AbstractSet[str] = frozenset()):
+    ordered_steps = _steps_for_scope(scope)
+    incompatible_with_scope = {s['name'] for s in _ALL_RAW_STEPS if s.get('scopes') and scope not in s['scopes']}
+
+    # Mirrors build.py: only a test-scope build's seeds come from what actually
+    # changed, so only test-scope forward-propagates to downstream steps.
+    result = select_steps(seed, ordered_steps, _ALWAYS_RUN_STEPS, follow_forward=scope == 'test')
+
+    assert _ALWAYS_RUN_STEPS <= result
+    assert must_include <= result
+    assert (must_exclude | incompatible_with_scope).isdisjoint(result)
+
+
+@pytest.mark.parametrize(
+    'changed_files, must_include, must_exclude',
+    [
+        (['monitoring/Dockerfile'], {'monitoring_image', 'deploy_monitoring', 'test_monitoring'}, {'test_batch'}),
+        (['docker/hail-ubuntu/Dockerfile'], {'hail_ubuntu_image'}, set()),
+        # A file with no matching `inputs` anywhere still triggers the whole-repo
+        # lint checks (their `inputs` is literally `/repo`), but nothing else.
+        (
+            ['dev-docs/pip-dependencies.md'],
+            {'check_pip_requirements', 'check_services'},
+            {'test_batch', 'test_auth', 'test_ci', 'monitoring_image', 'auth_image', 'batch_image', 'deploy_batch'},
+        ),
+        # hailtop is a shared input of every service image -- one change should
+        # fan out to every consumer, not just one.
+        (
+            ['hail/python/hailtop/utils/__init__.py'],
+            {
+                'batch_image',
+                'auth_image',
+                'ci_image',
+                'monitoring_image',
+                'deploy_batch',
+                'deploy_auth',
+                'deploy_ci',
+                'deploy_monitoring',
+                'test_batch',
+                'test_auth',
+                'test_ci',
+                'test_monitoring',
+            },
+            set(),
+        ),
+    ],
+    ids=[
+        'monitoring Dockerfile changed',
+        'hail-ubuntu Dockerfile changed',
+        'unrelated doc changed',
+        'shared hailtop dependency changed',
+    ],
+)
+def test_select_steps_pr_test_build(changed_files, must_include, must_exclude):
+    seed = compute_requested_steps(_BUILD_YAML, changed_files, scope='test', cloud='gcp')
+    _assert_selection('test', seed, must_include, must_exclude)
+
+
+@pytest.mark.parametrize(
+    'requested_steps, must_include, must_exclude',
+    [
+        ({'default_ns'}, {'default_ns'}, {'create_initial_user', 'delete_auth_tables'}),
+        ({'auth_database'}, {'auth_database'}, {'delete_auth_tables'}),
+        ({'monitoring_database'}, {'monitoring_database'}, {'delete_monitoring_tables'}),
+        (
+            {'create_initial_user'},
+            {'create_initial_user', 'default_ns', 'deploy_auth', 'hailgenetics_hailtop_image'},
+            set(),
+        ),
+        (
+            {'deploy_batch', 'add_developers'},
+            {'deploy_batch', 'add_developers', 'default_ns', 'deploy_auth'},
+            set(),
+        ),
+        (
+            {'hailgenetics_vep_grch38_95_image', 'hailgenetics_vep_grch37_85_image'},
+            {'hailgenetics_vep_grch38_95_image', 'hailgenetics_vep_grch37_85_image'},
+            {'test_hail_python_service_backend_gcp', 'test_hail_python_service_backend_gcp_fs'},
+        ),
+    ],
+    ids=[
+        '-s default_ns',
+        '-s auth_database',
+        '-s monitoring_database',
+        '-s create_initial_user',
+        '-s deploy_batch,add_developers',
+        '-s vep_images',
+    ],
+)
+def test_select_steps_dev_deploy(requested_steps, must_include, must_exclude):
+    _assert_selection('dev', requested_steps, must_include, must_exclude)
+
+
+@pytest.mark.parametrize(
+    'requested_steps, must_include, must_exclude',
+    [
+        ({'deploy_batch'}, {'deploy_batch'}, {'test_batch'}),
+        ({'deploy_ci'}, {'deploy_ci'}, {'test_ci'}),
+        ({'deploy_monitoring'}, {'deploy_monitoring'}, {'test_monitoring'}),
+        ({'deploy_batch', 'deploy_ci'}, {'deploy_batch', 'deploy_ci'}, {'test_batch', 'test_ci'}),
+    ],
+    ids=[
+        'DEPLOY_STEPS=deploy_batch',
+        'DEPLOY_STEPS=deploy_ci',
+        'DEPLOY_STEPS=deploy_monitoring',
+        'DEPLOY_STEPS=deploy_batch,deploy_ci',
+    ],
+)
+def test_select_steps_merge_deploy(requested_steps, must_include, must_exclude):
+    _assert_selection('deploy', requested_steps, must_include, must_exclude)
 
 
 @pytest.mark.xfail(
