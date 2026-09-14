@@ -61,7 +61,7 @@ class NDArraySumAggregator(ndVTyp: VirtualTypeWithReq) extends StagedAggregator 
               val fullyCopiedNDArray =
                 ndTyp.constructByActuallyCopyingData(nextNDPV, cb, tempRegionForCreation)
               state.storeNonmissing(cb, fullyCopiedNDArray)
-              cb += tempRegionForCreation.clearRegion()
+              cb += tempRegionForCreation.invalidate()
             },
             currentND =>
               NDArraySumAggregator.addValues(cb, state.region, currentND.asNDArray, nextNDPV),

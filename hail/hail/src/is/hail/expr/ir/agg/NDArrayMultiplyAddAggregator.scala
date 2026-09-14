@@ -89,7 +89,7 @@ class NDArrayMultiplyAddAggregator(ndVTyp: VirtualTypeWithReq) extends StagedAgg
                     currentNDPValue.asNDArray,
                   ),
               )
-              cb += tempRegionForCreation.clearRegion()
+              cb += tempRegionForCreation.invalidate()
             },
           )
         },
