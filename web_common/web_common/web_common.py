@@ -11,7 +11,7 @@ import jinja2
 import sass
 from aiohttp import web
 
-from gear import SystemPermission, UserData, new_csrf_token
+from gear import HAIL_SERVICES, SystemPermission, UserData, new_csrf_token
 from gear.cloud_config import get_global_config
 from hailtop.config import get_deploy_config
 
@@ -147,9 +147,6 @@ def web_security_headers_login_page(fun):
     return web_security_header_generator(
         fun, extra_form_action='https://accounts.google.com https://login.microsoftonline.com'
     )
-
-
-HAIL_SERVICES = ['auth', 'batch', 'batch-driver', 'ci', 'monitoring']
 
 
 def web_security_header_generator(
