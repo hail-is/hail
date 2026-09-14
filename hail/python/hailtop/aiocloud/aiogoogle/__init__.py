@@ -8,7 +8,6 @@ from .client import (
     GoogleLoggingClient,
     GoogleMetadataServerClient,
     GoogleStorageAsyncFS,
-    GoogleStorageAsyncFSFactory,
     GoogleStorageClient,
 )
 from .credentials import (
@@ -33,7 +32,6 @@ __all__ = [
     'GoogleMetadataServerClient',
     'GoogleServiceAccountCredentials',
     'GoogleStorageAsyncFS',
-    'GoogleStorageAsyncFSFactory',
     'GoogleStorageClient',
     'get_gcs_requester_pays_configuration',
 ]

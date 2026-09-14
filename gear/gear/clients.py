@@ -1,7 +1,7 @@
 from gear.cloud_config import get_gcp_config, get_global_config
-from hailtop.aiocloud import aioazure, aiogoogle
+from hailtop.aiocloud import aioazure, aiogoogle, aioaws
 from hailtop.aiocloud.aioterra import azure as aioterra_azure
-from hailtop.aiotools.fs import AsyncFS, AsyncFSFactory
+from hailtop.aiotools.fs import AsyncFS
 
 import boto3
 
@@ -25,14 +25,8 @@ def get_cloud_async_fs() -> AsyncFS:
         if aioterra_azure.TerraAzureAsyncFS.enabled():
             return aioterra_azure.TerraAzureAsyncFS()
         return aioazure.AzureAsyncFS()
+    elif cloud == 'aws':
+        return aioaws.S3AsyncFS()
 
     assert cloud == 'gcp', cloud
     return aiogoogle.GoogleStorageAsyncFS()
-
-
-def get_cloud_async_fs_factory() -> AsyncFSFactory:
-    cloud = get_global_config()['cloud']
-    if cloud == 'azure':
-        return aioazure.AzureAsyncFSFactory()
-    assert cloud == 'gcp', cloud
-    return aiogoogle.GoogleStorageAsyncFSFactory()
