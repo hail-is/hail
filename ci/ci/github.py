@@ -563,11 +563,19 @@ mkdir -p {shq(repo_dir)}
                 log.info(f'PR #{self.number} selected steps ({len(requested_steps_set)})')
                 requested_step_names = list(requested_steps_set)
 
+            config = BuildConfiguration(
+                self,
+                build_yaml,
+                scope='test',
+                requested_step_names=requested_step_names,
+                pr_labels=frozenset(self.labels),
+            )
+
             tactical = self.tactical
             tactical_skipped: Dict[str, int] = {}
-            if tactical and requested_step_names is not None:
+            if tactical:
                 succeeded_steps: Dict[str, int] = {}
-                requested_steps_set = set(requested_step_names)
+                steps_to_check = set(step.name for step in config.steps)
                 async for b in batch_client.list_batches(
                     f'test=1 pr={self.number} source_sha={self.source_sha} target_sha={self.target_branch.sha} user:ci',
                     limit=50,
@@ -576,11 +584,11 @@ mkdir -p {shq(repo_dir)}
                     async for job in b.jobs():
                         if job['name']:
                             name = job['name']
-                            if name in requested_steps_set:
+                            if name in steps_to_check:
                                 step_name = name
                             else:
                                 stripped = re.sub(r'_\d+$', '', name)
-                                if stripped not in requested_steps_set:
+                                if stripped not in steps_to_check:
                                     continue
                                 step_name = stripped
                             step_states.setdefault(step_name, []).append(job['state'])
@@ -589,21 +597,21 @@ mkdir -p {shq(repo_dir)}
                     for step_name, states in step_states.items():
                         if all(s == 'Success' for s in states):
                             succeeded_steps[step_name] = b.id
-                    if succeeded_steps.keys() >= requested_steps_set:
+                    if succeeded_steps.keys() >= steps_to_check:
                         break
-                tactical_skipped = {s: succeeded_steps[s] for s in requested_step_names if s in succeeded_steps}
-                requested_step_names = [s for s in requested_step_names if s not in succeeded_steps]
+                tactical_skipped = {s: succeeded_steps[s] for s in steps_to_check if s in succeeded_steps}
+                remaining = [s for s in steps_to_check if s not in succeeded_steps]
+                if len(remaining) < len(steps_to_check):
+                    config = BuildConfiguration(
+                        self,
+                        build_yaml,
+                        scope='test',
+                        requested_step_names=remaining,
+                        pr_labels=frozenset(self.labels),
+                    )
                 log.info(
                     f'PR #{self.number} tactical retry: skipping {len(tactical_skipped)} already-succeeded steps: {list(tactical_skipped)}'
                 )
-
-            config = BuildConfiguration(
-                self,
-                build_yaml,
-                scope='test',
-                requested_step_names=requested_step_names,
-                pr_labels=frozenset(self.labels),
-            )
             namespace: Optional[str] = config.namespace()
             services: List[str] = config.deployed_services()
             with open(f'{repo_dir}/ci/test/resources/build.yaml', 'r', encoding='utf-8') as f:
