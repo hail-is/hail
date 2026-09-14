@@ -8,7 +8,6 @@ from .logging_client import GoogleLoggingClient
 from .metadata_server_client import GoogleMetadataServerClient
 from .storage_client import (
     GoogleStorageAsyncFS,
-    GoogleStorageAsyncFSFactory,
     GoogleStorageClient,
 )
 
@@ -22,6 +21,5 @@ __all__ = [
     'GoogleLoggingClient',
     'GoogleMetadataServerClient',
     'GoogleStorageAsyncFS',
-    'GoogleStorageAsyncFSFactory',
     'GoogleStorageClient',
 ]

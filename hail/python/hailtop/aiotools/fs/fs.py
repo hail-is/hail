@@ -441,17 +441,3 @@ class AsyncFS(abc.ABC):
 
 
 T = TypeVar("T", bound=AsyncFS)
-
-
-class AsyncFSFactory(abc.ABC, Generic[T]):
-    @abc.abstractmethod
-    def from_credentials_data(self, credentials_data: dict) -> T:
-        pass
-
-    @abc.abstractmethod
-    def from_credentials_file(self, credentials_file: str) -> T:
-        pass
-
-    @abc.abstractmethod
-    def from_default_credentials(self) -> T:
-        pass
