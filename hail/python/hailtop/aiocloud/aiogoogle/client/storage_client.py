@@ -14,7 +14,6 @@ from hailtop import timex
 from hailtop.aiotools import FeedableAsyncIterable, WriteBuffer
 from hailtop.aiotools.fs import (
     AsyncFS,
-    AsyncFSFactory,
     AsyncFSURL,
     FileAndDirectoryError,
     FileListEntry,
@@ -918,14 +917,3 @@ class GoogleStorageAsyncFS(AsyncFS):
         if hasattr(self, '_storage_client'):
             await self._storage_client.close()
             del self._storage_client
-
-
-class GoogleStorageAsyncFSFactory(AsyncFSFactory[GoogleStorageAsyncFS]):
-    def from_credentials_data(self, credentials_data: dict) -> GoogleStorageAsyncFS:
-        return GoogleStorageAsyncFS(credentials=GoogleCredentials.from_credentials_data(credentials_data))
-
-    def from_credentials_file(self, credentials_file: str) -> GoogleStorageAsyncFS:
-        return GoogleStorageAsyncFS(credentials=GoogleCredentials.from_file(credentials_file))
-
-    def from_default_credentials(self) -> GoogleStorageAsyncFS:
-        return GoogleStorageAsyncFS(credentials=GoogleCredentials.default_credentials())

@@ -17,7 +17,6 @@ from azure.storage.blob.aio import BlobClient, BlobPrefix, BlobServiceClient, Co
 from hailtop.aiotools import WriteBuffer
 from hailtop.aiotools.fs import (
     AsyncFS,
-    AsyncFSFactory,
     AsyncFSURL,
     FileAndDirectoryError,
     FileListEntry,
@@ -650,14 +649,3 @@ class AzureAsyncFS(AsyncFS):
 
         if self._blob_service_clients:
             await asyncio.wait([asyncio.create_task(client.close()) for client in self._blob_service_clients.values()])
-
-
-class AzureAsyncFSFactory(AsyncFSFactory[AzureAsyncFS]):
-    def from_credentials_data(self, credentials_data: dict) -> AzureAsyncFS:
-        return AzureAsyncFS(credentials=AzureCredentials.from_credentials_data(credentials_data))
-
-    def from_credentials_file(self, credentials_file: str) -> AzureAsyncFS:
-        return AzureAsyncFS(credentials=AzureCredentials.from_file(credentials_file))
-
-    def from_default_credentials(self) -> AzureAsyncFS:
-        return AzureAsyncFS(credentials=AzureCredentials.default_credentials())
