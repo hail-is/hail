@@ -161,7 +161,7 @@ def web_security_header_generator(
 ):
     # Every hail service is part of the same trust boundary (shared auth, shared org), so any
     # page may freely call any other hail service, e.g. the batch UI fetching from monitoring.
-    connect_src = f"connect-src 'self' {' '.join(deploy_config.origin(service) for service in HAIL_SERVICES)};"
+    connect_src = f"connect-src 'self' {' '.join(deploy_config.external_origin(service) for service in HAIL_SERVICES)};"
 
     @wraps(fun)
     async def wrapped(request, *args, **kwargs):
