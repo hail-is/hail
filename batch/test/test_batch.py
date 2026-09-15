@@ -968,6 +968,8 @@ def test_authorized_users_only():
         (session.get, '/api/v1alpha/batches/0/jobs/0/log', 401),
         (session.get, '/api/v1alpha/batches/0/jobs/0/resource_usage', 401),
         (session.get, '/api/v1alpha/batches/0/jobs/0/jvm_profile', 401),
+        (session.get, '/api/v1alpha/batches/0/timing', 401),
+        (session.get, '/api/v1alpha/batches/0/job_graph', 401),
         (session.get, '/api/v1alpha/batches', 401),
         (session.post, '/api/v1alpha/batches/create', 401),
         (session.post, '/api/v1alpha/batches/0/jobs/create', 401),
