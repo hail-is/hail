@@ -55,12 +55,7 @@ class GetJobsResponseV1Alpha(TypedDict):
     last_job_id: NotRequired[int]
 
 
-class JobOffsetPaginationV1Alpha(TypedDict):
-    # Pagination for endpoints that page over a batch's jobs by job_id offset (job ids are dense,
-    # 1..n_jobs, within a batch, so an offset maps directly onto a job_id range, not an actual
-    # SQL OFFSET scan). `next_page_job_offset` is null on the last page. A page's `data` may
-    # contain fewer than `page_size` jobs (e.g. if some job ids in the requested range don't
-    # exist) — this does not by itself mean the page is the last one; check `next_page_job_offset`.
+class JobOffsetPagination(TypedDict):
     current_job_offset: int
     next_page_job_offset: Optional[int]
     page_size: int
@@ -81,7 +76,7 @@ class JobTimingV1Alpha(TypedDict):
 
 class GetBatchTimingResponseV1Alpha(TypedDict):
     data: List[JobTimingV1Alpha]
-    pagination: JobOffsetPaginationV1Alpha
+    pagination: JobOffsetPagination
 
 
 class JobGraphEntryV1Alpha(TypedDict):
@@ -91,7 +86,7 @@ class JobGraphEntryV1Alpha(TypedDict):
 
 class GetJobGraphResponseV1Alpha(TypedDict):
     data: List[JobGraphEntryV1Alpha]
-    pagination: JobOffsetPaginationV1Alpha
+    pagination: JobOffsetPagination
 
 
 class GetJobGroupResponseV1Alpha(TypedDict):

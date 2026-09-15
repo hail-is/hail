@@ -64,7 +64,7 @@ from hailtop.batch_client.types import (
     GetJobResponseV1Alpha,
     GetJobsResponseV1Alpha,
     JobListEntryV1Alpha,
-    JobOffsetPaginationV1Alpha,
+    JobOffsetPagination,
 )
 from hailtop.config import get_deploy_config
 from hailtop.hail_logging import AccessLogger
@@ -2605,14 +2605,6 @@ async def get_attempts(request: web.Request, _, batch_id: int) -> web.Response:
     return json_response(attempts)
 
 
-# Endpoints below page over a batch's jobs by job_id "offset" rather than the live-jobs-list's
-# last_job_id cursor: job ids are dense (1..n_jobs, no gaps — jobs are only ever deleted at the
-# whole-batch level) within a batch, so an offset maps directly onto a job_id range with no real
-# SQL OFFSET scan, and it additionally gets us a `total_jobs` count and random page access for
-# free. This is a deliberately different pagination convention than the jobs list endpoints,
-# which need a cursor because job *state* mutates continuously underneath a long-running poll —
-# these endpoints return per-job data (attempt timing, parent ids) that is either immutable
-# (job_parents, post-commit) or fine to page over, with polling handled by re-fetching a page.
 DEFAULT_JOB_OFFSET_PAGE_SIZE = 50
 MAX_JOB_OFFSET_PAGE_SIZE = 1000
 
@@ -2634,7 +2626,7 @@ async def _get_total_jobs(db: Database, batch_id: int) -> int:
     return record['n_jobs']
 
 
-def _job_offset_pagination(job_offset: int, page_size: int, total_jobs: int) -> JobOffsetPaginationV1Alpha:
+def _job_offset_pagination(job_offset: int, page_size: int, total_jobs: int) -> JobOffsetPagination:
     next_offset = job_offset + page_size
     return {
         'current_job_offset': job_offset,
