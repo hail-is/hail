@@ -72,7 +72,7 @@ google-api-core==2.36.0
     #   -c batch/../gear/pinned-requirements.txt
     #   google-cloud-core
     #   google-cloud-storage
-google-auth==2.57.1
+google-auth==2.58.0
     # via
     #   -c batch/../gear/pinned-requirements.txt
     #   -c batch/../hail/python/pinned-requirements.txt
@@ -81,7 +81,7 @@ google-auth==2.57.1
     #   google-cloud-storage
 google-cloud-core==2.7.0
     # via google-cloud-storage
-google-cloud-storage==3.13.1
+google-cloud-storage==3.14.1
     # via -r batch/requirements.txt
 google-crc32c==1.8.0
     # via
@@ -101,7 +101,7 @@ idna==3.19
     #   -c batch/../web_common/pinned-requirements.txt
     #   requests
     #   yarl
-multidict==6.7.1
+multidict==6.8.0
     # via
     #   -c batch/../gear/pinned-requirements.txt
     #   -c batch/../hail/python/dev/pinned-requirements.txt
@@ -109,7 +109,7 @@ multidict==6.7.1
     #   -c batch/../web_common/pinned-requirements.txt
     #   aiohttp
     #   yarl
-numpy==2.5.2
+numpy==2.5.3
     # via
     #   -c batch/../hail/python/dev/pinned-requirements.txt
     #   -c batch/../hail/python/pinned-requirements.txt
