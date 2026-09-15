@@ -1752,10 +1752,14 @@ steps:
     inputs:
       - from: /repo/Makefile
         to: /io/repo/Makefile
+      - from: /repo/config.mk
+        to: /io/repo/config.mk
       - from: /repo/check_pip_requirements.sh
         to: /io/repo/check_pip_requirements.sh
       - from: /repo/hail/python/hailtop
         to: /io/repo/hail/python/hailtop
+      - from: /repo/hail/python/dataproc-pre-installed-requirements.txt
+        to: /io/repo/hail/python/dataproc-pre-installed-requirements.txt
       - from: /repo/hail/python/requirements.txt
         to: /io/repo/hail/python/requirements.txt
       - from: /repo/hail/python/pinned-requirements.txt
