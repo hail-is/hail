@@ -3,21 +3,16 @@ import { createRoot } from 'react-dom/client';
 import { hailApiFetch as apiFetch, hailApiFetchVoid as apiFetchVoid } from '../shared/hailApiFetch';
 import { hasPermission } from '../shared/authUtils';
 import { SegmentedBar, Segment } from '../shared/SegmentedBar';
-import { StateIcon } from '../batch/components/StateIcon';
 import { BatchStateIcon } from '../shared/BatchStateIcon';
 import { useTip, FloatingTip } from '../shared/useTip';
 import { AutoRefreshBar } from '../shared/AutoRefreshBar';
+import { JobGroupTree } from './components/JobGroupTree';
+import { JobList } from './components/JobList';
+import type { JobState, JobListEntry } from './components/JobList';
+import { useBatchData } from '../batch/components/useBatchData';
+import type { UseBatchDataResult } from '../batch/components/useBatchData';
 
 const REFRESH_INTERVAL_MS = 30_000;
-
-type JobState = 'Pending' | 'Ready' | 'Creating' | 'Running' | 'Failed' | 'Cancelled' | 'Error' | 'Success';
-
-interface JobListEntry {
-  job_id: number;
-  name: string | null;
-  state: JobState;
-  exit_code: number | null;
-}
 
 interface BatchSummary {
   id: number;
@@ -57,21 +52,6 @@ interface WatchedBranchPr {
   // Historical-PR fields (GitHub fallback branch).
   merged?: boolean | null;
   merge_commit_sha?: string | null;
-}
-
-interface BatchStatus {
-  id: number;
-  state: string;
-  complete: boolean;
-  cost: number | null;
-  n_jobs: number;
-  n_completed: number;
-  n_succeeded: number;
-  n_failed: number;
-  n_cancelled: number;
-  time_created: string | null;
-  time_completed: string | null;
-  attributes?: Record<string, string>;
 }
 
 interface BatchHistoryEntry {
@@ -143,20 +123,6 @@ async function fetchAllBatches(batchBaseUrl: string, q: string): Promise<BatchHi
     all.push(...page.batches);
     if (page.last_batch_id === undefined) break;
     lastBatchId = page.last_batch_id;
-  }
-  return all;
-}
-
-async function fetchAllJobs(batchBaseUrl: string, batchId: number): Promise<JobListEntry[]> {
-  const all: JobListEntry[] = [];
-  let lastJobId: number | undefined;
-  for (;;) {
-    const url = new URL(`${batchBaseUrl}/api/v1alpha/batches/${batchId}/jobs`, window.location.origin);
-    if (lastJobId !== undefined) url.searchParams.set('last_job_id', String(lastJobId));
-    const page = await apiFetch<{ jobs: JobListEntry[]; last_job_id?: number }>(url.toString());
-    all.push(...page.jobs);
-    if (page.last_job_id === undefined) break;
-    lastJobId = page.last_job_id;
   }
   return all;
 }
@@ -440,24 +406,6 @@ function BatchHistoryTable({ batches, batchBaseUrl }: { batches: BatchHistoryEnt
   );
 }
 
-function JobList({ jobs, batchBaseUrl, batchId }: { jobs: JobListEntry[]; batchBaseUrl: string; batchId: number }): JSX.Element | null {
-  if (jobs.length === 0) return null;
-  return (
-    <ul className="divide-y divide-zinc-100 border border-zinc-200 rounded">
-      {jobs.map((job) => (
-        <li key={job.job_id} className="flex items-center gap-2 px-3 py-1.5 text-sm">
-          <StateIcon state={job.state} />
-          <a href={`${batchBaseUrl}/batches/${batchId}/jobs/${job.job_id}`} className="text-sky-600 hover:underline">
-            {job.job_id}
-          </a>
-          <span className="text-zinc-600">{job.name ?? ''}</span>
-          {job.exit_code !== null && <span className="text-zinc-400">(exit {job.exit_code})</span>}
-        </li>
-      ))}
-    </ul>
-  );
-}
-
 // These fields are only ever `undefined` when the deployed `ci` backend hasn't picked up
 // the API extension yet (it always sets them explicitly once it has — `null` is a real
 // value, not an absence). This should never fire once frontend and backend are deployed
@@ -481,15 +429,13 @@ function MissingApiFieldsWarning({ fields }: { fields: string[] }): JSX.Element 
   );
 }
 
-function BuildPanel({ pr, basePath, batchBaseUrl, wbBranchName, prNumber, batchStatus, jobs, jobsError }: {
+function BuildPanel({ pr, basePath, batchBaseUrl, wbBranchName, prNumber, batchData }: {
   pr: WatchedBranchPr;
   basePath: string;
   batchBaseUrl: string;
   wbBranchName: string;
   prNumber: string;
-  batchStatus: BatchStatus | null;
-  jobs: JobListEntry[] | null;
-  jobsError: string | null;
+  batchData: UseBatchDataResult;
 }): JSX.Element {
   const [retrying, setRetrying] = useState(false);
   const [authorizing, setAuthorizing] = useState(false);
@@ -499,6 +445,8 @@ function BuildPanel({ pr, basePath, batchBaseUrl, wbBranchName, prNumber, batchS
   const missingFields = missingActivePrFields(pr);
   const warning = <MissingApiFieldsWarning fields={missingFields} />;
   const [tip, onTipEnter, onTipLeave] = useTip();
+  const [jobsTab, setJobsTab] = useState<'list' | 'groups'>('list');
+  const { batchStatus, jobs, jobsError } = batchData;
 
   if (pr.batch) {
     const jobBuckets = jobs ? bucketJobs(jobs) : null;
@@ -581,20 +529,56 @@ function BuildPanel({ pr, basePath, batchBaseUrl, wbBranchName, prNumber, batchS
         ) : !jobBuckets ? (
           <p className="text-sm text-zinc-500 mt-4">Loading jobs&hellip;</p>
         ) : (
-          <>
-            {runningJobs.length > 0 && (
-              <div className="mt-4">
+          <div className="mt-4 border border-zinc-200 rounded">
+            <div className="flex gap-4 px-3 pt-2 border-b border-zinc-200 text-sm">
+              <button
+                type="button"
+                onClick={() => { setJobsTab('list'); }}
+                className={`pb-1.5 -mb-px border-b-2 cursor-pointer ${
+                  jobsTab === 'list' ? 'border-sky-600 text-sky-700 font-medium' : 'border-transparent text-zinc-500 hover:text-zinc-700'
+                }`}
+              >
+                Running and Failed Jobs
+              </button>
+              <button
+                type="button"
+                onClick={() => { setJobsTab('groups'); }}
+                className={`pb-1.5 -mb-px border-b-2 cursor-pointer ${
+                  jobsTab === 'groups' ? 'border-sky-600 text-sky-700 font-medium' : 'border-transparent text-zinc-500 hover:text-zinc-700'
+                }`}
+              >
+                Job Groups
+              </button>
+            </div>
+
+            {/* Both tabs stay mounted (hidden via CSS, not conditionally rendered) so switching
+                tabs doesn't discard already-fetched data or a job-group's expanded state. */}
+            <div className="p-3" hidden={jobsTab !== 'list'}>
+              <div>
                 <h3 className="text-sm font-semibold text-zinc-600 mb-1">Running Jobs</h3>
-                <JobList jobs={runningJobs} batchBaseUrl={batchBaseUrl} batchId={pr.batch.id} />
+                {runningJobs.length > 0 ? (
+                  <JobList jobs={runningJobs} batchBaseUrl={batchBaseUrl} batchId={pr.batch.id} />
+                ) : (
+                  <p className="text-sm text-zinc-400 italic">No running jobs</p>
+                )}
               </div>
-            )}
-            {failedErroredJobs.length > 0 && (
               <div className="mt-4">
                 <h3 className="text-sm font-semibold text-zinc-600 mb-1">Failed / Errored Jobs</h3>
-                <JobList jobs={failedErroredJobs} batchBaseUrl={batchBaseUrl} batchId={pr.batch.id} />
+                {failedErroredJobs.length > 0 ? (
+                  <JobList jobs={failedErroredJobs} batchBaseUrl={batchBaseUrl} batchId={pr.batch.id} />
+                ) : (
+                  <p className="text-sm text-zinc-400 italic">No failed or errored jobs</p>
+                )}
               </div>
-            )}
-          </>
+            </div>
+            <div className="p-3" hidden={jobsTab !== 'groups'}>
+              {batchData.rootJobGroup ? (
+                <JobGroupTree batchBaseUrl={batchBaseUrl} batchId={pr.batch.id} batchData={batchData} />
+              ) : (
+                <p className="text-sm text-zinc-500">Loading job groups&hellip;</p>
+              )}
+            </div>
+          </div>
         )}
 
         {batchStatus?.attributes?.namespace && batchStatus.time_created && (
@@ -761,10 +745,6 @@ function PrPage({ basePath, batchBaseUrl, wbIndex, prNumber }: {
   const [history, setHistory] = useState<BatchHistoryEntry[]>([]);
   const [deployHistory, setDeployHistory] = useState<BatchHistoryEntry[]>([]);
 
-  const [batchStatus, setBatchStatus] = useState<BatchStatus | null>(null);
-  const [jobs, setJobs] = useState<JobListEntry[] | null>(null);
-  const [jobsError, setJobsError] = useState<string | null>(null);
-  const [refreshing, setRefreshing] = useState(false);
   const [countdownKey, setCountdownKey] = useState(0);
   const [autoRefresh, setAutoRefreshState] = useState<boolean>(() => {
     try {
@@ -781,27 +761,16 @@ function PrPage({ basePath, batchBaseUrl, wbIndex, prNumber }: {
   }, []);
 
   const batchId = pr?.batch?.id;
-
-  const refreshBuild = useCallback(async (isRefresh: boolean) => {
-    if (batchId === undefined) return;
-    if (isRefresh) setRefreshing(true);
-    try {
-      const [status, allJobs] = await Promise.all([
-        apiFetch<BatchStatus>(`${batchBaseUrl}/api/v1alpha/batches/${batchId}`),
-        fetchAllJobs(batchBaseUrl, batchId),
-      ]);
-      setBatchStatus(status);
-      setJobs(allJobs);
-      setJobsError(null);
-    } catch (e: unknown) {
-      setJobsError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setCountdownKey((k) => k + 1);
-      if (isRefresh) setRefreshing(false);
-    }
-  }, [batchBaseUrl, batchId]);
+  // All batch/job/job-group fetching, caching, and derived state (see [[useBatchData]]) — this
+  // page only owns auto-refresh *policy* (the toggle, the interval, the countdown UI) on top.
+  const batchData = useBatchData(batchBaseUrl, batchId);
+  const { batchStatus, refresh: refreshBuild } = batchData;
 
   useEffect(() => { void refreshBuild(false); }, [refreshBuild]);
+
+  // Bump whenever a refresh actually lands (jobs is replaced with a new array reference on
+  // every successful refresh), to restart the AutoRefreshBar's countdown animation.
+  useEffect(() => { setCountdownKey((k) => k + 1); }, [batchData.jobs]);
 
   // Keep polling only while the current batch hasn't finished.
   useEffect(() => {
@@ -904,7 +873,7 @@ function PrPage({ basePath, batchBaseUrl, wbIndex, prNumber }: {
             autoRefresh={autoRefresh}
             onToggle={setAutoRefresh}
             countdownKey={countdownKey}
-            refreshing={refreshing}
+            refreshing={batchData.refreshing}
             intervalMs={REFRESH_INTERVAL_MS}
           />
         </div>
@@ -941,9 +910,7 @@ function PrPage({ basePath, batchBaseUrl, wbIndex, prNumber }: {
           batchBaseUrl={batchBaseUrl}
           wbBranchName={wbBranchName}
           prNumber={prNumber}
-          batchStatus={batchStatus}
-          jobs={jobs}
-          jobsError={jobsError}
+          batchData={batchData}
         />
       )}
 
