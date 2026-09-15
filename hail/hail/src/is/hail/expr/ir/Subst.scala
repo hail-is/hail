@@ -19,7 +19,7 @@ object Subst {
           .getOrElse(x)
       case _ =>
         e.mapChildrenWithIndex {
-          case (child: IR, i) => Subst(child, env.subtract(Bindings.get(e, i)))
+          case (child: IR, i) => Subst(child, env.subtract(Bindings.get[Unit](e, i)))
           case (child, _) => child
         }
     }

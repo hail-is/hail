@@ -128,13 +128,13 @@ object PruneDeadFields extends Logging {
         ir match {
           case mir: MatrixIR =>
             memoizeMatrixIR(ctx, mir, mir.typ, ms)
-            rebuild(ctx, mir, ms.rebuildState)
+            rebuildMatrix(ctx, mir, ms.rebuildState)
           case tir: TableIR =>
             memoizeTableIR(ctx, tir, tir.typ, ms)
-            rebuild(ctx, tir, ms.rebuildState)
+            rebuildTable(ctx, tir, ms.rebuildState)
           case bmir: BlockMatrixIR =>
             memoizeBlockMatrixIR(ctx, bmir, bmir.typ, ms)
-            rebuild(ctx, bmir, ms.rebuildState)
+            rebuildBlockMatrix(ctx, bmir, ms.rebuildState)
           case vir: IR =>
             memoizeValueIR(ctx, vir, vir.typ, ms)
             rebuildIR(
@@ -1259,16 +1259,15 @@ object PruneDeadFields extends Logging {
     memo: ComputeMutableState,
     env: BindingEnv[TypeState],
   ): IndexedSeq[TypeState] = {
-    val bindings = Bindings.get(ir, childIdx)
-    val bindingsStates = bindings.map((_, typ) => TypeState(typ))
+    val bindings = Bindings.get[Type](ir, childIdx).map((_, typ) => TypeState(typ))
     memoizeValueIR(
       ctx,
       ir.getChild(childIdx).asInstanceOf[IR],
       requestedType,
       memo,
-      env.extend(bindingsStates),
+      env.extend(bindings),
     )
-    bindingsStates.all.map(_._2)
+    bindings.all.map(_._2)
   }
 
   /** This function does *not* necessarily bind each child node in `memo`. Known dead code is not
@@ -1300,7 +1299,7 @@ object PruneDeadFields extends Logging {
       createTypeStatesAndMemoize(ctx, ir, childIdx, requestedType, memo, env)
 
     def recur(ir: IR, childIdx: Int, requestedType: Type): Unit = {
-      val bindings = Bindings.get(ir, childIdx)
+      val bindings = Bindings.get[Type](ir, childIdx)
       val bindingsStates = bindings.map((_, typ) => TypeState(typ))
       memoizeValueIR(
         ctx,
@@ -1321,7 +1320,7 @@ object PruneDeadFields extends Logging {
       requestedType: Type,
       bindingsMap: mutable.Map[Name, TypeState],
     ): Unit = {
-      val bindings = Bindings.get(ir, childIdx).map { (name, typ) =>
+      val bindings = Bindings.get[Type](ir, childIdx).map { (name, typ) =>
         val state = bindingsMap.getOrElseUpdate(name, TypeState(typ))
         assert(typ == state.origType)
         state
@@ -1693,15 +1692,6 @@ object PruneDeadFields extends Logging {
           memo,
         )
 
-      case TableToValueApply(child, _) =>
-        memoizeTableIR(ctx, child, child.typ, memo)
-
-      case MatrixToValueApply(child, _) =>
-        memoizeMatrixIR(ctx, child, child.typ, memo)
-
-      case BlockMatrixToValueApply(child, _) =>
-        memoizeBlockMatrixIR(ctx, child, child.typ, memo)
-
       case TableAggregate(child, _) =>
         val Seq(globalState, rowState) = recurMaxWithBindings(ir, 1)
         val dep = TableType(
@@ -1742,14 +1732,30 @@ object PruneDeadFields extends Logging {
             memoizeMatrixIR(ctx, mir, mir.typ, memo)
           case (tir: TableIR, _) =>
             memoizeTableIR(ctx, tir, tir.typ, memo)
-          case (_: BlockMatrixIR, _) => // NOTE Currently no BlockMatrixIRs would have dead fields
+          case (bmir: BlockMatrixIR, _) =>
+            memoizeBlockMatrixIR(ctx, bmir, bmir.typ, memo)
           case (_: IR, i) =>
             recurMax(ir, i)
         }
     }
   }
 
-  def rebuild(
+  private def rebuildChildren[A <: BaseIR](
+    ctx: ExecuteContext,
+    node: A,
+    memo: RebuildMutableState,
+    env: BindingEnv[Type] = BindingEnv.empty,
+  ): A =
+    node.mapChildrenWithEnv(env) { (child, childEnv) =>
+      child match {
+        case valueIR: IR => rebuildIR(ctx, valueIR, childEnv, memo)
+        case tir: TableIR => rebuildTable(ctx, tir, memo)
+        case mir: MatrixIR => rebuildMatrix(ctx, mir, memo)
+        case bmir: BlockMatrixIR => rebuildBlockMatrix(ctx, bmir, memo)
+      }
+    }.asInstanceOf[A]
+
+  def rebuildTable(
     ctx: ExecuteContext,
     tir: TableIR,
     memo: RebuildMutableState,
@@ -1766,19 +1772,9 @@ object PruneDeadFields extends Logging {
           nPartitions,
         )
 
-      case TableGen(contexts, globals, cname, gname, body, partitioner, errorId) =>
-        val newContexts = rebuildIR(ctx, contexts, BindingEnv.empty, memo)
-        val newGlobals = rebuildIR(ctx, globals, BindingEnv.empty, memo)
-        val bodyEnv = Env(cname -> TIterable.elementType(newContexts.typ), gname -> newGlobals.typ)
-        TableGen(
-          contexts = newContexts,
-          globals = newGlobals,
-          cname = cname,
-          gname = gname,
-          body = rebuildIR(ctx, body, BindingEnv(bodyEnv), memo),
-          partitioner.coarsen(requestedType.key.length),
-          errorId,
-        )
+      case gen: TableGen =>
+        val gen2 = rebuildChildren(ctx, gen, memo)
+        gen2.copy(partitioner = gen2.partitioner.coarsen(requestedType.key.length))
 
       case TableRead(typ, dropRows, tr) =>
         // FIXME: remove this when all readers know how to read without keys
@@ -1788,21 +1784,10 @@ object PruneDeadFields extends Logging {
           globalType = requestedType.globalType,
         )
         TableRead(requestedTypeWithKey, dropRows, tr)
-      case TableFilter(child, pred) =>
-        val child2 = rebuild(ctx, child, memo)
-        val pred2 = rebuildIR(ctx, pred, BindingEnv(child2.typ.rowEnv), memo)
-        TableFilter(child2, pred2)
-      case TableMapPartitions(child, gName, pName, body, requestedKey, allowedOverlap) =>
-        val child2 = rebuild(ctx, child, memo)
-        val body2 = rebuildIR(
-          ctx,
-          body,
-          BindingEnv(Env(
-            gName -> child2.typ.globalType,
-            pName -> TStream(child2.typ.rowType),
-          )),
-          memo,
-        )
+      case t: TableMapPartitions =>
+        val TableMapPartitions(child2, gName, pName, body2, requestedKey, allowedOverlap) =
+          rebuildChildren(ctx, t, memo)
+
         val body2ElementType = TIterable.elementType(body2.typ).asInstanceOf[TStruct]
         val child2Keyed = if (child2.typ.key.exists(k => !body2ElementType.hasField(k)))
           TableKeyBy(child2, child2.typ.key.takeWhile(body2ElementType.hasField))
@@ -1818,14 +1803,10 @@ object PruneDeadFields extends Logging {
           requestedKey,
           math.min(allowedOverlap, childKeyLen),
         )
-      case TableMapRows(child, newRow) =>
-        val child2 = rebuild(ctx, child, memo)
-        val newRow2 = rebuildIR(
-          ctx,
-          newRow,
-          BindingEnv(child2.typ.rowEnv, scan = Some(child2.typ.rowEnv)),
-          memo,
-        )
+      case t: TableMapRows =>
+        val TableMapRows(child2, newRow2) =
+          rebuildChildren(ctx, t, memo)
+
         val newRowType = newRow2.typ.asInstanceOf[TStruct]
         val child2Keyed = if (child2.typ.key.exists(k => !newRowType.hasField(k))) {
           val upcastKey = child2.typ.key.takeWhile(newRowType.hasField)
@@ -1834,11 +1815,8 @@ object PruneDeadFields extends Logging {
         } else
           child2
         TableMapRows(child2Keyed, newRow2)
-      case TableMapGlobals(child, newGlobals) =>
-        val child2 = rebuild(ctx, child, memo)
-        TableMapGlobals(child2, rebuildIR(ctx, newGlobals, BindingEnv(child2.typ.globalEnv), memo))
       case TableKeyBy(child, _, isSorted, nPartitions) =>
-        var child2 = rebuild(ctx, child, memo)
+        var child2 = rebuildTable(ctx, child, memo)
         val keys2 = requestedType.key
         // fully upcast before shuffle
         if (!isSorted && keys2.nonEmpty)
@@ -1856,56 +1834,29 @@ object PruneDeadFields extends Logging {
               sortFields.map(_.field)
             )
           )
-            rebuild(ctx, child, memo)
+            rebuildTable(ctx, child, memo)
           else {
             // fully upcast before shuffle
             upcastTable(
               ctx,
-              rebuild(ctx, child, memo),
+              rebuildTable(ctx, child, memo),
               memo.requestedType.lookup(child).asInstanceOf[TableType],
               upcastGlobals = false,
             )
           }
         TableOrderBy(child2, sortFields)
-      case TableLeftJoinRightDistinct(left, right, root) =>
-        if (requestedType.rowType.hasField(root))
-          TableLeftJoinRightDistinct(rebuild(ctx, left, memo), rebuild(ctx, right, memo), root)
-        else
-          rebuild(ctx, left, memo)
-      case TableIntervalJoin(left, right, root, product) =>
-        if (requestedType.rowType.hasField(root))
-          TableIntervalJoin(rebuild(ctx, left, memo), rebuild(ctx, right, memo), root, product)
-        else
-          rebuild(ctx, left, memo)
+      case TableLeftJoinRightDistinct(left, _, root) =>
+        if (requestedType.rowType.hasField(root)) rebuildChildren(ctx, tir, memo)
+        else rebuildTable(ctx, left, memo)
+      case TableIntervalJoin(left, _, root, _) =>
+        if (requestedType.rowType.hasField(root)) rebuildChildren(ctx, tir, memo)
+        else rebuildTable(ctx, left, memo)
       case TableMultiWayZipJoin(children, fieldName, globalName) =>
-        val rebuilt = children.map(c => rebuild(ctx, c, memo))
-        val upcasted = rebuilt.map { t =>
-          upcastTable(ctx, t, memo.requestedType.lookup(children(0)).asInstanceOf[TableType])
-        }
-        TableMultiWayZipJoin(upcasted, fieldName, globalName)
-      case TableAggregateByKey(child, expr) =>
-        val child2 = rebuild(ctx, child, memo)
-        TableAggregateByKey(
-          child2,
-          rebuildIR(
-            ctx,
-            expr,
-            BindingEnv(child2.typ.globalEnv, agg = Some(child2.typ.rowEnv)),
-            memo,
-          ),
-        )
-      case TableKeyByAndAggregate(child, expr, newKey, nPartitions, bufferSize) =>
-        val child2 = rebuild(ctx, child, memo)
-        val expr2 = rebuildIR(
-          ctx,
-          expr,
-          BindingEnv(child2.typ.globalEnv, agg = Some(child2.typ.rowEnv)),
-          memo,
-        )
-        val newKey2 = rebuildIR(ctx, newKey, BindingEnv(child2.typ.rowEnv), memo)
-        TableKeyByAndAggregate(child2, expr2, newKey2, nPartitions, bufferSize)
+        val requestedType = memo.requestedType.lookup(children(0)).asInstanceOf[TableType]
+        val rebuilt = children.map(c => upcastTable(ctx, rebuildTable(ctx, c, memo), requestedType))
+        TableMultiWayZipJoin(rebuilt, fieldName, globalName)
       case TableRename(child, rowMap, globalMap) =>
-        val child2 = rebuild(ctx, child, memo)
+        val child2 = rebuildTable(ctx, child, memo)
         TableRename(
           child2,
           rowMap.view.filterKeys(child2.typ.rowType.hasField).toMap,
@@ -1914,27 +1865,19 @@ object PruneDeadFields extends Logging {
       case TableUnion(children) =>
         val requestedType = memo.requestedType.lookup(tir).asInstanceOf[TableType]
         val rebuilt = children.map { c =>
-          upcastTable(ctx, rebuild(ctx, c, memo), requestedType, upcastGlobals = false)
+          upcastTable(ctx, rebuildTable(ctx, c, memo), requestedType, upcastGlobals = false)
         }
         TableUnion(rebuilt)
       case RelationalLetTable(name, value, body) =>
         val value2 = rebuildIR(ctx, value, BindingEnv.empty, memo)
         memo.relationalRefs += name -> value2.typ
-        RelationalLetTable(name, value2, rebuild(ctx, body, memo))
-      case BlockMatrixToTableApply(bmir, aux, function) =>
-        val bmir2 = rebuild(ctx, bmir, memo)
-        val aux2 = rebuildIR(ctx, aux, BindingEnv.empty, memo)
-        BlockMatrixToTableApply(bmir2, aux2, function)
-      case _ => tir.mapChildren {
-          // IR should be a match error - all nodes with child value IRs should have a rule
-          case childT: TableIR => rebuild(ctx, childT, memo)
-          case childM: MatrixIR => rebuild(ctx, childM, memo)
-          case childBm: BlockMatrixIR => rebuild(ctx, childBm, memo)
-        }.asInstanceOf[TableIR]
+        RelationalLetTable(name, value2, rebuildTable(ctx, body, memo))
+      case _ =>
+        rebuildChildren(ctx, tir, memo)
     }
   }
 
-  def rebuild(
+  def rebuildMatrix(
     ctx: ExecuteContext,
     mir: MatrixIR,
     memo: RebuildMutableState,
@@ -1952,48 +1895,20 @@ object PruneDeadFields extends Logging {
           globalType = requestedType.globalType,
         )
         MatrixRead(requestedTypeWithKeys, dropCols, dropRows, reader)
-      case MatrixFilterCols(child, pred) =>
-        val child2 = rebuild(ctx, child, memo)
-        MatrixFilterCols(child2, rebuildIR(ctx, pred, BindingEnv(child2.typ.colEnv), memo))
-      case MatrixFilterRows(child, pred) =>
-        val child2 = rebuild(ctx, child, memo)
-        MatrixFilterRows(child2, rebuildIR(ctx, pred, BindingEnv(child2.typ.rowEnv), memo))
-      case MatrixFilterEntries(child, pred) =>
-        val child2 = rebuild(ctx, child, memo)
-        MatrixFilterEntries(child2, rebuildIR(ctx, pred, BindingEnv(child2.typ.entryEnv), memo))
-      case MatrixMapEntries(child, newEntries) =>
-        val child2 = rebuild(ctx, child, memo)
-        MatrixMapEntries(child2, rebuildIR(ctx, newEntries, BindingEnv(child2.typ.entryEnv), memo))
-      case MatrixMapRows(child, newRow) =>
-        val child2 = rebuild(ctx, child, memo)
-        val newRow2 = rebuildIR(
-          ctx,
-          newRow,
-          BindingEnv(
-            child2.typ.rowEnv,
-            agg = Some(child2.typ.entryEnv),
-            scan = Some(child2.typ.rowEnv),
-          ),
-          memo,
-        )
+      case m: MatrixMapRows =>
+        val MatrixMapRows(child2, newRow2) =
+          rebuildChildren(ctx, m, memo)
+
         val newRowType = newRow2.typ.asInstanceOf[TStruct]
         val child2Keyed = if (child2.typ.rowKey.exists(k => !newRowType.hasField(k)))
           MatrixKeyRowsBy(child2, child2.typ.rowKey.takeWhile(newRowType.hasField))
         else
           child2
         MatrixMapRows(child2Keyed, newRow2)
-      case MatrixMapCols(child, newCol, newKey) =>
-        val child2 = rebuild(ctx, child, memo)
-        val newCol2 = rebuildIR(
-          ctx,
-          newCol,
-          BindingEnv(
-            child2.typ.colEnv,
-            agg = Some(child2.typ.entryEnv),
-            scan = Some(child2.typ.colEnv),
-          ),
-          memo,
-        )
+      case m: MatrixMapCols =>
+        val MatrixMapCols(child2, newCol2, newKey) =
+          rebuildChildren(ctx, m, memo)
+
         val newColType = newCol2.typ.asInstanceOf[TStruct]
         val newKey2 = newKey match {
           case Some(nk) => Some(nk.takeWhile(newColType.hasField))
@@ -2003,55 +1918,18 @@ object PruneDeadFields extends Logging {
               None
         }
         MatrixMapCols(child2, newCol2, newKey2)
-      case MatrixMapGlobals(child, newGlobals) =>
-        val child2 = rebuild(ctx, child, memo)
-        MatrixMapGlobals(child2, rebuildIR(ctx, newGlobals, BindingEnv(child2.typ.globalEnv), memo))
       case MatrixKeyRowsBy(child, keys, isSorted) =>
-        val child2 = rebuild(ctx, child, memo)
+        val child2 = rebuildMatrix(ctx, child, memo)
         val keys2 = keys.takeWhile(child2.typ.rowType.hasField)
         MatrixKeyRowsBy(child2, keys2, isSorted)
-      case MatrixAggregateRowsByKey(child, entryExpr, rowExpr) =>
-        val child2 = rebuild(ctx, child, memo)
-        MatrixAggregateRowsByKey(
-          child2,
-          rebuildIR(
-            ctx,
-            entryExpr,
-            BindingEnv(child2.typ.colEnv, agg = Some(child2.typ.entryEnv)),
-            memo,
-          ),
-          rebuildIR(
-            ctx,
-            rowExpr,
-            BindingEnv(child2.typ.globalEnv, agg = Some(child2.typ.rowEnv)),
-            memo,
-          ),
-        )
-      case MatrixAggregateColsByKey(child, entryExpr, colExpr) =>
-        val child2 = rebuild(ctx, child, memo)
-        MatrixAggregateColsByKey(
-          child2,
-          rebuildIR(
-            ctx,
-            entryExpr,
-            BindingEnv(child2.typ.rowEnv, agg = Some(child2.typ.entryEnv)),
-            memo,
-          ),
-          rebuildIR(
-            ctx,
-            colExpr,
-            BindingEnv(child2.typ.globalEnv, agg = Some(child2.typ.colEnv)),
-            memo,
-          ),
-        )
       case MatrixUnionRows(children) =>
         val requestedType = memo.requestedType.lookup(mir).asInstanceOf[MatrixType]
         val firstChild =
-          upcast(ctx, rebuild(ctx, children.head, memo), requestedType, upcastGlobals = false)
+          upcast(ctx, rebuildMatrix(ctx, children.head, memo), requestedType, upcastGlobals = false)
         val remainingChildren = children.tail.map { child =>
           upcast(
             ctx,
-            rebuild(ctx, child, memo),
+            rebuildMatrix(ctx, child, memo),
             requestedType.copy(colType = requestedType.colKeyStruct),
             upcastGlobals = false,
           )
@@ -2059,8 +1937,8 @@ object PruneDeadFields extends Logging {
         MatrixUnionRows(firstChild +: remainingChildren)
       case MatrixUnionCols(left, right, joinType) =>
         val requestedType = memo.requestedType.lookup(mir).asInstanceOf[MatrixType]
-        val left2 = rebuild(ctx, left, memo)
-        val right2 = rebuild(ctx, right, memo)
+        val left2 = rebuildMatrix(ctx, left, memo)
+        val right2 = rebuildMatrix(ctx, right, memo)
 
         if (
           left2.typ.colType == right2.typ.colType && left2.typ.entryType == right2.typ.entryType
@@ -2077,26 +1955,16 @@ object PruneDeadFields extends Logging {
             joinType,
           )
         }
-      case MatrixAnnotateRowsTable(child, table, root, product) =>
+      case MatrixAnnotateRowsTable(child, _, root, _) =>
         // if the field is not used, this node can be elided entirely
-        if (!requestedType.rowType.hasField(root))
-          rebuild(ctx, child, memo)
-        else {
-          val child2 = rebuild(ctx, child, memo)
-          val table2 = rebuild(ctx, table, memo)
-          MatrixAnnotateRowsTable(child2, table2, root, product)
-        }
-      case MatrixAnnotateColsTable(child, table, uid) =>
+        if (!requestedType.rowType.hasField(root)) rebuildMatrix(ctx, child, memo)
+        else rebuildChildren(ctx, mir, memo)
+      case MatrixAnnotateColsTable(child, _, uid) =>
         // if the field is not used, this node can be elided entirely
-        if (!requestedType.colType.hasField(uid))
-          rebuild(ctx, child, memo)
-        else {
-          val child2 = rebuild(ctx, child, memo)
-          val table2 = rebuild(ctx, table, memo)
-          MatrixAnnotateColsTable(child2, table2, uid)
-        }
+        if (!requestedType.colType.hasField(uid)) rebuildMatrix(ctx, child, memo)
+        else rebuildChildren(ctx, mir, memo)
       case MatrixRename(child, globalMap, colMap, rowMap, entryMap) =>
-        val child2 = rebuild(ctx, child, memo)
+        val child2 = rebuildMatrix(ctx, child, memo)
         MatrixRename(
           child2,
           globalMap.view.filterKeys(child2.typ.globalType.hasField).toMap,
@@ -2107,33 +1975,25 @@ object PruneDeadFields extends Logging {
       case RelationalLetMatrixTable(name, value, body) =>
         val value2 = rebuildIR(ctx, value, BindingEnv.empty, memo)
         memo.relationalRefs += name -> value2.typ
-        RelationalLetMatrixTable(name, value2, rebuild(ctx, body, memo))
+        RelationalLetMatrixTable(name, value2, rebuildMatrix(ctx, body, memo))
       case CastTableToMatrix(child, entriesFieldName, colsFieldName, _) =>
         CastTableToMatrix(
-          rebuild(ctx, child, memo),
+          rebuildTable(ctx, child, memo),
           entriesFieldName,
           colsFieldName,
           requestedType.colKey,
         )
-      case _ => mir.mapChildren {
-          // IR should be a match error - all nodes with child value IRs should have a rule
-          case childT: TableIR => rebuild(ctx, childT, memo)
-          case childM: MatrixIR => rebuild(ctx, childM, memo)
-        }.asInstanceOf[MatrixIR]
+      case _ =>
+        rebuildChildren(ctx, mir, memo)
     }
   }
 
-  def rebuild(
+  def rebuildBlockMatrix(
     ctx: ExecuteContext,
     bmir: BlockMatrixIR,
     memo: RebuildMutableState,
   ): BlockMatrixIR =
-    bmir.mapChildren {
-      case tir: TableIR => rebuild(ctx, tir, memo)
-      case mir: MatrixIR => rebuild(ctx, mir, memo)
-      case ir: IR => rebuildIR(ctx, ir, BindingEnv.empty[Type], memo)
-      case bmir: BlockMatrixIR => rebuild(ctx, bmir, memo)
-    }.asInstanceOf[BlockMatrixIR]
+    rebuildChildren(ctx, bmir, memo)
 
   def rebuildIR(
     ctx: ExecuteContext,
@@ -2311,7 +2171,7 @@ object PruneDeadFields extends Logging {
         val rStruct = requestedType.asInstanceOf[TStruct]
         if (!rStruct.hasField("rows"))
           if (rStruct.hasField("global"))
-            MakeStruct(FastSeq("global" -> TableGetGlobals(rebuild(ctx, child, memo))))
+            MakeStruct(FastSeq("global" -> TableGetGlobals(rebuildTable(ctx, child, memo))))
           else
             MakeStruct(FastSeq())
         else {
@@ -2320,20 +2180,12 @@ object PruneDeadFields extends Logging {
             rStruct.selfField("global").map(_.typ.asInstanceOf[TStruct]).getOrElse(TStruct())
           TableCollect(upcastTable(
             ctx,
-            rebuild(ctx, child, memo),
+            rebuildTable(ctx, child, memo),
             TableType(rowType = rRowType, FastSeq(), rGlobType),
             upcastRow = true,
             upcastGlobals = false,
           ))
         }
-      case x: ApplyAggOp =>
-        x.mapChildrenWithEnv(env) { (child, childEnv) =>
-          rebuildIR(ctx, child.asInstanceOf[IR], childEnv, memo)
-        }.asInstanceOf[ApplyAggOp]
-      case x: ApplyScanOp =>
-        x.mapChildrenWithEnv(env) { (child, childEnv) =>
-          rebuildIR(ctx, child.asInstanceOf[IR], childEnv, memo)
-        }.asInstanceOf[ApplyScanOp]
       case CollectDistributedArray(contexts, globals, cname, gname, body, dynamicID, staticID,
             tsd) =>
         val contexts2 = upcast(
@@ -2355,15 +2207,7 @@ object PruneDeadFields extends Logging {
         val dynamicID2 = rebuildIR(ctx, dynamicID, env, memo)
         CollectDistributedArray(contexts2, globals2, cname, gname, body2, dynamicID2, staticID, tsd)
       case _ =>
-        ir.mapChildrenWithEnv(env) { (child, childEnv) =>
-          child match {
-            case valueIR: IR => rebuildIR(ctx, valueIR, childEnv, memo)
-            case mir: MatrixIR => rebuild(ctx, mir, memo)
-            case tir: TableIR => rebuild(ctx, tir, memo)
-            case bmir: BlockMatrixIR =>
-              bmir // NOTE Currently no BlockMatrixIRs would have dead fields
-          }
-        }.asInstanceOf[IR]
+        rebuildChildren(ctx, ir, memo, env)
     }
   }
 
