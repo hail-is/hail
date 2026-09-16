@@ -3614,6 +3614,7 @@ class IRSuite {
       MatrixToValueApply(mt, ForceCountMatrixTable()),
       TableWrite(table, TableNativeWriter("/path/to/data.ht")),
       MatrixWrite(mt, MatrixNativeWriter("/path/to/data.mt")),
+      MatrixWrite(mt, MatrixNativePartitionedColumnsWriter("/path/to/data", 4)),
       MatrixWrite(vcf, MatrixVCFWriter("/path/to/sample.vcf")),
       MatrixWrite(vcf, MatrixPLINKWriter("/path/to/base")),
       MatrixWrite(bgen, MatrixGENWriter("/path/to/base")),

@@ -13,6 +13,7 @@ import is.hail.io._
 import is.hail.io.bgen.BgenSettings
 import is.hail.io.fs.FS
 import is.hail.io.gen.{BgenWriter, ExportGen}
+import is.hail.io.index.IndexType
 import is.hail.io.plink.{BitPacker, ExportPlink}
 import is.hail.io.vcf.{ExportVCF, TabixVCF}
 import is.hail.linalg.{BlockMatrix, MatrixSparsity}
@@ -42,6 +43,7 @@ object MatrixWriter {
     override val typeHints = ShortTypeHints(
       List(
         classOf[MatrixNativeWriter],
+        classOf[MatrixNativePartitionedColumnsWriter],
         classOf[MatrixVCFWriter],
         classOf[MatrixGENWriter],
         classOf[MatrixBGENWriter],
@@ -82,9 +84,14 @@ abstract class MatrixWriter {
 sealed trait MatrixWriterComponents {
   def stage: TableStage
   def setup: IR
+  def rowSpec: TypedCodecSpec
+  def entrySpec: TypedCodecSpec
+  def indexType: IndexType
   def writePartitionType: Type
   def writePartition(rows: Atom, ctx: Atom): IR
   def finalizeWrite(parts: Atom, globals: Atom): IR
+
+  final def keyType: TStruct = tcoerce[TStruct](indexType.key.virtualType)
 }
 
 object MatrixNativeWriter {
@@ -117,9 +124,9 @@ object MatrixNativeWriter {
         )
       } else tablestage
 
-    val rowSpec =
+    val rowCodec =
       TypedCodecSpec(EType.fromTypeAndAnalysis(ctx, tm.rowType, rm.rowType), tm.rowType, bufferSpec)
-    val entrySpec = TypedCodecSpec(
+    val entryCodec = TypedCodecSpec(
       EType.fromTypeAndAnalysis(ctx, tm.entriesRVType, rm.entriesRVType),
       tm.entriesRVType,
       bufferSpec,
@@ -136,9 +143,18 @@ object MatrixNativeWriter {
 
     // write out partitioner key, which may be stricter than table key
     val partitioner = lowered.partitioner
-    val pKey: PStruct = tcoerce[PStruct](rowSpec.decodedPType(partitioner.kType))
+    val pKey: PStruct = tcoerce[PStruct](rowCodec.decodedPType(partitioner.kType))
+
+    val rowIndexType = IndexType(
+      pKey,
+      PCanonicalStruct(required = true, "entries_offset" -> PInt64()),
+    )
 
     new MatrixWriterComponents {
+
+      override val rowSpec: TypedCodecSpec = rowCodec
+      override val entrySpec: TypedCodecSpec = entryCodec
+      override val indexType: IndexType = rowIndexType
 
       override val stage: TableStage =
         lowered.mapContexts { oldCtx =>
@@ -180,8 +196,6 @@ object MatrixNativeWriter {
             val rowPartsRoot = Str(s"$path/rows/rows/parts/")
             val entryPartsRoot = Str(s"$path/entries/rows/parts/")
             val indexRoot = Str(s"$path/index/")
-            val iAnnotationType = PCanonicalStruct(required = true, "entries_offset" -> PInt64())
-            val indexType = is.hail.io.index.IndexType(pKey, iAnnotationType)
             val args =
               (
                 "partpath",
@@ -2251,6 +2265,174 @@ case class MatrixBlockMatrixWriter(
     RelationalWriter.scoped(path, overwrite, None)(WriteMetadata(
       flatPaths,
       BlockMatrixNativeMetadataWriter(path, bmt),
+    ))
+  }
+}
+
+object MatrixNativePartitionedColumnsWriter {
+  val maxFanoutTargets: Int = 100
+
+  def targetPaths(path: String, nFanoutTargets: Int): IndexedSeq[String] =
+    ArraySeq.tabulate(nFanoutTargets)(i => f"$path/$i%02d.mt")
+}
+
+/** Writes `nFanoutTargets` native matrix tables, each holding every row of the input but an evenly
+  * sized contiguous slice of its columns, in a single pass over the rows.
+  *
+  * The outputs live at `$path/00.mt`, `$path/01.mt`, ... `$path` itself is treated as a container:
+  * it is created by this writer, and `overwrite` clears it wholesale, so re-running with a smaller
+  * `nFanoutTargets` cannot leave stale slices behind.
+  */
+case class MatrixNativePartitionedColumnsWriter(
+  path: String,
+  nFanoutTargets: Int = 50,
+  overwrite: Boolean = false,
+  codecSpecJSONStr: String = null,
+) extends MatrixWriter {
+  require(nFanoutTargets > 1, s"must write at least two matrix tables, found $nFanoutTargets")
+
+  require(
+    nFanoutTargets <= MatrixNativePartitionedColumnsWriter.maxFanoutTargets,
+    s"cannot write more than ${MatrixNativePartitionedColumnsWriter.maxFanoutTargets} matrix " +
+      s"tables, found $nFanoutTargets",
+  )
+
+  override def lower(
+    colsFieldName: String,
+    entriesFieldName: String,
+    colKey: IndexedSeq[String],
+    ctx: ExecuteContext,
+    tablestage: TableStage,
+    r: RTable,
+  ): IR = {
+    val paths = MatrixNativePartitionedColumnsWriter.targetPaths(path, nFanoutTargets)
+
+    /* One set of components per output. All of them share the input's rows, key, partitioner and
+     * partition count -- only the entries and cols slices differ -- so a single stage drives the
+     * one collect, and each component contributes only its own metadata tree. */
+    val components = paths.map { target =>
+      MatrixNativeWriter.generateComponentFunctions(
+        colsFieldName,
+        entriesFieldName,
+        colKey,
+        ctx,
+        tablestage,
+        r,
+        target,
+        // `overwrite` is handled once, on the container, before any of these run.
+        overwrite = false,
+        codecSpecJSONStr,
+      )
+    }
+
+    val stage = components.head.stage
+    val rowSpec = components.head.rowSpec
+    val entrySpec = components.head.entrySpec
+    val indexType = components.head.indexType
+    val keyType = components.head.keyType
+
+    /* The entries value handed to `entrySpec` must be typed exactly as the spec's encoded type,
+     * whose sole field is `MatrixType.entriesIdentifier`. That happens to equal the table's
+     * `entriesFieldName`, but read it off the spec rather than relying on the coincidence. */
+    val entriesRVFieldName = tcoerce[TStruct](entrySpec.encodedVirtualType).fieldNames.head
+
+    // Slice `i` of `nCols` columns is [bounds(i), bounds(i + 1)), where
+    //   bounds(i) = i * (nCols / n) + min(i, nCols % n)
+    // The slices are contiguous, cover every column, and their sizes differ by at most one.
+    // Phrased this way rather than as `nCols * i / n` so no intermediate overflows an Int, and
+    // bound eagerly, once per scope, so the per-row slices reference plain refs.
+    //
+    // The column count is only known at run time, but the number of outputs is baked into this
+    // IR, so too few columns to go around has to fail rather than write degenerate tables. The
+    // check is folded into the count itself: a void `If` cannot be bound in a value-typed block.
+    def sliceBounds(b: IRBuilder, globals: IR): IndexedSeq[Atom] = {
+      val counted = b.memoize(ArrayLen(GetField(globals, colsFieldName)))
+      val nCols = b.memoize(If(
+        counted < I32(nFanoutTargets),
+        Die(
+          s"MatrixNativePartitionedColumnsWriter: cannot split fewer than $nFanoutTargets " +
+            s"columns into $nFanoutTargets matrix tables",
+          TInt32,
+        ),
+        counted,
+      ))
+      val base = b.memoize(nCols.floorDiv(I32(nFanoutTargets)))
+      val rem = b.memoize(nCols - (base * I32(nFanoutTargets)))
+      ArraySeq.tabulate(nFanoutTargets + 1)(i => b.memoize((I32(i) * base) + minIR(I32(i), rem)))
+    }
+
+    Begin(FastSeq(
+      WriteMetadata(Void(), RelationalSetup(path, overwrite = overwrite, None)),
+      Begin(components.map(_.setup)),
+      stage.mapCollectWithContextsAndGlobals("matrix_native_partitioned_columns_writer") {
+        (rows, ctx) =>
+          IRBuilder.scoped { b =>
+            // One part file basename, reused across all outputs -- they differ by directory.
+            val partFile = b.memoize(GetField(ctx, "writeCtx") + UUID4())
+            // The cols array is already broadcast, so the slice bounds cost nothing per row.
+            val bounds = sliceBounds(b, stage.globals)
+
+            val partResult = b.memoize(streamAggIR(rows) { row =>
+              assert(row.typ.isInstanceOf[TStruct])
+              aggBindIR(row.drop(entriesFieldName)) { rowWithoutEntries =>
+                aggBindIR(GetField(row, entriesFieldName)) { entries =>
+                  val writes = ArraySeq.tabulate(nFanoutTargets) { i =>
+                    ApplyAggOp(
+                      WriteRows(FastSeq(rowSpec, entrySpec), Some(indexType)),
+                      partFile,
+                      Str(s"${paths(i)}/index/"),
+                      Str(s"${paths(i)}/rows/rows/parts/"),
+                      Str(s"${paths(i)}/entries/rows/parts/"),
+                    )(
+                      rowWithoutEntries,
+                      makestruct(entriesRVFieldName ->
+                        sliceArrayIR(entries, bounds(i), bounds(i + 1))),
+                    )
+                  }
+                  val args = ("filePaths" -> MakeArray(writes: _*)) +:
+                    NativeWriter.metaInfoAggs(row, keyType)
+                  makestruct(args: _*)
+                }
+              }
+            })
+
+            /* Every element of `filePaths` is the same basename, but the array has to stay whole:
+             * `Simplify` rewrites `ArrayRef(MakeArray(args, _), i)` to `args(i)`, so projecting out
+             * one element here would delete the other write aggregators -- along with the flush and
+             * close of their output buffers. Index only on the driver, where the collected results
+             * are opaque. */
+            val keyMeta = b.memoize(GetField(partResult, "keyMeta"))
+            makestruct(
+              "filePaths" -> GetField(partResult, "filePaths"),
+              "partitionCounts" -> GetField(partResult, "partitionCounts"),
+              "distinctlyKeyed" -> GetField(keyMeta, "distinct"),
+              "firstKey" -> GetField(keyMeta, "firstKey"),
+              "lastKey" -> GetField(keyMeta, "lastKey"),
+            )
+          }
+      } { (parts, globals) =>
+        IRBuilder.scoped { b =>
+          // Recomputed here, so that an input with no partitions is checked too.
+          val bounds = sliceBounds(b, globals)
+
+          components.zipWithIndex.foreach { case (component, i) =>
+            val targetParts = b.memoize(mapArray(parts) { part =>
+              insertIR(
+                selectIR(part, "partitionCounts", "distinctlyKeyed", "firstKey", "lastKey"),
+                "filePath" -> GetField(part, "filePaths").at(i),
+              )
+            })
+            /* Handing `finalizeWrite` the sliced cols is what makes it write this output's cols
+             * table and column count, with no changes to it. */
+            val targetGlobals = b.memoize(globals.update(colsFieldName) { cols =>
+              sliceArrayIR(cols, bounds(i), bounds(i + 1))
+            })
+            b.memoize(component.finalizeWrite(targetParts, targetGlobals))
+          }
+
+          Void()
+        }
+      },
     ))
   }
 }
