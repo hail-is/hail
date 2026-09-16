@@ -141,7 +141,7 @@ def create_vm_config(
                 'autoDelete': True,
                 'initializeParams': {
                     # NB: create a new worker image with gcp-create-worker-image.sh
-                    'sourceImage': f'projects/{project}/global/images/batch-worker-chrisl-24',
+                    'sourceImage': f'projects/{project}/global/images/batch-worker-24',
                     'diskType': f'projects/{project}/zones/{zone}/diskTypes/{boot_disk_type}',
                     'diskSizeGb': str(boot_disk_size_gb),
                     **gcp_hyperdisk_performance_overrides(boot_disk_type),
