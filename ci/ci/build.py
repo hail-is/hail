@@ -587,11 +587,14 @@ class RunImageStep(Step):
 
     def build(self, batch, code, scope):
         if self.num_splits == 1:
-            self.jobs = [self._build_job(batch, code, scope, self.name, None, None)]
+            self.jobs = [self._build_job(batch, batch, code, scope, self.name, None, None)]
         else:
+            # Multiple splits get put into a job group together:
+            step_group = batch.create_job_group(attributes={'name': self.name})
             self.jobs = [
                 self._build_job(
                     batch,
+                    step_group,
                     code,
                     scope,
                     f'{self.name}_{i}',
@@ -601,7 +604,7 @@ class RunImageStep(Step):
                 for i in range(self.num_splits)
             ]
 
-    def _build_job(self, batch, code, scope, job_name, env, output_prefix):
+    def _build_job(self, batch, job_creator, code, scope, job_name, env, output_prefix):
         template = jinja2.Template(self.script, undefined=jinja2.StrictUndefined, trim_blocks=True, lstrip_blocks=True)
         rendered_script = template.render(**self.input_config(code, scope))
 
@@ -630,7 +633,7 @@ class RunImageStep(Step):
                 mount_path = secret['mountPath']
                 secrets.append({'namespace': namespace, 'name': name, 'mount_path': mount_path})
 
-        return batch.create_job(
+        return job_creator.create_job(
             self.image,
             command=['bash', '-c', rendered_script],
             port=self.port,
