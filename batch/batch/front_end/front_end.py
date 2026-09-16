@@ -2610,8 +2610,10 @@ MAX_JOB_OFFSET_PAGE_SIZE = 1000
 
 
 def _parse_job_offset_pagination_params(request: web.Request) -> Tuple[int, int]:
-    job_offset = cast_query_param_to_int(request.query.get('job_offset')) or 0
-    page_size = cast_query_param_to_int(request.query.get('page_size')) or DEFAULT_JOB_OFFSET_PAGE_SIZE
+    job_offset = cast_query_param_to_int(request.query.get('job_offset'))
+    job_offset = 0 if job_offset is None else job_offset
+    page_size = cast_query_param_to_int(request.query.get('page_size'))
+    page_size = DEFAULT_JOB_OFFSET_PAGE_SIZE if page_size is None else page_size
     if job_offset < 0:
         raise web.HTTPBadRequest(reason='job_offset must be >= 0')
     if not 0 < page_size <= MAX_JOB_OFFSET_PAGE_SIZE:
@@ -2646,8 +2648,9 @@ async def _get_batch_timing(app, batch_id: int, job_offset: int, page_size: int)
 SELECT jobs.job_id, attempts.attempt_id, attempts.start_time, attempts.end_time, attempts.reason
 FROM jobs
 INNER JOIN batches ON jobs.batch_id = batches.id
+INNER JOIN batch_updates ON jobs.batch_id = batch_updates.batch_id AND jobs.update_id = batch_updates.update_id
 LEFT JOIN attempts ON jobs.batch_id = attempts.batch_id AND jobs.job_id = attempts.job_id
-WHERE jobs.batch_id = %s AND NOT deleted AND jobs.job_id > %s AND jobs.job_id <= %s
+WHERE jobs.batch_id = %s AND NOT deleted AND batch_updates.committed AND jobs.job_id > %s AND jobs.job_id <= %s
 ORDER BY jobs.job_id, attempts.attempt_id;
 """,
         (batch_id, job_offset, job_offset + page_size),
@@ -2689,8 +2692,9 @@ async def _get_job_graph(app, batch_id: int, job_offset: int, page_size: int) ->
 SELECT jobs.job_id, job_parents.parent_id
 FROM jobs
 INNER JOIN batches ON jobs.batch_id = batches.id
+INNER JOIN batch_updates ON jobs.batch_id = batch_updates.batch_id AND jobs.update_id = batch_updates.update_id
 LEFT JOIN job_parents ON jobs.batch_id = job_parents.batch_id AND jobs.job_id = job_parents.job_id
-WHERE jobs.batch_id = %s AND NOT deleted AND jobs.job_id > %s AND jobs.job_id <= %s
+WHERE jobs.batch_id = %s AND NOT deleted AND batch_updates.committed AND jobs.job_id > %s AND jobs.job_id <= %s
 ORDER BY jobs.job_id, job_parents.parent_id;
 """,
         (batch_id, job_offset, job_offset + page_size),
