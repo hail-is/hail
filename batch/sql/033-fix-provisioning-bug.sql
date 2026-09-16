@@ -9,7 +9,7 @@ BEGIN
   END IF;
 
   # for job private instances that do not finish creating
-  IF NEW.reason = 'activation_timeout' THEN
+  IF NEW.reason IN ('activation_timeout', 'does_not_exist') THEN
     SET NEW.start_time = NULL;
   END IF;
 
