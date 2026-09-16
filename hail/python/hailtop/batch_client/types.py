@@ -55,6 +55,40 @@ class GetJobsResponseV1Alpha(TypedDict):
     last_job_id: NotRequired[int]
 
 
+class JobOffsetPagination(TypedDict):
+    current_job_offset: int
+    next_page_job_offset: Optional[int]
+    page_size: int
+    total_jobs: int
+
+
+class AttemptTimingV1Alpha(TypedDict):
+    attempt_id: str
+    start_time: Optional[int]
+    end_time: Optional[int]
+    reason: Optional[str]
+
+
+class JobTimingV1Alpha(TypedDict):
+    job_id: int
+    attempts: List[AttemptTimingV1Alpha]
+
+
+class GetBatchTimingResponseV1Alpha(TypedDict):
+    data: List[JobTimingV1Alpha]
+    pagination: JobOffsetPagination
+
+
+class JobGraphEntryV1Alpha(TypedDict):
+    job_id: int
+    parent_ids: List[int]
+
+
+class GetJobGraphResponseV1Alpha(TypedDict):
+    data: List[JobGraphEntryV1Alpha]
+    pagination: JobOffsetPagination
+
+
 class GetJobGroupResponseV1Alpha(TypedDict):
     batch_id: int
     job_group_id: int

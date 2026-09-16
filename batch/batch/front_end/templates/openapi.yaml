@@ -577,6 +577,79 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/JobAttemptsResponse'
+  '/api/v1alpha/batches/{batch_id}/timing':
+    get:
+      summary: "Get job timing for a batch"
+      description: >
+        Get the start/end time of every attempt of every job in the batch, for building a
+        timing overview of the whole batch. Jobs that have not started yet have an empty
+        attempts array. Paginated by job_offset — see JobOffsetPagination.
+      operationId: getBatchTimingv1alpha
+      tags:
+        - Batches API v1Alpha
+      parameters:
+        - name: batch_id
+          in: path
+          description: "The ID of the batch."
+          required: true
+          schema:
+            type: number
+        - name: job_offset
+          in: query
+          description: "Job id offset to page from. Job ids within a batch are dense (1..n_jobs), so this maps directly onto a job_id range rather than a real SQL OFFSET. Defaults to 0."
+          required: false
+          schema:
+            type: integer
+        - name: page_size
+          in: query
+          description: "Number of jobs to include in this page (not number of attempts). Defaults to 50, capped at 1000."
+          required: false
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: "Successfully retrieved the job timing for the batch."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BatchTimingResponse'
+  '/api/v1alpha/batches/{batch_id}/job_graph':
+    get:
+      summary: "Get the job dependency graph for a batch"
+      description: >
+        Get every job's parent ids for the whole batch, for rendering a job dependency DAG.
+        Jobs with no parents have an empty parent_ids array. Paginated by job_offset — see
+        JobOffsetPagination. Job metadata (name, state) is not included here; join client-side
+        against the existing jobs list endpoint by job_id.
+      operationId: getJobGraphv1alpha
+      tags:
+        - Batches API v1Alpha
+      parameters:
+        - name: batch_id
+          in: path
+          description: "The ID of the batch."
+          required: true
+          schema:
+            type: number
+        - name: job_offset
+          in: query
+          description: "Job id offset to page from. Job ids within a batch are dense (1..n_jobs), so this maps directly onto a job_id range rather than a real SQL OFFSET. Defaults to 0."
+          required: false
+          schema:
+            type: integer
+        - name: page_size
+          in: query
+          description: "Number of jobs to include in this page (not number of edges). Defaults to 50, capped at 1000."
+          required: false
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: "Successfully retrieved the job graph for the batch."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobGraphResponse'
   '/api/v1alpha/batches/{batch_id}/jobs/{job_id}/log':
     get:
       summary: "Get job log"
@@ -2366,6 +2439,88 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/JobAttemptResponse'
+
+    JobOffsetPagination:
+      type: object
+      description: >
+        Pagination info shared by endpoints that page over a batch's jobs by job_offset (see
+        the job_offset/page_size query params on those endpoints).
+      properties:
+        current_job_offset:
+          type: integer
+          description: "The job_offset that produced this page."
+        next_page_job_offset:
+          type: integer
+          description: "The job_offset to request for the next page. Null if this is the last page."
+          nullable: true
+        page_size:
+          type: integer
+          description: "The page_size that produced this page."
+        total_jobs:
+          type: integer
+          description: "Total number of jobs in the batch."
+
+    AttemptTiming:
+      type: object
+      properties:
+        attempt_id:
+          type: string
+          description: "ID of the attempt"
+        start_time:
+          type: integer
+          description: "When the attempt started, in epoch milliseconds"
+          nullable: true
+        end_time:
+          type: integer
+          description: "When the attempt ended, in epoch milliseconds"
+          nullable: true
+        reason:
+          type: string
+          description: "Reason for the attempt status"
+          nullable: true
+
+    JobTiming:
+      type: object
+      properties:
+        job_id:
+          type: integer
+          description: "ID of the job"
+        attempts:
+          type: array
+          items:
+            $ref: '#/components/schemas/AttemptTiming'
+
+    BatchTimingResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/JobTiming'
+        pagination:
+          $ref: '#/components/schemas/JobOffsetPagination'
+
+    JobGraphEntry:
+      type: object
+      properties:
+        job_id:
+          type: integer
+          description: "ID of the job"
+        parent_ids:
+          type: array
+          items:
+            type: integer
+          description: "IDs of this job's parents"
+
+    JobGraphResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/JobGraphEntry'
+        pagination:
+          $ref: '#/components/schemas/JobOffsetPagination'
 
     ResourceUsageResponse:
       type: object

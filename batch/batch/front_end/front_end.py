@@ -58,10 +58,13 @@ from hailtop.auth import hail_credentials
 from hailtop.batch_client.globals import MAX_JOB_GROUPS_DEPTH, ROOT_JOB_GROUP_ID
 from hailtop.batch_client.parse import parse_cpu_in_mcpu, parse_memory_in_bytes, parse_storage_in_bytes
 from hailtop.batch_client.types import (
+    GetBatchTimingResponseV1Alpha,
+    GetJobGraphResponseV1Alpha,
     GetJobGroupResponseV1Alpha,
     GetJobResponseV1Alpha,
     GetJobsResponseV1Alpha,
     JobListEntryV1Alpha,
+    JobOffsetPagination,
 )
 from hailtop.config import get_deploy_config
 from hailtop.hail_logging import AccessLogger
@@ -2600,6 +2603,122 @@ async def get_attempts(request: web.Request, _, batch_id: int) -> web.Response:
     job_id = int(request.match_info['job_id'])
     attempts = await _get_attempts(request.app, batch_id, job_id)
     return json_response(attempts)
+
+
+DEFAULT_JOB_OFFSET_PAGE_SIZE = 50
+MAX_JOB_OFFSET_PAGE_SIZE = 1000
+
+
+def _parse_job_offset_pagination_params(request: web.Request) -> Tuple[int, int]:
+    job_offset = cast_query_param_to_int(request.query.get('job_offset'))
+    job_offset = 0 if job_offset is None else job_offset
+    page_size = cast_query_param_to_int(request.query.get('page_size'))
+    page_size = DEFAULT_JOB_OFFSET_PAGE_SIZE if page_size is None else page_size
+    if job_offset < 0:
+        raise web.HTTPBadRequest(reason='job_offset must be >= 0')
+    if not 0 < page_size <= MAX_JOB_OFFSET_PAGE_SIZE:
+        raise web.HTTPBadRequest(reason=f'page_size must be between 1 and {MAX_JOB_OFFSET_PAGE_SIZE}')
+    return job_offset, page_size
+
+
+async def _get_total_jobs(db: Database, batch_id: int) -> int:
+    record = await db.select_and_fetchone('SELECT n_jobs FROM batches WHERE id = %s AND NOT deleted;', (batch_id,))
+    if not record:
+        raise web.HTTPNotFound()
+    return record['n_jobs']
+
+
+def _job_offset_pagination(job_offset: int, page_size: int, total_jobs: int) -> JobOffsetPagination:
+    next_offset = job_offset + page_size
+    return {
+        'current_job_offset': job_offset,
+        'next_page_job_offset': next_offset if next_offset < total_jobs else None,
+        'page_size': page_size,
+        'total_jobs': total_jobs,
+    }
+
+
+async def _get_batch_timing(app, batch_id: int, job_offset: int, page_size: int) -> GetBatchTimingResponseV1Alpha:
+    db: Database = app['db']
+
+    total_jobs = await _get_total_jobs(db, batch_id)
+
+    records = db.select_and_fetchall(
+        """
+SELECT jobs.job_id, attempts.attempt_id, attempts.start_time, attempts.end_time, attempts.reason
+FROM jobs
+INNER JOIN batches ON jobs.batch_id = batches.id
+INNER JOIN batch_updates ON jobs.batch_id = batch_updates.batch_id AND jobs.update_id = batch_updates.update_id
+LEFT JOIN attempts ON jobs.batch_id = attempts.batch_id AND jobs.job_id = attempts.job_id
+WHERE jobs.batch_id = %s AND NOT deleted AND batch_updates.committed AND jobs.job_id > %s AND jobs.job_id <= %s
+ORDER BY jobs.job_id, attempts.attempt_id;
+""",
+        (batch_id, job_offset, job_offset + page_size),
+        query_name='get_batch_timing',
+    )
+
+    jobs_by_id: Dict[int, Any] = {}
+    async for record in records:
+        job = jobs_by_id.setdefault(record['job_id'], {'job_id': record['job_id'], 'attempts': []})
+        if record['attempt_id'] is not None:
+            job['attempts'].append({
+                'attempt_id': record['attempt_id'],
+                'start_time': record['start_time'],
+                'end_time': record['end_time'],
+                'reason': record['reason'],
+            })
+
+    return {
+        'data': list(jobs_by_id.values()),
+        'pagination': _job_offset_pagination(job_offset, page_size, total_jobs),
+    }
+
+
+@routes.get('/api/v1alpha/batches/{batch_id}/timing')
+@billing_project_users_only()
+async def get_batch_timing(request: web.Request, _, batch_id: int) -> web.Response:
+    job_offset, page_size = _parse_job_offset_pagination_params(request)
+    timing = await _get_batch_timing(request.app, batch_id, job_offset, page_size)
+    return json_response(timing)
+
+
+async def _get_job_graph(app, batch_id: int, job_offset: int, page_size: int) -> GetJobGraphResponseV1Alpha:
+    db: Database = app['db']
+
+    total_jobs = await _get_total_jobs(db, batch_id)
+
+    records = db.select_and_fetchall(
+        """
+SELECT jobs.job_id, job_parents.parent_id
+FROM jobs
+INNER JOIN batches ON jobs.batch_id = batches.id
+INNER JOIN batch_updates ON jobs.batch_id = batch_updates.batch_id AND jobs.update_id = batch_updates.update_id
+LEFT JOIN job_parents ON jobs.batch_id = job_parents.batch_id AND jobs.job_id = job_parents.job_id
+WHERE jobs.batch_id = %s AND NOT deleted AND batch_updates.committed AND jobs.job_id > %s AND jobs.job_id <= %s
+ORDER BY jobs.job_id, job_parents.parent_id;
+""",
+        (batch_id, job_offset, job_offset + page_size),
+        query_name='get_job_graph',
+    )
+
+    jobs_by_id: Dict[int, Any] = {}
+    async for record in records:
+        job = jobs_by_id.setdefault(record['job_id'], {'job_id': record['job_id'], 'parent_ids': []})
+        if record['parent_id'] is not None:
+            job['parent_ids'].append(record['parent_id'])
+
+    return {
+        'data': list(jobs_by_id.values()),
+        'pagination': _job_offset_pagination(job_offset, page_size, total_jobs),
+    }
+
+
+@routes.get('/api/v1alpha/batches/{batch_id}/job_graph')
+@billing_project_users_only()
+async def get_job_graph(request: web.Request, _, batch_id: int) -> web.Response:
+    job_offset, page_size = _parse_job_offset_pagination_params(request)
+    job_graph = await _get_job_graph(request.app, batch_id, job_offset, page_size)
+    return json_response(job_graph)
 
 
 @routes.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}')
