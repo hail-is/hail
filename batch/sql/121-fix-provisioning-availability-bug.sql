@@ -8,8 +8,8 @@ BEGIN
     SET NEW.start_time = OLD.start_time;
   END IF;
 
-  # for job private instances that do not finish creating
-  IF NEW.reason = 'activation_timeout' THEN
+  # for job private instances that fail due to VM availability constraints
+  IF NEW.reason = 'does_not_exist' THEN
     SET NEW.start_time = NULL;
   END IF;
 
