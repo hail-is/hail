@@ -203,6 +203,13 @@ class AnonymousDependency[T](val _rdd: RDD[T]) extends NarrowDependency[T](_rdd)
   override def getParents(partitionId: Int): Seq[Int] = Seq.empty
 }
 
+// Top-level (not a member of the anonymous RDD in mapCollectPartitions) so it carries
+// no implicit $outer pointer back to the enclosing RDD instance -- otherwise every task's
+// serialized Partition drags the whole RDD (and its full `contexts` array, `f`, etc.)
+// along with it, not just this partition's own `data`.
+private[spark] case class RDDPartition(data: Array[Byte], override val index: Int)
+    extends Partition
+
 class SparkBackend(val spark: SparkSession) extends Backend with Logging {
 
   // cached for convenience
@@ -238,8 +245,6 @@ class SparkBackend(val spark: SparkSession) extends Backend with Logging {
 
         val rdd: RDD[Array[Byte]] =
           new RDD[Array[Byte]](sc, sparkDeps) {
-
-            case class RDDPartition(data: Array[Byte], override val index: Int) extends Partition
 
             override protected val getPartitions: Array[Partition] =
               Array.tabulate(contexts.length)(index => RDDPartition(contexts(index), index))
