@@ -587,11 +587,17 @@ class RunImageStep(Step):
 
     def build(self, batch, code, scope):
         if self.num_splits == 1:
-            self.jobs = [self._build_job(batch, code, scope, self.name, None, None)]
+            self.jobs = [self._build_job(batch, batch, code, scope, self.name, None, None)]
         else:
+            # One job group per step, holding all its shards, rather than each shard being a
+            # standalone job directly in the batch's root job group — lets a job-group-aware UI
+            # (e.g. the CI PR page's Job Groups tab) show a step's shards as one collapsible unit
+            # instead of N flat, indistinguishable rows.
+            step_group = batch.create_job_group(attributes={'name': self.name})
             self.jobs = [
                 self._build_job(
                     batch,
+                    step_group,
                     code,
                     scope,
                     f'{self.name}_{i}',
@@ -601,7 +607,11 @@ class RunImageStep(Step):
                 for i in range(self.num_splits)
             ]
 
-    def _build_job(self, batch, code, scope, job_name, env, output_prefix):
+    def _build_job(self, batch, job_creator, code, scope, job_name, env, output_prefix):
+        # `batch` is always the top-level Batch, used only for batch.attributes['token'] below —
+        # a JobGroup has no `.attributes` of its own. `job_creator` is who actually owns the job:
+        # the batch itself for an unsplit step, or a per-step JobGroup (see build() above) for a
+        # split step's shards.
         template = jinja2.Template(self.script, undefined=jinja2.StrictUndefined, trim_blocks=True, lstrip_blocks=True)
         rendered_script = template.render(**self.input_config(code, scope))
 
@@ -630,7 +640,7 @@ class RunImageStep(Step):
                 mount_path = secret['mountPath']
                 secrets.append({'namespace': namespace, 'name': name, 'mount_path': mount_path})
 
-        return batch.create_job(
+        return job_creator.create_job(
             self.image,
             command=['bash', '-c', rendered_script],
             port=self.port,

@@ -84,14 +84,29 @@ class _FakeJob:
         self.name = name
 
 
+class _FakeJobGroup:
+    def __init__(self, batch, attributes):
+        self._batch = batch
+        self.attributes = attributes
+
+    def create_job(self, image, *, attributes, **kwargs):  # pylint: disable=unused-argument
+        self._batch.built_step_names.append(attributes['name'])
+        return _FakeJob(attributes['name'])
+
+
 class _FakeBatch:
     def __init__(self):
         self.attributes = {'token': 'test-token'}
         self.built_step_names = []
+        self.job_groups_created = []  # one attributes dict per create_job_group call
 
     def create_job(self, image, *, attributes, **kwargs):  # pylint: disable=unused-argument
         self.built_step_names.append(attributes['name'])
         return _FakeJob(attributes['name'])
+
+    def create_job_group(self, *, attributes, **kwargs):  # pylint: disable=unused-argument
+        self.job_groups_created.append(attributes)
+        return _FakeJobGroup(self, attributes)
 
 
 def _configuration(pr_labels=frozenset()):
@@ -140,3 +155,35 @@ def test_forced_step_ancestors_are_actually_built():
         batch.built_step_names
     )
     assert _OUT_OF_SCOPE_NON_FORCED_STEPS.isdisjoint(batch.built_step_names)
+
+
+_SPLIT_YAML = """
+steps:
+  - kind: runImage
+    name: sharded_step
+    image: ubuntu:22.04
+    script: "true"
+    numSplits: 3
+"""
+
+
+def test_split_step_shards_are_created_in_a_job_group():
+    config = BuildConfiguration(
+        _FakeCode(), _SPLIT_YAML, scope='test', requested_step_names=['sharded_step'], pr_labels=frozenset()
+    )
+    batch = _FakeBatch()
+
+    config.build(batch, _FakeCode(), 'test')
+
+    assert batch.built_step_names == ['sharded_step_0', 'sharded_step_1', 'sharded_step_2']
+    assert batch.job_groups_created == [{'name': 'sharded_step'}]
+
+
+def test_unsplit_step_is_not_wrapped_in_a_job_group():
+    config = _configuration(pr_labels=frozenset({'run-dataproc-tests'}))
+    batch = _FakeBatch()
+
+    config.build(batch, _FakeCode(), 'test')
+
+    assert 'merge_code' in batch.built_step_names
+    assert not batch.job_groups_created
