@@ -2603,6 +2603,9 @@ steps:
       - name: add-dockerhub-proxy-flag
         script: /io/sql/120-add-dockerhub-proxy-flag.sql
         online: true
+      - name: fix-provisioning-availability-bug
+        script: /io/sql/121-fix-provisioning-availability-bug.sql
+        online: true
     inputs:
       - from: /repo/batch/sql
         to: /io/sql

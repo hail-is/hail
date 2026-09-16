@@ -9,7 +9,7 @@ BEGIN
   END IF;
 
   # for job private instances that fail due to VM availability constraints
-  IF NEW.reason = 'does_not_exist' THEN
+  IF NEW.reason IN ('does_not_exist', 'activation_timeout') THEN
     SET NEW.start_time = NULL;
   END IF;
 
