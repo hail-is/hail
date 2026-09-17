@@ -7,7 +7,6 @@ import { JobSpecPanel } from './JobSpecPanel';
 import { AttemptPanel } from './AttemptPanel';
 import { CodeBlock } from './CodeBlock';
 import { useJobDetails } from '../hooks/useJobDetails';
-import { disableReactUi } from '../../shared/reactUiCookie';
 
 type TopTab = string; // 'job_spec' | 'raw_status' | 'current_attempt' | <attempt_id>
 
@@ -216,14 +215,6 @@ export function JobPage({ basePath, batchId, jobId }: Props): JSX.Element {
           Job {jobId}{job.attributes?.name ? <span className="text-zinc-400"> ({job.attributes.name})</span> : null}
         </span>
       </nav>
-      <div className="mt-1 text-sm">
-        <button
-          onClick={disableReactUi}
-          className="text-sky-600 hover:underline cursor-pointer"
-        >
-          Back to classic layout
-        </button>
-      </div>
 
       {/* Top section: metadata + Gantt */}
       <div className="flex flex-wrap justify-between items-start pt-6 gap-4">

@@ -25,6 +25,14 @@
     <input type="hidden" name="_csrf" value="{{ csrf_token }}" />
     {{ submit_button('Get a copy-paste login token') }}
   </form>
+
+  <div class="pt-6">
+    <h2 class="text-xl font-light mb-2">
+      User Settings <span class="text-xs align-middle text-amber-600 font-normal">[In Development]</span>
+    </h2>
+    <a id="enable-react-ui-btn" href="#" class="text-sm text-sky-600 hover:underline">Try new layout</a>
+  </div>
+  <script src="{{ auth_base_url }}/auth/static/js/react_toggle.js"></script>
   {% else %}
   <h1 class='text-4xl mb-4'>Log in to continue</h1>
   {% if next_page %}

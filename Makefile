@@ -266,6 +266,12 @@ auth/auth/static/compiled-js/index.js: services/ui/dist/.built
 
 auth-image: auth/auth/static/compiled-js/index.js
 
+auth/auth/static/compiled-js/user.js: services/ui/dist/.built
+	mkdir -p $(@D)
+	cp services/ui/dist/auth/user.js $@
+
+auth-image: auth/auth/static/compiled-js/user.js
+
 # Shared swagger bundle — copied to every service that exposes /swagger
 batch/batch/front_end/static/compiled-js/swagger.js batch/batch/front_end/static/compiled-js/swagger.css: services/ui/dist/.built
 	mkdir -p $(@D)
@@ -362,11 +368,12 @@ run-dev-proxy: ci/ci/static/compiled-js/flaky_tests.js \
     batch/batch/driver/static/compiled-js/index.js \
     monitoring/monitoring/static/compiled-js/index.js \
     auth/auth/static/compiled-js/index.js \
+    auth/auth/static/compiled-js/user.js \
     batch/batch/front_end/static/compiled-js/swagger.js \
     ci/ci/static/compiled-js/swagger.js \
     monitoring/monitoring/static/compiled-js/swagger.js \
     auth/auth/static/compiled-js/swagger.js
-DEVSERVER_TARGETS = tailwind-compile-watch run-dev-proxy ui-js-watch ui-js-watch-pr ui-js-watch-batch ui-js-watch-batch-driver ui-js-watch-monitoring ui-js-watch-auth ui-js-watch-swagger
+DEVSERVER_TARGETS = tailwind-compile-watch run-dev-proxy ui-js-watch ui-js-watch-pr ui-js-watch-batch ui-js-watch-batch-driver ui-js-watch-monitoring ui-js-watch-auth ui-js-watch-auth-user ui-js-watch-swagger
 
 .PHONY: run-dev-proxy
 run-dev-proxy:
@@ -398,6 +405,10 @@ ui-js-watch-monitoring: services/ui/node_modules/.package-lock.json
 .PHONY: ui-js-watch-auth
 ui-js-watch-auth: services/ui/node_modules/.package-lock.json
 	cd services/ui && npx esbuild src/auth/index.tsx --bundle --jsx=automatic --format=esm --outfile=../../auth/auth/static/compiled-js/index.js --minify --watch=forever
+
+.PHONY: ui-js-watch-auth-user
+ui-js-watch-auth-user: services/ui/node_modules/.package-lock.json
+	cd services/ui && npx esbuild src/auth/user.tsx --bundle --jsx=automatic --format=esm --outfile=../../auth/auth/static/compiled-js/user.js --minify --watch=forever
 
 .PHONY: ui-js-watch-swagger
 ui-js-watch-swagger: services/ui/node_modules/.package-lock.json

@@ -48,6 +48,7 @@ _ALL_STATIC_DIRS: list[tuple[str, str]] = [
     ('/ci/ci/static/compiled-js', 'ci/ci/static/compiled-js'),
     ('/monitoring/monitoring/static/compiled-js', 'monitoring/monitoring/static/compiled-js'),
     ('/auth/auth/static/compiled-js', 'auth/auth/static/compiled-js'),
+    ('/auth/auth/static/js', 'auth/auth/static/js'),
 ]
 for _path, _directory in _ALL_STATIC_DIRS:
     routes.static(_path, _directory)

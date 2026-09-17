@@ -1,0 +1,16 @@
+{% extends "layout.html" %}
+{% block title %}User{% endblock %}
+{% block head %}
+<script type="module" src="{{ base_path }}/auth/static/compiled-js/user.js"></script>
+{% endblock %}
+{% block content %}
+<div id="user-details-root"
+  data-auth-base-url="{{ auth_base_url }}"
+  data-username="{{ username }}"
+  data-gsa-display-name="{{ gsa_display_name }}"
+  data-trial-bp-name="{{ trial_bp_name }}">
+  <div class="flex items-center justify-center mt-24">
+    <span class="text-5xl font-light text-sky-600">Loading&hellip;</span>
+  </div>
+</div>
+{% endblock %}
