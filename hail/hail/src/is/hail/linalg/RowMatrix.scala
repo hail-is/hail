@@ -12,7 +12,6 @@ import is.hail.utils._
 
 import scala.collection.immutable.ArraySeq
 
-import breeze.linalg.DenseMatrix
 import org.apache.spark.{Partition, Partitioner, TaskContext}
 import org.apache.spark.rdd.RDD
 
@@ -103,7 +102,7 @@ class RowMatrix(
     )
   }
 
-  def toBreezeMatrix(): DenseMatrix[Double] = {
+  def toDenseMatrix(): DenseMatrix = {
     require(
       _nRows.forall(_ <= Int.MaxValue),
       "The number of rows of this matrix should be less than or equal to " +
@@ -119,7 +118,7 @@ class RowMatrix(
         s"less than or equal to Int.MaxValue. Currently rows * cols: ${nRowsInt * nCols.toLong}",
     )
 
-    new DenseMatrix[Double](nRowsInt, nCols, a.flatten, 0, nCols, isTranspose = true)
+    DenseMatrix(nRowsInt, nCols, a.flatten, isTranspose = true)
   }
 
   def `export`(

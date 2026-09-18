@@ -1,10 +1,10 @@
 package is.hail.stats
 
 import is.hail.TestUtils._
-import is.hail.linalg.implicits._
+import is.hail.linalg.DenseMatrix
 import is.hail.utils._
 
-import breeze.linalg.{eigSym, svd, DenseMatrix, DenseVector}
+import breeze.linalg.{eigSym, svd, DenseVector}
 import org.apache.commons.math3.random.JDKRandomGenerator
 import org.junit.jupiter.api.Test
 
@@ -17,7 +17,7 @@ class eigSymDSuite {
 
     val n = 5
     val m = 10
-    val W = DenseMatrix.fill[Double](n, m)(rand.nextGaussian())
+    val W = DenseMatrix.fill(n, m)(rand.nextGaussian())
     val K = W * W.t
     K.forceSymmetry()
 
@@ -68,7 +68,7 @@ class eigSymDSuite {
 
     def timeSymEig(): Unit = {
       for (n <- 500 to 5500 by 500) {
-        val W = DenseMatrix.fill[Double](n, n)(rand.nextGaussian())
+        val W = DenseMatrix.fill(n, n)(rand.nextGaussian())
         val K = W * W.t
         K.forceSymmetry()
 
@@ -95,7 +95,7 @@ class eigSymDSuite {
     rand.setSeed(seed)
 
     (1 to 5).foreach { n =>
-      val A = DenseMatrix.zeros[Double](n, n)
+      val A = DenseMatrix.zeros(n, n)
       (0 until n).foreach(i => (i until n).foreach(j => A(i, j) = rand.nextGaussian()))
 
       val x = DenseVector.fill[Double](n)(rand.nextGaussian())

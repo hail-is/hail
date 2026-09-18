@@ -1,21 +1,21 @@
 package is.hail.scalacheck
 
+import is.hail.linalg.DenseMatrix
 import is.hail.utils.roundWithConstantSum
 
 import scala.collection.immutable.ArraySeq
 
-import breeze.linalg.DenseMatrix
 import org.scalacheck.{Arbitrary, Gen}
 import org.scalacheck.Arbitrary._
 import org.scalacheck.Gen._
 
 private[scalacheck] trait ArbitraryDenseMatrixInstances {
 
-  def genDenseMatrix(n: Int, m: Int): Gen[DenseMatrix[Double]] =
+  def genDenseMatrix(n: Int, m: Int): Gen[DenseMatrix] =
     for {
       lim <- sized(_ / (m * n))
       data <- resize(lim, containerOfN[Array, Double](m * n, arbitrary[Double]))
-    } yield DenseMatrix.create(n, m, data)
+    } yield DenseMatrix(n, m, data)
 
   lazy val genSquareOfAreaAtMostSize: Gen[(Int, Int)] =
     genNCubeOfVolumeAtMostSize(2).map(x => (x(0), x(1)))
@@ -37,10 +37,10 @@ private[scalacheck] trait ArbitraryDenseMatrixInstances {
       math.exp(i.toDouble).toInt
     )
 
-  implicit lazy val arbDenseMatrix: Arbitrary[DenseMatrix[Double]] =
+  implicit lazy val arbDenseMatrix: Arbitrary[DenseMatrix] =
     genNonEmptySquareOfAreaAtMostSize flatMap { case (m, n) => genDenseMatrix(m, n) }
 
-  lazy val genMultipliableDenseMatrices: Gen[(DenseMatrix[Double], DenseMatrix[Double])] =
+  lazy val genMultipliableDenseMatrices: Gen[(DenseMatrix, DenseMatrix)] =
     for {
       Seq(rows, inner, columns) <- genNonEmptyNCubeOfVolumeAtMostSize(3)
       l <- genDenseMatrix(rows, inner)

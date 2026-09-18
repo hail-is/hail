@@ -38,8 +38,6 @@ object LocalBackend extends Backend with Logging {
     StreamReadConstraints.builder().maxStringLength(Integer.MAX_VALUE).build()
   )
 
-  is.hail.linalg.registerImplOpMulMatrix_DMD_DVD_eq_DVD
-
   override def broadcast[T: ClassTag](value: T): BroadcastValue[T] =
     new LocalBroadcastValue[T](value)
 

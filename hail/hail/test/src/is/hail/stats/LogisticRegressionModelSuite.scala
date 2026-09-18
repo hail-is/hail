@@ -1,8 +1,9 @@
 package is.hail.stats
 
+import is.hail.linalg.DenseMatrix
 import is.hail.utils._
 
-import breeze.linalg._
+import breeze.linalg.{DenseMatrix => _, _}
 import org.junit.jupiter.api.Test
 
 class LogisticRegressionModelSuite {
@@ -24,12 +25,12 @@ class LogisticRegressionModelSuite {
       (4.0, 3.0),
     )
 
-    val ones = DenseMatrix.fill[Double](6, 1)(1d)
+    val ones = DenseMatrix.ones(6, 1)
 
     val nullModel = new LogisticRegressionModel(ones, y)
     val nullFit = nullModel.fit(None, 25, 1e-6)
 
-    val X = DenseMatrix.horzcat(ones, C)
+    val X = ones horzcat C
 
     val waldStats = WaldTest.test(X, y, nullFit, "logistic", 25, 1e-5).stats.get
     val lrStats = LikelihoodRatioTest.test(X, y, nullFit, "logistic", 25, 1e-5).stats.get
@@ -82,7 +83,7 @@ class LogisticRegressionModelSuite {
     val nullModel = new LogisticRegressionModel(C, y)
     val nullFit = nullModel.fit(None, 25, 1e-6)
 
-    val X = DenseMatrix.horzcat(C, gts.asDenseMatrix.t)
+    val X = C horzcat DenseMatrix(gts.length, 1, gts.toArray)
 
     val waldStats = WaldTest.test(X, y, nullFit, "logistic", 25, 1e-5).stats.get
     val lrStats = LikelihoodRatioTest.test(X, y, nullFit, "logistic", 25, 1e-5).stats.get
@@ -126,7 +127,7 @@ class LogisticRegressionModelSuite {
 
   @Test def firthSeparationTest(): Unit = {
     val y = DenseVector(0d, 0d, 0d, 1d, 1d, 1d)
-    val X = y.asDenseMatrix.t
+    val X = DenseMatrix(y.length, 1, y.toArray)
 
     val nullModel = new LogisticRegressionModel(X, y) // separation => MLE does not exist
     var nullFit = nullModel.fit(None, 25, 1e-6)

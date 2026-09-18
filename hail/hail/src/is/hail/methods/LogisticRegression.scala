@@ -5,11 +5,12 @@ import is.hail.backend.ExecuteContext
 import is.hail.collection.IntArrayBuilder
 import is.hail.expr.ir.{MatrixValue, TableValue}
 import is.hail.expr.ir.functions.MatrixToTableFunction
+import is.hail.linalg.DenseMatrix
 import is.hail.stats._
 import is.hail.types.virtual.{MatrixType, TArray, TFloat64, TStruct, TableType}
 import is.hail.utils._
 
-import breeze.linalg._
+import breeze.linalg.{DenseMatrix => _, _}
 
 case class LogisticRegression(
   test: String,
@@ -96,7 +97,7 @@ case class LogisticRegression(
 
     val yVecsBc = backend.broadcast(yVecs)
     val XBc =
-      backend.broadcast(new DenseMatrix[Double](n, k + 1, cov.toArray ++ Array.ofDim[Double](n)))
+      backend.broadcast(DenseMatrix(n, k + 1, cov.toArray ++ Array.ofDim[Double](n)))
     val nullFitBc = backend.broadcast(nullFits)
     val logRegTestBc = backend.broadcast(logRegTest)
 

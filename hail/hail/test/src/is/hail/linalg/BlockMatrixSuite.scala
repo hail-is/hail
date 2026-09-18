@@ -13,7 +13,7 @@ import is.hail.utils._
 
 import scala.collection.immutable.ArraySeq
 
-import breeze.linalg.{*, diag, DenseMatrix, DenseVector => BDV}
+import breeze.linalg.{*, DenseVector => BDV}
 import org.apache.spark.sql.Row
 import org.junit.jupiter.api.Test
 import org.scalacheck._
@@ -77,11 +77,11 @@ class BlockMatrixSuite {
   private val defaultDims = genNonEmptySquareOfAreaAtMostSize
 
   // row major
-  def toLM(nRows: Int, nCols: Int, data: Array[Double]): DenseMatrix[Double] =
-    new DenseMatrix(nRows, nCols, data, 0, nCols, isTranspose = true)
+  def toLM(nRows: Int, nCols: Int, data: Array[Double]): DenseMatrix =
+    DenseMatrix(nRows, nCols, data, isTranspose = true)
 
   def toBM(nRows: Int, nCols: Int, data: Array[Double])(implicit ctx: ExecuteContext): BlockMatrix =
-    toBM(new DenseMatrix(nRows, nCols, data, 0, nRows, true))
+    toBM(DenseMatrix(nRows, nCols, data, isTranspose = true))
 
   def toBM(rows: Seq[Array[Double]])(implicit ctx: ExecuteContext): BlockMatrix =
     toBM(rows, BlockMatrix.defaultBlockSize)
@@ -89,24 +89,24 @@ class BlockMatrixSuite {
   def toBM(rows: Seq[Array[Double]], blockSize: Int)(implicit ctx: ExecuteContext): BlockMatrix = {
     val n = rows.length
     val m = if (rows.isEmpty) 0 else rows.head.length
-    BlockMatrix.fromBreezeMatrix(
+    BlockMatrix.fromDenseMatrix(
       ctx,
-      new DenseMatrix[Double](m, n, rows.flatten.toArray).t,
+      DenseMatrix(m, n, rows.flatten.toArray).t,
       blockSize,
     )
   }
 
-  def toBM(lm: DenseMatrix[Double])(implicit ctx: ExecuteContext): BlockMatrix =
+  def toBM(lm: DenseMatrix)(implicit ctx: ExecuteContext): BlockMatrix =
     toBM(lm, BlockMatrix.defaultBlockSize)
 
-  def toBM(lm: DenseMatrix[Double], blockSize: Int)(implicit ctx: ExecuteContext): BlockMatrix =
-    BlockMatrix.fromBreezeMatrix(ctx, lm, blockSize)
+  def toBM(lm: DenseMatrix, blockSize: Int)(implicit ctx: ExecuteContext): BlockMatrix =
+    BlockMatrix.fromDenseMatrix(ctx, lm, blockSize)
 
   private val defaultRelTolerance = 1e-14
 
   private def assertDoubleMatrixNaNEqualsNaN(
-    x: DenseMatrix[Double],
-    y: DenseMatrix[Double],
+    x: DenseMatrix,
+    y: DenseMatrix,
     relTolerance: Double = defaultRelTolerance,
   ): Unit = {
     assert(
@@ -117,8 +117,8 @@ class BlockMatrixSuite {
       (0 until x.rows).foreach { i =>
         assert(
           !(D_==(x(i, j) - y(i, j), relTolerance) && !(x(i, j).isNaN && y(i, j).isNaN)),
-          s"x=${x.toString(1000, 1000)}\n" ++
-            s"y=${y.toString(1000, 1000)}\n" ++
+          s"x=$x\n" ++
+            s"y=$y\n" ++
             s"inequality found at ($i, $j): ${x(i, j)} and ${y(i, j)}",
         )
       }
@@ -147,7 +147,7 @@ class BlockMatrixSuite {
         9, 6, 3, 0),
     )
 
-    val actual = (m - m.T).toBreezeMatrix()
+    val actual = (m - m.T).toDenseMatrix()
     assertEq(actual, expected)
   }
 
@@ -175,14 +175,14 @@ class BlockMatrixSuite {
       ),
     )
 
-    assertEq(ll * lr, l.dot(ctx, lr).toBreezeMatrix())
+    assertEq(ll * lr, l.dot(ctx, lr).toDenseMatrix())
   }
 
   @Test
   def randomMultiplyByLocalMatrix(implicit ctx: ExecuteContext): Unit =
     check(forAll(genMultipliableDenseMatrices) { case (ll, lr) =>
       val l = toBM(ll)
-      assertDoubleMatrixNaNEqualsNaN(ll * lr, l.dot(ctx, lr).toBreezeMatrix())
+      assertDoubleMatrixNaNEqualsNaN(ll * lr, l.dot(ctx, lr).toDenseMatrix())
     })
 
   @Test
@@ -191,35 +191,35 @@ class BlockMatrixSuite {
       val l = toBM(ll, 2)
       val r = toBM(lr, 2)
 
-      assertDoubleMatrixNaNEqualsNaN(l.dot(r).toBreezeMatrix(), ll * lr)
+      assertDoubleMatrixNaNEqualsNaN(l.dot(r).toDenseMatrix(), ll * lr)
     })
 
     check(forAll(genDenseMatrix(9, 9), genDenseMatrix(9, 9)) { (ll, lr) =>
       val l = toBM(ll, 3)
       val r = toBM(lr, 3)
 
-      assertDoubleMatrixNaNEqualsNaN(l.dot(r).toBreezeMatrix(), ll * lr)
+      assertDoubleMatrixNaNEqualsNaN(l.dot(r).toDenseMatrix(), ll * lr)
     })
 
     check(forAll(genDenseMatrix(9, 9), genDenseMatrix(9, 9)) { (ll, lr) =>
       val l = toBM(ll, 2)
       val r = toBM(lr, 2)
 
-      assertDoubleMatrixNaNEqualsNaN(l.dot(r).toBreezeMatrix(), ll * lr)
+      assertDoubleMatrixNaNEqualsNaN(l.dot(r).toDenseMatrix(), ll * lr)
     })
 
     check(forAll(genDenseMatrix(2, 10), genDenseMatrix(10, 2)) { (ll, lr) =>
       val l = toBM(ll, 3)
       val r = toBM(lr, 3)
 
-      assertDoubleMatrixNaNEqualsNaN(l.dot(r).toBreezeMatrix(), ll * lr)
+      assertDoubleMatrixNaNEqualsNaN(l.dot(r).toDenseMatrix(), ll * lr)
     })
 
     check(forAll(genMultipliableDenseMatrices, interestingPosInt) { case ((ll, lr), blockSize) =>
       val l = toBM(ll, blockSize)
       val r = toBM(lr, blockSize)
 
-      assertDoubleMatrixNaNEqualsNaN(l.dot(r).toBreezeMatrix(), ll * lr)
+      assertDoubleMatrixNaNEqualsNaN(l.dot(r).toDenseMatrix(), ll * lr)
     })
   }
 
@@ -227,8 +227,8 @@ class BlockMatrixSuite {
   def multiplySameAsBreezeRandomized(implicit ctx: ExecuteContext): Unit = {
     check(forAll(twoMultipliableBlockMatrices) {
       case (l: BlockMatrix, r: BlockMatrix) =>
-        val actual = l.dot(r).toBreezeMatrix()
-        val expected = l.toBreezeMatrix() * r.toBreezeMatrix()
+        val actual = l.dot(r).toDenseMatrix()
+        val expected = l.toDenseMatrix() * r.toDenseMatrix()
         assertDoubleMatrixNaNEqualsNaN(actual, expected)
     })
   }
@@ -257,7 +257,7 @@ class BlockMatrixSuite {
         13, 28, 45, 64),
     )
 
-    assertEq(l.rowVectorMul(ctx, v).toBreezeMatrix(), result)
+    assertEq(l.rowVectorMul(ctx, v).toDenseMatrix(), result)
   }
 
   @Test
@@ -268,10 +268,10 @@ class BlockMatrixSuite {
     } yield (l, v)
 
     check(forAll(g) { case (l: BlockMatrix, v: Array[Double]) =>
-      val actual = l.rowVectorMul(ctx, v).toBreezeMatrix()
+      val actual = l.rowVectorMul(ctx, v).toDenseMatrix()
       val repeatedR = (0 until l.nRows.toInt).flatMap(_ => v).toArray
-      val repeatedRMatrix = new DenseMatrix(v.length, l.nRows.toInt, repeatedR).t
-      val expected = l.toBreezeMatrix() *:* repeatedRMatrix
+      val repeatedRMatrix = DenseMatrix(v.length, l.nRows.toInt, repeatedR).t
+      val expected = l.toDenseMatrix() *:* repeatedRMatrix
 
       assertDoubleMatrixNaNEqualsNaN(actual, expected)
     })
@@ -301,7 +301,7 @@ class BlockMatrixSuite {
         52, 56, 60, 64),
     )
 
-    assertEq(l.colVectorMul(ctx, v).toBreezeMatrix(), result)
+    assertEq(l.colVectorMul(ctx, v).toDenseMatrix(), result)
   }
 
   @Test
@@ -312,10 +312,10 @@ class BlockMatrixSuite {
     } yield (l, v)
 
     check(forAll(g) { case (l: BlockMatrix, v: Array[Double]) =>
-      val actual = l.colVectorMul(ctx, v).toBreezeMatrix()
+      val actual = l.colVectorMul(ctx, v).toDenseMatrix()
       val repeatedR = (0 until l.nCols.toInt).flatMap(_ => v).toArray
-      val repeatedRMatrix = new DenseMatrix(v.length, l.nCols.toInt, repeatedR)
-      val expected = l.toBreezeMatrix() *:* repeatedRMatrix
+      val repeatedRMatrix = DenseMatrix(v.length, l.nCols.toInt, repeatedR)
+      val expected = l.toDenseMatrix() *:* repeatedRMatrix
       assertDoubleMatrixNaNEqualsNaN(actual, expected)
     })
   }
@@ -344,7 +344,7 @@ class BlockMatrixSuite {
         17, 18, 19, 20),
     )
 
-    assertEq(l.colVectorAdd(ctx, v).toBreezeMatrix(), result)
+    assertEq(l.colVectorAdd(ctx, v).toDenseMatrix(), result)
   }
 
   @Test
@@ -371,7 +371,7 @@ class BlockMatrixSuite {
         14, 16, 18, 20),
     )
 
-    assertEq(l.rowVectorAdd(ctx, v).toBreezeMatrix(), result)
+    assertEq(l.rowVectorAdd(ctx, v).toDenseMatrix(), result)
   }
 
   @Test
@@ -395,7 +395,7 @@ class BlockMatrixSuite {
   @Test
   def diagonalTestRandomized(implicit ctx: ExecuteContext): Unit =
     check(forAll(squareBlockMatrixGen) { (m: BlockMatrix) =>
-      val lm = m.toBreezeMatrix()
+      val lm = m.toDenseMatrix()
       val diagonalLength = math.min(lm.rows, lm.cols)
       val diagonal = Array.tabulate(diagonalLength)(i => lm(i, i))
 
@@ -407,10 +407,10 @@ class BlockMatrixSuite {
 
   @Test
   def fromLocalTest(implicit ctx: ExecuteContext): Unit =
-    check(forAll(arbitrary[DenseMatrix[Double]].flatMap { m =>
+    check(forAll(arbitrary[DenseMatrix].flatMap { m =>
       Gen.zip(Gen.const(m), Gen.choose(math.sqrt(m.rows.toDouble).toInt, m.rows + 16))
     }) { case (lm, blockSize) =>
-      assert(lm == BlockMatrix.fromBreezeMatrix(ctx, lm, blockSize).toBreezeMatrix())
+      assert(lm == BlockMatrix.fromDenseMatrix(ctx, lm, blockSize).toDenseMatrix())
     })
 
   @Test
@@ -427,11 +427,11 @@ class BlockMatrixSuite {
 
     val fname = ctx.createTmpPath("test")
     m.write(ctx, fname)
-    assertEq(m.toBreezeMatrix(), BlockMatrix.read(ctx, fname).toBreezeMatrix())
+    assertEq(m.toDenseMatrix(), BlockMatrix.read(ctx, fname).toDenseMatrix())
 
     val fname2 = ctx.createTmpPath("test2")
     m.write(ctx, fname2, forceRowMajor = true)
-    assertEq(m.toBreezeMatrix(), BlockMatrix.read(ctx, fname2).toBreezeMatrix())
+    assertEq(m.toDenseMatrix(), BlockMatrix.read(ctx, fname2).toDenseMatrix())
   }
 
   @Test
@@ -448,11 +448,11 @@ class BlockMatrixSuite {
 
     val fname = ctx.createTmpPath("test")
     m.T.write(ctx, fname)
-    assertEq(m.T.toBreezeMatrix(), BlockMatrix.read(ctx, fname).toBreezeMatrix())
+    assertEq(m.T.toDenseMatrix(), BlockMatrix.read(ctx, fname).toDenseMatrix())
 
     val fname2 = ctx.createTmpPath("test2")
     m.T.write(ctx, fname2, forceRowMajor = true)
-    assertEq(m.T.toBreezeMatrix(), BlockMatrix.read(ctx, fname2).toBreezeMatrix())
+    assertEq(m.T.toDenseMatrix(), BlockMatrix.read(ctx, fname2).toDenseMatrix())
   }
 
   @Test
@@ -461,8 +461,8 @@ class BlockMatrixSuite {
       val fname = ctx.createTmpPath("test")
       m.write(ctx, fname)
       assertDoubleMatrixNaNEqualsNaN(
-        m.toBreezeMatrix(),
-        BlockMatrix.read(ctx, fname).toBreezeMatrix(),
+        m.toDenseMatrix(),
+        BlockMatrix.read(ctx, fname).toDenseMatrix(),
       )
     })
   }
@@ -470,10 +470,10 @@ class BlockMatrixSuite {
   @Test
   def transpose(implicit ctx: ExecuteContext): Unit = {
     check(forAll(blockMatrixGen()) { (m: BlockMatrix) =>
-      val transposed = m.toBreezeMatrix().t
+      val transposed = m.toDenseMatrix().t
       assertEq(transposed.rows, m.nCols.toInt)
       assertEq(transposed.cols, m.nRows.toInt)
-      assert(transposed == m.T.toBreezeMatrix())
+      assert(transposed == m.T.toDenseMatrix())
     })
   }
 
@@ -484,8 +484,8 @@ class BlockMatrixSuite {
       val mtt = m.T.T.cache()
       assertEq(mtt.nRows, m.nRows)
       assertEq(mtt.nCols, m.nCols)
-      assertDoubleMatrixNaNEqualsNaN(mtt.toBreezeMatrix(), m.toBreezeMatrix())
-      assertDoubleMatrixNaNEqualsNaN(mt.dot(mtt).toBreezeMatrix(), mt.dot(m).toBreezeMatrix())
+      assertDoubleMatrixNaNEqualsNaN(mtt.toDenseMatrix(), m.toDenseMatrix())
+      assertDoubleMatrixNaNEqualsNaN(mt.dot(mtt).toDenseMatrix(), mt.dot(m).toDenseMatrix())
     })
   }
 
@@ -496,10 +496,10 @@ class BlockMatrixSuite {
         l.cache()
         r.cache()
 
-        val actual = l.dot(r).toBreezeMatrix()
-        val expected = l.toBreezeMatrix() * r.toBreezeMatrix()
+        val actual = l.dot(r).toDenseMatrix()
+        val expected = l.toDenseMatrix() * r.toDenseMatrix()
         assertDoubleMatrixNaNEqualsNaN(actual, expected)
-        assertDoubleMatrixNaNEqualsNaN(l.T.cache().T.toBreezeMatrix(), l.toBreezeMatrix())
+        assertDoubleMatrixNaNEqualsNaN(l.T.cache().T.toDenseMatrix(), l.toDenseMatrix())
     })
 
   @Test
@@ -507,8 +507,8 @@ class BlockMatrixSuite {
     check(forAll(blockMatrixGen()) { (m: BlockMatrix) =>
       val roundtrip = m.toIndexedRowMatrix().toHailBlockMatrix(m.blockSize)
 
-      val roundtriplm = roundtrip.toBreezeMatrix()
-      val lm = m.toBreezeMatrix()
+      val roundtriplm = roundtrip.toDenseMatrix()
+      val lm = m.toDenseMatrix()
 
       assertEq(roundtriplm, lm)
     })
@@ -535,10 +535,10 @@ class BlockMatrixSuite {
     val m = toBM(lm)
     val mt = toBM(lmt)
 
-    assert(m.map2(mt.T, _ + _).toBreezeMatrix() == lm + lm)
+    assert(m.map2(mt.T, _ + _).toDenseMatrix() == lm + lm)
     assert(
-      mt.T.map2(m, _ + _).toBreezeMatrix() == lm + lm,
-      s"${mt.toBreezeMatrix()}\n${mt.T.toBreezeMatrix()}\n${m.toBreezeMatrix()}",
+      mt.T.map2(m, _ + _).toDenseMatrix() == lm + lm,
+      s"${mt.toDenseMatrix()}\n${mt.T.toDenseMatrix()}\n${m.toDenseMatrix()}",
     )
   }
 
@@ -564,8 +564,8 @@ class BlockMatrixSuite {
     val m = toBM(lm)
     val mt = toBM(lmt)
 
-    assert(m.map4(m, mt.T, mt.T.T.T, _ + _ + _ + _).toBreezeMatrix() == lm + lm + lm + lm)
-    assert(mt.map4(mt, m.T, mt.T.T, _ + _ + _ + _).toBreezeMatrix() == lm.t + lm.t + lm.t + lm.t)
+    assert(m.map4(m, mt.T, mt.T.T.T, _ + _ + _ + _).toDenseMatrix() == lm + lm + lm + lm)
+    assert(mt.map4(mt, m.T, mt.T.T, _ + _ + _ + _).toDenseMatrix() == lm.t + lm.t + lm.t + lm.t)
   }
 
   @Test
@@ -590,9 +590,9 @@ class BlockMatrixSuite {
     val m = toBM(lm)
     val mt = toBM(lmt)
 
-    assert(m.T.map(_ * 4).toBreezeMatrix() == lm.t.map(_ * 4))
-    assert(m.T.T.map(_ * 4).toBreezeMatrix() == lm.map(_ * 4))
-    assert(mt.T.map(_ * 4).toBreezeMatrix() == lm.map(_ * 4))
+    assert(m.T.map(_ * 4).toDenseMatrix() == lm.t.map(_ * 4))
+    assert(m.T.T.map(_ * 4).toDenseMatrix() == lm.map(_ * 4))
+    assert(mt.T.map(_ * 4).toDenseMatrix() == lm.map(_ * 4))
   }
 
   @Test
@@ -617,17 +617,17 @@ class BlockMatrixSuite {
     val m = toBM(lm)
     val mt = toBM(lmt)
 
-    assert(m.T.mapWithIndex((_, _, x) => x * 4).toBreezeMatrix() == lm.t.map(_ * 4))
-    assert(m.T.T.mapWithIndex((_, _, x) => x * 4).toBreezeMatrix() == lm.map(_ * 4))
-    assert(mt.T.mapWithIndex((_, _, x) => x * 4).toBreezeMatrix() == lm.map(_ * 4))
+    assert(m.T.mapWithIndex((_, _, x) => x * 4).toDenseMatrix() == lm.t.map(_ * 4))
+    assert(m.T.T.mapWithIndex((_, _, x) => x * 4).toDenseMatrix() == lm.map(_ * 4))
+    assert(mt.T.mapWithIndex((_, _, x) => x * 4).toDenseMatrix() == lm.map(_ * 4))
 
-    assert(m.T.mapWithIndex((i, j, x) => i * 10 + j + x).toBreezeMatrix() ==
-      mt.mapWithIndex((i, j, x) => i * 10 + j + x).toBreezeMatrix())
-    assert(m.T.mapWithIndex((i, j, x) => x + j * 2 + i + 1).toBreezeMatrix() ==
+    assert(m.T.mapWithIndex((i, j, x) => i * 10 + j + x).toDenseMatrix() ==
+      mt.mapWithIndex((i, j, x) => i * 10 + j + x).toDenseMatrix())
+    assert(m.T.mapWithIndex((i, j, x) => x + j * 2 + i + 1).toDenseMatrix() ==
       lm.t + lm.t)
-    assert(mt.mapWithIndex((i, j, x) => x + j * 2 + i + 1).toBreezeMatrix() ==
+    assert(mt.mapWithIndex((i, j, x) => x + j * 2 + i + 1).toDenseMatrix() ==
       lm.t + lm.t)
-    assert(mt.T.mapWithIndex((i, j, x) => x + i * 2 + j + 1).toBreezeMatrix() ==
+    assert(mt.T.mapWithIndex((i, j, x) => x + i * 2 + j + 1).toDenseMatrix() ==
       lm + lm)
   }
 
@@ -653,32 +653,32 @@ class BlockMatrixSuite {
     val m = toBM(lm)
     val mt = toBM(lmt)
 
-    assert(m.map2WithIndex(mt.T, (_, _, x, y) => x + y).toBreezeMatrix() == lm + lm)
-    assert(mt.map2WithIndex(m.T, (_, _, x, y) => x + y).toBreezeMatrix() == lm.t + lm.t)
-    assert(mt.T.map2WithIndex(m, (_, _, x, y) => x + y).toBreezeMatrix() == lm + lm)
-    assert(m.T.T.map2WithIndex(mt.T, (_, _, x, y) => x + y).toBreezeMatrix() == lm + lm)
+    assert(m.map2WithIndex(mt.T, (_, _, x, y) => x + y).toDenseMatrix() == lm + lm)
+    assert(mt.map2WithIndex(m.T, (_, _, x, y) => x + y).toDenseMatrix() == lm.t + lm.t)
+    assert(mt.T.map2WithIndex(m, (_, _, x, y) => x + y).toDenseMatrix() == lm + lm)
+    assert(m.T.T.map2WithIndex(mt.T, (_, _, x, y) => x + y).toDenseMatrix() == lm + lm)
 
-    assert(m.T.map2WithIndex(mt, (i, j, x, y) => i * 10 + j + x + y).toBreezeMatrix() ==
-      mt.map2WithIndex(m.T, (i, j, x, y) => i * 10 + j + x + y).toBreezeMatrix())
-    assert(m.T.map2WithIndex(m.T, (i, j, x, y) => i * 10 + j + x + y).toBreezeMatrix() ==
-      mt.map2WithIndex(mt, (i, j, x, y) => i * 10 + j + x + y).toBreezeMatrix())
-    assert(m.T.map2WithIndex(mt, (i, j, x, y) => x + 2 * y + j * 2 + i + 1).toBreezeMatrix() ==
-      4.0 * lm.t)
-    assert(mt.map2WithIndex(m.T, (i, j, x, y) => x + 2 * y + j * 2 + i + 1).toBreezeMatrix() ==
-      4.0 * lm.t)
+    assert(m.T.map2WithIndex(mt, (i, j, x, y) => i * 10 + j + x + y).toDenseMatrix() ==
+      mt.map2WithIndex(m.T, (i, j, x, y) => i * 10 + j + x + y).toDenseMatrix())
+    assert(m.T.map2WithIndex(m.T, (i, j, x, y) => i * 10 + j + x + y).toDenseMatrix() ==
+      mt.map2WithIndex(mt, (i, j, x, y) => i * 10 + j + x + y).toDenseMatrix())
+    assert(m.T.map2WithIndex(mt, (i, j, x, y) => x + 2 * y + j * 2 + i + 1).toDenseMatrix() ==
+      lm.t * 4.0)
+    assert(mt.map2WithIndex(m.T, (i, j, x, y) => x + 2 * y + j * 2 + i + 1).toDenseMatrix() ==
+      lm.t * 4.0)
     assert(mt.T.map2WithIndex(
       m.T.T,
       (i, j, x, y) => 3 * x + 5 * y + i * 2 + j + 1,
-    ).toBreezeMatrix() ==
-      9.0 * lm)
+    ).toDenseMatrix() ==
+      lm * 9.0)
   }
 
   @Test
   def filterCols(implicit ctx: ExecuteContext): Unit = {
-    val lm = new DenseMatrix[Double](9, 10, (0 until 90).map(_.toDouble).toArray)
+    val lm = DenseMatrix(9, 10, (0 until 90).map(_.toDouble).toArray)
 
     Seq(1, 2, 3, 5, 10, 11).foreach { blockSize =>
-      val bm = BlockMatrix.fromBreezeMatrix(ctx, lm, blockSize)
+      val bm = BlockMatrix.fromDenseMatrix(ctx, lm, blockSize)
       Seq(
         ArraySeq(0),
         ArraySeq(1),
@@ -687,57 +687,57 @@ class BlockMatrixSuite {
         ArraySeq(1, 4, 5, 7, 8, 9),
         ArraySeq(0, 1, 2, 3, 4, 5, 6, 7, 8, 9),
       ).foreach { keep =>
-        val filteredViaBlock = bm.filterCols(keep.map(_.toLong)).toBreezeMatrix()
-        val filteredViaBreeze = lm(::, keep).copy
-        assert(filteredViaBlock == filteredViaBreeze)
+        val filteredViaBlock = bm.filterCols(keep.map(_.toLong)).toDenseMatrix()
+        val filteredViaSlice = lm(::, keep)
+        assert(filteredViaBlock == filteredViaSlice)
       }
     }
   }
 
   @Test
   def filterColsTranspose(implicit ctx: ExecuteContext): Unit = {
-    val lm = new DenseMatrix[Double](9, 10, (0 until 90).map(_.toDouble).toArray)
+    val lm = DenseMatrix(9, 10, (0 until 90).map(_.toDouble).toArray)
     val lmt = lm.t
 
     Seq(2, 3).foreach { blockSize =>
-      val bm = BlockMatrix.fromBreezeMatrix(ctx, lm, blockSize).transpose()
+      val bm = BlockMatrix.fromDenseMatrix(ctx, lm, blockSize).transpose()
       Seq(
         ArraySeq(0),
         ArraySeq(1, 4, 5, 7, 8),
         ArraySeq(0, 1, 2, 3, 4, 5, 6, 7, 8),
       ).foreach { keep =>
-        val filteredViaBlock = bm.filterCols(keep.map(_.toLong)).toBreezeMatrix()
-        val filteredViaBreeze = lmt(::, keep).copy
-        assert(filteredViaBlock == filteredViaBreeze)
+        val filteredViaBlock = bm.filterCols(keep.map(_.toLong)).toDenseMatrix()
+        val filteredViaSlice = lmt(::, keep)
+        assert(filteredViaBlock == filteredViaSlice)
       }
     }
   }
 
   @Test
   def filterRows(implicit ctx: ExecuteContext): Unit = {
-    val lm = new DenseMatrix[Double](9, 10, (0 until 90).map(_.toDouble).toArray)
+    val lm = DenseMatrix(9, 10, (0 until 90).map(_.toDouble).toArray)
 
     Seq(2, 3).foreach { blockSize =>
-      val bm = BlockMatrix.fromBreezeMatrix(ctx, lm, blockSize)
+      val bm = BlockMatrix.fromDenseMatrix(ctx, lm, blockSize)
       Seq(
         ArraySeq(0),
         ArraySeq(1, 4, 5, 7, 8),
         ArraySeq(0, 1, 2, 3, 4, 5, 6, 7, 8),
       ).foreach { keep =>
-        val filteredViaBlock = bm.filterRows(keep.map(_.toLong)).toBreezeMatrix()
-        val filteredViaBreeze = lm(keep, ::).copy
+        val filteredViaBlock = bm.filterRows(keep.map(_.toLong)).toDenseMatrix()
+        val filteredViaSlice = lm(keep, ::)
 
-        assert(filteredViaBlock == filteredViaBreeze)
+        assert(filteredViaBlock == filteredViaSlice)
       }
     }
   }
 
   @Test
   def filterSymmetric(implicit ctx: ExecuteContext): Unit = {
-    val lm = new DenseMatrix[Double](10, 10, (0 until 100).map(_.toDouble).toArray)
+    val lm = DenseMatrix(10, 10, (0 until 100).map(_.toDouble).toArray)
 
     Seq(1, 2, 3, 5, 10, 11).foreach { blockSize =>
-      val bm = BlockMatrix.fromBreezeMatrix(ctx, lm, blockSize)
+      val bm = BlockMatrix.fromDenseMatrix(ctx, lm, blockSize)
       Seq(
         ArraySeq(0),
         ArraySeq(1),
@@ -746,19 +746,19 @@ class BlockMatrixSuite {
         ArraySeq(1, 4, 5, 7, 8, 9),
         ArraySeq(0, 1, 2, 3, 4, 5, 6, 7, 8, 9),
       ).foreach { keep =>
-        val filteredViaBlock = bm.filter(keep.map(_.toLong), keep.map(_.toLong)).toBreezeMatrix()
-        val filteredViaBreeze = lm(keep, keep).copy
+        val filteredViaBlock = bm.filter(keep.map(_.toLong), keep.map(_.toLong)).toDenseMatrix()
+        val filteredViaSlice = lm(keep, keep)
 
-        assert(filteredViaBlock == filteredViaBreeze)
+        assert(filteredViaBlock == filteredViaSlice)
       }
     }
   }
 
   @Test
   def filter(implicit ctx: ExecuteContext): Unit = {
-    val lm = new DenseMatrix[Double](9, 10, (0 until 90).map(_.toDouble).toArray)
+    val lm = DenseMatrix(9, 10, (0 until 90).map(_.toDouble).toArray)
     Seq(1, 2, 3, 5, 10, 11).foreach { blockSize =>
-      val bm = BlockMatrix.fromBreezeMatrix(ctx, lm, blockSize)
+      val bm = BlockMatrix.fromDenseMatrix(ctx, lm, blockSize)
       (for {
         keepRows <- Seq(
           ArraySeq(1),
@@ -772,35 +772,24 @@ class BlockMatrixSuite {
         )
       } yield (keepRows, keepCols)).foreach { case (keepRows, keepCols) =>
         val filteredViaBlock =
-          bm.filter(keepRows.map(_.toLong), keepCols.map(_.toLong)).toBreezeMatrix()
-        val filteredViaBreeze = lm(keepRows, keepCols).copy
+          bm.filter(keepRows.map(_.toLong), keepCols.map(_.toLong)).toDenseMatrix()
+        val filteredViaSlice = lm(keepRows, keepCols)
 
-        assert(filteredViaBlock == filteredViaBreeze)
+        assert(filteredViaBlock == filteredViaSlice)
       }
-    }
-  }
-
-  @Test
-  def writeLocalAsBlockTest(implicit ctx: ExecuteContext): Unit = {
-    val lm = new DenseMatrix[Double](10, 10, (0 until 100).map(_.toDouble).toArray)
-
-    Seq(1, 2, 3, 5, 10, 11).foreach { blockSize =>
-      val fname = ctx.createTmpPath("test")
-      lm.writeBlockMatrix(ctx.fs, fname, blockSize)
-      assert(lm == BlockMatrix.read(ctx, fname).toBreezeMatrix())
     }
   }
 
   @Test
   def randomTest(): Unit = {
     var lm1 =
-      BlockMatrix.random(5, 10, 2, staticUID = 1, nonce = 1, gaussian = false).toBreezeMatrix()
+      BlockMatrix.random(5, 10, 2, staticUID = 1, nonce = 1, gaussian = false).toDenseMatrix()
     var lm2 =
-      BlockMatrix.random(5, 10, 2, staticUID = 1, nonce = 1, gaussian = false).toBreezeMatrix()
+      BlockMatrix.random(5, 10, 2, staticUID = 1, nonce = 1, gaussian = false).toDenseMatrix()
     var lm3 =
-      BlockMatrix.random(5, 10, 2, staticUID = 2, nonce = 1, gaussian = false).toBreezeMatrix()
+      BlockMatrix.random(5, 10, 2, staticUID = 2, nonce = 1, gaussian = false).toDenseMatrix()
     var lm4 =
-      BlockMatrix.random(5, 10, 2, staticUID = 1, nonce = 2, gaussian = false).toBreezeMatrix()
+      BlockMatrix.random(5, 10, 2, staticUID = 1, nonce = 2, gaussian = false).toDenseMatrix()
 
     println(lm1)
     assert(lm1 == lm2)
@@ -809,10 +798,10 @@ class BlockMatrixSuite {
     assert(lm3 != lm4)
     assert(lm1.data.forall(x => x >= 0 && x <= 1))
 
-    lm1 = BlockMatrix.random(5, 10, 2, staticUID = 1, nonce = 1, gaussian = true).toBreezeMatrix()
-    lm2 = BlockMatrix.random(5, 10, 2, staticUID = 1, nonce = 1, gaussian = true).toBreezeMatrix()
-    lm3 = BlockMatrix.random(5, 10, 2, staticUID = 2, nonce = 1, gaussian = true).toBreezeMatrix()
-    lm4 = BlockMatrix.random(5, 10, 2, staticUID = 1, nonce = 2, gaussian = true).toBreezeMatrix()
+    lm1 = BlockMatrix.random(5, 10, 2, staticUID = 1, nonce = 1, gaussian = true).toDenseMatrix()
+    lm2 = BlockMatrix.random(5, 10, 2, staticUID = 1, nonce = 1, gaussian = true).toDenseMatrix()
+    lm3 = BlockMatrix.random(5, 10, 2, staticUID = 2, nonce = 1, gaussian = true).toDenseMatrix()
+    lm4 = BlockMatrix.random(5, 10, 2, staticUID = 1, nonce = 2, gaussian = true).toDenseMatrix()
 
     assert(lm1 == lm2)
     assert(lm1 != lm3)
@@ -823,7 +812,7 @@ class BlockMatrixSuite {
   @Test
   def testEntriesTable(implicit ctx: ExecuteContext): Unit = {
     val data = (0 until 90).map(_.toDouble).toArray
-    val lm = new DenseMatrix[Double](9, 10, data)
+    val lm = DenseMatrix(9, 10, data)
     val expectedEntries = data.map(x => ((x % 9).toLong, (x / 9).toLong, x)).toSet
     val expectedSignature = TStruct("i" -> TInt64, "j" -> TInt64, "entry" -> TFloat64)
 
@@ -846,7 +835,7 @@ class BlockMatrixSuite {
   @Test
   def testEntriesTableWhenKeepingOnlySomeBlocks(implicit ctx: ExecuteContext): Unit = {
     val data = (0 until 50).map(_.toDouble).toArray
-    val lm = new DenseMatrix[Double](5, 10, data)
+    val lm = DenseMatrix(5, 10, data)
     val bm = toBM(lm, blockSize = 2)
 
     val rows = CompileAndEvaluate[IndexedSeq[Row]](
@@ -871,13 +860,13 @@ class BlockMatrixSuite {
 
   @Test
   def testPowSqrt(implicit ctx: ExecuteContext): Unit = {
-    val lm = new DenseMatrix[Double](2, 3, Array(0.0, 1.0, 4.0, 9.0, 16.0, 25.0))
-    val bm = BlockMatrix.fromBreezeMatrix(ctx, lm, blockSize = 2)
-    val expected = new DenseMatrix[Double](2, 3, Array(0.0, 1.0, 2.0, 3.0, 4.0, 5.0))
+    val lm = DenseMatrix(2, 3, Array(0.0, 1.0, 4.0, 9.0, 16.0, 25.0))
+    val bm = BlockMatrix.fromDenseMatrix(ctx, lm, blockSize = 2)
+    val expected = DenseMatrix(2, 3, Array(0.0, 1.0, 2.0, 3.0, 4.0, 5.0))
 
-    assertMatrixEqualityDouble(bm.pow(0.0).toBreezeMatrix(), DenseMatrix.fill(2, 3)(1.0))
-    assertMatrixEqualityDouble(bm.pow(0.5).toBreezeMatrix(), expected)
-    assertMatrixEqualityDouble(bm.sqrt().toBreezeMatrix(), expected)
+    assertMatrixEqualityDouble(bm.pow(0.0).toDenseMatrix(), DenseMatrix.fill(2, 3)(1.0))
+    assertMatrixEqualityDouble(bm.pow(0.5).toDenseMatrix(), expected)
+    assertMatrixEqualityDouble(bm.sqrt().toDenseMatrix(), expected)
   }
 
   def filteredEquals(bm1: BlockMatrix, bm2: BlockMatrix): Boolean =
@@ -885,24 +874,24 @@ class BlockMatrixSuite {
 
   @Test
   def testSparseFilterEdges(implicit ctx: ExecuteContext): Unit = {
-    val lm = new DenseMatrix[Double](12, 12, (0 to 143).map(_.toDouble).toArray)
+    val lm = DenseMatrix(12, 12, (0 to 143).map(_.toDouble).toArray)
     val bm = toBM(lm, blockSize = 5)
 
     val onlyEight = bm.filterBlocks(ArraySeq(8)) // Bottom right corner block
-    val onlyEightRowEleven = onlyEight.filterRows(ArraySeq(11)).toBreezeMatrix()
-    val onlyEightColEleven = onlyEight.filterCols(ArraySeq(11)).toBreezeMatrix()
-    val onlyEightCornerFour = onlyEight.filter(ArraySeq(10, 11), ArraySeq(10, 11)).toBreezeMatrix()
+    val onlyEightRowEleven = onlyEight.filterRows(ArraySeq(11)).toDenseMatrix()
+    val onlyEightColEleven = onlyEight.filterCols(ArraySeq(11)).toDenseMatrix()
+    val onlyEightCornerFour = onlyEight.filter(ArraySeq(10, 11), ArraySeq(10, 11)).toDenseMatrix()
 
     assert(onlyEightRowEleven.toArray sameElements Array(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 131,
       143).map(_.toDouble))
     assert(onlyEightColEleven.toArray sameElements Array(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 142,
       143).map(_.toDouble))
-    assertEq(onlyEightCornerFour, new DenseMatrix[Double](2, 2, Array(130.0, 131.0, 142.0, 143.0)))
+    assertEq(onlyEightCornerFour, DenseMatrix(2, 2, Array(130.0, 131.0, 142.0, 143.0)))
   }
 
   @Test
   def testSparseTransposeMaybeBlocks(implicit ctx: ExecuteContext): Unit = {
-    val lm = new DenseMatrix[Double](9, 12, (0 to 107).map(_.toDouble).toArray)
+    val lm = DenseMatrix(9, 12, (0 to 107).map(_.toDouble).toArray)
     val bm = toBM(lm, blockSize = 3)
     val sparse = bm.filterBand(0, 0, true)
     assertEq(
@@ -922,7 +911,7 @@ class BlockMatrixSuite {
     val bm = BlockMatrix.fill(nRows.toLong, nCols.toLong, 2, 1)
     val banded = bm.filterBand(0, 0, false)
     val rowFilt = banded.filterRows(0L until nRows.toLong by 2L)
-    val summed = rowFilt.rowSum().toBreezeMatrix().toArray
+    val summed = rowFilt.rowSum().toDenseMatrix().toArray
     val expected =
       Array.tabulate(nRows)(x => if (x % 2 == 0) 2.0 else 0) ++ Array.tabulate(nCols - nRows)(x =>
         0.0
@@ -1004,14 +993,14 @@ class BlockMatrixSuite {
       ArraySeq(0, 1, 2, 3),
     )
 
-    val lm_zero = DenseMatrix.zeros[Double](2, 2)
+    val lm_zero = DenseMatrix.zeros(2, 2)
 
-    def filterBlocks(keep: IndexedSeq[Int]): DenseMatrix[Double] = {
+    def filterBlocks(keep: IndexedSeq[Int]): DenseMatrix = {
       val flm = lm.copy
       (0 to 3).diff(keep).foreach { i =>
         val r = 2 * (i % 2)
         val c = 2 * (i / 2)
-        flm(r to r + 1, c to c + 1) := lm_zero
+        flm(r to r + 1, c to c + 1) := lm_zero: Unit
       }
       flm
     }
@@ -1021,14 +1010,14 @@ class BlockMatrixSuite {
       val fbm = bm.filterBlocks(keep)
       val flm = filterBlocks(keep)
 
-      assert(fbm.toBreezeMatrix() == flm)
+      assert(fbm.toDenseMatrix() == flm)
 
-      assert(flm == fbm.toIndexedRowMatrix().toHailBlockMatrix().toBreezeMatrix())
+      assert(flm == fbm.toIndexedRowMatrix().toHailBlockMatrix().toDenseMatrix())
 
       val fname = ctx.createTmpPath("test")
       fbm.write(ctx, fname, forceRowMajor = true)
 
-      assert(RowMatrix.readBlockMatrix(ctx, fname, 3).toBreezeMatrix() == flm)
+      assert(RowMatrix.readBlockMatrix(ctx, fname, 3).toDenseMatrix() == flm)
 
       assert(filteredEquals(fbm, BlockMatrix.read(ctx, fname)))
     }
@@ -1057,14 +1046,14 @@ class BlockMatrixSuite {
       ArraySeq(0, 1, 2, 3),
     )
 
-    val lm_zero = DenseMatrix.zeros[Double](2, 2)
+    val lm_zero = DenseMatrix.zeros(2, 2)
 
-    def filterBlocks(keep: IndexedSeq[Int]): DenseMatrix[Double] = {
+    def filterBlocks(keep: IndexedSeq[Int]): DenseMatrix = {
       val flm = lm.copy
       (0 to 3).diff(keep).foreach { i =>
         val r = 2 * (i % 2)
         val c = 2 * (i / 2)
-        flm(r to r + 1, c to c + 1) := lm_zero
+        flm(r to r + 1, c to c + 1) := lm_zero: Unit
       }
       flm
     }
@@ -1086,7 +1075,7 @@ class BlockMatrixSuite {
         bm.transpose().filterBlocks(keep.map(transposeBI).sorted),
       ))
 
-      assert(fbm.diagonal() sameElements diag(fbm.toBreezeMatrix()).toArray)
+      assert(fbm.diagonal() sameElements fbm.toDenseMatrix().diag.toArray)
 
       assert(filteredEquals(+fbm, +bm.filterBlocks(keep)))
       assert(filteredEquals(-fbm, -bm.filterBlocks(keep)))
@@ -1107,26 +1096,26 @@ class BlockMatrixSuite {
       assert(filteredEquals(fbm.sqrt(), bm.sqrt().filterBlocks(keep)))
       assert(filteredEquals(fbm.pow(3), bm.pow(3).filterBlocks(keep)))
 
-      assert(fbm.dot(fbm).toBreezeMatrix() == flm * flm)
+      assert(fbm.dot(fbm).toDenseMatrix() == flm * flm)
 
       // densifying ops
-      assert((fbm + 2).toBreezeMatrix() == flm + 2.0)
-      assert((2 + fbm).toBreezeMatrix() == flm + 2.0)
-      assert((fbm - 2).toBreezeMatrix() == flm - 2.0)
-      assert((2 - fbm).toBreezeMatrix() == 2.0 - flm)
+      assert((fbm + 2).toDenseMatrix() == flm + 2.0)
+      assert((2 + fbm).toDenseMatrix() == flm + 2.0)
+      assert((fbm - 2).toDenseMatrix() == flm - 2.0)
+      assert((2 - fbm).toDenseMatrix() == flm.map(2.0 - _))
 
-      assert(fbm.rowVectorAdd(ctx, v).toBreezeMatrix() == flm(*, ::) + BDV(v))
-      assert(fbm.rowVectorSub(ctx, v).toBreezeMatrix() == flm(*, ::) - BDV(v))
-      assert(fbm.reverseRowVectorSub(ctx, v).toBreezeMatrix() == -(flm(*, ::) - BDV(v)))
+      assert(fbm.rowVectorAdd(ctx, v).toDenseMatrix() == flm(*, ::) + BDV(v))
+      assert(fbm.rowVectorSub(ctx, v).toDenseMatrix() == flm(*, ::) - BDV(v))
+      assert(fbm.reverseRowVectorSub(ctx, v).toDenseMatrix() == -(flm(*, ::) - BDV(v)))
 
-      assert(fbm.colVectorAdd(ctx, v).toBreezeMatrix() == flm(::, *) + BDV(v))
-      assert(fbm.colVectorSub(ctx, v).toBreezeMatrix() == flm(::, *) - BDV(v))
-      assert(fbm.reverseColVectorSub(ctx, v).toBreezeMatrix() == -(flm(::, *) - BDV(v)))
+      assert(fbm.colVectorAdd(ctx, v).toDenseMatrix() == flm(::, *) + BDV(v))
+      assert(fbm.colVectorSub(ctx, v).toDenseMatrix() == flm(::, *) - BDV(v))
+      assert(fbm.reverseColVectorSub(ctx, v).toDenseMatrix() == -(flm(::, *) - BDV(v)))
 
       // filter ops
-      assert(fbm.filterRows(ArraySeq(1, 2)).toBreezeMatrix() == flm(1 to 2, ::))
-      assert(fbm.filterCols(ArraySeq(1, 2)).toBreezeMatrix() == flm(::, 1 to 2))
-      assert(fbm.filter(ArraySeq(1, 2), ArraySeq(1, 2)).toBreezeMatrix() == flm(1 to 2, 1 to 2))
+      assert(fbm.filterRows(ArraySeq(1, 2)).toDenseMatrix() == flm(1 to 2, ::))
+      assert(fbm.filterCols(ArraySeq(1, 2)).toDenseMatrix() == flm(::, 1 to 2))
+      assert(fbm.filter(ArraySeq(1, 2), ArraySeq(1, 2)).toDenseMatrix() == flm(1 to 2, 1 to 2))
     }
 
     val bm0 = bm.filterBlocks(ArraySeq(0))
@@ -1142,26 +1131,26 @@ class BlockMatrixSuite {
     // test +/- with mismatched blocks
     assert(filteredEquals(bm0 + bm13, bm.filterBlocks(ArraySeq(0, 1, 3))))
 
-    assert((bm0 + bm).toBreezeMatrix() == lm0 + lm)
-    assert((bm + bm0).toBreezeMatrix() == lm + lm0)
+    assert((bm0 + bm).toDenseMatrix() == lm0 + lm)
+    assert((bm + bm0).toDenseMatrix() == lm + lm0)
     assert(
-      (bm0 + 2.0 * bm13 + 3.0 * bm23 + 5.0 * bm123).toBreezeMatrix() ==
-        lm0 + 2.0 * lm13 + 3.0 * lm23 + 5.0 * lm123
+      (bm0 + 2.0 * bm13 + 3.0 * bm23 + 5.0 * bm123).toDenseMatrix() ==
+        lm0 + lm13 * 2.0 + lm23 * 3.0 + lm123 * 5.0
     )
     assert(
-      (bm123 + 2.0 * bm13 + 3.0 * bm23 + 5.0 * bm0).toBreezeMatrix() ==
-        lm123 + 2.0 * lm13 + 3.0 * lm23 + 5.0 * lm0
+      (bm123 + 2.0 * bm13 + 3.0 * bm23 + 5.0 * bm0).toDenseMatrix() ==
+        lm123 + lm13 * 2.0 + lm23 * 3.0 + lm0 * 5.0
     )
 
-    assert((bm0 - bm).toBreezeMatrix() == lm0 - lm)
-    assert((bm - bm0).toBreezeMatrix() == lm - lm0)
+    assert((bm0 - bm).toDenseMatrix() == lm0 - lm)
+    assert((bm - bm0).toDenseMatrix() == lm - lm0)
     assert(
-      (bm0 - 2.0 * bm13 - 3.0 * bm23 - 5.0 * bm123).toBreezeMatrix() ==
-        lm0 - 2.0 * lm13 - 3.0 * lm23 - 5.0 * lm123
+      (bm0 - 2.0 * bm13 - 3.0 * bm23 - 5.0 * bm123).toDenseMatrix() ==
+        lm0 - lm13 * 2.0 - lm23 * 3.0 - lm123 * 5.0
     )
     assert(
-      (bm123 - 2.0 * bm13 - 3.0 * bm23 - 5.0 * bm0).toBreezeMatrix() ==
-        lm123 - 2.0 * lm13 - 3.0 * lm23 - 5.0 * lm0
+      (bm123 - 2.0 * bm13 - 3.0 * bm23 - 5.0 * bm0).toDenseMatrix() ==
+        lm123 - lm13 * 2.0 - lm23 * 3.0 - lm0 * 5.0
     )
 
     // test * with mismatched blocks
@@ -1211,14 +1200,14 @@ class BlockMatrixSuite {
       ArraySeq(0, 1, 2, 3),
     )
 
-    val lm_zero = DenseMatrix.zeros[Double](2, 2)
+    val lm_zero = DenseMatrix.zeros(2, 2)
 
-    def filterBlocks(keep: IndexedSeq[Int]): DenseMatrix[Double] = {
+    def filterBlocks(keep: IndexedSeq[Int]): DenseMatrix = {
       val flm = lm.copy
       (0 to 3).diff(keep).foreach { i =>
         val r = 2 * (i % 2)
         val c = 2 * (i / 2)
-        flm(r to r + 1, c to c + 1) := lm_zero
+        flm(r to r + 1, c to c + 1) := lm_zero: Unit
       }
       flm
     }
