@@ -2334,12 +2334,18 @@ async def delete_batch(request: web.Request, _, batch_id: int) -> web.Response:
 
 
 @routes.get('/batches/{batch_id}', name='batch_details_page')
-@web_security_headers
+@web_security_headers_inline_styles
 @billing_project_users_only()
 @catch_ui_error_in_dev
 async def ui_batch(request, userdata, batch_id):
     app = request.app
     db: Database = app['db']
+
+    # If the user has enabled the React UI, render the React page:
+    if request.cookies.get('hail_react_ui') == '1':
+        page_context = {'batch_id': batch_id}
+        return await render_template('batch', request, userdata, 'batch_react.html', page_context)
+
     batch = await _get_batch(app, batch_id)
 
     q = request.query.get('q', '')

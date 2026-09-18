@@ -3,19 +3,7 @@ import { stateColor } from './StateIcon';
 import { CollapsibleItem } from './CollapsibleItem';
 import { RelativeTime } from './RelativeTime';
 import { AutoRefreshBar } from '../../shared/AutoRefreshBar';
-
-const MIN_VISIBLE_COST = 0.01;
-
-function CostDisplay({ cost }: { cost: number }): JSX.Element {
-  if (cost > 0 && cost < MIN_VISIBLE_COST) {
-    return (
-      <span title={`$${cost}`} className="cursor-help">
-        {`< $${MIN_VISIBLE_COST.toFixed(2)}`}
-      </span>
-    );
-  }
-  return <>${cost.toFixed(2)}</>;
-}
+import { CostDisplay } from './CostDisplay';
 
 interface Props {
   batchId: string;

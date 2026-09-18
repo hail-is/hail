@@ -13,9 +13,9 @@ export async function hailApiFetch<T>(url: string, init?: RequestInit): Promise<
   // batch) which are cross-origin but same-site, so the shared session cookie (domain=hail.is) is
   // only attached if we explicitly ask for it.
   const resp = await fetch(url, { credentials: 'include', ...init, headers });
+  const text = await resp.text();
   if (!resp.ok) {
-    const text = await resp.text().catch(() => '');
     throw new Error(`${method} ${url} failed (HTTP ${resp.status})${text ? `: ${text}` : ''}`);
   }
-  return await resp.json() as T;
+  return (text ? JSON.parse(text) : undefined) as T;
 }
