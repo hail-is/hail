@@ -7,6 +7,7 @@ if (rootEl) {
   const username = rootEl.dataset.username ?? '';
   const gsaDisplayName = rootEl.dataset.gsaDisplayName ?? '';
   const trialBpName = rootEl.dataset.trialBpName ?? '';
+  const supportEmail = rootEl.dataset.supportEmail ?? '';
 
   const root = createRoot(rootEl);
   root.render(
@@ -15,6 +16,7 @@ if (rootEl) {
       username={username}
       gsaDisplayName={gsaDisplayName}
       trialBpName={trialBpName}
+      supportEmail={supportEmail}
     />
   );
 }

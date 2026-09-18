@@ -40,9 +40,16 @@ interface UserPageProps {
   username: string;
   gsaDisplayName: string;
   trialBpName: string;
+  supportEmail: string;
 }
 
-export function UserPage({ authBaseUrl, username, gsaDisplayName, trialBpName }: UserPageProps): JSX.Element {
+export function UserPage({
+  authBaseUrl,
+  username,
+  gsaDisplayName,
+  trialBpName,
+  supportEmail,
+}: UserPageProps): JSX.Element {
   return (
     <div id="profile" className="vcentered space-y-2">
       <Section title="User Account">
@@ -65,6 +72,20 @@ export function UserPage({ authBaseUrl, username, gsaDisplayName, trialBpName }:
           <b>UI style:</b> new layout <span className="text-xs align-middle text-amber-600">[In Development]</span>{' '}
           · <button onClick={disableReactUi} className="text-sky-600 hover:underline">Back to classic layout</button>
         </p>
+        <ul className="list-disc pl-5 space-y-2 text-sm text-zinc-600 mt-2">
+          <li>
+            The new layout UI in particular updates the batch details and job details pages with more functionality.
+          </li>
+          <li>
+            Please provide any feedback on the new elements via email to{' '}
+            <a
+              href={`mailto:${supportEmail}?subject=${encodeURIComponent('New layout UI feedback')}`}
+              className="text-blue-600 hover:underline"
+            >
+              {supportEmail}
+            </a>, or via the GitHub issues or Zulip support channels.
+          </li>
+        </ul>
       </Section>
 
       <Section title="Notices">
