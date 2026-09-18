@@ -960,8 +960,6 @@ steps:
     scopes:
       - deploy
       - dev
-    forceIfLabeled:
-      - run-dataproc-tests
     clouds:
       - gcp
   - kind: runImage
@@ -1752,8 +1750,30 @@ steps:
       chmod 755 ./check_pip_requirements.sh
       make check-pip-requirements
     inputs:
-      - from: /repo
-        to: /io/repo
+      - from: /repo/Makefile
+        to: /io/repo/Makefile
+      - from: /repo/config.mk
+        to: /io/repo/config.mk
+      - from: /repo/check_pip_requirements.sh
+        to: /io/repo/check_pip_requirements.sh
+      - from: /repo/hail/python/hailtop
+        to: /io/repo/hail/python/hailtop
+      - from: /repo/hail/python/dataproc-pre-installed-requirements.txt
+        to: /io/repo/hail/python/dataproc-pre-installed-requirements.txt
+      - from: /repo/hail/python/requirements.txt
+        to: /io/repo/hail/python/requirements.txt
+      - from: /repo/hail/python/pinned-requirements.txt
+        to: /io/repo/hail/python/pinned-requirements.txt
+      - from: /repo/hail/python/dev
+        to: /io/repo/hail/python/dev
+      - from: /repo/gear
+        to: /io/repo/gear
+      - from: /repo/web_common
+        to: /io/repo/web_common
+      - from: /repo/batch
+        to: /io/repo/batch
+      - from: /repo/ci
+        to: /io/repo/ci
     dependsOn:
       - hail_linting_image
       - merge_code
@@ -1772,8 +1792,32 @@ steps:
       {% endif %}
       make -k check-services
     inputs:
-      - from: /repo
-        to: /io/repo
+      - from: /repo/.git
+        to: /io/repo/.git
+      - from: /repo/Makefile
+        to: /io/repo/Makefile
+      - from: /repo/pylintrc
+        to: /io/repo/pylintrc
+      - from: /repo/pyproject.toml
+        to: /io/repo/pyproject.toml
+      - from: /repo/check-sql.sh
+        to: /io/repo/check-sql.sh
+      - from: /repo/hail/python/hailtop
+        to: /io/repo/hail/python/hailtop
+      - from: /repo/auth
+        to: /io/repo/auth
+      - from: /repo/batch
+        to: /io/repo/batch
+      - from: /repo/ci
+        to: /io/repo/ci
+      - from: /repo/monitoring
+        to: /io/repo/monitoring
+      - from: /repo/website
+        to: /io/repo/website
+      - from: /repo/gear
+        to: /io/repo/gear
+      - from: /repo/web_common
+        to: /io/repo/web_common
     dependsOn:
       - hail_linting_image
       - merge_code
