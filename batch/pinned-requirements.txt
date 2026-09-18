@@ -67,7 +67,7 @@ frozenlist==1.8.0
     #   -c batch/../web_common/pinned-requirements.txt
     #   aiohttp
     #   aiosignal
-google-api-core==2.36.0
+google-api-core==2.38.0
     # via
     #   -c batch/../gear/pinned-requirements.txt
     #   google-cloud-core
@@ -93,7 +93,7 @@ googleapis-common-protos==1.75.3
     # via
     #   -c batch/../gear/pinned-requirements.txt
     #   google-api-core
-idna==3.19
+idna==3.20
     # via
     #   -c batch/../gear/pinned-requirements.txt
     #   -c batch/../hail/python/dev/pinned-requirements.txt
@@ -132,7 +132,7 @@ plotly==5.24.1
     # via
     #   -c batch/../hail/python/pinned-requirements.txt
     #   -r batch/requirements.txt
-propcache==0.5.2
+propcache==0.5.4
     # via
     #   -c batch/../gear/pinned-requirements.txt
     #   -c batch/../hail/python/dev/pinned-requirements.txt
@@ -144,7 +144,7 @@ proto-plus==1.28.4
     # via
     #   -c batch/../gear/pinned-requirements.txt
     #   google-api-core
-protobuf==7.36.1
+protobuf==7.36.2
     # via
     #   -c batch/../gear/pinned-requirements.txt
     #   google-api-core
@@ -202,18 +202,18 @@ typing-extensions==4.16.0
     #   aiohttp
     #   aiosignal
     #   opentelemetry-api
-tzdata==2026.3
+tzdata==2026.4
     # via
     #   -c batch/../hail/python/dev/pinned-requirements.txt
     #   -c batch/../hail/python/pinned-requirements.txt
     #   pandas
-urllib3==2.7.0
+urllib3==2.8.0
     # via
     #   -c batch/../gear/pinned-requirements.txt
     #   -c batch/../hail/python/dev/pinned-requirements.txt
     #   -c batch/../hail/python/pinned-requirements.txt
     #   requests
-yarl==1.24.5
+yarl==1.25.1
     # via
     #   -c batch/../gear/pinned-requirements.txt
     #   -c batch/../hail/python/dev/pinned-requirements.txt
