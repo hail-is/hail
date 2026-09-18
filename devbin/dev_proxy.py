@@ -113,7 +113,8 @@ def _backend_url(service: str, raw_path: str) -> str:
 
 
 # Pages served from local templates (React shell with client-side data fetching).
-# Paths include the service prefix that matches the new URL model.
+# Paths include the service prefix that matches the new URL model. Any {placeholder}
+# in the path is pulled from the URL via match_info and merged into extra_page_context.
 # Tuple: (service, verb, path, template, extra_page_context)
 _LOCAL_REACT_ROUTES: list[tuple[str, str, str, str, dict]] = [
     ('monitoring',   'GET', '/monitoring/cost-analysis', 'cost_analysis.html', {}),
@@ -129,6 +130,8 @@ _LOCAL_REACT_ROUTES: list[tuple[str, str, str, str, dict]] = [
     ('ci',           'GET', '/ci/swagger', 'swagger/index.html', {}),
     ('monitoring',   'GET', '/monitoring/swagger', 'swagger/index.html', {}),
     ('auth',         'GET', '/auth/swagger', 'swagger/index.html', {}),
+    ('batch',        'GET', '/batch/batches/{batch_id}', 'batch_react.html', {}),
+    ('batch',        'GET', '/batch/batches/{batch_id}/jobs/{job_id}', 'job_react.html', {}),
 ]
 
 for _service, _verb, _path, _template, _extra_ctx in _LOCAL_REACT_ROUTES:
@@ -138,7 +141,8 @@ for _service, _verb, _path, _template, _extra_ctx in _LOCAL_REACT_ROUTES:
         _t: str = _template,
         _ctx: dict = _extra_ctx,
     ) -> web.Response:
-        return await _render_html(request, _s, _FAKE_DEV_USERDATA, _t, {'use_tailwind': True, **_ctx, **request.match_info})
+        page_context = {'use_tailwind': True, **_ctx, **request.match_info}
+        return await _render_html(request, _s, _FAKE_DEV_USERDATA, _t, page_context)
     if _template.startswith('swagger/'):
         _decorator = web_security_headers_swagger
     elif _template in ('index_react.html', 'cost_analysis.html', 'pr_react.html'):

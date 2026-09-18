@@ -1,11 +1,13 @@
-import { useState, ReactNode } from 'react';
+import { useState } from 'react';
+import type { ReactNode } from 'react';
 
-export function CollapsibleItem({ title, summary, children }: {
+export function CollapsibleItem({ title, summary, children, startOpen = false }: {
   title: string;
   summary?: ReactNode;
   children: ReactNode;
+  startOpen?: boolean;
 }): JSX.Element {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(startOpen);
   return (
     <li>
       <button
