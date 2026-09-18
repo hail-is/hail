@@ -26,11 +26,11 @@ azure-mgmt-core==1.6.0
     # via azure-mgmt-storage
 azure-mgmt-storage==20.1.0
     # via -r hail/python/hailtop/requirements.txt
-azure-storage-blob==12.30.1
+azure-storage-blob==12.30.2
     # via -r hail/python/hailtop/requirements.txt
-boto3==1.43.92
+boto3==1.43.97
     # via -r hail/python/hailtop/requirements.txt
-botocore==1.43.92
+botocore==1.43.97
     # via
     #   -r hail/python/hailtop/requirements.txt
     #   boto3
@@ -71,7 +71,7 @@ google-auth-oauthlib==0.8.0
     # via -r hail/python/hailtop/requirements.txt
 humanize==4.16.0
     # via -r hail/python/hailtop/requirements.txt
-idna==3.19
+idna==3.20
     # via
     #   requests
     #   yarl
@@ -87,7 +87,7 @@ jmespath==1.1.0
     #   botocore
 jproperties==2.1.2
     # via -r hail/python/hailtop/requirements.txt
-msal==1.38.0
+msal==1.39.0
     # via
     #   azure-identity
     #   msal-extensions
@@ -105,7 +105,7 @@ oauthlib==3.3.1
     # via requests-oauthlib
 orjson==3.12.0
     # via -r hail/python/hailtop/requirements.txt
-propcache==0.5.2
+propcache==0.5.4
     # via
     #   aiohttp
     #   yarl
@@ -119,7 +119,7 @@ pycparser==3.0
     # via cffi
 pygments==2.21.0
     # via rich
-pyjwt==2.13.0
+pyjwt==2.14.0
     # via msal
 python-dateutil==2.9.0.post0
     # via botocore
@@ -165,11 +165,11 @@ typing-extensions==4.16.0
     #   azure-identity
     #   azure-storage-blob
     #   janus
-urllib3==2.7.0
+urllib3==2.8.0
     # via
     #   botocore
     #   requests
 uvloop==0.22.1
     # via -r hail/python/hailtop/requirements.txt
-yarl==1.24.5
+yarl==1.25.1
     # via aiohttp

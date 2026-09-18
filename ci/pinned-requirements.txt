@@ -32,7 +32,7 @@ distro==1.9.0
     # via zulip
 gidgethub==5.4.0
     # via -r ci/requirements.txt
-idna==3.19
+idna==3.20
     # via
     #   -c ci/../gear/pinned-requirements.txt
     #   -c ci/../hail/python/dev/pinned-requirements.txt
@@ -45,7 +45,7 @@ pycparser==3.0
     #   -c ci/../hail/python/dev/pinned-requirements.txt
     #   -c ci/../hail/python/pinned-requirements.txt
     #   cffi
-pyjwt==2.13.0
+pyjwt==2.14.0
     # via
     #   -c ci/../hail/python/pinned-requirements.txt
     #   gidgethub
@@ -78,7 +78,7 @@ uritemplate==4.2.0
     # via
     #   -c ci/../gear/pinned-requirements.txt
     #   gidgethub
-urllib3==2.7.0
+urllib3==2.8.0
     # via
     #   -c ci/../gear/pinned-requirements.txt
     #   -c ci/../hail/python/dev/pinned-requirements.txt

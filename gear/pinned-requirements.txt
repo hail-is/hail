@@ -60,7 +60,7 @@ frozenlist==1.8.0
     #   -c gear/../hail/python/pinned-requirements.txt
     #   aiohttp
     #   aiosignal
-google-api-core==2.36.0
+google-api-core==2.38.0
     # via google-api-python-client
 google-api-python-client==2.200.0
     # via google-cloud-profiler
@@ -84,7 +84,7 @@ httplib2==0.32.0
     # via
     #   google-api-python-client
     #   google-auth-httplib2
-idna==3.19
+idna==3.20
     # via
     #   -c gear/../hail/python/dev/pinned-requirements.txt
     #   -c gear/../hail/python/hailtop/pinned-requirements.txt
@@ -114,7 +114,7 @@ prometheus-client==0.26.0
     #   -c gear/../hail/python/dev/pinned-requirements.txt
     #   -r gear/requirements.txt
     #   prometheus-async
-propcache==0.5.2
+propcache==0.5.4
     # via
     #   -c gear/../hail/python/dev/pinned-requirements.txt
     #   -c gear/../hail/python/hailtop/pinned-requirements.txt
@@ -123,7 +123,7 @@ propcache==0.5.2
     #   yarl
 proto-plus==1.28.4
     # via google-api-core
-protobuf==7.36.1
+protobuf==7.36.2
     # via
     #   google-api-core
     #   google-cloud-profiler
@@ -145,7 +145,7 @@ pycparser==3.0
     #   -c gear/../hail/python/hailtop/pinned-requirements.txt
     #   -c gear/../hail/python/pinned-requirements.txt
     #   cffi
-pymysql==1.2.0
+pymysql==1.2.3
     # via
     #   -r gear/requirements.txt
     #   aiomysql
@@ -199,7 +199,7 @@ typing-extensions==4.16.0
     #   opentelemetry-api
 uritemplate==4.2.0
     # via google-api-python-client
-urllib3==2.7.0
+urllib3==2.8.0
     # via
     #   -c gear/../hail/python/dev/pinned-requirements.txt
     #   -c gear/../hail/python/hailtop/pinned-requirements.txt
@@ -210,7 +210,7 @@ wrapt==1.17.3
     # via
     #   -c gear/../hail/python/pinned-requirements.txt
     #   prometheus-async
-yarl==1.24.5
+yarl==1.25.1
     # via
     #   -c gear/../hail/python/dev/pinned-requirements.txt
     #   -c gear/../hail/python/hailtop/pinned-requirements.txt
