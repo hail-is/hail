@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { CodeBlock } from '../../batch/components/CodeBlock';
+import { CopyableValue } from './CopyableValue';
 
 const COPY_PASTE_TOKEN_TTL_SECONDS = 300;
 
@@ -44,44 +44,28 @@ export function CopyPasteToken({ authBaseUrl }: { authBaseUrl: string }): JSX.El
 
   const tokenExpired = token !== null && expiresAt !== null && remainingSeconds <= 0;
 
+  if (fetchingToken) {
+    return <span className="text-sm text-zinc-500">Requesting…</span>;
+  }
+
   if (token && !tokenExpired) {
     return (
-      <div className="space-y-3">
-        <p className="text-sm text-zinc-600">
-          This copy-paste token is good for one use, and expires in{' '}
-          <span className="font-mono">{formatCountdown(remainingSeconds)}</span>.
-        </p>
-        <CodeBlock code={token} />
-        <p className="text-sm text-zinc-600">
-          If you need to authenticate a Jupyter Notebook session (for example, a Terra Jupyter Notebook),
-          copy and paste this into your notebook:
-        </p>
-        <CodeBlock code={`from hailtop.auth import copy_paste_login; copy_paste_login('${token}')`} />
-        <p className="text-sm text-zinc-600">
-          If you need to authenticate from a terminal, copy and paste this into your terminal:
-        </p>
-        <CodeBlock code={`hailctl auth copy-paste-login "${token}"`} />
-        <button
-          onClick={() => { void fetchToken(); }}
-          disabled={fetchingToken}
-          className="text-sm text-sky-600 hover:underline disabled:text-zinc-400"
-        >
-          Create another token
+      <span className="inline-flex items-center gap-2">
+        <CopyableValue value={token} />
+        <span className="text-xs text-zinc-400">(expires in {formatCountdown(remainingSeconds)})</span>
+        <button onClick={() => { void fetchToken(); }} className="text-sm text-sky-600 hover:underline">
+          Request another
         </button>
-      </div>
+      </span>
     );
   }
 
   return (
-    <div className="space-y-2">
-      {tokenExpired && <p className="text-sm text-zinc-600">That token has expired.</p>}
-      <button
-        onClick={() => { void fetchToken(); }}
-        disabled={fetchingToken}
-        className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded disabled:bg-zinc-400"
-      >
-        {fetchingToken ? 'Requesting…' : 'Get a copy-paste login token'}
+    <span className="inline-flex items-center gap-2">
+      {tokenExpired && <span className="text-sm text-zinc-500">Expired ·</span>}
+      <button onClick={() => { void fetchToken(); }} className="text-sm text-sky-600 hover:underline">
+        Request
       </button>
-    </div>
+    </span>
   );
 }

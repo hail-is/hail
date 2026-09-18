@@ -1,5 +1,6 @@
-import { useState, ReactNode } from 'react';
+import { ReactNode } from 'react';
 import { CopyPasteToken } from './CopyPasteToken';
+import { CopyableValue } from './CopyableValue';
 
 const REACT_UI_COOKIE = 'hail_react_ui';
 
@@ -12,32 +13,25 @@ function disableReactUi() {
   location.reload();
 }
 
+function logout(authBaseUrl: string) {
+  const form = document.createElement('form');
+  form.method = 'POST';
+  form.action = `${authBaseUrl}/logout`;
+  const csrfInput = document.createElement('input');
+  csrfInput.type = 'hidden';
+  csrfInput.name = '_csrf';
+  csrfInput.value = csrfToken();
+  form.appendChild(csrfInput);
+  document.body.appendChild(form);
+  form.submit();
+}
+
 function Section({ title, children }: { title: string; children: ReactNode }): JSX.Element {
   return (
     <section className="pt-6">
       <h2 className="text-lg font-semibold text-zinc-700 border-b pb-1 mb-3">{title}</h2>
       {children}
     </section>
-  );
-}
-
-function CopyableValue({ value }: { value: string }): JSX.Element {
-  const [copied, setCopied] = useState(false);
-
-  function handleCopy() {
-    void navigator.clipboard.writeText(value).then(() => {
-      setCopied(true);
-      setTimeout(() => { setCopied(false); }, 1500);
-    });
-  }
-
-  return (
-    <span className="inline-flex items-center gap-1.5">
-      <span className="font-mono">{value}</span>
-      <button onClick={handleCopy} title="Copy to clipboard" className="text-zinc-400 hover:text-zinc-700">
-        {copied ? '✓' : '⧉'}
-      </button>
-    </span>
   );
 }
 
@@ -50,29 +44,26 @@ interface UserPageProps {
 
 export function UserPage({ authBaseUrl, username, gsaDisplayName, trialBpName }: UserPageProps): JSX.Element {
   return (
-    <div id="profile" className="space-y-2">
+    <div id="profile" className="vcentered space-y-2">
       <Section title="User Account">
         <div className="space-y-2">
           <p><b>Logged in as: </b><CopyableValue value={username} /></p>
+          <p className="pl-4 text-sm text-zinc-500">
+            – <button onClick={() => { logout(authBaseUrl); }} className="text-sky-600 hover:underline">Log out</button>
+          </p>
           <p><b>Google Service Account: </b><CopyableValue value={gsaDisplayName} /></p>
           <p><b>Trial Billing Project: </b><CopyableValue value={trialBpName} /></p>
-          <form action={`${authBaseUrl}/logout`} method="POST" className="pt-2">
-            <input type="hidden" name="_csrf" value={csrfToken()} />
-            <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
-              Log out
-            </button>
-          </form>
         </div>
       </Section>
 
       <Section title="Session Management">
-        <CopyPasteToken authBaseUrl={authBaseUrl} />
+        <p><b>Copy paste token: </b><CopyPasteToken authBaseUrl={authBaseUrl} /></p>
       </Section>
 
       <Section title="User Settings">
         <p className="text-sm">
-          <b>UI style:</b> new layout <span className="text-xs align-middle text-amber-600">[In Development]</span> ·
-          <button onClick={disableReactUi} className="text-sky-600 hover:underline">Back to classic layout</button>
+          <b>UI style:</b> new layout <span className="text-xs align-middle text-amber-600">[In Development]</span>{' '}
+          · <button onClick={disableReactUi} className="text-sky-600 hover:underline">Back to classic layout</button>
         </p>
       </Section>
 
