@@ -10,6 +10,7 @@ import { formatIsoTime } from '../../shared/timeUtils';
 import { QueryBuilder } from '../../shared/QueryBuilder';
 import { jobQueryFields } from '../../shared/queryFields';
 import { useBatchDetails } from '../hooks/useBatchDetails';
+import { disableReactUi } from '../../shared/reactUiCookie';
 
 interface Props {
   basePath: string;
@@ -69,7 +70,7 @@ function StatusCountRow({ label, count, onFilter, onExclude }: {
   );
 }
 
-function JobStatusTable({ batch, onSearch }: { batch: Batch; onSearch: (q: string) => void }): JSX.Element {
+function JobStatusTable({ batch, onSearch }: { batch: Batch; onSearch: (_q: string) => void }): JSX.Element {
   const incomplete = batch.n_jobs - batch.n_completed;
   return (
     <table className="text-xs w-full">
@@ -165,11 +166,23 @@ export function BatchDetailsPage({ basePath, batchId }: Props): JSX.Element {
 
   const [actionError, setActionError] = useState<string | null>(null);
   const [queryDirty, setQueryDirty] = useState(false);
+  const [deleted, setDeleted] = useState(false);
 
   if (loading) {
     return (
       <div className="flex items-center justify-center mt-24">
         <span className="text-5xl font-light text-sky-600">Loading…</span>
+      </div>
+    );
+  }
+
+  if (deleted) {
+    return (
+      <div className="flex flex-col items-center justify-center mt-24 gap-4">
+        <span className="text-xl font-light">Batch {batchId} deleted</span>
+        <a href={`${basePath}/batches`} className="text-sky-600 hover:underline">
+          Back to batches
+        </a>
       </div>
     );
   }
@@ -190,7 +203,7 @@ export function BatchDetailsPage({ basePath, batchId }: Props): JSX.Element {
   const handleDelete = () => {
     setActionError(null);
     deleteBatch()
-      .then(() => { window.location.href = `${basePath}/batches`; })
+      .then(() => { setDeleted(true); })
       .catch((e: unknown) => { setActionError(String(e)); });
   };
 
@@ -207,7 +220,7 @@ export function BatchDetailsPage({ basePath, batchId }: Props): JSX.Element {
       <div className="mt-1 text-sm">
         <button
           type="button"
-          onClick={() => { document.cookie = 'hail_react_ui=; max-age=0; path=/; SameSite=Lax'; location.reload(); }}
+          onClick={disableReactUi}
           className="text-sky-600 hover:underline cursor-pointer"
         >
           Back to classic layout
