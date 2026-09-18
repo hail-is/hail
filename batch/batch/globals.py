@@ -23,7 +23,7 @@ HTTP_CLIENT_MAX_SIZE = 8 * 1024 * 1024
 
 BATCH_FORMAT_VERSION = 7
 STATUS_FORMAT_VERSION = 5
-INSTANCE_VERSION = 36
+INSTANCE_VERSION = 37
 
 # jvm jobs from hail versions that predate multi-spark support were built against spark 3.5
 DEFAULT_SPARK_VERSION = '3.5.3'
