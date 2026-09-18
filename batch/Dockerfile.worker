@@ -17,7 +17,7 @@ RUN echo "APT::Acquire::Retries \"5\";" > /etc/apt/apt.conf.d/80-retries && \
     export GCSFUSE_REPO=gcsfuse-noble && \
     echo "deb https://packages.cloud.google.com/apt $GCSFUSE_REPO main" | tee /etc/apt/sources.list.d/gcsfuse.list && \
     curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add - && \
-    hail-apt-get-install fuse gcsfuse=1.2.0
+    hail-apt-get-install fuse gcsfuse=1.2.0 google-cloud-cli
 
 RUN curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg && \
     curl -s -L https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list | \
@@ -81,3 +81,7 @@ RUN hail-pip-install /hailtop /gear /batch
 
 COPY batch/jvm-entryway/out/assembly.dest/out.jar /jvm-entryway/jvm-entryway.jar
 COPY letsencrypt/subdomains.txt /
+
+COPY batch/log-sync.sh /usr/local/bin/log-sync.sh
+RUN chmod +x /usr/local/bin/log-sync.sh && \
+    mkdir -p /run/batch-worker/log-sync

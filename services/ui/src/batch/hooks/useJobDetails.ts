@@ -100,13 +100,31 @@ export function useJobDetails(basePath: string, batchId: string, jobId: string):
     const hasInput = (currentJob?.spec?.input_files ?? []).length > 0;
     const hasOutput = (currentJob?.spec?.output_files ?? []).length > 0;
 
+    // job.status only describes the attempt it names in attempt_id -- only trust its
+    // container_statuses when we're fetching that same attempt (e.g. not an older, retried one).
+    // 'pending' is the only state that guarantees no log file exists yet in GCS: the worker
+    // confirms the (possibly still-empty) log object before the container leaves 'pending'.
+    const liveStatus = currentJob?.status?.attempt_id === attemptId ? currentJob.status : null;
+    const notStarted = (name: 'input' | 'main' | 'output') => {
+      const containerStatuses = liveStatus?.container_statuses;
+      const status =
+        name === 'input' ? containerStatuses?.input
+        : name === 'main' ? containerStatuses?.main
+        : containerStatuses?.output;
+      return status?.state === 'pending';
+    };
+
     const attemptParam = `?attempt_id=${attemptId}`;
     const apiBase = `${basePath}/api/v1alpha/batches/${batchId}/jobs/${jobId}`;
 
     Promise.all([
-      hasInput ? fetchText(`${apiBase}/log/input${attemptParam}`).catch(() => null) : Promise.resolve(null),
-      fetchText(`${apiBase}/log/main${attemptParam}`).catch(() => null),
-      hasOutput ? fetchText(`${apiBase}/log/output${attemptParam}`).catch(() => null) : Promise.resolve(null),
+      hasInput && !notStarted('input')
+        ? fetchText(`${apiBase}/log/input${attemptParam}`).catch(() => null)
+        : Promise.resolve(hasInput ? '' : null),
+      notStarted('main') ? Promise.resolve('') : fetchText(`${apiBase}/log/main${attemptParam}`).catch(() => null),
+      hasOutput && !notStarted('output')
+        ? fetchText(`${apiBase}/log/output${attemptParam}`).catch(() => null)
+        : Promise.resolve(hasOutput ? '' : null),
       fetchJson<ResourceUsageData>(`${apiBase}/resource_usage${attemptParam}`).catch(() => null),
     ]).then(([inputLog, mainLog, outputLog, resourceUsage]) => {
       const logs: LogMap = new Map([['input', inputLog], ['main', mainLog], ['output', outputLog]]);
