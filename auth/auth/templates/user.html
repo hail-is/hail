@@ -4,35 +4,56 @@
 {% block content %}
 <div id="profile" class="vcentered space-y-2">
   {% if userdata %}
-  <h1 class='text-4xl mb-4'>{{ userdata['username'] }}</h1>
-  <form action="{{ auth_base_url }}/logout" method="POST">
-    <input type="hidden" name="_csrf" value="{{ csrf_token }}" />
-    {{ submit_button('Log out') }}
-  </form>
-  <p> <b>Notice:</b>
-    By continuing to use the Hail system, you agree that you have reviewed and will be bound by the Hail <a href="https://batch.hail.is/tos" target="_blank" class="text-blue-600 hover:underline">Terms of Service</a>
-    and have read the <a href="https://batch.hail.is/privacy" target="_blank" class="text-blue-600 hover:underline">Privacy Policy</a>. If not you must log out and stop using the Hail system immediately.
-  </p>
-  {% if cloud == "gcp" %}
-  <p><b>Google Service Account: </b>{{ userdata['display_name'] }}</p>
-  {% endif %}
-  {% if cloud == "azure" %}
-  <p><b>Azure Service Principal Display Name: </b>{{ userdata['display_name'] }}</p>
-  <p><b>Azure Service Principal Application ID: </b>{{ userdata['hail_identity'] }}</p>
-  {% endif %}
-  <p><b>Trial Billing Project: </b>{{ userdata['trial_bp_name'] }}</p>
-  <form action="{{ auth_base_url }}/copy-paste-token" method="post">
-    <input type="hidden" name="_csrf" value="{{ csrf_token }}" />
-    {{ submit_button('Get a copy-paste login token') }}
-  </form>
+  <section class="pt-6">
+    <h2 class="text-lg font-semibold text-zinc-700 border-b pb-1 mb-3">User Account</h2>
+    <p><b>Username: </b>{{ userdata['username'] }}</p>
+    {% if cloud == "gcp" %}
+    <p><b>Google Service Account: </b>{{ userdata['display_name'] }}</p>
+    {% endif %}
+    {% if cloud == "azure" %}
+    <p><b>Azure Service Principal Display Name: </b>{{ userdata['display_name'] }}</p>
+    <p><b>Azure Service Principal Application ID: </b>{{ userdata['hail_identity'] }}</p>
+    {% endif %}
+    <p><b>Trial Billing Project: </b>{{ userdata['trial_bp_name'] }}</p>
+    <form action="{{ auth_base_url }}/logout" method="POST" class="pt-2">
+      <input type="hidden" name="_csrf" value="{{ csrf_token }}" />
+      {{ submit_button('Log out') }}
+    </form>
+  </section>
 
-  <div class="pt-6">
-    <h2 class="text-xl font-light mb-2">
-      User Settings <span class="text-xs align-middle text-amber-600 font-normal">[In Development]</span>
-    </h2>
-    <a id="enable-react-ui-btn" href="#" class="text-sm text-sky-600 hover:underline">Try new layout</a>
-  </div>
+  <section class="pt-6">
+    <h2 class="text-lg font-semibold text-zinc-700 border-b pb-1 mb-3">Session Management</h2>
+    <form action="{{ auth_base_url }}/copy-paste-token" method="post">
+      <input type="hidden" name="_csrf" value="{{ csrf_token }}" />
+      {{ submit_button('Get a copy-paste login token') }}
+    </form>
+  </section>
+
+  <section class="pt-6">
+    <h2 class="text-lg font-semibold text-zinc-700 border-b pb-1 mb-3">User Settings</h2>
+    <p class="text-sm">
+      <b>UI style:</b> classic ·
+      <a id="enable-react-ui-btn" href="#" class="text-sky-600 hover:underline">Try new layout</a>
+      <span class="text-xs align-middle text-amber-600 font-normal">[In Development]</span>
+    </p>
+  </section>
   <script src="{{ auth_base_url }}/auth/static/js/react_toggle.js"></script>
+
+  <section class="pt-6">
+    <h2 class="text-lg font-semibold text-zinc-700 border-b pb-1 mb-3">Notices</h2>
+    <ul class="list-disc pl-5 space-y-2">
+      <li>
+        By continuing to use the Hail system, you agree that you have reviewed and will be bound by the Hail <a href="https://batch.hail.is/tos" target="_blank" class="text-blue-600 hover:underline">Terms of Service</a>
+        and have read the <a href="https://batch.hail.is/privacy" target="_blank" class="text-blue-600 hover:underline">Privacy Policy</a>. If not you must log out and stop using the Hail system immediately.
+      </li>
+      <li>
+        The Hail system records your email address and IP address. Your email address
+        is recorded so that we can authenticate you. Your IP address is tracked as part of our
+        surveillance of all traffic to and from the Hail system. This broad surveillance enables the
+        protection of the Hail system from malicious actors.
+      </li>
+    </ul>
+  </section>
   {% else %}
   <h1 class='text-4xl mb-4'>Log in to continue</h1>
   {% if next_page %}
@@ -72,7 +93,6 @@
   </div>
 
   <script defer src="{{ auth_base_url }}/auth/static/js/user.js"></script>
-  {% endif %}
 
   <p>
     The Hail system records your email address and IP address. Your email address
@@ -80,6 +100,7 @@
     surveillance of all traffic to and from the Hail system. This broad surveillance enables the
     protection of the Hail system from malicious actors.
   </p>
+  {% endif %}
 
 </div>
 {% endblock %}

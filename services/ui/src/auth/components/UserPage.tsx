@@ -1,5 +1,4 @@
 import { useState, ReactNode } from 'react';
-import { ToggleSwitch } from '../../shared/ToggleSwitch';
 import { CopyPasteToken } from './CopyPasteToken';
 
 const REACT_UI_COOKIE = 'hail_react_ui';
@@ -50,13 +49,8 @@ interface UserPageProps {
 }
 
 export function UserPage({ authBaseUrl, username, gsaDisplayName, trialBpName }: UserPageProps): JSX.Element {
-  // This page only renders when the cookie is already '1', so the toggle starts checked.
-  const [reactUiEnabled, setReactUiEnabled] = useState(true);
-
   return (
     <div id="profile" className="space-y-2">
-      <h1 className="text-4xl mb-4">{username}</h1>
-
       <Section title="User Account">
         <div className="space-y-2">
           <p><b>Logged in as: </b><CopyableValue value={username} /></p>
@@ -76,35 +70,27 @@ export function UserPage({ authBaseUrl, username, gsaDisplayName, trialBpName }:
       </Section>
 
       <Section title="User Settings">
-        <div className="flex items-center gap-2">
-          <ToggleSwitch
-            checked={reactUiEnabled}
-            onChange={(next) => {
-              if (next) return; // already enabled, since this page only renders when the cookie is set
-              setReactUiEnabled(false);
-              disableReactUi();
-            }}
-            label="New layout"
-          />
-          <span className="text-xs text-amber-600">[In Development]</span>
-        </div>
+        <p className="text-sm">
+          <b>UI style:</b> new layout <span className="text-xs align-middle text-amber-600">[In Development]</span> ·
+          <button onClick={disableReactUi} className="text-sky-600 hover:underline">Back to classic layout</button>
+        </p>
       </Section>
 
       <Section title="Notices">
-        <div className="space-y-2 text-sm text-zinc-600">
-          <p>
-            <b>Notice:</b> By continuing to use the Hail system, you agree that you have reviewed and
+        <ul className="list-disc pl-5 space-y-2 text-sm text-zinc-600">
+          <li>
+            By continuing to use the Hail system, you agree that you have reviewed and
             will be bound by the Hail <a href="https://batch.hail.is/tos" target="_blank" rel="noreferrer" className="text-blue-600 hover:underline">Terms of Service</a> and
             have read the <a href="https://batch.hail.is/privacy" target="_blank" rel="noreferrer" className="text-blue-600 hover:underline">Privacy Policy</a>. If not you
             must log out and stop using the Hail system immediately.
-          </p>
-          <p>
-            <b>Notice:</b> The Hail system records your email address and IP address. Your email address
+          </li>
+          <li>
+            The Hail system records your email address and IP address. Your email address
             is recorded so that we can authenticate you. Your IP address is tracked as part of our
             surveillance of all traffic to and from the Hail system. This broad surveillance enables the
             protection of the Hail system from malicious actors.
-          </p>
-        </div>
+          </li>
+        </ul>
       </Section>
     </div>
   );
