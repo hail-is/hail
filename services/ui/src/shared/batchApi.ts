@@ -11,7 +11,7 @@ export interface CostBreakdownEntry {
   cost: number;
 }
 
-export type Batch = {
+export interface Batch {
   id: number;
   user: string;
   billing_project: string;
@@ -28,9 +28,9 @@ export type Batch = {
   cost: number;
   cost_breakdown?: CostBreakdownEntry[] | null;
   attributes?: Record<string, string>;
-};
+}
 
-export type BatchJob = {
+export interface BatchJob {
   batch_id: number;
   job_id: number;
   name: string | null;
@@ -39,18 +39,18 @@ export type BatchJob = {
   duration?: number | null;
   cost: number;
   always_run: boolean;
-};
+}
 
-export type BatchJobsPage = {
+export interface BatchJobsPage {
   jobs: BatchJob[];
   last_job_id?: number;
-};
+}
 
-export type BillingProjectInfo = {
+export interface BillingProjectInfo {
   billing_project: string;
   accrued_cost: number;
   limit?: number | null;
-};
+}
 
 // A small, hand-written mirror of just the endpoints callers actually use — not the batch
 // service's full API surface. Add to this as more pages need more of it.

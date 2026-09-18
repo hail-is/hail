@@ -30,7 +30,7 @@ function classifyLine(line: string, fields: readonly QueryFieldConfig[]): Row {
   if (match) {
     const [, field, operator, value] = match;
     const config = fields.find((f) => f.field === field);
-    if (config && config.operators.includes(operator)) {
+    if (config?.operators.includes(operator)) {
       return { kind: 'structured', id: newRowId(), field, operator, value };
     }
   }

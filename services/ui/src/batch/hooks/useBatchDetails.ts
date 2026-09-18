@@ -17,7 +17,7 @@ export interface UseBatchDetailsResult {
   jobsLoading: boolean;
   q: string;
   hasPreviousPage: boolean;
-  setSearch: (q: string) => void;
+  setSearch: (_q: string) => void;
   goToNextPage: () => void;
   goToPreviousPage: () => void;
   cancelBatch: () => Promise<void>;
@@ -25,6 +25,13 @@ export interface UseBatchDetailsResult {
 }
 
 export const REFRESH_INTERVAL_MS = 30_000;
+
+function syncUrl(newQ: string, newLastJobId: number | undefined): void {
+  const params = new URLSearchParams(window.location.search);
+  if (newQ) params.set('q', newQ); else params.delete('q');
+  if (newLastJobId != null) params.set('last_job_id', String(newLastJobId)); else params.delete('last_job_id');
+  window.history.replaceState(null, '', `?${params.toString()}`);
+}
 
 export function useBatchDetails(basePath: string, batchId: string): UseBatchDetailsResult {
   const api = useRef(createHailApi(basePath)).current;
@@ -109,8 +116,7 @@ export function useBatchDetails(basePath: string, batchId: string): UseBatchDeta
     } else {
       void fetchData('search', q, pageLastJobId);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [q, pageLastJobId]);
+  }, [q, pageLastJobId, fetchData]);
 
   // Auto-refresh: re-fetch the current page for as long as the batch isn't complete.
   useEffect(() => {
@@ -118,13 +124,6 @@ export function useBatchDetails(basePath: string, batchId: string): UseBatchDeta
     const id = setInterval(() => { void fetchData('refresh', q, pageLastJobId); }, REFRESH_INTERVAL_MS);
     return () => { clearInterval(id); };
   }, [batch, fetchData, autoRefresh, q, pageLastJobId]);
-
-  const syncUrl = (newQ: string, newLastJobId: number | undefined) => {
-    const params = new URLSearchParams(window.location.search);
-    if (newQ) params.set('q', newQ); else params.delete('q');
-    if (newLastJobId != null) params.set('last_job_id', String(newLastJobId)); else params.delete('last_job_id');
-    window.history.replaceState(null, '', `?${params.toString()}`);
-  };
 
   const setSearch = useCallback((newQ: string) => {
     setPage({ q: newQ, lastJobId: undefined });
