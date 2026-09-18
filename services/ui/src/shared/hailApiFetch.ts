@@ -9,7 +9,10 @@ export async function hailApiFetch<T>(url: string, init?: RequestInit): Promise<
     const token = document.head.querySelector('meta[name="csrf"]')?.getAttribute('value');
     if (token) headers.set('X-CSRF-Token', token);
   }
-  const resp = await fetch(url, { credentials: 'same-origin', ...init, headers });
+  // 'include' (not 'same-origin'): dashboards call sibling hail services (e.g. monitoring calling
+  // batch) which are cross-origin but same-site, so the shared session cookie (domain=hail.is) is
+  // only attached if we explicitly ask for it.
+  const resp = await fetch(url, { credentials: 'include', ...init, headers });
   if (!resp.ok) {
     const text = await resp.text().catch(() => '');
     throw new Error(`${method} ${url} failed (HTTP ${resp.status})${text ? `: ${text}` : ''}`);

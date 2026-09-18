@@ -38,6 +38,7 @@ from gear import (
     Transaction,
     UserData,
     check_csrf_token,
+    cors_allow_hail_services,
     get_authenticator,
     json_request,
     json_response,
@@ -3386,6 +3387,7 @@ async def api_get_billing(request, userdata):
 
 
 @routes.get('/api/v1alpha/billing_breakdown')
+@cors_allow_hail_services
 @auth.authenticated_users_only()
 async def api_get_billing_breakdown(request: web.Request, userdata) -> web.Response:
     db: Database = request.app['db']
