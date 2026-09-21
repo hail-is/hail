@@ -292,7 +292,7 @@ async def dev_csp_middleware(request: web.Request, handler):
     csp = response.headers.get('Content-Security-Policy', '')
     if csp:
         csp = csp.replace('script-src ', 'script-src http://localhost:8001 ')
-        csp += ' connect-src \'self\' ws://localhost:8001;'
+        csp = csp.replace('connect-src ', 'connect-src ws://localhost:8001 ')
         response.headers['Content-Security-Policy'] = csp
     return response
 

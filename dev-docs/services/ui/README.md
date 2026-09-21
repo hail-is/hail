@@ -161,13 +161,13 @@ If a lint suggestion asks you to wrap an expression in `$(...)` ("non-serializab
 
 ### CSP headers — pick the right decorator, in both places
 
-Every route handler is wrapped in one of `web_security_headers` / `web_security_headers_inline_styles` / `web_security_headers_swagger` (from `web_common`), which controls the response's `Content-Security-Policy`. The default (`web_security_headers`) has no `style-src 'unsafe-inline'`, so **any page whose React tree emits an inline `style=` attribute must use `web_security_headers_inline_styles` instead**, or the browser silently drops those styles (broken chart sizing/layout, no error in the console). This bites recharts-heavy pages especially, since recharts computes a lot of its layout via inline styles.
+Every route handler is wrapped in one of `web_security_headers` / `web_security_headers_inline_styles` / `web_security_headers_swagger` (from `web_common`), which controls the response's `Content-Security-Policy`. The default (`web_security_headers`) has no `style-src 'unsafe-inline'`, so **any page whose tree injects a raw `<style>` element must use `web_security_headers_inline_styles` instead**, or the browser silently drops those styles (broken chart sizing/layout) and logs a CSP violation in the console. `@observablehq/plot` (used by `GanttChart`/`JobTimelineGantt`) does this. Plain React `style={{...}}` props — including recharts, which only uses those — don't need it.
 
 This has to be set in **two** places, and it's easy to fix one and forget the other:
 - The real route handler (e.g. `monitoring/monitoring/monitoring.py`).
 - The matching entry in `_LOCAL_REACT_ROUTES` in `devbin/dev_proxy.py`, which picks a decorator by template name (see the `_template == 'index_react.html'` check). If your new template isn't in that check, local dev silently gets the wrong CSP and won't reproduce the production bug — you have to add it explicitly.
 
-When adding a new React page, check what decorator the closest existing page of the same shape uses (e.g. `/billing` for anything chart-heavy) rather than defaulting to plain `web_security_headers`.
+Be extremely reluctant to add anything new that requires `web_security_headers_inline_styles` — it weakens the CSP for the whole page, not just the component that needed it. Prefer a charting/library choice that doesn't inject raw `<style>` elements (e.g. recharts over `@observablehq/plot`) if one will do the job.
 
 ### Fetching data: use the `hailApi` client objects
 
