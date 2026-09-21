@@ -1544,6 +1544,7 @@ def run():
     app.on_cleanup.append(on_cleanup)
 
     setup_common_static_routes(routes)
+    routes.static('/ci/static/js', f'{CI_ROOT}/static/js')
     routes.static('/ci/static/compiled-js', f'{CI_ROOT}/static/compiled-js')
     app.add_routes(routes)
     app.router.add_get("/metrics", server_stats)

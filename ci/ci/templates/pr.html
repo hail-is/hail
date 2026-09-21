@@ -45,6 +45,12 @@
 {% endmacro %}
 
 {% block content %}
+    {% if userdata['system_permissions']['access_developer_environments'] %}
+    <div>
+      <a id="enable-react-ui-btn" href="#" class="text-sm text-sky-600 hover:underline">Try new layout</a>
+    </div>
+    <script src="{{ base_path }}/ci/static/js/react_toggle.js"></script>
+    {% endif %}
     <h1>{{ pr.title }} <a rel="noopener" href="https://github.com/{{ repo }}/pull/{{ pr.number }}"><span class="gh-number">#{{ pr.number }}</span></a></h1>
     <div class="attributes">
       <div>PR <a rel="noopener" href="https://github.com/{{ repo }}/pull/{{ pr.number }}">#{{ pr.number }}</a> status:
