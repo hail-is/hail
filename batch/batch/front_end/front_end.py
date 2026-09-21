@@ -2337,7 +2337,7 @@ async def delete_batch(request: web.Request, _, batch_id: int) -> web.Response:
 
 
 @routes.get('/batches/{batch_id}', name='batch_details_page')
-@web_security_headers_inline_styles
+@web_security_headers
 @billing_project_users_only()
 @catch_ui_error_in_dev
 async def ui_batch(request, userdata, batch_id):
