@@ -175,6 +175,10 @@ When calling an API from a page, use the per-service `hailApi` client objects (e
 
 If the endpoint you need isn't in the client yet, add it — write its signature and response type by reference to that service's `/openapi.yaml`, not by guessing from the Python handler. Only add endpoints a page actually calls; these clients are a mirror of current usage, not the full API surface.
 
+### Calling another service's API (cross-origin) needs the endpoint to opt in
+
+If a page fetches from a *different* service's origin than the one it's served from (e.g. the `ci` PR page calling `batch.hail.is`), the target endpoint needs `@cors_allow_hail_services` (`gear/gear/cors.py`), or the browser blocks it with a `No 'Access-Control-Allow-Origin' header` CORS error even though the request reached the server (HTTP 200).
+
 ## Local development with the dev-proxy
 
 You don't need a deployed environment to work on a React page. The dev-proxy (`devbin/dev_proxy.py`) runs a local aiohttp server that renders Jinja2 templates directly and either proxies API calls to a real deployed service or serves mock data locally.
