@@ -13,8 +13,16 @@ BEGIN
     SET NEW.start_time = NULL;
   END IF;
 
+  IF OLD.reason IS NOT NULL AND (OLD.end_time IS NULL OR NEW.end_time IS NULL OR NEW.end_time >= OLD.end_time) THEN
+    SET NEW.end_time = OLD.end_time;
+    SET NEW.reason = OLD.reason;
+  END IF;
+
   # does_not_exist means a 404 on VM state -- usually a VM that never booted, but a late
   # poll can also see this for a VM that did run, so guard against nulling billing then.
+  # must run after the OLD.reason restore above: deactivate_instance's blanket UPDATE
+  # touches every attempt ever run on this instance_name, not just the live one, and the
+  # restore block is what resets NEW.reason back to its real terminal value for the rest.
   IF NEW.reason = 'does_not_exist'
      AND NOT EXISTS (
        SELECT 1 FROM jobs
@@ -25,11 +33,6 @@ BEGIN
      )
   THEN
     SET NEW.start_time = NULL;
-  END IF;
-
-  IF OLD.reason IS NOT NULL AND (OLD.end_time IS NULL OR NEW.end_time IS NULL OR NEW.end_time >= OLD.end_time) THEN
-    SET NEW.end_time = OLD.end_time;
-    SET NEW.reason = OLD.reason;
   END IF;
 
   # rollup_time should not go backward in time
