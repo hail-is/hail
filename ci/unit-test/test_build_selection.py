@@ -467,12 +467,22 @@ def _assert_selection(scope: str, seed: Set[str], must_include: Set[str], must_e
     [
         (['monitoring/Dockerfile'], {'monitoring_image', 'deploy_monitoring', 'test_monitoring'}, {'test_batch'}),
         (['docker/hail-ubuntu/Dockerfile'], {'hail_ubuntu_image'}, set()),
-        # A file with no matching `inputs` anywhere still triggers the whole-repo
-        # lint checks (their `inputs` is literally `/repo`), but nothing else.
+        # A file with no matching `inputs` anywhere triggers nothing beyond the
+        # always-run steps.
         (
             ['dev-docs/pip-dependencies.md'],
-            {'check_pip_requirements', 'check_services'},
-            {'test_batch', 'test_auth', 'test_ci', 'monitoring_image', 'auth_image', 'batch_image', 'deploy_batch'},
+            {'merge_code', 'git_make_bash_image'},
+            {
+                'check_pip_requirements',
+                'check_services',
+                'test_batch',
+                'test_auth',
+                'test_ci',
+                'monitoring_image',
+                'auth_image',
+                'batch_image',
+                'deploy_batch',
+            },
         ),
         # hailtop is a shared input of every service image -- one change should
         # fan out to every consumer, not just one.
