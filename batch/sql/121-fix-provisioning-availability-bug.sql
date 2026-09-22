@@ -18,18 +18,13 @@ BEGIN
     SET NEW.reason = OLD.reason;
   END IF;
 
-  # does_not_exist means a 404 on VM state -- usually a VM that never booted, but a late
-  # poll can also see this for a VM that did run, so guard against nulling billing then.
-  # must run after the OLD.reason restore above: deactivate_instance's blanket UPDATE
-  # touches every attempt ever run on this instance_name, not just the live one, and the
-  # restore block is what resets NEW.reason back to its real terminal value for the rest.
+  # does_not_exist means the VM returned a 404; null start_time so we don't bill for a VM
+  # that never existed, but only if it never activated -- an activated VM is still billed
   IF NEW.reason = 'does_not_exist'
-     AND NOT EXISTS (
-       SELECT 1 FROM jobs
-       WHERE jobs.batch_id = NEW.batch_id
-         AND jobs.job_id = NEW.job_id
-         AND jobs.attempt_id = NEW.attempt_id
-         AND jobs.state = 'Running'
+     AND EXISTS (
+       SELECT 1 FROM instances
+       WHERE instances.name = NEW.instance_name
+         AND instances.time_activated IS NULL
      )
   THEN
     SET NEW.start_time = NULL;
