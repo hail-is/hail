@@ -1750,6 +1750,8 @@ steps:
       chmod 755 ./check_pip_requirements.sh
       make check-pip-requirements
     inputs:
+      - from: /repo/.git
+        to: /io/repo/.git
       - from: /repo/Makefile
         to: /io/repo/Makefile
       - from: /repo/check_pip_requirements.sh
@@ -1792,6 +1794,8 @@ steps:
         to: /io/repo/.git
       - from: /repo/Makefile
         to: /io/repo/Makefile
+      - from: /repo/config.mk
+        to: /io/repo/config.mk
       - from: /repo/pylintrc
         to: /io/repo/pylintrc
       - from: /repo/pyproject.toml
