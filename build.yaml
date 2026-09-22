@@ -1760,6 +1760,8 @@ steps:
         to: /io/repo/check_pip_requirements.sh
       - from: /repo/hail/python/hailtop
         to: /io/repo/hail/python/hailtop
+      - from: /repo/hail/python/dataproc-pre-installed-requirements.txt
+        to: /io/repo/hail/python/dataproc-pre-installed-requirements.txtß
       - from: /repo/hail/python/requirements.txt
         to: /io/repo/hail/python/requirements.txt
       - from: /repo/hail/python/pinned-requirements.txt
