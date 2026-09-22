@@ -368,6 +368,7 @@ WHERE job_groups.batch_id = %s AND
 
 
 @routes.get('/api/v1alpha/batches/{batch_id}/jobs')
+@cors_allow_hail_services
 @billing_project_users_only()
 @add_metadata_to_request
 async def get_batch_jobs_v1(request: web.Request, _, batch_id: int) -> web.Response:
@@ -802,6 +803,7 @@ async def _query_batches(request, user: str, q: str, version: int, last_batch_id
 
 
 @routes.get('/api/v1alpha/batches')
+@cors_allow_hail_services
 @auth.authenticated_users_only()
 @add_metadata_to_request
 async def get_batches_v1(request, userdata):  # pylint: disable=unused-argument
@@ -2176,6 +2178,7 @@ WHERE id = %s AND NOT deleted;
 
 
 @routes.get('/api/v1alpha/batches/{batch_id}')
+@cors_allow_hail_services
 @billing_project_users_only()
 @add_metadata_to_request
 async def get_batch(request: web.Request, _, batch_id: int) -> web.Response:
