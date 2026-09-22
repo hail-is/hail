@@ -1804,6 +1804,8 @@ steps:
         to: /io/repo/check-sql.sh
       - from: /repo/hail/python/hailtop
         to: /io/repo/hail/python/hailtop
+      - from: /repo/hail/python/dataproc-pre-installed-requirements.txt
+        to: /io/repo/hail/python/dataproc-pre-installed-requirements.txt
       - from: /repo/auth
         to: /io/repo/auth
       - from: /repo/batch
