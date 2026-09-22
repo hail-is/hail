@@ -2,17 +2,23 @@
 """Prepare files for a batch worker VM image update and optionally kick off a test build.
 
 Sets up for a test build in your personal namespace. After the test succeeds,
-run the create script again with NAMESPACE=default and update create_instance.py
-to the production image name before merging.
+run this script again with --promote to build the production image and update
+create_instance.py to the production image name before merging.
 
-Updates:
+Default (test) mode updates:
   - UBUNTU_IMAGE in batch/gcp-create-worker-image.sh (latest Noble minimal from GCP)
   - WORKER_IMAGE_VERSION in batch/gcp-create-worker-image.sh (incremented by 1)
   - batch-worker-N image reference in batch/batch/cloud/gcp/driver/create_instance.py
     (set to the personal-namespace test image name)
   - INSTANCE_VERSION in batch/batch/globals.py (incremented by 1)
+
+--promote mode:
+  - Builds the production image (NAMESPACE=default)
+  - Updates the batch-worker-<namespace>-N reference in create_instance.py
+    to the production batch-worker-N image name
 """
 
+import argparse
 import os
 import re
 import shutil
@@ -276,7 +282,67 @@ def print_next_steps(namespace: str, new_worker_version: int) -> None:
     print('   Existing workers stay on the old image until deleted.')
 
 
+def find_test_image_ref() -> tuple[str, int]:
+    """Find the personal-namespace test image reference currently in create_instance.py.
+
+    Returns (namespace, version).
+    """
+    text = CREATE_INSTANCE_PY.read_text()
+    m = re.search(r'batch-worker-([a-zA-Z0-9]+?)-(\d+)', text)
+    if not m:
+        print(f'ERROR: Could not find a batch-worker-<namespace>-<version> reference in {CREATE_INSTANCE_PY}', file=sys.stderr)
+        sys.exit(1)
+    return m.group(1), int(m.group(2))
+
+
+def promote() -> None:
+    if not shutil.which('gcloud'):
+        print('ERROR: gcloud is required but not found in PATH.', file=sys.stderr)
+        sys.exit(1)
+
+    namespace, version = find_test_image_ref()
+    test_ref = f'batch-worker-{namespace}-{version}'
+    prod_ref = f'batch-worker-{version}'
+
+    print(f'Promoting test image {test_ref!r} (namespace={namespace!r}) to production image {prod_ref!r}.')
+
+    print()
+    cmd = f'NAMESPACE=default {CREATE_SCRIPT.relative_to(REPO_ROOT)}'
+    if ask(f'About to run: {cmd}\nContinue?'):
+        subprocess.run([str(CREATE_SCRIPT)], env={**os.environ, 'NAMESPACE': 'default'}, check=True)
+    else:
+        print(f'Skipped. Run it yourself when ready:\n  {cmd}')
+
+    text = CREATE_INSTANCE_PY.read_text()
+    CREATE_INSTANCE_PY.write_text(text.replace(test_ref, prod_ref))
+    print(f'  {CREATE_INSTANCE_PY.relative_to(REPO_ROOT)}: {test_ref} -> {prod_ref}')
+
+    print()
+    print('=' * 60)
+    print('Remaining steps:')
+    print('=' * 60)
+    print()
+    print('1. Once the production build above succeeds, push these file changes to update')
+    print('   the PR used to test the development image.')
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument(
+        '--promote',
+        action='store_true',
+        help='Promote a previously tested personal-namespace image to the default '
+        '(production) namespace, instead of starting a new test build.',
+    )
+    return parser.parse_args()
+
+
 def main() -> None:
+    args = parse_args()
+    if args.promote:
+        promote()
+        return
+
     namespace = os.environ.get('NAMESPACE', '').strip()
     if not namespace:
         namespace = input('Personal namespace for test build (e.g. your name): ').strip()
