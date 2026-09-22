@@ -1754,6 +1754,8 @@ steps:
         to: /io/repo/.git
       - from: /repo/Makefile
         to: /io/repo/Makefile
+      - from: /repo/config.mk
+        to: /io/repo/config.mk
       - from: /repo/check_pip_requirements.sh
         to: /io/repo/check_pip_requirements.sh
       - from: /repo/hail/python/hailtop
