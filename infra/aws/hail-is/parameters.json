@@ -26,5 +26,9 @@
   {
     "ParameterKey": "DomainName",
     "ParameterValue": "aws.hail.is"
+  },
+  {
+    "ParameterKey": "OrganizationDomain",
+    "ParameterValue": "broadinstitute.org"
   }
 ]
