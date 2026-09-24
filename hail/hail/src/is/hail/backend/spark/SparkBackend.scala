@@ -207,8 +207,7 @@ class AnonymousDependency[T](val _rdd: RDD[T]) extends NarrowDependency[T](_rdd)
 // no implicit $outer pointer back to the enclosing RDD instance -- otherwise every task's
 // serialized Partition drags the whole RDD (and its full `contexts` array, `f`, etc.)
 // along with it, not just this partition's own `data`.
-private[spark] case class RDDPartition(data: Array[Byte], override val index: Int)
-    extends Partition
+private[spark] case class RDDPartition(data: Array[Byte], override val index: Int) extends Partition
 
 class SparkBackend(val spark: SparkSession) extends Backend with Logging {
 
