@@ -4072,7 +4072,9 @@ class MatrixTable(BaseTable):
         return MatrixTable(ir.MatrixUnionCols(self._mir, other._mir, row_join_type))
 
     @typecheck_method(n_rows=nullable(int), n_cols=nullable(int), n=nullable(int))
-    def head(self, n_rows: Optional[int], n_cols: Optional[int] = None, *, n: Optional[int] = None) -> 'MatrixTable':
+    def head(
+        self, n_rows: Optional[int] = None, n_cols: Optional[int] = None, *, n: Optional[int] = None
+    ) -> 'MatrixTable':
         """Subset matrix to first `n_rows` rows and `n_cols` cols.
 
         Examples
@@ -4121,12 +4123,13 @@ class MatrixTable(BaseTable):
             Matrix including the first `n_rows` rows and first `n_cols` cols.
 
         """
+        if n_rows is None and n_cols is None and n is None:
+            raise ValueError('One of n_rows or n_cols must be specified')
         if n_rows is not None and n is not None:
             raise ValueError('Both n and n_rows specified. Only one may be specified.')
 
-        if n_rows is not None:
-            n_rows_name = 'n_rows'
-        else:
+        n_rows_name = 'n_rows'
+        if n is not None:
             warnings.warn("MatrixTable.head: the 'n' parameter is deprecated in favor of 'n_rows'.")
             n_rows = n
             n_rows_name = 'n'
