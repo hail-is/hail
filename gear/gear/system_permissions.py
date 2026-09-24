@@ -35,6 +35,8 @@ class SystemPermission(str, Enum):
     UPDATE_ALL_BILLING_PROJECTS = 'update_all_billing_projects'
     DELETE_ALL_BILLING_PROJECTS = 'delete_all_billing_projects'
     ASSIGN_USERS_TO_ALL_BILLING_PROJECTS = 'assign_users_to_all_billing_projects'
+    # Quotes
+    CREATE_QUOTES = 'create_quotes'
 
     @classmethod
     def from_string(cls, permission_name: str) -> 'SystemPermission':
