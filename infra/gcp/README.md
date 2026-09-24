@@ -9,13 +9,12 @@ infrastructure.
 
    ```
    gcloud config set project <gcp-project-id>
-   gcloud config set compute/zone <gcp-zone>
    ```
 
 - Enable the GCP services needed by Hail:
 
    ```
-   gcloud services enable \
+    gcloud services enable \
        container.googleapis.com \
        compute.googleapis.com \
        cloudkms.googleapis.com \
@@ -30,18 +29,22 @@ infrastructure.
        iam.googleapis.com \
        artifactregistry.googleapis.com \
        cloudbilling.googleapis.com
+
+    gcloud config set compute/zone <gcp-zone>
    ```
 
-- Delete the default network if it exists. Enabling the networking
-  API creates it.
+- Delete the default network if it exists. Enabling the networking API creates it.
+  - Note: This didn't seem to happen 9/24/2026. No network needed to be deleted.
 
 - Determine a domain name for the deployment. We will use it now and register it with a DNS provider later.
 
-- Go to the Google Cloud console, API & Services.
-  - Configure the consent screen.
-    - You can probably leave most fields on the first page empty. Give it a sensible name and management email.
+- Go to the Google Cloud console / API & Services / OAuth consent screen
+  - Create a new app on the Overview tab.
+  - Configure the branding tab.
+    - Give it a sensible name and management email.
+  - Under Data Access
     - Add the scope: `../auth/userinfo.email`.
-  - Back in Credentials, create an OAuth client ID of type `Web application`. Authorize the redirect URIs:
+  - Under clients, create an OAuth client ID of type `Web application`. Authorize the redirect URIs:
     - `https://auth.<domain>/oauth2callback`
     - `http://127.0.0.1/oauth2callback`
   - Download the client secret as `/tmp/auth_oauth2_client_secret.json`.
@@ -65,7 +68,8 @@ export GCP_PROJECT=<gcp project name>
 
    ```
    # organization_domain is a string that is the domain of the organization
-   # E.g. "hail.is"
+   # E.g. "hail.is".
+   # Used during SSO to validate the user emails belong to this domain.
    organization_domain = "<domain>"
 
    # The GitHub organization hosting your Hail Batch repository, e.g. "hail-is".
@@ -101,7 +105,10 @@ export GCP_PROJECT=<gcp project name>
 
    gcp_location = "<gcp-region>"
 
+   # The domain name for the deployment (eg "hail.is", "sandbox.hail.is")
    domain = "<domain>"
+
+   artifact_registry_location = "us"
 
    # If set to true, pull the base ubuntu image from Artifact Registry.
    # Otherwise, assumes GCR.
