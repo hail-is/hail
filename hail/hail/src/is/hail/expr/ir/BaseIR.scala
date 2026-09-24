@@ -1,10 +1,10 @@
 package is.hail.expr.ir
 
-import is.hail.backend.ExecuteContext
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.collection.implicits.toRichIndexedSeqAnyRef
 import is.hail.types.virtual.{Type, VType}
 import is.hail.utils.StackSafe._
+
+import scala.collection.immutable.ArraySeq
 
 case class Name(str: String) {
   override def toString: String = str
@@ -21,11 +21,8 @@ abstract class BaseIR {
 
   protected def copyWithNewChildren(newChildren: IndexedSeq[BaseIR]): BaseIR
 
-  def deepCopy(): this.type =
-    copyWithNewChildren(newChildren = childrenSeq.map(_.deepCopy())).asInstanceOf[this.type]
-
-  def noSharing(ctx: ExecuteContext): this.type =
-    if (HasIRSharing(ctx)(this)) this.deepCopy() else this
+  def deepCopy: BaseIR =
+    copyWithNewChildren(newChildren = childrenSeq.map(_.deepCopy))
 
   // For use as a boolean flag by IR passes. Each pass uses a different sentinel value to encode
   // "true" (and anything else is false). As long as we maintain the global invariant that no
@@ -33,12 +30,6 @@ abstract class BaseIR {
   // without ever having to initialize it at the start of a pass.
   // New sentinel values can be obtained by `nextFlag` on `IRMetadata`.
   var mark: Int = 0
-
-  def isAlphaEquiv(ctx: ExecuteContext, other: BaseIR): Boolean = {
-    // FIXME: rewrite to not rebuild the irs by maintaining an env mapping left to right names
-    val normalize: (ExecuteContext, BaseIR) => BaseIR = NormalizeNames(allowFreeVariables = true)
-    normalize(ctx, this) == normalize(ctx, other)
-  }
 
   def mapChildrenWithIndex(f: (BaseIR, Int) => BaseIR): BaseIR = {
     val newChildren = childrenSeq.view.zipWithIndex.map(f.tupled).to(ArraySeq)

@@ -104,7 +104,7 @@ data:
                         uri: https://auth:443
                         cluster: auth
                         timeout: 0.25s
-                      path_prefix: /api/v1alpha/verify_dev_credentials?url=
+                      path_prefix: /api/v1alpha/verify_system_permission?permission=access_developer_environments&url=
                       authorization_request:
                         allowed_headers:
                           patterns:

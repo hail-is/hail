@@ -1,12 +1,11 @@
 package is.hail.types.physical.stypes.primitives
 
-import is.hail.annotations.Region
 import is.hail.asm4s.{LongInfo, Settable, SettableBuilder, TypeInfo, Value}
 import is.hail.asm4s.Code.invokeStatic1
 import is.hail.collection.FastSeq
 import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.types.physical.{PInt64, PType}
-import is.hail.types.physical.stypes.{SSettable, SType, SValue}
+import is.hail.types.physical.stypes.{SSettable, SValue}
 import is.hail.types.virtual.{TInt64, Type}
 
 case object SInt64 extends SPrimitive {
@@ -14,28 +13,14 @@ case object SInt64 extends SPrimitive {
 
   override lazy val virtualType: Type = TInt64
 
-  override def castRename(t: Type): SType = this
-
-  override def _coerceOrCopy(
-    cb: EmitCodeBuilder,
-    region: Value[Region],
-    value: SValue,
-    deepCopy: Boolean,
-  ): SValue =
-    value.st match {
-      case SInt64 => value
-    }
-
-  override def settableTupleTypes(): IndexedSeq[TypeInfo[_]] = FastSeq(LongInfo)
-
   override def fromSettables(settables: IndexedSeq[Settable[_]]): SInt64Settable = {
     val IndexedSeq(x: Settable[Long @unchecked]) = settables
     assert(x.ti == LongInfo)
     new SInt64Settable(x)
   }
 
-  override def fromValues(settables: IndexedSeq[Value[_]]): SInt64Value = {
-    val IndexedSeq(x: Value[Long @unchecked]) = settables
+  override def fromValues(values: IndexedSeq[Value[_]]): SInt64Value = {
+    val IndexedSeq(x: Value[Long @unchecked]) = values
     assert(x.ti == LongInfo)
     new SInt64Value(x)
   }

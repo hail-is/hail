@@ -1,6 +1,6 @@
 package is.hail.expr.ir
 
-import is.hail.HailSuite
+import is.hail.TestUtils._
 import is.hail.annotations.{Region, SafeIndexedSeq}
 import is.hail.asm4s._
 import is.hail.backend.ExecuteContext
@@ -15,15 +15,13 @@ import is.hail.types.physical.stypes.primitives.{SInt32, SInt32Value}
 import is.hail.utils.using
 import is.hail.variant.{Locus, ReferenceGenome}
 
+import org.junit.jupiter.api.Test
 import org.scalacheck.Arbitrary.arbitrary
 import org.scalacheck.Gen
-import org.scalatest
+import org.scalacheck.Prop.forAll
 import org.scalatest.matchers.should.Matchers.{be, convertToAnyShouldWrapper}
-import org.scalatestplus.scalacheck.CheckerAsserting.assertingNatureOfAssertion
-import org.scalatestplus.scalacheck.ScalaCheckDrivenPropertyChecks
-import org.testng.annotations.Test
 
-class StagedMinHeapSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
+class StagedMinHeapSuite {
 
   implicit object StagedIntCoercions extends StagedCoercions[Int] {
     override def ti: TypeInfo[Int] = implicitly
@@ -36,21 +34,21 @@ class StagedMinHeapSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
       sa.asInt.value
   }
 
-  @Test def testSorting(): Unit =
-    forAll((xs: IndexedSeq[Int]) => assert(sort(xs) == xs.sorted))
+  @Test def testSorting(implicit ctx: ExecuteContext): Unit =
+    check(forAll((xs: IndexedSeq[Int]) => assert(sort(ctx, xs) == xs.sorted)))
 
-  @Test def testHeapProperty(): Unit =
-    forAll { (xs: IndexedSeq[Int]) =>
-      val heap = heapify(xs)
-      scalatest.Inspectors.forAll(0 until heap.size / 2) { i =>
+  @Test def testHeapProperty(implicit ctx: ExecuteContext): Unit =
+    check(forAll { (xs: IndexedSeq[Int]) =>
+      val heap = heapify(ctx, xs)
+      (0 until heap.size / 2).foreach { i =>
         assert(
           ((2 * i + 1) >= heap.size || heap(i) <= heap(2 * i + 1)) &&
             ((2 * i + 2) >= heap.size || heap(i) <= heap(2 * i + 2))
         )
       }
-    }
+    })
 
-  @Test def testNonEmpty(): Unit =
+  @Test def testNonEmpty(implicit ctx: ExecuteContext): Unit =
     gen(ctx, "NonEmpty") { (heap: IntHeap) =>
       heap.nonEmpty should be(false)
       for (i <- 0 to 10) heap.push(i)
@@ -65,8 +63,8 @@ class StagedMinHeapSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
       loci <- Gen.containerOf[IndexedSeq, Locus](genLocus(rg))
     } yield (rg, loci)
 
-  @Test def testLocus(): Unit =
-    forAll(loci) { case (rg: ReferenceGenome, loci: IndexedSeq[Locus]) =>
+  @Test def testLocus(implicit ctx: ExecuteContext): Unit =
+    check(forAll(loci) { case (rg: ReferenceGenome, loci: IndexedSeq[Locus]) =>
       ctx.local(references = Map(rg.name -> rg)) { ctx =>
         implicit val coercions: StagedCoercions[Locus] =
           stagedLocusCoercions(rg)
@@ -79,17 +77,17 @@ class StagedMinHeapSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
 
         assert(sortedLoci == loci.sorted(rg.locusOrdering))
       }
-    }
+    })
 
-  def sort(xs: IndexedSeq[Int]): IndexedSeq[Int] =
+  def sort(ctx: ExecuteContext, xs: IndexedSeq[Int]): IndexedSeq[Int] =
     gen(ctx, "Sort") { (heap: IntHeap) =>
       xs.foreach(heap.push)
       IndexedSeq.fill(xs.size)(heap.pop())
     }
 
-  def heapify(xs: IndexedSeq[Int]): IndexedSeq[Int] =
+  def heapify(ctx: ExecuteContext, xs: IndexedSeq[Int]): IndexedSeq[Int] =
     gen(ctx, "Heapify") { (heap: IntHeap) =>
-      pool.scopedRegion { r =>
+      ctx.r.pool.scopedRegion { r =>
         xs.foreach(heap.push)
         val ptr = heap.toArray(r)
         SafeIndexedSeq(PCanonicalArray(PInt32Required), ptr).asInstanceOf[IndexedSeq[Int]]

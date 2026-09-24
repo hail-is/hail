@@ -1,7 +1,6 @@
 package is.hail.sparkextras
 
-import is.hail.collection.compat.immutable.ArraySeq
-
+import scala.collection.immutable.ArraySeq
 import scala.reflect.ClassTag
 
 import org.apache.spark.{OneToOneDependency, Partition, SparkContext, TaskContext}

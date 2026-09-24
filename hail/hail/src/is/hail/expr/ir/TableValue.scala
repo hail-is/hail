@@ -5,12 +5,13 @@ import is.hail.asm4s._
 import is.hail.backend.ExecuteContext
 import is.hail.backend.spark.{SparkBackend, SparkTaskContext}
 import is.hail.collection.FastSeq
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.collection.implicits.toRichIterable
 import is.hail.expr.TableAnnotationImpex
 import is.hail.expr.ir.agg.IndependentExtractedAggs
 import is.hail.expr.ir.defs._
-import is.hail.expr.ir.lowering.{RVDToTableStage, TableStage, TableStageToRVD}
+import is.hail.expr.ir.lowering.{
+  LowerMatrixIR, Optimize, RVDToTableStage, TableStage, TableStageToRVD,
+}
 import is.hail.io.{exportTypes, BufferSpec, ByteArrayDecoder, ByteArrayEncoder, TypedCodecSpec}
 import is.hail.rvd.{RVD, RVDContext, RVDPartitioner, RVDType}
 import is.hail.sparkextras.ContextRDD
@@ -27,6 +28,7 @@ import is.hail.types.tcoerce
 import is.hail.types.virtual.{Field, MatrixType, TArray, TInt32, TStream, TStruct, TableType}
 import is.hail.utils._
 
+import scala.collection.immutable.ArraySeq
 import scala.reflect.ClassTag
 
 import java.io.{DataInputStream, DataOutputStream}
@@ -189,7 +191,7 @@ object TableValue extends Logging {
       }.toCRDDPtr,
     )
 
-    val newGlobals = BroadcastRow(ctx, Row(childValues.map(_.globals.javaValue)), newGlobalType)
+    val newGlobals = BroadcastRow(ctx, RowSeq(childValues.map(_.globals.javaValue)), newGlobalType)
 
     TableValue(ctx, typ, newGlobals, rvd)
   }
@@ -284,7 +286,7 @@ object TableValue extends Logging {
           ArraySeq.tabulate(nPartitions) { i =>
             val start = partStarts(i)
             val end = partStarts(i + 1)
-            Interval(Row(start), Row(end), includesStart = true, includesEnd = false)
+            Interval(RowSeq(start), RowSeq(end), includesStart = true, includesEnd = false)
           },
         ),
         ContextRDD.parallelize(Range(0, nPartitions), nPartitions)
@@ -566,33 +568,25 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
   }
 
   def explode(path: IndexedSeq[String]): TableValue = {
+    val row = Ref(TableIR.rowName, typ.rowType)
     val idx = Ref(freshName(), TInt32)
 
-    val newRow: InsertFields = {
-      val refs = path.init.scanLeft(Ref(TableIR.rowName, typ.rowType))((struct, name) =>
+    val refs =
+      path.scanLeft(row)((struct, name) =>
         Ref(freshName(), tcoerce[TStruct](struct.typ).field(name).typ)
       )
 
-      path.zip(refs).zipWithIndex.foldRight[IR](idx) {
-        case (((field, ref), i), arg) =>
-          InsertFields(
-            ref,
-            FastSeq(field ->
-              (if (i == refs.length - 1)
-                 ArrayRef(CastToArray(GetField(ref, field)), arg)
-               else
-                 Let(FastSeq(refs(i + 1).name -> GetField(ref, field)), arg))),
-          )
-      }.asInstanceOf[InsertFields]
-    }
+    val newRow =
+      Block(
+        ArraySeq.tabulate(path.length)(i => Binding(refs(i + 1).name, refs(i).get(path(i)))),
+        refs.init.zip(path).foldRight(refs.last.at(idx)) { case ((r, p), elem) =>
+          r.ir.insert(p -> elem)
+        },
+      )
 
-    val length: IR =
+    val length =
       Coalesce(FastSeq(
-        ArrayLen(CastToArray(
-          path.foldLeft[IR](Ref(TableIR.rowName, typ.rowType))((struct, field) =>
-            GetField(struct, field)
-          )
-        )),
+        CastToArray(path.foldLeft[IR](row.ir)(_.get(_))).len,
         0,
       ))
 
@@ -629,7 +623,7 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
 
     TableValue(
       ctx,
-      typ.copy(rowType = newRow.typ),
+      typ.copy(rowType = newRow.typ.asInstanceOf[TStruct]),
       globals,
       rvd.boundary.mapPartitionsWithIndex(rvdType) { (i, hcl, ctx, it) =>
         val globalRegion = ctx.partitionRegion

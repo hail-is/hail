@@ -552,15 +552,6 @@ resource "google_artifact_registry_repository" "dockerhub_remote" {
   }
 }
 
-resource "google_service_account" "gcr_push" {
-  account_id = "gcr-push"
-  display_name = "push to gcr.io"
-}
-
-resource "google_service_account_key" "gcr_push_key" {
-  service_account_id = google_service_account.gcr_push.name
-}
-
 resource "google_artifact_registry_repository_iam_member" "artifact_registry_batch_agent_viewer" {
   provider = google-beta
   project = var.gcp_project
@@ -588,22 +579,6 @@ resource "google_artifact_registry_repository_iam_member" "artifact_registry_ci_
   location = var.gcp_location
   role = "roles/artifactregistry.admin"
   member = "serviceAccount:${module.ci_gsa_secret.email}"
-}
-
-resource "google_storage_bucket_iam_member" "gcr_push_admin" {
-  count = var.use_artifact_registry ? 0 : 1
-  bucket = google_container_registry.registry[0].id
-  role = "roles/storage.admin"
-  member = "serviceAccount:${google_service_account.gcr_push.email}"
-}
-
-resource "google_artifact_registry_repository_iam_member" "artifact_registry_push_admin" {
-  provider = google-beta
-  project = var.gcp_project
-  repository = google_artifact_registry_repository.repository.name
-  location = var.gcp_location
-  role = "roles/artifactregistry.admin"
-  member = "serviceAccount:${google_service_account.gcr_push.email}"
 }
 
 resource "google_project_iam_custom_role" "auth_service_account_manager" {
@@ -897,6 +872,13 @@ resource "google_service_account_iam_member" "testns_batch_act_as_batch_agent" {
   service_account_id = google_service_account.batch_agent.name
   role               = "roles/iam.serviceAccountUser"
   member             = "serviceAccount:${module.testns_batch_gsa_secret.email}"
+}
+
+# Grant batch2-agent service account permission to act as itself - required for some permission checks
+resource "google_service_account_iam_member" "batch_agent_act_as_batch_agent" {
+  service_account_id = google_service_account.batch_agent.name
+  role               = "roles/iam.serviceAccountUser"
+  member             = "serviceAccount:${google_service_account.batch_agent.email}"
 }
 
 resource "google_service_account" "gke_node_pool" {

@@ -46,16 +46,18 @@ steps:
     dependsOn:
       - merge_code
   - kind: buildImage2
-    name: hail_ubuntu_image_python_3_10
+    name: hail_ubuntu_image_python_3_13
     dockerFile: /io/repo/docker/hail-ubuntu/Dockerfile
     contextPath: /io/repo
     buildArgs:
       - name: PYTHON_VERSION
-        value: "3.10"
+        value: "3.13"
       - name: DOCKER_PREFIX
         value:
           valueFrom: global.docker_prefix
-    publishAs: hail-ubuntu-py-3-10
+      - name: SKIP_GCLOUD_PROFILER
+        value: "true"
+    publishAs: hail-ubuntu-py-3-13
     inputs:
       - from: /repo/docker/hail-ubuntu
         to: /io/repo/docker/hail-ubuntu
@@ -66,11 +68,11 @@ steps:
   - kind: runImage
     name: test_build_image_build_args_override_default
     image:
-      valueFrom: hail_ubuntu_image_python_3_10.image
+      valueFrom: hail_ubuntu_image_python_3_13.image
     script: |
-      python3 --version | grep '3.10'
+      python3 --version | grep '3.13'
     dependsOn:
-      - hail_ubuntu_image_python_3_10
+      - hail_ubuntu_image_python_3_13
   - kind: buildImage2
     name: base_image
     dockerFile: /io/repo/docker/Dockerfile.base

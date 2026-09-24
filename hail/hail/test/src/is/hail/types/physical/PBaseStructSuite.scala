@@ -1,11 +1,12 @@
 package is.hail.types.physical
 
 import is.hail.annotations.Annotation
+import is.hail.backend.ExecuteContext
 
-import org.testng.annotations.Test
+import org.junit.jupiter.api.Test
 
 class PBaseStructSuite extends PhysicalTestUtils {
-  @Test def testStructCopy(): Unit = {
+  @Test def testStructCopy(implicit ctx: ExecuteContext): Unit = {
     def runTests(deepCopy: Boolean, interpret: Boolean = false): Unit = {
       copyTestExecutor(
         PCanonicalStruct(),
@@ -178,7 +179,7 @@ class PBaseStructSuite extends PhysicalTestUtils {
     runTests(false, true)
   }
 
-  @Test def tupleCopyTests(): Unit = {
+  @Test def tupleCopyTests(implicit ctx: ExecuteContext): Unit = {
     def runTests(deepCopy: Boolean, interpret: Boolean = false): Unit = {
       copyTestExecutor(
         PCanonicalTuple(false, PCanonicalString(true), PCanonicalString(true)),

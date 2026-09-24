@@ -13,6 +13,7 @@ from hail import ir
 from hail.expr.functions import _cdf_combine, _error_from_cdf, _result_from_raw_cdf
 from hail.expr.types import tarray, tbool, tcall, tfloat, tfloat32, tfloat64, tint, tint32, tint64, tstr, tstruct
 
+from ..conftest import init_hail_scope
 from ..helpers import assert_evals_to, convert_struct_to_dict, qobtest, resource, test_timeout, with_flags
 
 
@@ -4223,8 +4224,8 @@ def cdf_max_observed_error(cdf):
     return rank_error / cdf.ranks[-1]
 
 
-@pytest.fixture(scope='module', params=(True, False))
-def cdf_test_data(request):
+@pytest.fixture(scope=init_hail_scope, params=(True, False))
+def cdf_test_data(request, init_hail):
     with hl.TemporaryDirectory(ensure_exists=False) as f:
         if request.param:
             t = hl.utils.range_table(1_000_000)

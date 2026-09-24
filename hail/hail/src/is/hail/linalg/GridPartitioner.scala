@@ -1,10 +1,9 @@
 package is.hail.linalg
 
-import is.hail.collection.compat._
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.collection.implicits._
 import is.hail.utils._
 
+import scala.collection.immutable.ArraySeq
 import scala.collection.mutable
 
 import breeze.linalg.{DenseVector => BDV}

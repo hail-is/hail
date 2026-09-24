@@ -1,4 +1,3 @@
-<!-- HTML for static distribution bundle build -->
 <!DOCTYPE html>
 <html lang="en">
   <head>
@@ -6,16 +5,10 @@
     <meta name="csrf" value="{{ csrf_token }}" />
     <meta name="base-path" value="{{ base_path }}" />
     <title>Swagger UI</title>
-    <link rel="stylesheet" type="text/css" href="{{ base_path }}/common_static/lib/swagger/swagger-ui.css" />
-    <link rel="stylesheet" type="text/css" href="{{ base_path }}/common_static/lib/swagger/index.css" />
-    <link rel="icon" type="image/png" href="{{ base_path }}/common_static/lib/swagger/favicon-32x32.png" sizes="32x32" />
-    <link rel="icon" type="image/png" href="{{ base_path }}/common_static/lib/swagger/favicon-16x16.png" sizes="16x16" />
+    <link rel="stylesheet" type="text/css" href="{{ base_path }}/{{ service }}/static/compiled-js/swagger.css" />
   </head>
-
   <body>
     <div id="swagger-ui"></div>
-    <script src="{{ base_path }}/common_static/lib/swagger/swagger-ui-bundle.js" charset="UTF-8"> </script>
-    <script src="{{ base_path }}/common_static/lib/swagger/swagger-ui-standalone-preset.js" charset="UTF-8"> </script>
-    <script defer src="{{ base_path }}/common_static/js/swagger/index.js"></script>
+    <script type="module" src="{{ base_path }}/{{ service }}/static/compiled-js/swagger.js"></script>
   </body>
 </html>

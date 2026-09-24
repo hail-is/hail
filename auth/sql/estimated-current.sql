@@ -5,7 +5,7 @@ CREATE TABLE `users` (
   `username` varchar(255) NOT NULL COLLATE utf8mb4_0900_as_cs,
   `login_id` varchar(255) DEFAULT NULL COLLATE utf8mb4_0900_as_cs,
   `display_name` varchar(255) DEFAULT NULL,
-  `is_developer` tinyint(1) NOT NULL DEFAULT 0,
+  `is_developer` tinyint(1) NOT NULL DEFAULT 0, -- deprecated, use system_roles instead
   `is_service_account` tinyint(1) NOT NULL DEFAULT 0,
   -- session
   `tokens_secret_name` varchar(255) DEFAULT NULL,
@@ -60,4 +60,34 @@ CREATE TABLE `roles` (
   `name` VARCHAR(255) NOT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `name` (`name`)
+) ENGINE=InnoDB;
+
+CREATE TABLE `system_roles` (
+  `id` INT(11) NOT NULL AUTO_INCREMENT,
+  `name` VARCHAR(255) NOT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `name` (`name`)
+) ENGINE=InnoDB;
+
+CREATE TABLE `system_permissions` (
+  `id` INT(11) NOT NULL AUTO_INCREMENT,
+  `name` VARCHAR(255) NOT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `name` (`name`)
+) ENGINE=InnoDB;
+
+CREATE TABLE `system_role_permissions` (
+  `role_id` INT(11) NOT NULL,
+  `permission_id` INT(11) NOT NULL,
+  PRIMARY KEY (`role_id`, `permission_id`),
+  FOREIGN KEY (`role_id`) REFERENCES `system_roles` (`id`),
+  FOREIGN KEY (`permission_id`) REFERENCES `system_permissions` (`id`)
+) ENGINE=InnoDB;
+
+CREATE TABLE `users_system_roles` (
+  `user_id` INT(11) NOT NULL,
+  `role_id` INT(11) NOT NULL,
+  PRIMARY KEY (`user_id`, `role_id`),
+  FOREIGN KEY (`user_id`) REFERENCES `users` (`id`),
+  FOREIGN KEY (`role_id`) REFERENCES `system_roles` (`id`)
 ) ENGINE=InnoDB;

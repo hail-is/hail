@@ -7,8 +7,6 @@ import is.hail.types.physical.{PArray, PStruct}
 import is.hail.types.virtual.TFloat64
 import is.hail.utils._
 
-import scala.collection.compat._
-
 import breeze.linalg._
 import org.apache.spark.sql.Row
 

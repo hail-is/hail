@@ -1,7 +1,9 @@
 package is.hail.types.physical.stypes.interfaces
 
 import is.hail.asm4s.{Code, Value}
+import is.hail.asm4s.implicits._
 import is.hail.expr.ir.EmitCodeBuilder
+import is.hail.io.PrefixCoder
 import is.hail.types.{RPrimitive, TypeWithRequiredness}
 import is.hail.types.physical.stypes.{SType, SValue}
 import is.hail.types.physical.stypes.primitives.{SInt32Value, SInt64Value}
@@ -36,4 +38,15 @@ trait SLocusValue extends SValue {
 
   override def sizeToStoreInBytes(cb: EmitCodeBuilder): SInt64Value =
     structRepr(cb).sizeToStoreInBytes(cb)
+
+  override def prefixCode(cb: EmitCodeBuilder, pc: Value[PrefixCoder]): Unit = {
+    val rgCode = cb.emb.getReferenceGenome(st.rg)
+    val locusObject = getLocusObj(cb)
+    val globalPos =
+      cb.memoize(rgCode.invoke[Locus, Long](
+        "locusToGlobalPos",
+        locusObject,
+      ))
+    pc.encodeLong(cb, globalPos)
+  }
 }

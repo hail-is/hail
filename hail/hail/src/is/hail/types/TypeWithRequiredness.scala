@@ -3,7 +3,6 @@ package is.hail.types
 import is.hail.annotations.{Annotation, NDArray}
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir.{ComputeUsesAndDefs, Env, IR}
 import is.hail.expr.ir.lowering.TableStage
 import is.hail.types.physical._
@@ -13,7 +12,7 @@ import is.hail.types.physical.stypes.interfaces.{SBaseStruct, SInterval, SNDArra
 import is.hail.types.virtual._
 import is.hail.utils.{toMapFast, Interval}
 
-import scala.collection.compat._
+import scala.collection.immutable.ArraySeq
 
 import org.apache.spark.sql.Row
 
@@ -578,10 +577,9 @@ object RTable {
   def fromTableStage(ctx: ExecuteContext, s: TableStage): RTable = {
     def virtualTypeWithReq(ir: IR, inputs: Env[PType]): VirtualTypeWithReq = {
       import is.hail.expr.ir.Requiredness
-      val ns = ir.noSharing(ctx)
-      val usesAndDefs = ComputeUsesAndDefs(ns, errorIfFreeVariables = false)
-      val req = Requiredness.apply(ns, usesAndDefs, ctx, inputs)
-      VirtualTypeWithReq(ir.typ, req.lookup(ns).asInstanceOf[TypeWithRequiredness])
+      val usesAndDefs = ComputeUsesAndDefs(ir, errorIfFreeVariables = false)
+      val req = Requiredness.apply(ir, usesAndDefs, ctx, inputs)
+      VirtualTypeWithReq(ir.typ, req.lookup(ir).asInstanceOf[TypeWithRequiredness])
     }
 
     // requiredness uses ptypes for legacy reasons, there is a 1-1 mapping between

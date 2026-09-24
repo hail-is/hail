@@ -1,10 +1,9 @@
 package is.hail
 
 import is.hail.collection.ByteArrayBuilder
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.utils.implicits.toRichBoolean
 
-import scala.collection.compat._
+import scala.collection.immutable.ArraySeq
 import scala.collection.mutable
 import scala.reflect.ClassTag
 import scala.util.control.ControlThrowable
@@ -21,6 +20,9 @@ import org.json4s.JsonAST.JString
 import org.json4s.jackson.JsonMethods
 
 package utils {
+
+  import scala.collection.Factory
+
   trait Truncatable {
     def truncate: String
     def strings: (String, String)
@@ -232,29 +234,71 @@ package object utils extends ErrorHandling with Logging {
       num / denom
 
   val defaultTolerance = 1e-6
+  val defaultAbsTolerance = java.lang.Double.MIN_NORMAL
 
-  def D_epsilon(a: Double, b: Double, tolerance: Double = defaultTolerance): Double =
-    math.max(java.lang.Double.MIN_NORMAL, tolerance * math.max(math.abs(a), math.abs(b)))
+  def D_epsilon(
+    a: Double,
+    b: Double,
+    tolerance: Double = defaultTolerance,
+    absTolerance: Double = defaultAbsTolerance,
+  ): Double =
+    absTolerance + tolerance * math.max(math.abs(a), math.abs(b))
 
-  def D_==(a: Double, b: Double, tolerance: Double = defaultTolerance): Boolean =
-    a == b || math.abs(a - b) <= D_epsilon(a, b, tolerance)
+  // This is more or less the implementation of numpy.isclose
+  def D_==(
+    a: Double,
+    b: Double,
+    tolerance: Double = defaultTolerance,
+    absTolerance: Double = defaultAbsTolerance,
+  ): Boolean =
+    a == b || math.abs(a - b) <= D_epsilon(a, b, tolerance, absTolerance)
 
-  def D_!=(a: Double, b: Double, tolerance: Double = defaultTolerance): Boolean =
-    !(a == b) && math.abs(a - b) > D_epsilon(a, b, tolerance)
+  def D_!=(
+    a: Double,
+    b: Double,
+    tolerance: Double = defaultTolerance,
+    absTolerance: Double = defaultAbsTolerance,
+  ): Boolean =
+    !(a == b) && math.abs(a - b) > D_epsilon(a, b, tolerance, absTolerance)
 
-  def D_<(a: Double, b: Double, tolerance: Double = defaultTolerance): Boolean =
-    !(a == b) && a - b < -D_epsilon(a, b, tolerance)
+  def D_<(
+    a: Double,
+    b: Double,
+    tolerance: Double = defaultTolerance,
+    absTolerance: Double = defaultAbsTolerance,
+  ): Boolean =
+    !(a == b) && a - b < -D_epsilon(a, b, tolerance, absTolerance)
 
-  def D_<=(a: Double, b: Double, tolerance: Double = defaultTolerance): Boolean =
-    (a == b) || a - b <= D_epsilon(a, b, tolerance)
+  def D_<=(
+    a: Double,
+    b: Double,
+    tolerance: Double = defaultTolerance,
+    absTolerance: Double = defaultAbsTolerance,
+  ): Boolean =
+    (a == b) || a - b <= D_epsilon(a, b, tolerance, absTolerance)
 
-  def D_>(a: Double, b: Double, tolerance: Double = defaultTolerance): Boolean =
-    !(a == b) && a - b > D_epsilon(a, b, tolerance)
+  def D_>(
+    a: Double,
+    b: Double,
+    tolerance: Double = defaultTolerance,
+    absTolerance: Double = defaultAbsTolerance,
+  ): Boolean =
+    !(a == b) && a - b > D_epsilon(a, b, tolerance, absTolerance)
 
-  def D_>=(a: Double, b: Double, tolerance: Double = defaultTolerance): Boolean =
-    (a == b) || a - b >= -D_epsilon(a, b, tolerance)
+  def D_>=(
+    a: Double,
+    b: Double,
+    tolerance: Double = defaultTolerance,
+    absTolerance: Double = defaultAbsTolerance,
+  ): Boolean =
+    (a == b) || a - b >= -D_epsilon(a, b, tolerance, absTolerance)
 
-  def D0_==(x: Double, y: Double, tolerance: Double = defaultTolerance): Boolean =
+  def D0_==(
+    x: Double,
+    y: Double,
+    tolerance: Double = defaultTolerance,
+    absTolerance: Double = defaultAbsTolerance,
+  ): Boolean =
     if (x.isNaN)
       y.isNaN
     else if (x.isPosInfinity)
@@ -262,7 +306,7 @@ package object utils extends ErrorHandling with Logging {
     else if (x.isNegInfinity)
       y.isNegInfinity
     else
-      D_==(x, y, tolerance)
+      D_==(x, y, tolerance, absTolerance)
 
   def flushDouble(a: Double): Double =
     if (math.abs(a) < java.lang.Double.MIN_NORMAL) 0.0 else a

@@ -1,12 +1,20 @@
 {% extends "layout.html" %}
 {% block title %}Batch Status{% endblock %}
 {% block content %}
+  {% if userdata['system_permissions']['access_developer_environments'] %}
+  <div>
+    <a id="enable-react-ui-btn" href="#" class="text-sm text-sky-600 hover:underline">Try new layout</a>
+  </div>
+  <script src="{{ base_path }}/batch_driver/static/js/react_toggle.js"></script>
+  {% endif %}
   <h1>Globals</h1>
   <div class="attributes">
     <div>instance ID: {{ instance_id }}</div>
     <div>ready cores: {{ ready_cores_mcpu / 1000 }}</div>
+    <div>frozen: {{ frozen }}</div>
   </div>
 
+  {% if userdata['system_permissions']['update_deployed_system_state'] %}
   <div>
     {% if not frozen %}
     <form action="{{ base_path }}/freeze" method="POST">
@@ -24,8 +32,10 @@
     </form>
     {% endif %}
   </div>
+  {% endif %}
 
 <h1>Feature Flags</h1>
+  {% if userdata['system_permissions']['update_deployed_system_state'] %}
   <div>
     <form action="{{ base_path }}/configure-feature-flags" method="POST">
       <input type="hidden" name="_csrf" value="{{ csrf_token }}">
@@ -52,6 +62,12 @@
       </div>
     </form>
   </div>
+  {% else %}
+  <div class="attributes">
+    <div>compact_billing_tables: {{ feature_flags['compact_billing_tables'] }}</div>
+    <div>oms_agent: {{ feature_flags['oms_agent'] }}</div>
+  </div>
+  {% endif %}
 
   <h1>Instance Collections</h1>
 
@@ -174,7 +190,7 @@
         <td class="numeric-cell">{{ instance.failed_request_count }}</td>
         <td>{{ instance.time_created_str() }}</td>
         <td>{{ instance.last_updated_str() }} ago</td>
-        <td><a target="_blank" href="https://console.cloud.google.com/logs/query;query=resource.type%3D%22gce_instance%22%20AND%20labels.%22compute.googleapis.com%2Fresource_name%22%3D%22{{ instance.name }}%22">Logs<i class="material-icons text-icon">open_in_new</i></a></td>
+        <td><a target="_blank" href="https://console.cloud.google.com/logs/query;query=%22{{ instance.name }}%22%0A-protoPayload.serviceName%3D%22logging.googleapis.com%22%0A-protoPayload.serviceName%3D%22securitycenter.googleapis.com%22">Logs<i class="material-icons text-icon">open_in_new</i></a></td>
       </tr>
       {% endfor %}
     </tbody>

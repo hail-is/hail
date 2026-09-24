@@ -96,7 +96,7 @@ final case class EStructOfArrays(
     )
 
     val scratchRegion: Value[Region] = cb.memoize(region.getPool().invoke[Region]("getRegion"))
-    val length = cb.memoize(in.readInt())
+    val length = cb.memoize(in.readVarint())
 
     val arrayPtr = cb.memoize(pt.allocate(region, length))
     cb += Region.setMemory(
@@ -170,7 +170,7 @@ final case class EStructOfArrays(
         val pArray = sv.st.pType.asInstanceOf[PCanonicalArrayBackedContainer].arrayRep
         val r: Value[Region] = // scratch region
           cb.memoize(cb.emb.ecb.pool().invoke[Region]("getRegion"))
-        cb += out.writeInt(sv.length)
+        cb += out.writeVarint(sv.length)
         if (!elementType.required) {
           val nMissingBytes = cb.memoize(pArray.nMissingBytes(sv.length))
           cb += out.writeBytes(sv.a + pArray.missingBytesOffset, nMissingBytes)
@@ -226,7 +226,7 @@ final case class EStructOfArrays(
   }
 
   override def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer]): Unit = {
-    val length = cb.memoize(in.readInt())
+    val length = cb.memoize(in.readVarint())
     val nMissingBytes =
       cb.memoize(UnsafeUtils.packBitsToBytes(length)) // valid for all top level arrays
     if (!elementType.required)

@@ -16,6 +16,7 @@ import is.hail.types.physical.stypes.{
   PTypeReferenceSingleCodeType, SingleCodeType, StreamSingleCodeType,
 }
 import is.hail.types.physical.stypes.interfaces.{NoBoxLongIterator, SStream}
+import is.hail.utils.TimedBlock
 
 import scala.collection.mutable
 
@@ -87,12 +88,12 @@ private[ir] trait CompileOps {
     E: Enclosing,
     N: sourcecode.Name,
   ): (Option[SingleCodeType], Compiled[F with Mixin]) =
-    ctx.time {
+    TimedBlock.enter {
       val ir =
         NormalizeNames()(
           ctx,
           Subst(
-            body.noSharing(ctx),
+            body,
             BindingEnv(Env.fromSeq(params.zipWithIndex.map { case ((n, t), i) => n -> In(i, t) })),
           ),
         )
@@ -107,9 +108,7 @@ private[ir] trait CompileOps {
       ctx.CompileCache.getOrElseUpdate(
         key, {
           val lowered =
-            LoweringPipeline.compileLowerer(ctx, ir)
-              .asInstanceOf[IR]
-              .noSharing(ctx)
+            LoweringPipeline.compileLowerer(ctx, ir).asInstanceOf[IR]
 
           val fb =
             EmitFunctionBuilder[F](
@@ -208,7 +207,7 @@ object CompileIterator {
 
     val outerRegion = outerRegionField
 
-    val ir = LoweringPipeline.compileLowerer(ctx, body).asInstanceOf[IR].noSharing(ctx)
+    val ir = LoweringPipeline.compileLowerer(ctx, body).asInstanceOf[IR]
     TypeCheck(ctx, ir)
 
     var elementAddress: Settable[Long] = null

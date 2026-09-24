@@ -144,7 +144,7 @@ class ExceededSharesCounter:
         return f'global {self._global_counter}'
 
 
-async def query_billing_projects_with_cost(db, user=None, billing_project=None) -> List[Dict[str, Any]]:
+async def query_billing_projects_with_cost(db, user=None, billing_project=None, status=None) -> List[Dict[str, Any]]:
     where_conditions = ["billing_projects.`status` != 'deleted'"]
     args = []
 
@@ -155,6 +155,10 @@ async def query_billing_projects_with_cost(db, user=None, billing_project=None) 
     if billing_project:
         where_conditions.append('billing_projects.name_cs = %s')
         args.append(billing_project)
+
+    if status:
+        where_conditions.append('billing_projects.`status` = %s')
+        args.append(status)
 
     if where_conditions:
         where_condition = f'WHERE {" AND ".join(where_conditions)}'
@@ -188,7 +192,7 @@ GROUP BY billing_projects.name, billing_projects.`status`, billing_projects.`lim
 
 
 async def query_billing_projects_without_cost(
-    db: Database, user: Optional[str] = None, billing_project: Optional[str] = None
+    db: Database, user: Optional[str] = None, billing_project: Optional[str] = None, status: Optional[str] = None
 ) -> List[Dict[str, Any]]:
     where_conditions = ["billing_projects.`status` != 'deleted'"]
     args = []
@@ -200,6 +204,10 @@ async def query_billing_projects_without_cost(
     if billing_project:
         where_conditions.append('billing_projects.name_cs = %s')
         args.append(billing_project)
+
+    if status:
+        where_conditions.append('billing_projects.`status` = %s')
+        args.append(status)
 
     if where_conditions:
         where_condition = f'WHERE {" AND ".join(where_conditions)}'

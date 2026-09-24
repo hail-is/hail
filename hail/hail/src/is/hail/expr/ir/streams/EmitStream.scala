@@ -31,7 +31,6 @@ import is.hail.utils.implicits.toRichBoolean
 import is.hail.variant.Locus
 
 import scala.annotation.nowarn
-import scala.collection.compat._
 
 import java.util
 

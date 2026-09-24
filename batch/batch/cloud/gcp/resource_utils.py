@@ -1,6 +1,8 @@
 import logging
 import math
-from typing import Optional, Tuple
+from typing import Dict, Optional, Tuple
+
+from ...driver.exceptions import LocalSSDNotSupportedError
 
 log = logging.getLogger('utils')
 
@@ -12,6 +14,12 @@ MEMORY_PER_CORE_MIB = {
     ('n1', 'standard'): 3840,
     ('n1', 'highmem'): 6656,
     ('n1', 'highcpu'): 924,
+    ('n2', 'standard'): 4096,
+    ('n2', 'highmem'): 8192,
+    ('n2', 'highcpu'): 1024,
+    ('n4', 'standard'): 4096,
+    ('n4', 'highmem'): 8192,
+    ('n4', 'highcpu'): 2048,
 }
 
 
@@ -116,6 +124,83 @@ n1_highcpu_machines = {
     for cores in [2, 4, 8, 16, 32, 64, 96]
 }
 
+# N2 Standard cores: 2 4 8 16 32 48 64 80 96 128
+# N2 Standard mem: 4 * cores GiB
+n2_standard_machines = {
+    f'n2-standard-{cores}': MachineTypeParts(
+        cores=cores,
+        memory=gib_to_bytes(4 * cores),
+        gpu_config=None,
+        machine_family='n2',
+        worker_type='standard',
+    )
+    for cores in [2, 4, 8, 16, 32, 48, 64, 80, 96, 128]
+}
+
+# N2 Highmem cores: 2 4 8 16 32 48 64 80 96
+# N2 Highmem mem: 8 * cores GiB
+n2_highmem_machines = {
+    f'n2-highmem-{cores}': MachineTypeParts(
+        cores=cores,
+        memory=gib_to_bytes(8 * cores),
+        gpu_config=None,
+        machine_family='n2',
+        worker_type='highmem',
+    )
+    for cores in [2, 4, 8, 16, 32, 48, 64, 80, 96]
+}
+
+# N2 Highcpu cores: 2 4 8 16 32 48 64 80 96
+# N2 Highcpu mem: 1024 * cores MiB
+n2_highcpu_machines = {
+    f'n2-highcpu-{cores}': MachineTypeParts(
+        cores=cores,
+        memory=mib_to_bytes(1024 * cores),
+        gpu_config=None,
+        machine_family='n2',
+        worker_type='highcpu',
+    )
+    for cores in [2, 4, 8, 16, 32, 48, 64, 80, 96]
+}
+
+# N4 machines cores: 2, 4, 8, 16, 32, 48, 64, 80
+
+# N4 Standard mem: 4 * cores GiB
+n4_standard_machines = {
+    f'n4-standard-{cores}': MachineTypeParts(
+        cores=cores,
+        memory=gib_to_bytes(4 * cores),
+        gpu_config=None,
+        machine_family='n4',
+        worker_type='standard',
+    )
+    for cores in [2, 4, 8, 16, 32, 48, 64, 80]
+}
+
+# N4 Highmem mem: 8 * cores GiB
+n4_highmem_machines = {
+    f'n4-highmem-{cores}': MachineTypeParts(
+        cores=cores,
+        memory=gib_to_bytes(8 * cores),
+        gpu_config=None,
+        machine_family='n4',
+        worker_type='highmem',
+    )
+    for cores in [2, 4, 8, 16, 32, 48, 64, 80]
+}
+
+# N4 Highcpu mem: 2 * cores GiB
+n4_highcpu_machines = {
+    f'n4-highcpu-{cores}': MachineTypeParts(
+        cores=cores,
+        memory=gib_to_bytes(2 * cores),
+        gpu_config=None,
+        machine_family='n4',
+        worker_type='highcpu',
+    )
+    for cores in [2, 4, 8, 16, 32, 48, 64, 80]
+}
+
 MACHINE_TYPE_TO_PARTS = {
     **n1_standard_t4_machines,
     **n1_highmem_t4_machines,
@@ -123,6 +208,19 @@ MACHINE_TYPE_TO_PARTS = {
     **n1_standard_machines,
     **n1_highmem_machines,
     **n1_highcpu_machines,
+    **n2_standard_machines,
+    **n2_highmem_machines,
+    **n2_highcpu_machines,
+    **n4_standard_machines,
+    **n4_highmem_machines,
+    **n4_highcpu_machines,
+    'n2-highmem-128': MachineTypeParts(
+        cores=128,
+        memory=gib_to_bytes(864),
+        gpu_config=None,
+        machine_family='n2',
+        worker_type='highmem',
+    ),
     'g2-standard-4': MachineTypeParts(
         cores=4,
         memory=gib_to_bytes(16),
@@ -244,12 +342,18 @@ MACHINE_TYPE_TO_PARTS = {
     ),
 }
 
+# Placeholder for eventual n2 pool worker support
+n2_gcp_valid_cores_for_pool_worker_type = {
+    'standard': [2, 4, 8, 16, 32, 48, 64, 80, 96, 128],
+    'highmem': [2, 4, 8, 16, 32, 48, 64, 80, 96, 128],
+    'highcpu': [2, 4, 8, 16, 32, 48, 64, 80, 96],
+}
+
 gcp_valid_cores_for_pool_worker_type = {
     'highcpu': [2, 4, 8, 16, 32, 64, 96],
     'standard': [1, 2, 4, 8, 16, 32, 64, 96],
     'highmem': [2, 4, 8, 16, 32, 64, 96],
 }
-
 gcp_valid_machine_types = list(MACHINE_TYPE_TO_PARTS.keys())
 
 gcp_memory_to_worker_type = {'lowmem': 'highcpu', 'standard': 'standard', 'highmem': 'highmem'}
@@ -291,8 +395,87 @@ def gcp_is_valid_storage_request(storage_in_gib: int) -> bool:
     return 10 <= storage_in_gib <= GCP_MAX_PERSISTENT_SSD_SIZE_GIB
 
 
-def gcp_local_ssd_size() -> int:
-    return 375
+GCP_LOCAL_SSD_PARTITION_SIZE_GIB = 375
+
+# N2 machines require local SSDs in specific quantities that vary by vCPU count.
+# Source: https://docs.cloud.google.com/compute/docs/general-purpose-machines#n2-standard
+N2_MIN_LOCAL_SSD_COUNT_BY_CORES = {
+    2: 1,
+    4: 1,
+    8: 1,
+    16: 2,
+    32: 4,
+    48: 8,
+    64: 8,
+    80: 8,
+    96: 16,
+    128: 16,
+}
+
+
+# N4 has no Persistent Disk or Local SSD support at all — it is Hyperdisk-only.
+# https://docs.cloud.google.com/compute/docs/general-purpose-machines#n4-standard_1
+def gcp_boot_disk_type(machine_family: str) -> str:
+    if machine_family == 'n4':
+        return 'hyperdisk-balanced'
+    return 'pd-ssd'
+
+
+def gcp_data_disk_type(machine_family: str) -> str:
+    if machine_family == 'n4':
+        return 'hyperdisk-balanced'
+    return 'pd-ssd'
+
+
+def gcp_data_disk_device_name(machine_family: str, machine_type: str) -> str:
+    # Hyperdisk (n4) is NVMe-attached, like g2's local NVMe SSD, rather than the SCSI 'sdb'
+    # device used by classic Persistent Disk.
+    if machine_family == 'n4' or 'g2' in machine_type:
+        return 'nvme0n2'
+    return 'sdb'
+
+
+# The first 3,000 provisioned IOPS and 140 MiB/s of provisioned throughput on a Hyperdisk Balanced
+# volume are free; GCE bills a monthly rate for anything provisioned above these baselines.
+# https://docs.cloud.google.com/compute/docs/disks/hd-types/hyperdisk-balanced (see "Hyperdisk
+# Balanced pricing" / "baseline performance").
+#
+# If we don't specify these values explicitly, GCP scales IOPS and throughput with disk size, and
+# we get charged for exceeding the free baseline provisioned rates.
+GCP_HYPERDISK_BALANCED_FREE_IOPS = 3000
+GCP_HYPERDISK_BALANCED_FREE_THROUGHPUT_MIB_PER_SEC = 140
+
+
+def gcp_hyperdisk_performance_overrides(disk_type: str) -> Dict[str, str]:
+    """Extra `disks[].initializeParams` fields to pin a Hyperdisk-family disk at GCP's free
+    provisioned-IOPS/throughput baseline, to avoid an unintended billing surcharge (see
+    GCP_HYPERDISK_BALANCED_FREE_IOPS above). Returns {} for non-Hyperdisk disk types, since
+    provisionedIops/provisionedThroughput are rejected by the API for e.g. pd-ssd."""
+    if disk_type == 'hyperdisk-balanced':
+        return {
+            'provisionedIops': str(GCP_HYPERDISK_BALANCED_FREE_IOPS),
+            'provisionedThroughput': str(GCP_HYPERDISK_BALANCED_FREE_THROUGHPUT_MIB_PER_SEC),
+        }
+    return {}
+
+
+def gcp_local_ssd_count(machine_family: str, cores: int) -> int:
+    if machine_family == 'n4':
+        # n4 supports zero local SSDs; never fall through to the generic non-n2 `return 1`
+        raise LocalSSDNotSupportedError(machine_family)
+    if machine_family != 'n2':
+        return 1
+    count = N2_MIN_LOCAL_SSD_COUNT_BY_CORES.get(cores)
+    if count is not None:
+        return count
+    for threshold_cores in sorted(N2_MIN_LOCAL_SSD_COUNT_BY_CORES.keys(), reverse=True):
+        if cores >= threshold_cores:
+            return N2_MIN_LOCAL_SSD_COUNT_BY_CORES[threshold_cores]
+    return 1
+
+
+def gcp_local_ssd_size(machine_family: str, cores: int) -> int:
+    return GCP_LOCAL_SSD_PARTITION_SIZE_GIB * gcp_local_ssd_count(machine_family, cores)
 
 
 def machine_type_to_gpu(machine_type: str) -> Optional[str]:

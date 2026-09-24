@@ -10,12 +10,13 @@ import sortedcontainers
 from gear import Database
 from gear.time_limited_max_size_cache import TimeLimitedMaxSizeCache
 from hailtop import aiotools
-from hailtop.utils import periodically_call, secret_alnum_string, time_msecs
+from hailtop.utils import periodically_call, time_msecs
 
 from ...globals import INSTANCE_VERSION, live_instance_states
 from ...instance_config import QuantifiedResource
 from ..instance import Instance
 from ..location import CloudLocationMonitor
+from ..naming import build_inst_coll_regex, make_machine_name
 from ..resource_manager import (
     CloudResourceManager,
     UnknownVMState,
@@ -48,7 +49,7 @@ class InstanceCollectionManager:
         self._default_region = default_region
         self.regions = regions
 
-        self.inst_coll_regex = re.compile(f'{self.machine_name_prefix}(?P<inst_coll>.*)-.*')
+        self.inst_coll_regex = build_inst_coll_regex(self.machine_name_prefix)
         self.name_inst_coll: Dict[str, InstanceCollection] = {}
         self.name_token_cache: TimeLimitedMaxSizeCache[str, str] = TimeLimitedMaxSizeCache(
             self.get_token_from_instance_name,
@@ -299,12 +300,9 @@ class InstanceCollection:
 
     def generate_machine_name(self) -> str:
         while True:
-            # 36 ** 5 = ~60M
-            suffix = secret_alnum_string(5, case='lower')
-            machine_name = f'{self.machine_name_prefix}{suffix}'
-            if machine_name not in self.name_instance:
-                break
-        return machine_name
+            name = make_machine_name(self.machine_name_prefix)
+            if name not in self.name_instance:
+                return name
 
     def adjust_for_remove_instance(self, instance: Instance):
         assert instance in self.instances_by_last_updated
@@ -317,6 +315,12 @@ class InstanceCollection:
 
         await self.db.just_execute('UPDATE instances SET removed = 1 WHERE name = %s;', (instance.name,))
 
+        # A concurrent path (e.g. activity log event) may have already removed this instance while
+        # we were suspended at one of the awaits above.  Guard with a synchronous check so we don't
+        # double-remove; no yield points follow so this is race-free within asyncio.
+        if instance.name not in self.name_instance:
+            log.info(f'{instance} already removed by concurrent path, skipping cleanup')
+            return
         self.adjust_for_remove_instance(instance)
         del self.name_instance[instance.name]
 
@@ -407,7 +411,7 @@ class InstanceCollection:
         active_and_healthy = await instance.check_is_active_and_healthy()
 
         if instance.state == 'active' and instance.failed_request_count > 5:
-            log.exception(
+            log.warning(
                 f'deleting {instance} with {instance.failed_request_count} failed request counts after more than 5 minutes'
             )
             await self.call_delete_instance(instance, 'not_responding')
@@ -425,7 +429,7 @@ class InstanceCollection:
         # Cases are mutually exclusive and therefore order-independent
         if instance.state == 'pending' and isinstance(vm_state, (VMStateCreating, VMStateRunning)):
             if vm_state.time_since_last_state_change() > 5 * 60 * 1000:
-                log.exception(f'{instance} (state: {vm_state}) has made no progress in last 5m, deleting')
+                log.warning(f'{instance} (vm_state: {vm_state.state}) has made no progress in last 5m, deleting')
                 await self.call_delete_instance(instance, 'activation_timeout')
         elif instance.state in ('pending', 'active') and isinstance(vm_state, VMStateTerminated):
             log.info(f'{instance} live but stopping or terminated, deactivating')

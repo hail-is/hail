@@ -15,7 +15,6 @@ import is.hail.services._
 import is.hail.services.oauth2.CloudCredentials
 import is.hail.types.virtual.Kinds._
 import is.hail.utils._
-import is.hail.utils.ExecutionTimer.Timings
 import is.hail.variant.ReferenceGenome
 
 import scala.annotation.switch
@@ -58,8 +57,6 @@ object BatchQueryDriver extends HttpLikeRpc with Logging {
       }
 
     override def payload(env: Env): JValue = env.payload
-    // service backend doesn't support sending timings back to the python client
-    override def timings(env: Env, t: Timings): Unit = ()
 
     override def result(env: Env, result: Array[Byte]): Unit =
       retryTransientErrors {
@@ -101,15 +98,14 @@ object BatchQueryDriver extends HttpLikeRpc with Logging {
   }
 
   implicit object Context extends Context {
-    override def scoped[A](env: Env)(f: ExecuteContext => A): (A, Timings) =
-      ExecutionTimer.time { timer =>
+    override def scoped[A](env: Env)(f: ExecuteContext => A): A =
+      TimedBlock.enter {
         ExecuteContext.scoped(
           tmpdir = env.tmpdir,
           localTmpdir = "file:///tmp",
           backend = env.backend,
           references = env.references,
           fs = env.fs,
-          timer = timer,
           tempFileManager = new OwningTempFileManager(env.fs),
           theHailClassLoader = env.hcl,
           flags = env.flags,
@@ -141,7 +137,7 @@ object BatchQueryDriver extends HttpLikeRpc with Logging {
     val inputURL = argv(5)
     val outputURL = argv(6)
 
-    logger.info(f"${getClass.getName} $PrettyVersion")
+    logger.info(f"Hail $PrettyVersion")
 
     sys.env.get("HAIL_SSL_CONFIG_DIR").foreach(tls.setSSLConfigFromDir)
 
@@ -156,7 +152,7 @@ object BatchQueryDriver extends HttpLikeRpc with Logging {
       using(bootstrapFs.openNoCompression(inputURL)) { is =>
         val input = JsonMethods.parse(is)
         (
-          (input \ "rpc_config").extract[ServiceBackendRPCPayload],
+          (input \ "rpc_config").extract[ServiceBackendRPCConfig],
           (input \ "job_config").extract[BatchJobConfig],
           (input \ "action").extract[Int],
           input \ "payload",
@@ -168,7 +164,7 @@ object BatchQueryDriver extends HttpLikeRpc with Logging {
       RouterFS.buildRoutes(
         fsConfig.copy(
           google = fsConfig.google.map(_.copy(
-            requester_pays_config = rpcConfig.requester_pays_conf
+            requester_pays_config = rpcConfig.requester_pays_config
           ))
         )
       )
@@ -252,10 +248,10 @@ private class HailSocketAPIOutputStream(
 
 case class SequenceConfig(fasta: String, index: String)
 
-case class ServiceBackendRPCPayload(
+case class ServiceBackendRPCConfig(
   tmp_dir: String,
   flags: Map[String, String],
-  requester_pays_conf: Option[RequesterPaysConfig],
+  requester_pays_config: Option[RequesterPaysConfig],
   custom_references: Array[String],
   liftovers: Map[String, Map[String, String]],
   sequences: Map[String, SequenceConfig],
@@ -265,11 +261,12 @@ case class ServiceBackendRPCPayload(
 object RequesterPaysConfigFormats
     extends CustomSerializer[RequesterPaysConfig](implicit fmts =>
       (
-        { case JArray(List(project, buckets)) =>
-          RequesterPaysConfig(
-            project = project.extract[String],
-            buckets = buckets.extract[Option[Set[String]]],
-          )
+        {
+          case JArray(List(project, buckets)) =>
+            RequesterPaysConfig(
+              project = project.extract[String],
+              buckets = buckets.extract[Option[Set[String]]],
+            )
         },
         PartialFunction.empty,
       )

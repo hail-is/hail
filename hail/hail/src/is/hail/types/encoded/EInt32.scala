@@ -15,7 +15,7 @@ case object EInt32Optional extends EInt32(false)
 
 case object EInt32Required extends EInt32(true)
 
-class EInt32(override val required: Boolean) extends EType {
+class EInt32(override val required: Boolean) extends EIntegral {
   override def _buildEncoder(cb: EmitCodeBuilder, v: SValue, out: Value[OutputBuffer]): Unit = {
     val x = v.st match {
       case _: SCall => v.asInstanceOf[SCallValue].canonicalCall(cb)

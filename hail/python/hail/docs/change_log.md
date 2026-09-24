@@ -52,6 +52,28 @@ supports.
 policy. Their functionality or even existence may change without notice. Please contact us if you
 critically depend on experimental functionality.**
 
+## Version 0.2.139
+
+Released 2026-08-07
+
+### New Features
+
+- (hail#15445) Table and matrix table index files are now written as a single file with the metadata stored in a footer, instead of a directory containing separate index and metadata files. Files written by older versions remain readable, but files written by 0.2.139 are *not* readable by older versions.
+- (hail#15587) Improve query performance by avoiding unnecessary materialization of arrays and structs in lowered pipelines.
+
+### Bug Fixes
+
+- (hail#15374) Fix a bug where `sparse_split_multi` crashed on haploid genotypes with three or more local alleles.
+- (hail#15468) Fix a bug where requester-pays configuration was ignored by the 'batch' backend.
+- (hail#15470) Fix a bug where `hl.vep` failed on requester-pays buckets with the 'batch' backend.
+- (hail#15491) Fix a bug in the code generator that could cause compilation failures when a stream was referenced from a different generated method than the one that produced it.
+- (hail#15543) Fix a performance regression, introduced in 0.2.134, where filtering columns of a matrix table (or samples of a VDS) after a per-entry transformation materialized the full entries array for all columns.
+- (hail#15563) Fix a performance regression where partition range bounds were repeatedly re-parsed when reading indexed tables and matrix tables.
+
+### Deprecations
+
+- (hail#15589) The `stage_locally` parameter of write methods no longer has any effect and will be removed in a future release.
+
 ## Version 0.2.138
 
 Released 2026-04-13

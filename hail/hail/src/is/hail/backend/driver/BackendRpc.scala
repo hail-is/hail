@@ -10,8 +10,7 @@ import is.hail.io.plink.LoadPlink
 import is.hail.io.vcf.LoadVCF
 import is.hail.types.virtual.{Kind, TFloat64}
 import is.hail.types.virtual.Kinds._
-import is.hail.utils.{jsonToBytes, using, ExecutionTimer}
-import is.hail.utils.ExecutionTimer.Timings
+import is.hail.utils.{jsonToBytes, using}
 import is.hail.variant.ReferenceGenome
 
 import scala.collection.mutable
@@ -63,12 +62,11 @@ trait BackendRpc {
   trait Request {
     def command(env: Env): Command
     def result(env: Env, r: Array[Byte]): Unit
-    def timings(env: Env, t: ExecutionTimer.Timings): Unit
     def failure(env: Env, t: Throwable): Unit
   }
 
   trait Context {
-    def scoped[A](env: Env)(f: ExecuteContext => A): (A, Timings)
+    def scoped[A](env: Env)(f: ExecuteContext => A): A
     def putReferences(env: Env)(refs: Iterable[ReferenceGenome]): Unit
   }
 
@@ -79,7 +77,7 @@ trait BackendRpc {
   final def runRpc(env: Env)(implicit R: Request, C: Context): Unit =
     try {
       val command = R.command(env)
-      val (result, timings) =
+      val result =
         C.scoped(env) { ctx =>
           command match {
             case TypeOf(kind, s) =>
@@ -144,7 +142,6 @@ trait BackendRpc {
         }
 
       R.result(env, result)
-      R.timings(env, timings)
     } catch {
       case NonFatal(error) => R.failure(env, error)
     }

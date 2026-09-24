@@ -1,0 +1,26 @@
+name: Check worker image is production-shaped
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'batch/batch/cloud/gcp/driver/create_instance.py'
+
+jobs:
+  check-worker-image:
+    name: Worker image must not include a dev namespace
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check sourceImage is production-shaped
+        run: |
+          image=$(grep -oP "(?<='sourceImage': f'projects/\{project\}/global/images/)batch-worker[^']+" \
+            batch/batch/cloud/gcp/driver/create_instance.py)
+          echo "Found image name: $image"
+          if ! echo "$image" | grep -qP '^batch-worker-\d+$'; then
+            echo "ERROR: Worker image '$image' looks like a dev namespace image."
+            echo "It should match batch-worker-<number> (e.g. batch-worker-19), not batch-worker-<namespace>-<number>."
+            exit 1
+          fi
+          echo "OK: image is production-shaped."

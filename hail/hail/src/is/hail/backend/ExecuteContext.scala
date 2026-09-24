@@ -61,7 +61,6 @@ object ExecuteContext {
     backend: Backend,
     references: Map[String, ReferenceGenome],
     fs: FS,
-    timer: ExecutionTimer,
     tempFileManager: TempFileManager,
     theHailClassLoader: HailClassLoader,
     flags: HailFeatureFlags,
@@ -82,7 +81,6 @@ object ExecuteContext {
           references,
           fs,
           region,
-          timer,
           tempFileManager,
           theHailClassLoader,
           flags,
@@ -114,7 +112,6 @@ class ExecuteContext(
   val references: Map[String, ReferenceGenome],
   val fs: FS,
   val r: Region,
-  val timer: ExecutionTimer,
   val tempFileManager: TempFileManager,
   val theHailClassLoader: HailClassLoader,
   val flags: HailFeatureFlags,
@@ -145,7 +142,11 @@ class ExecuteContext(
   val taskContext: HailTaskContext = new LocalTaskContext(0, 0)
 
   def scopedExecution[T](f: Compiled[T])(implicit E: Enclosing): T =
-    using(new LocalTaskContext(0, 0))(tc => time(f(theHailClassLoader, fs, tc, r)))
+    using(new LocalTaskContext(0, 0)) { tc =>
+      TimedBlock.enter {
+        f(theHailClassLoader, fs, tc, r)
+      }
+    }
 
   def createTmpPath(prefix: String, extension: String = null, local: Boolean = false): String =
     tempFileManager.newTmpPath(if (local) localTmpdir else tmpdir, prefix, extension)
@@ -163,9 +164,6 @@ class ExecuteContext(
     taskContext.close()
   }
 
-  def time[A](block: => A)(implicit E: Enclosing): A =
-    timer.time(E.value)(block)
-
   def local[A](
     tmpdir: String = this.tmpdir,
     localTmpdir: String = this.localTmpdir,
@@ -173,7 +171,6 @@ class ExecuteContext(
     references: Map[String, ReferenceGenome] = this.references,
     fs: FS = this.fs,
     r: Region = this.r,
-    timer: ExecutionTimer = this.timer,
     tempFileManager: TempFileManager = NonOwningTempFileManager(this.tempFileManager),
     theHailClassLoader: HailClassLoader = this.theHailClassLoader,
     flags: HailFeatureFlags = this.flags,
@@ -192,7 +189,6 @@ class ExecuteContext(
       references,
       fs,
       r,
-      timer,
       tempFileManager,
       theHailClassLoader,
       flags,

@@ -1,17 +1,7 @@
-import asyncio
 import hashlib
 import os
 
 import pytest
-
-
-@pytest.fixture(scope="session")
-def event_loop():
-    loop = asyncio.get_event_loop()
-    try:
-        yield loop
-    finally:
-        loop.close()
 
 
 def pytest_collection_modifyitems(items):

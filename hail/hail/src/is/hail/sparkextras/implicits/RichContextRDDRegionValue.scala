@@ -46,7 +46,7 @@ object RichContextRDDRegionValue {
       if (iw != null) {
         val off = en.indexOffset()
         val key = SafeRow.selectFields(rowType, ctx.r, ptr)(indexKeyFieldIndices)
-        iw.appendRow(key, off, Row())
+        iw.appendRow(key, off, RowSeq())
       }
       en.writeByte(1)
       en.writeRegionValue(ctx.region, ptr)
@@ -77,7 +77,6 @@ object RichContextRDDRegionValue {
   }
 
   def writeSplitRegion(
-    localTmpdir: String,
     fs: FS,
     path: String,
     t: RVDType,
@@ -86,7 +85,6 @@ object RichContextRDDRegionValue {
     hcl: HailClassLoader,
     ctx: RVDContext,
     partDigits: Int,
-    stageLocally: Boolean,
     makeIndexWriter: (String, HailClassLoader, RegionPool) => IndexWriter,
     makeRowsEnc: (OutputStream) => Encoder,
     makeEntriesEnc: (OutputStream) => Encoder,
@@ -96,24 +94,9 @@ object RichContextRDDRegionValue {
     val context = TaskContext.get()
     val f = partFile(partDigits, idx, context)
     val outputMetrics = context.taskMetrics().outputMetrics
-    val finalRowsPartPath = path + "/rows/rows/parts/" + f
-    val finalEntriesPartPath = path + "/entries/rows/parts/" + f
-    val finalIdxPath = path + "/index/" + f + ".idx"
-    val (rowsPartPath, entriesPartPath, idxPath) =
-      if (stageLocally) {
-        val rowsPartPath =
-          ExecuteContext.createTmpPathNoCleanup(localTmpdir, "write-split-staged-rows-part")
-        val entriesPartPath =
-          ExecuteContext.createTmpPathNoCleanup(localTmpdir, "write-split-staged-entries-part")
-        val idxPath = rowsPartPath + ".idx"
-        context.addTaskCompletionListener[Unit] { (context: TaskContext) =>
-          fs.delete(rowsPartPath, recursive = false)
-          fs.delete(entriesPartPath, recursive = false)
-          fs.delete(idxPath, recursive = true)
-        }: Unit
-        (rowsPartPath, entriesPartPath, idxPath)
-      } else
-        (finalRowsPartPath, finalEntriesPartPath, finalIdxPath)
+    val rowsPartPath = path + "/rows/rows/parts/" + f
+    val entriesPartPath = path + "/entries/rows/parts/" + f
+    val idxPath = path + "/index/" + f + ".idx"
 
     val (rowCount, totalBytesWritten) = using(fs.create(rowsPartPath)) { rowsOS =>
       val trackedRowsOS = new ByteTrackingOutputStream(rowsOS)
@@ -128,7 +111,7 @@ object RichContextRDDRegionValue {
                 val rows_off = rowsEN.indexOffset()
                 val ents_off = entriesEN.indexOffset()
                 val key = SafeRow.selectFields(fullRowType, ctx.r, ptr)(t.kFieldIdx)
-                iw.appendRow(key, rows_off, Row(ents_off))
+                iw.appendRow(key, rows_off, RowSeq(ents_off))
 
                 rowsEN.writeByte(1)
                 rowsEN.writeRegionValue(ctx.r, ptr)
@@ -162,13 +145,6 @@ object RichContextRDDRegionValue {
           }
         }
       }
-    }
-
-    if (stageLocally) {
-      fs.copy(rowsPartPath, finalRowsPartPath)
-      fs.copy(entriesPartPath, finalEntriesPartPath)
-      fs.copy(idxPath + "/index", finalIdxPath + "/index")
-      fs.copy(idxPath + "/metadata.json.gz", finalIdxPath + "/metadata.json.gz")
     }
 
     FileWriteMetadata(f, rowCount, totalBytesWritten)
@@ -234,14 +210,12 @@ class RichContextRDDLong(val crdd: ContextRDD[Long]) extends AnyVal {
     path: String,
     idxRelPath: String,
     t: RVDType,
-    stageLocally: Boolean,
     encoding: AbstractTypedCodecSpec,
   ): IndexedSeq[FileWriteMetadata] = {
     crdd.writePartitions(
       ctx,
       path,
-      idxRelPath,
-      stageLocally, {
+      idxRelPath, {
         val f1 = IndexWriter.builder(ctx, t.kType, +PCanonicalStruct())
         f1(_, _, SparkTaskContext.get(), _)
       },

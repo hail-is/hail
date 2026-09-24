@@ -2,8 +2,6 @@ package is.hail.stats
 
 import is.hail.utils._
 
-import scala.collection.compat.immutable.LazyList
-
 import org.apache.commons.math3.distribution.AbstractIntegerDistribution
 import org.apache.commons.math3.random.RandomGenerator
 

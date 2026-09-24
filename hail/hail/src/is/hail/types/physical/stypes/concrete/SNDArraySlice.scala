@@ -2,7 +2,6 @@ package is.hail.types.physical.stypes.concrete
 
 import is.hail.annotations.Region
 import is.hail.asm4s._
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.collection.implicits.toRichIterable
 import is.hail.expr.ir.{EmitCodeBuilder, EmitValue}
 import is.hail.types.physical.{PCanonicalNDArray, PType}
@@ -11,7 +10,7 @@ import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives.SInt64
 import is.hail.types.virtual.{TNDArray, Type}
 
-import scala.collection.compat._
+import scala.collection.immutable.ArraySeq
 
 final case class SNDArraySlice(pType: PCanonicalNDArray) extends SNDArray {
   override def nDims: Int = pType.nDims
@@ -52,11 +51,11 @@ final case class SNDArraySlice(pType: PCanonicalNDArray) extends SNDArray {
     new SNDArraySliceSettable(this, shape, strides, dataFirstElementPointer)
   }
 
-  override def fromValues(settables: IndexedSeq[Value[_]]): SNDArraySliceValue = {
-    assert(settables.length == 2 * nDims + 1)
-    val shape = settables.slice(0, nDims).asInstanceOf[IndexedSeq[Value[Long @unchecked]]]
-    val strides = settables.slice(nDims, 2 * nDims).asInstanceOf[IndexedSeq[Value[Long @unchecked]]]
-    val dataFirstElementPointer = settables.last.asInstanceOf[Value[Long]]
+  override def fromValues(values: IndexedSeq[Value[_]]): SNDArraySliceValue = {
+    assert(values.length == 2 * nDims + 1)
+    val shape = values.slice(0, nDims).asInstanceOf[IndexedSeq[Value[Long @unchecked]]]
+    val strides = values.slice(nDims, 2 * nDims).asInstanceOf[IndexedSeq[Value[Long @unchecked]]]
+    val dataFirstElementPointer = values.last.asInstanceOf[Value[Long]]
     new SNDArraySliceValue(this, shape.map(SizeValueDyn.apply), strides, dataFirstElementPointer)
   }
 

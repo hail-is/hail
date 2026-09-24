@@ -3,7 +3,11 @@ package is.hail.expr.ir
 import is.hail.annotations.Region
 import is.hail.asm4s.Value
 import is.hail.backend.ExecuteContext
+import is.hail.collection.FastSeq
+import is.hail.collection.implicits.toRichIterable
 import is.hail.expr.ir.agg.PhysicalAggSig
+import is.hail.expr.ir.defs._
+import is.hail.expr.ir.defs.ArrayZipBehavior.{ArrayZipBehavior, AssertSameLength}
 import is.hail.expr.ir.functions._
 import is.hail.expr.ir.streams.StreamProducer
 import is.hail.io.{AbstractTypedCodecSpec, BufferSpec, TypedCodecSpec}
@@ -20,38 +24,30 @@ import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.virtual._
 import is.hail.utils._
 
-import scala.collection.compat._
-
 import java.io.OutputStream
 
 import org.json4s.{DefaultFormats, Extraction, Formats, JValue, ShortTypeHints}
 import org.json4s.JsonAST.{JNothing, JString}
 
-trait IR extends BaseIR {
+abstract class IR extends BaseIR {
   private var _typ: Type = null
 
-  override def typ: Type = {
-    if (_typ == null) {
-      try
-        _typ = InferType(this)
-      catch {
-        case e: Throwable => throw new RuntimeException(s"typ: inference failure:", e)
-      }
+  override def typ: Type =
+    if (_typ != null) _typ
+    else {
+      _typ = InferType(this)
       assert(_typ != null)
+      _typ
     }
-    _typ
-  }
 
   override def mapChildren(f: BaseIR => BaseIR): IR = super.mapChildren(f).asInstanceOf[IR]
 
   override def mapChildrenWithIndex(f: (BaseIR, Int) => BaseIR): IR =
     super.mapChildrenWithIndex(f).asInstanceOf[IR]
 
-  override def deepCopy(): this.type = {
-
-    val cp = super.deepCopy()
-    if (_typ != null)
-      cp._typ = _typ
+  override def deepCopy: IR = {
+    val cp = super.deepCopy.asInstanceOf[IR]
+    if (_typ != null) cp._typ = _typ
     cp
   }
 
@@ -61,16 +57,163 @@ trait IR extends BaseIR {
   }.sum
 }
 
-package defs {
+class IROps(val ir: IR) extends AnyVal {
 
-  import is.hail.collection.FastSeq
+  def invoke(name: String, rt: Type, args: IR*): IR =
+    is.hail.expr.ir.invoke(name, rt, ir +: args: _*)
+
+  def bind(f: Atom => IR): IR =
+    ir match {
+      case a: Atom => f(a)
+      case big => bindIR(big)(f)
+    }
+
+  def get(name: String): IR =
+    GetField(ir, name)
+
+  def get(idx: Int): IR =
+    GetTupleElement(ir, idx)
+
+  def at(idx: IR): IR =
+    ArrayRef(ir, idx)
+
+  def rename(f: TStruct => TStruct): IR =
+    CastRename(ir, f(ir.typ.asInstanceOf[TStruct]))
+
+  def update(field: String)(f: Atom => IR): IR =
+    bind(y => y.get(field).bind(x => y.insert(field -> f(x))))
+
+  def insert(fields: (String, IR)*): IR =
+    InsertFields(ir, fields.toFastSeq)
+
+  def insert(fields: IndexedSeq[(String, IR)], ordering: Option[IndexedSeq[String]] = None): IR =
+    InsertFields(ir, fields, ordering)
+
+  def select(fields: String*): IR =
+    select(fields.toFastSeq)
+
+  def select(fields: IndexedSeq[String]): IR =
+    SelectFields(ir, fields)
+
+  def drop(fields: IndexedSeq[String]): IR = {
+    val typ = ir.typ.asInstanceOf[TStruct]
+    SelectFields(ir, typ.fieldNames.diff(fields))
+  }
+
+  def drop(fields: String*): IR =
+    drop(fields.toFastSeq)
+
+  def len: IR =
+    if (ir.typ.isInstanceOf[TArray]) ArrayLen(ir)
+    else StreamLen(ir)
+
+  def isNA: IR = IsNA(ir)
+
+  def if_(cond: IR)(alt: IR): IR =
+    If(cond, ir, alt)
+
+  def orElse(alt: IR): IR =
+    bind(x => If(IsNA(x), alt, x))
+
+  def filter(f: Atom => IR): IR =
+    filterIR(ir)(f)
+
+  def aggExplode(f: Atom => IR): IR =
+    aggExplodeIR(ir, isScan = false)(f)
+
+  def grouped(size: IR): IR =
+    StreamGrouped(ir, size)
+
+  def groupedByKey(key: IndexedSeq[String], missingEqual: Boolean = false): IR =
+    StreamGroupByKey(ir, key, missingEqual)
+
+  def take(n: IR): IR =
+    StreamTake(ir, n)
+
+  def takeWhile(f: Atom => IR): IR =
+    is.hail.expr.ir.takeWhile(ir)(f)
+
+  def drop(n: IR): IR =
+    StreamDrop(ir, n)
+
+  def dropWhile(f: Atom => IR): IR =
+    is.hail.expr.ir.dropWhile(ir)(f)
+
+  def enumerate(f: (Atom, Atom) => IR): IR =
+    zip(iota(0, 1), ArrayZipBehavior.TakeMinLength)(f)
+
+  def streamFold(zero: IR)(f: (Atom, Atom) => IR): IR =
+    foldIR(ir, zero)(f)
+
+  def streamFor(f: Atom => IR): IR =
+    forIR(ir)(f)
+
+  def streamMap(f: Atom => IR): IR =
+    mapIR(ir)(f)
+
+  def streamFlatMap(f: Atom => IR): IR =
+    flatMapIR(ir)(f)
+
+  def streamFlatten: IR =
+    flatten(ir)
+
+  def streamAgg(f: Atom => IR): IR =
+    streamAggIR(ir)(f)
+
+  def streamScan(zero: IR)(f: (Atom, Atom) => IR): IR =
+    streamScanIR(ir, zero)(f)
+
+  def streamAggScan(f: Atom => IR): IR =
+    streamAggScanIR(ir)(f)
+
+  def slice(start: IR, stop: Option[IR], step: IR = I32(1)): IR =
+    ArraySlice(ir, start, stop, step, ErrorIDs.NO_ERROR)
+
+  def aggElements(knownLength: Option[IR] = None)(aggBody: (Atom, Atom) => IR): IR =
+    aggArrayPerElement(ir, knownLength, isScan = false)(aggBody)
+
+  def sort(ascending: IR, onKey: Boolean = false): IR =
+    ArraySort(ir, ascending, onKey)
+
+  def sort(cmp: (Atom, Atom) => IR): IR =
+    sortIR(ir)(cmp)
+
+  def sum: IR =
+    streamSumIR(ir)
+
+  def groupByKey: IR = GroupByKey(ir)
+
+  def toArray: IR = ToArray(ir)
+
+  def stream: IR = ToStream(ir)
+
+  def toDict: IR = ToDict(ir)
+
+  def parallelize(nPartitions: Option[Int] = None): TableIR =
+    TableParallelize(ir, nPartitions)
+
+  def zip(that: IR, behavior: ArrayZipBehavior = AssertSameLength)(f: (Atom, Atom) => IR): IR =
+    zip2(ir, that, behavior)(f)
+
+  def zipWithIndex: IR =
+    is.hail.expr.ir.zipWithIndex(ir)
+}
+
+package defs {
 
   trait TypedIR[T <: Type] extends IR {
     override def typ: T = tcoerce[T](super.typ)
   }
 
-  // Mark Refs and constants as IRs that are safe to duplicate
-  trait TrivialIR extends IR
+  // Refs and Constants as IRs that are safe to duplicate
+  trait Atom { this: IR =>
+    def ir: IR with Atom = deepCopy.asInstanceOf[IR with Atom]
+  }
+
+  object Atom {
+    implicit def atomToIR(a: Atom): IR = a.ir
+    implicit def atomToIROps(a: Atom): IROps = new IROps(a)
+  }
 
   class WrappedByteArrays(val ba: Array[Array[Byte]]) {
     override def hashCode(): Int =
@@ -96,20 +239,16 @@ package defs {
   }
 
   object Let {
-    def apply(bindings: IndexedSeq[(Name, IR)], body: IR): Block =
-      Block(
-        bindings.map { case (name, value) => Binding(name, value) },
-        body,
-      )
+    def apply(bindings: IndexedSeq[(Name, IR)], body: IR): IR =
+      if (bindings.isEmpty) body
+      else Block(bindings.map { case (n, v) => Binding(n, v) }, body)
 
-    def void(bindings: IndexedSeq[(Name, IR)]): IR = {
-      if (bindings.isEmpty) {
-        Void()
-      } else {
+    def void(bindings: IndexedSeq[(Name, IR)]): IR =
+      if (bindings.isEmpty) Void()
+      else {
         assert(bindings.last._2.typ == TVoid)
         Let(bindings.init, bindings.last._2)
       }
-    }
   }
 
   object Begin {
@@ -120,9 +259,9 @@ package defs {
         Let(xs.init.map(x => (freshName(), x)), xs.last)
   }
 
-  case class Binding(name: Name, value: IR, scope: Int = Scope.EVAL)
+  case class Binding(name: Name, value: IR, scope: Scope = Scope.EVAL)
 
-  trait BaseRef extends IR with TrivialIR {
+  trait BaseRef extends IR {
     def name: Name
     def _typ: Type
   }
@@ -148,10 +287,8 @@ package defs {
       requiresMemoryManagement: Boolean,
       rightKeyIsDistinct: Boolean = false,
     ): IR = {
-      val lType = tcoerce[TStream](left.typ)
-      val rType = tcoerce[TStream](right.typ)
-      val lEltType = tcoerce[TStruct](lType.elementType)
-      val rEltType = tcoerce[TStruct](rType.elementType)
+      val lEltType = TIterable.elementType(left.typ).asInstanceOf[TStruct]
+      val rEltType = TIterable.elementType(right.typ).asInstanceOf[TStruct]
       assert(lEltType.typeAfterSelectNames(lKey) isJoinableWith rEltType.typeAfterSelectNames(rKey))
 
       if (!rightKeyIsDistinct) {
@@ -163,24 +300,15 @@ package defs {
         val rightGrouped = mapIR(rightGroupedStream) { group =>
           bindIR(ToArray(group)) { array =>
             bindIR(ArrayRef(array, 0)) { head =>
-              MakeStruct(rKey.map(key => key -> GetField(head, key)) :+ groupField -> array)
+              MakeStruct(rKey.map(key => key -> GetField(head, key)) :+ groupField -> array.ir)
             }
           }
         }
 
-        val rElt = Ref(freshName(), tcoerce[TStream](rightGrouped.typ).elementType)
-        val lElt = Ref(freshName(), lEltType)
-        val makeTupleFromJoin = MakeStruct(FastSeq("left" -> lElt, "rightGroup" -> rElt))
-        val joined = StreamJoinRightDistinct(
-          left,
-          rightGrouped,
-          lKey,
-          rKey,
-          lElt.name,
-          rElt.name,
-          makeTupleFromJoin,
-          joinType,
-        )
+        val joined =
+          joinRightDistinctIR(left, rightGrouped, lKey, rKey, joinType) { (l, r) =>
+            makestruct("left" -> l, "rightGroup" -> r)
+          }
 
         // joined is a stream of {leftElement, rightGroup}
         bindIR(MakeArray(NA(rEltType))) { missingSingleton =>
@@ -225,13 +353,13 @@ package defs {
   trait AbstractApplyNode[F <: JVMFunction] extends IR {
     def function: String
 
-    def args: Seq[IR]
+    def args: IndexedSeq[IR]
 
     def returnType: Type
 
-    def typeArgs: Seq[Type]
+    def typeArgs: IndexedSeq[Type]
 
-    def argTypes: Seq[Type] = args.map(_.typ)
+    def argTypes: IndexedSeq[Type] = args.map(_.typ)
 
     lazy val implementation: F =
       IRFunctionRegistry.lookupFunctionOrFail(function, returnType, typeArgs, argTypes)
@@ -316,7 +444,6 @@ package defs {
       new DefaultFormats() {
         override val typeHints = ShortTypeHints(
           List(
-            classOf[PartitionNativeWriter],
             classOf[TableTextPartitionWriter],
             classOf[VCFPartitionWriter],
             classOf[GenSampleWriter],
@@ -527,8 +654,6 @@ package defs {
 
   package exts {
 
-    import is.hail.collection.implicits.toRichIterable
-
     abstract class UUID4CompanionExt {
       def apply(): UUID4 = UUID4(genUID())
     }
@@ -538,6 +663,9 @@ package defs {
         assert(args.nonEmpty)
         MakeArray(args.toFastSeq, TArray(args.head.typ))
       }
+
+      def empty(elementType: Type): MakeArray =
+        MakeArray(FastSeq.empty[IR], TArray(elementType))
 
       def unify(ctx: ExecuteContext, args: IndexedSeq[IR], requestedType: TArray = null)
         : MakeArray = {
@@ -635,41 +763,30 @@ package defs {
           requiresMemoryManagementPerElement,
         )
       }
+
+      def apply(xs: IR*): IR with TypedIR[TStream] = {
+        assert(xs.nonEmpty, "MakeStream requires at least one argument")
+        MakeStream(xs.toFastSeq, TStream(xs.head.typ))
+      }
+
+      def empty(elementType: Type): IR with TypedIR[TStream] =
+        MakeStream(FastSeq(), TStream(elementType))
     }
 
     abstract class ArraySortCompanionExt {
-      def apply(a: IR, ascending: IR = True(), onKey: Boolean = false): ArraySort = {
-        val l = freshName()
-        val r = freshName()
-        val atyp = tcoerce[TStream](a.typ)
-        val compare = if (onKey) {
-          val elementType = atyp.elementType.asInstanceOf[TBaseStruct]
-          elementType match {
-            case _: TStruct =>
-              val elt = tcoerce[TStruct](atyp.elementType)
-              ApplyComparisonOp(
-                Compare,
-                GetField(Ref(l, elt), elt.fieldNames(0)),
-                GetField(Ref(r, atyp.elementType), elt.fieldNames(0)),
-              )
-            case _: TTuple =>
-              val elt = tcoerce[TTuple](atyp.elementType)
-              ApplyComparisonOp(
-                Compare,
-                GetTupleElement(Ref(l, elt), elt.fields(0).index),
-                GetTupleElement(Ref(r, atyp.elementType), elt.fields(0).index),
-              )
-          }
-        } else {
-          ApplyComparisonOp(
-            Compare,
-            Ref(l, atyp.elementType),
-            Ref(r, atyp.elementType),
-          )
-        }
+      def apply(a: IR, ascending: IR = True(), onKey: Boolean = false): IR =
+        sortIR(a) { (l, r) =>
+          val compare =
+            if (!onKey) ApplyComparisonOp(Compare, l, r)
+            else l.typ match {
+              case _: TBaseStruct =>
+                ApplyComparisonOp(Compare, GetFieldByIdx(l, 0), GetFieldByIdx(r, 0))
+              case telem =>
+                fatal(s"ArraySort(.., onKey = true) requires struct or tuple elements, got $telem")
+            }
 
-        ArraySort(a, l, r, If(ascending, compare < 0, compare > 0))
-      }
+          bindIR(compare)(c => If(ascending, c < 0, c > 0))
+        }
     }
 
     abstract class StreamFold2CompanionExt {
@@ -694,14 +811,14 @@ package defs {
     }
 
     abstract class MakeNDArrayCompanionExt {
-      def fill(elt: IR, shape: IndexedSeq[IR], rowMajor: IR): MakeNDArray = {
-        val flatSize: IR = if (shape.nonEmpty)
-          shape.reduce((l, r) => l * r)
-        else
-          0L
+      def fill(elt: IR, shape: IndexedSeq[Atom], rowMajor: IR): MakeNDArray = {
+        val flatSize: IR =
+          if (shape.nonEmpty) shape.foldLeft[IR](I64(1L))(_ * _)
+          else 0L
+
         MakeNDArray(
           ToArray(mapIR(rangeIR(flatSize.toI))(_ => elt)),
-          MakeTuple.ordered(shape),
+          MakeTuple.ordered(shape.map(_.ir)),
           rowMajor,
           ErrorIDs.NO_ERROR,
         )
@@ -769,70 +886,27 @@ package defs {
     }
 
     abstract class AggFoldCompanionExt {
-      def min(element: IR, sortFields: IndexedSeq[SortField]): IR = {
+      def min(element: Atom, sortFields: IndexedSeq[SortField]): IR = {
         val elementType = element.typ.asInstanceOf[TStruct]
         val keyType = elementType.select(sortFields.map(_.field))._1
-        minAndMaxHelper(element, keyType, StructLT(sortFields))
+        aggMinMax(element, keyType)(ApplyComparisonOp(StructLT(sortFields), _, _))
       }
 
-      def max(element: IR, sortFields: IndexedSeq[SortField]): IR = {
+      def max(element: Atom, sortFields: IndexedSeq[SortField]): IR = {
         val elementType = element.typ.asInstanceOf[TStruct]
         val keyType = elementType.select(sortFields.map(_.field))._1
-        minAndMaxHelper(element, keyType, StructGT(sortFields))
+        aggMinMax(element, keyType)(ApplyComparisonOp(StructGT(sortFields), _, _))
       }
 
-      def all(element: IR): IR =
-        aggFoldIR(True()) { accum =>
-          ApplySpecial(
-            "land",
-            Seq.empty[Type],
-            FastSeq(accum, element),
-            TBoolean,
-            ErrorIDs.NO_ERROR,
-          )
-        } { (accum1, accum2) =>
-          ApplySpecial(
-            "land",
-            Seq.empty[Type],
-            FastSeq(accum1, accum2),
-            TBoolean,
-            ErrorIDs.NO_ERROR,
-          )
-        }
+      def all(element: Atom): IR =
+        aggFoldIR(True())(_ && element)(_ && _)
 
-      private def minAndMaxHelper(element: IR, keyType: TStruct, comp: ComparisonOp[Boolean])
-        : IR = {
-        val keyFields = keyType.fields.map(_.name)
-
-        val minAndMaxZero = NA(keyType)
-        val aggFoldMinAccumName1 = freshName()
-        val aggFoldMinAccumName2 = freshName()
-        val aggFoldMinAccumRef1 = Ref(aggFoldMinAccumName1, keyType)
-        val aggFoldMinAccumRef2 = Ref(aggFoldMinAccumName2, keyType)
-        val minSeq = bindIR(SelectFields(element, keyFields)) { keyOfCurElementRef =>
-          If(
-            IsNA(aggFoldMinAccumRef1),
-            keyOfCurElementRef,
-            If(
-              ApplyComparisonOp(comp, aggFoldMinAccumRef1, keyOfCurElementRef),
-              aggFoldMinAccumRef1,
-              keyOfCurElementRef,
-            ),
-          )
-        }
-        val minComb =
-          If(
-            IsNA(aggFoldMinAccumRef1),
-            aggFoldMinAccumRef2,
-            If(
-              ApplyComparisonOp(comp, aggFoldMinAccumRef1, aggFoldMinAccumRef2),
-              aggFoldMinAccumRef1,
-              aggFoldMinAccumRef2,
-            ),
-          )
-
-        AggFold(minAndMaxZero, minSeq, minComb, aggFoldMinAccumName1, aggFoldMinAccumName2, false)
-      }
+      private def aggMinMax(element: Atom, keyType: TStruct)(cmp: (Atom, Atom) => IR): IR =
+        aggFoldIR(NA(keyType))(accum =>
+          bindIR(SelectFields(element, keyType.fields.map(_.name))) { key =>
+            If(IsNA(accum), key, If(cmp(accum, key), accum, key))
+          }
+        )((accum1, accum2) => If(IsNA(accum1), accum2, If(cmp(accum1, accum2), accum1, accum2)))
     }
 
     abstract class ApplyScanOpCompanionExt {
@@ -888,7 +962,7 @@ package defs {
       lazy val (body, inline): (IR, Boolean) = {
         val ((_, _, _, inline), impl) =
           IRFunctionRegistry.lookupIR(function, typeArgs, args.map(_.typ)).get
-        val body = impl(typeArgs, refs, errorID).deepCopy()
+        val body = impl(typeArgs, refs, errorID)
         (body, inline)
       }
 

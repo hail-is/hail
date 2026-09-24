@@ -1,10 +1,10 @@
 package is.hail.expr.ir.defs
 
-import is.hail.HailSuite
+import is.hail.TestUtils._
 
-import org.testng.annotations.Test
+import org.junit.jupiter.api.Test
 
-class EncodedLiteralSuite extends HailSuite {
+class EncodedLiteralSuite {
 
   @Test
   def testWrappedByteArrayEquality(): Unit = {
@@ -15,8 +15,8 @@ class EncodedLiteralSuite extends HailSuite {
     val wba2 = new WrappedByteArrays(Array(byteArray2))
     val wba3 = new WrappedByteArrays(Array(byteArray3))
 
-    assert(wba1 == wba1)
-    assert(wba1 == wba2)
+    assertEq(wba1, wba1)
+    assertEq(wba1, wba2)
     assert(wba1 != wba3)
   }
 }

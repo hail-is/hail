@@ -1,51 +1,38 @@
 package is.hail.expr.ir.functions
 
-import is.hail.collection.FastSeq
-import is.hail.expr.ir._
+import is.hail.expr.ir.{Memoized => M, _}
 import is.hail.expr.ir.defs._
 import is.hail.types
 import is.hail.types.virtual._
 
 object DictFunctions extends RegistryFunctions {
-  def contains(dict: IR, key: IR) = {
-    If(
-      IsNA(dict),
-      NA(TBoolean),
-      bindIR(LowerBoundOnOrderedCollection(dict, key, onKey = true)) { i =>
-        If(
-          i.ceq(ArrayLen(CastToArray(dict))),
-          False(),
-          ApplyComparisonOp(
-            EQWithNA,
-            GetField(ArrayRef(CastToArray(dict), i), "key"),
-            key,
-          ),
-        )
-      },
-    )
-  }
+  def contains(dict: Atom, key: Atom): IR =
+    guardIR(!IsNA(dict)) {
+      M.eval {
+        for {
+          i <- LowerBoundOnOrderedCollection(dict, key, onKey = true)
+          a <- CastToArray(dict)
+        } yield (i < ArrayLen(a)) && (GetField(ArrayRef(a, i), "key") ceq key)
+      }
+    }
 
-  def get(dict: IR, key: IR, default: IR): IR = {
-    If(
-      IsNA(dict),
-      NA(default.typ),
-      bindIR(LowerBoundOnOrderedCollection(dict, key, onKey = true)) { i =>
-        If(
-          i.ceq(ArrayLen(CastToArray(dict))),
-          default,
+  def get(dict: Atom, key: Atom, default: IR): IR =
+    guardIR(!IsNA(dict)) {
+      bindIRs(LowerBoundOnOrderedCollection(dict, key, onKey = true), CastToArray(dict)) {
+        case Seq(i, arr) =>
           If(
-            ApplyComparisonOp(
-              EQWithNA,
-              GetField(ArrayRef(CastToArray(dict), i), "key"),
-              key,
-            ),
-            GetField(ArrayRef(CastToArray(dict), i), "value"),
-            default,
-          ),
-        )
-      },
-    )
-  }
+            i ceq ArrayLen(arr),
+            default.deepCopy,
+            bindIR(ArrayRef(arr, i)) { elem =>
+              If(
+                GetField(elem, "key") ceq key,
+                GetField(elem, "value"),
+                default.deepCopy,
+              )
+            },
+          )
+      }
+    }
 
   val tdict = TDict(tv("key"), tv("value"))
 
@@ -80,9 +67,8 @@ object DictFunctions extends RegistryFunctions {
       get(d, k, Die(errormsg, vtype, errorID))
     }
 
-    registerIR1("dictToArray", tdict, TArray(TStruct("key" -> tv("key"), "value" -> tv("value")))) {
-      (_, d, _) =>
-        mapArray(d)(elt => MakeTuple.ordered(FastSeq(GetField(elt, "key"), GetField(elt, "value"))))
+    registerIR1("dictToArray", tdict, TArray(TTuple(tv("key"), tv("value")))) {
+      (_, d, _) => mapArray(d)(elt => maketuple(GetField(elt, "key"), GetField(elt, "value")))
     }
 
     registerIR1("keySet", tdict, TSet(tv("key"))) { (_, d, _) =>

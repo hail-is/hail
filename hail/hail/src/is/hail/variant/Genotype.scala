@@ -1,8 +1,9 @@
 package is.hail.variant
 
 import is.hail.annotations.Annotation
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.types.virtual.{TArray, TCall, TInt32, TStruct}
+
+import scala.collection.immutable.ArraySeq
 
 import org.apache.spark.sql.Row
 

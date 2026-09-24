@@ -2,13 +2,12 @@ package is.hail.annotations
 
 import is.hail.backend.HailStateManager
 import is.hail.collection.{FlipbookIterator, StagingIterator, StateMachine}
-import is.hail.collection.compat.immutable.ArraySeq
-import is.hail.collection.compat.mutable.Growable
 import is.hail.collection.implicits.toRichIterator
 import is.hail.rvd.{RVDContext, RVDType}
 import is.hail.types.physical.PInterval
 import is.hail.utils._
 
+import scala.collection.immutable.ArraySeq
 import scala.collection.mutable
 
 object OrderedRVIterator {
@@ -111,7 +110,7 @@ case class OrderedRVIterator(
 
   def innerJoin(
     other: OrderedRVIterator,
-    rightBuffer: Iterable[RegionValue] with Growable[RegionValue],
+    rightBuffer: Iterable[RegionValue] with mutable.Growable[RegionValue],
   ): Iterator[JoinedRegionValue] = {
     iterator.toFlipbookIterator.innerJoin(
       other.iterator.toFlipbookIterator,
@@ -126,7 +125,7 @@ case class OrderedRVIterator(
 
   def leftJoin(
     other: OrderedRVIterator,
-    rightBuffer: Iterable[RegionValue] with Growable[RegionValue],
+    rightBuffer: Iterable[RegionValue] with mutable.Growable[RegionValue],
   ): Iterator[JoinedRegionValue] = {
     iterator.toFlipbookIterator.leftJoin(
       other.iterator.toFlipbookIterator,
@@ -141,7 +140,7 @@ case class OrderedRVIterator(
 
   def rightJoin(
     other: OrderedRVIterator,
-    rightBuffer: Iterable[RegionValue] with Growable[RegionValue],
+    rightBuffer: Iterable[RegionValue] with mutable.Growable[RegionValue],
   ): Iterator[JoinedRegionValue] = {
     iterator.toFlipbookIterator.rightJoin(
       other.iterator.toFlipbookIterator,
@@ -156,7 +155,7 @@ case class OrderedRVIterator(
 
   def outerJoin(
     other: OrderedRVIterator,
-    rightBuffer: Iterable[RegionValue] with Growable[RegionValue],
+    rightBuffer: Iterable[RegionValue] with mutable.Growable[RegionValue],
   ): Iterator[JoinedRegionValue] = {
     iterator.toFlipbookIterator.outerJoin(
       other.iterator.toFlipbookIterator,

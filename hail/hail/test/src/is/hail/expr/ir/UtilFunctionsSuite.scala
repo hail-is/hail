@@ -1,28 +1,30 @@
 package is.hail.expr.ir
 
-import is.hail.{ExecStrategy, HailSuite}
+import is.hail.ExecStrategy
 import is.hail.ExecStrategy.ExecStrategy
-import is.hail.expr.ir.defs.{Die, False, MakeStream, NA, Str, True}
-import is.hail.types.virtual.{TBoolean, TInt32, TStream}
+import is.hail.TestUtils._
+import is.hail.backend.ExecuteContext
+import is.hail.expr.ir.defs._
+import is.hail.types.virtual._
 
-import org.testng.annotations.Test
+import org.junit.jupiter.api.Test
 
-class UtilFunctionsSuite extends HailSuite {
+class UtilFunctionsSuite {
   implicit val execStrats: Set[ExecStrategy] = ExecStrategy.javaOnly
 
   val na = NA(TBoolean)
   val die = Die("it ded", TBoolean)
 
-  val folded = foldIR(MakeStream(IndexedSeq(true), TStream(TBoolean)), die)(_ || _)
+  val folded = foldIR(MakeStream(true), die)(_ || _)
 
-  @Test def shortCircuitOr(): Unit = {
+  @Test def shortCircuitOr(implicit ctx: ExecuteContext): Unit = {
     assertEvalsTo(True() || True(), true)
     assertEvalsTo(True() || False(), true)
     assertEvalsTo(False() || True(), true)
     assertEvalsTo(False() || False(), false)
   }
 
-  @Test def shortCircuitOrHandlesMissingness(): Unit = {
+  @Test def shortCircuitOrHandlesMissingness(implicit ctx: ExecuteContext): Unit = {
     assertEvalsTo(na || na, null)
     assertEvalsTo(na || True(), true)
     assertEvalsTo(True() || na, true)
@@ -31,7 +33,7 @@ class UtilFunctionsSuite extends HailSuite {
 
   }
 
-  @Test def shortCircuitOrHandlesErrors(): Unit = {
+  @Test def shortCircuitOrHandlesErrors(implicit ctx: ExecuteContext): Unit = {
     // FIXME: interpreter evaluates args for ApplySpecial before invoking the function :-|
     assertCompiledFatal(na || die, "it ded")
     assertCompiledFatal(False() || die, "it ded")
@@ -48,14 +50,14 @@ class UtilFunctionsSuite extends HailSuite {
     assert(eval(True() || folded) == true)
   }
 
-  @Test def shortCircuitAnd(): Unit = {
+  @Test def shortCircuitAnd(implicit ctx: ExecuteContext): Unit = {
     assertEvalsTo(True() && True(), true)
     assertEvalsTo(True() && False(), false)
     assertEvalsTo(False() && True(), false)
     assertEvalsTo(False() && False(), false)
   }
 
-  @Test def shortCircuitAndHandlesMissingness(): Unit = {
+  @Test def shortCircuitAndHandlesMissingness(implicit ctx: ExecuteContext): Unit = {
     assertEvalsTo(na && na, null)
     assertEvalsTo(True() && na, null)
     assertEvalsTo(na && True(), null)
@@ -63,7 +65,7 @@ class UtilFunctionsSuite extends HailSuite {
     assertEvalsTo(na && False(), false)
   }
 
-  @Test def shortCircuitAndHandlesErroes(): Unit = {
+  @Test def shortCircuitAndHandlesErroes(implicit ctx: ExecuteContext): Unit = {
     // FIXME: interpreter evaluates args for ApplySpecial before invoking the function :-|
     assertCompiledFatal(na && die, "it ded")
     assertCompiledFatal(True() && die, "it ded")
@@ -79,8 +81,15 @@ class UtilFunctionsSuite extends HailSuite {
     assert(eval(False() && folded) == false)
   }
 
-  @Test def testParseFunctionRequiredness(): Unit = {
+  @Test def testParseFunctionRequiredness(implicit ctx: ExecuteContext): Unit = {
     assertEvalsTo(invoke("toInt32OrMissing", TInt32, Str("123")), 123)
     assertEvalsTo(invoke("toInt32OrMissing", TInt32, Str("foo")), null)
+  }
+
+  @Test def testSizeofValue(implicit ctx: ExecuteContext): Unit = {
+    // simple test to make sure we can invoke the function from the registry, sizeToStoreInBytes is
+    // sensitive to exact stypes chosen due to execution strategy, so only do simple types here
+    assertEvalsTo(invoke("sizeofValue", TInt64, Str("123")), 7L) // 4B len + 3B data
+    assertEvalsTo(invoke("sizeofValue", TInt64, I32(0xdeadbeef)), 4L) // 4B 32-bit integer
   }
 }

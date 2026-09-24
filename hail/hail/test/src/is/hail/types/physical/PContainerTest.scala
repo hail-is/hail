@@ -2,12 +2,11 @@ package is.hail.types.physical
 
 import is.hail.annotations.{Annotation, Region, ScalaToRegionValue}
 import is.hail.asm4s._
+import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
 import is.hail.expr.ir.EmitFunctionBuilder
 
-import org.scalatest.Inspectors.forAll
-import org.scalatest.enablers.InspectorAsserting.assertingNatureOfAssertion
-import org.testng.annotations.Test
+import org.junit.jupiter.api.Test
 
 class PContainerTest extends PhysicalTestUtils {
   def nullInByte(nElements: Int, missingElement: Int) = {
@@ -19,8 +18,12 @@ class PContainerTest extends PhysicalTestUtils {
     }
   }
 
-  def testContainsNonZeroBits(sourceType: PCanonicalArray, data: IndexedSeq[Any]) = {
-    val srcRegion = Region(pool = pool)
+  def testContainsNonZeroBits(
+    sourceType: PCanonicalArray,
+    data: IndexedSeq[Any],
+  )(implicit ctx: ExecuteContext
+  ) = {
+    val srcRegion = Region(pool = ctx.r.pool)
     val src = ScalaToRegionValue(ctx.stateManager, srcRegion, sourceType, data)
 
     logger.info(s"Testing $data")
@@ -33,8 +36,12 @@ class PContainerTest extends PhysicalTestUtils {
     res
   }
 
-  def testContainsNonZeroBitsStaged(sourceType: PCanonicalArray, data: IndexedSeq[Any]) = {
-    val srcRegion = Region(pool = pool)
+  def testContainsNonZeroBitsStaged(
+    sourceType: PCanonicalArray,
+    data: IndexedSeq[Any],
+  )(implicit ctx: ExecuteContext
+  ) = {
+    val srcRegion = Region(pool = ctx.r.pool)
     val src = ScalaToRegionValue(ctx.stateManager, srcRegion, sourceType, data)
 
     logger.info(s"Testing $data")
@@ -47,12 +54,16 @@ class PContainerTest extends PhysicalTestUtils {
       sourceType.loadLength(value).toL,
     ))
 
-    val res = fb.result()(theHailClassLoader)(src)
+    val res = fb.result()(ctx.theHailClassLoader)(src)
     res
   }
 
-  def testHasMissingValues(sourceType: PArray, data: IndexedSeq[Any]) = {
-    val srcRegion = Region(pool = pool)
+  def testHasMissingValues(
+    sourceType: PArray,
+    data: IndexedSeq[Any],
+  )(implicit ctx: ExecuteContext
+  ) = {
+    val srcRegion = Region(pool = ctx.r.pool)
     val src = ScalaToRegionValue(ctx.stateManager, srcRegion, sourceType, data)
 
     logger.info(s"\nTesting $data")
@@ -62,11 +73,11 @@ class PContainerTest extends PhysicalTestUtils {
 
     fb.emit(sourceType.hasMissingValues(value))
 
-    val res = fb.result()(theHailClassLoader)(src)
+    val res = fb.result()(ctx.theHailClassLoader)(src)
     res
   }
 
-  @Test def checkFirstNonZeroByte(): Unit = {
+  @Test def checkFirstNonZeroByte(implicit ctx: ExecuteContext): Unit = {
     val sourceType = PCanonicalArray(PInt64(false))
 
     assert(testContainsNonZeroBits(sourceType, nullInByte(0, 0)) == false)
@@ -108,28 +119,28 @@ class PContainerTest extends PhysicalTestUtils {
     assert(testContainsNonZeroBits(sourceType, nullInByte(73, 64)) == true)
   }
 
-  @Test def checkFirstNonZeroByteStaged(): Unit = {
+  @Test def checkFirstNonZeroByteStaged(implicit ctx: ExecuteContext): Unit = {
     val sourceType = PCanonicalArray(PInt64(false))
 
     assert(testContainsNonZeroBitsStaged(sourceType, nullInByte(32, 0)) == false)
     assert(testContainsNonZeroBitsStaged(sourceType, nullInByte(73, 64)) == true)
   }
 
-  @Test def checkHasMissingValues(): Unit = {
+  @Test def checkHasMissingValues(implicit ctx: ExecuteContext): Unit = {
     val sourceType = PCanonicalArray(PInt64(false))
 
     assert(testHasMissingValues(sourceType, nullInByte(1, 0)) == false)
     assert(testHasMissingValues(sourceType, nullInByte(1, 1)) == true)
     assert(testHasMissingValues(sourceType, nullInByte(2, 1)) == true)
 
-    forAll(Seq(2, 16, 31, 32, 33, 50, 63, 64, 65, 90, 127, 128, 129)) { num =>
-      forAll(1 to num) { missing =>
+    Seq(2, 16, 31, 32, 33, 50, 63, 64, 65, 90, 127, 128, 129).foreach { num =>
+      (1 to num).foreach { missing =>
         assert(testHasMissingValues(sourceType, nullInByte(num, missing)) == true)
       }
     }
   }
 
-  @Test def arrayCopyTest(): Unit = {
+  @Test def arrayCopyTest(implicit ctx: ExecuteContext): Unit = {
     /* Note: can't test where data is null due to ArrayStack.top semantics (ScalaToRegionValue:
      * assert(size_ > 0)) */
     def runTests(deepCopy: Boolean, interpret: Boolean): Unit = {
@@ -310,7 +321,7 @@ class PContainerTest extends PhysicalTestUtils {
     runTests(false, interpret = true)
   }
 
-  @Test def dictCopyTests(): Unit = {
+  @Test def dictCopyTests(implicit ctx: ExecuteContext): Unit = {
     def runTests(deepCopy: Boolean, interpret: Boolean): Unit = {
       copyTestExecutor(
         PCanonicalDict(PCanonicalString(), PInt32()),
@@ -343,7 +354,7 @@ class PContainerTest extends PhysicalTestUtils {
     runTests(false, interpret = true)
   }
 
-  @Test def setCopyTests(): Unit = {
+  @Test def setCopyTests(implicit ctx: ExecuteContext): Unit = {
     def runTests(deepCopy: Boolean, interpret: Boolean): Unit = {
       copyTestExecutor(
         PCanonicalSet(PCanonicalString(true)),

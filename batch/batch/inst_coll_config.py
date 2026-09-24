@@ -77,7 +77,7 @@ class PoolConfig(InstanceCollectionConfig):
             cloud=record['cloud'],
             worker_type=record['worker_type'],
             worker_cores=record['worker_cores'],
-            worker_local_ssd_data_disk=record['worker_local_ssd_data_disk'],
+            worker_local_ssd_data_disk=bool(record['worker_local_ssd_data_disk']),
             worker_external_ssd_data_disk_size_gb=record['worker_external_ssd_data_disk_size_gb'],
             standing_worker_cores=record['standing_worker_cores'],
             boot_disk_size_gb=record['boot_disk_size_gb'],

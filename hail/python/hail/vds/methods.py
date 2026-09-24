@@ -11,10 +11,8 @@ from hail.vds.variant_dataset import VariantDataset
 
 def write_variant_datasets(vdss, paths, *, overwrite=False, stage_locally=False, codec_spec=None):
     """Write many `vdses` to their corresponding path in `paths`."""
-    ref_writer = ir.MatrixNativeMultiWriter(
-        [f"{p}/reference_data" for p in paths], overwrite, stage_locally, codec_spec
-    )
-    var_writer = ir.MatrixNativeMultiWriter([f"{p}/variant_data" for p in paths], overwrite, stage_locally, codec_spec)
+    ref_writer = ir.MatrixNativeMultiWriter([f"{p}/reference_data" for p in paths], overwrite, codec_spec)
+    var_writer = ir.MatrixNativeMultiWriter([f"{p}/variant_data" for p in paths], overwrite, codec_spec)
     Env.backend().execute(ir.MatrixMultiWrite([vds.reference_data._mir for vds in vdss], ref_writer))
     Env.backend().execute(ir.MatrixMultiWrite([vds.variant_data._mir for vds in vdss], var_writer))
 

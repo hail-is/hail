@@ -20,6 +20,8 @@
   <thead>
     <tr>
       <th>id</th>
+      <th>reason</th>
+      <th>started</th>
       <th>state</th>
     </tr>
   </thead>
@@ -29,6 +31,8 @@
       <td class="numeric-cell">
         <a rel="noopener" href="{{ batch_base_url }}/batches/{{ batch['id'] }}">{{ batch['id'] }}</a>
       </td>
+      <td>{{ batch.get('attributes', {}).get('reason', '') }}</td>
+      <td>{{ batch.get('time_created', '') }}</td>
       <td>
         {% if 'state' in batch and batch['state'] %}
         {{ batch_state_icon(batch['state']) }} {{ batch['state'] }}
@@ -41,6 +45,12 @@
 {% endmacro %}
 
 {% block content %}
+    {% if userdata['system_permissions']['access_developer_environments'] %}
+    <div>
+      <a id="enable-react-ui-btn" href="#" class="text-sm text-sky-600 hover:underline">Try new layout</a>
+    </div>
+    <script src="{{ base_path }}/ci/static/js/react_toggle.js"></script>
+    {% endif %}
     <h1>{{ pr.title }} <a rel="noopener" href="https://github.com/{{ repo }}/pull/{{ pr.number }}"><span class="gh-number">#{{ pr.number }}</span></a></h1>
     <div class="attributes">
       <div>PR <a rel="noopener" href="https://github.com/{{ repo }}/pull/{{ pr.number }}">#{{ pr.number }}</a> status:
@@ -144,11 +154,21 @@
       {% endfor %}
       <div>labels: {{ pr.labels|join(", ") }}</div>
     </div>
-    {% if active_pr %}
-    <form action="{{ base_path }}/watched_branches/{{ wb.index }}/pr/{{ pr.number }}/retry" method="post">
-      <input type="hidden" name="_csrf" value="{{ csrf_token }}"/>
-      <button type="submit">Retry</button>
-    </form>
+    {% if userdata['system_permissions']['manage_ci'] %}
+    <div style="display: flex; align-items: center; gap: 12px;">
+      <form action="{{ base_path }}/watched_branches/{{ wb.index }}/pr/{{ pr.number }}/retry" method="post">
+        <input type="hidden" name="_csrf" value="{{ csrf_token }}"/>
+        <button type="submit">Retry</button>
+      </form>
+      {% if pr.is_up_to_date() and pr.build_state in ('failure', 'error', 'canceled') %}
+      <form action="{{ base_path }}/watched_branches/{{ wb.index }}/pr/{{ pr.number }}/retry" method="post">
+        <input type="hidden" name="_csrf" value="{{ csrf_token }}"/>
+        <input type="hidden" name="tactical" value="true"/>
+        <button type="submit">Tactical Retry</button>
+      </form>
+      <i class="material-icons text-icon" title="Retries only the steps that failed in all previous builds (with matching source and target SHAs), plus any dependencies.">help_outline</i>
+      {% endif %}
+    </div>
     {% endif %}
 
     {% if logging_queries is not none %}

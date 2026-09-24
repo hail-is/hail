@@ -37,12 +37,12 @@ class ResultsParser:
             if typ in ('BOOLEAN', 'BOOL'):
                 return or_none(bool, value)
             if typ == 'TIMESTAMP':
-                return int(or_none(float, value))
+                return or_none(lambda x: int(float(x)), value)
             # DATE, TIME, DATETIME
             raise NotImplementedError((name, value, typ, mode))
 
         return {
-            field['name']: parse_field(field['name'], field['v'], field_schema)
+            field_schema['name']: parse_field(field_schema['name'], field['v'], field_schema)
             for field, field_schema in zip(data['f'], schema['fields'])
         }
 

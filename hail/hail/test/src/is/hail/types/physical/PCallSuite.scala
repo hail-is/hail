@@ -1,9 +1,11 @@
 package is.hail.types.physical
 
-import org.testng.annotations.Test
+import is.hail.backend.ExecuteContext
+
+import org.junit.jupiter.api.Test
 
 class PCallSuite extends PhysicalTestUtils {
-  @Test def copyTests(): Unit = {
+  @Test def copyTests(implicit ctx: ExecuteContext): Unit = {
     def runTests(deepCopy: Boolean, interpret: Boolean = false): Unit = {
       copyTestExecutor(
         PCanonicalCall(),

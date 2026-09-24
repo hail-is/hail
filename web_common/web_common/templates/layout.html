@@ -4,6 +4,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="csrf" value="{{ csrf_token }}" />
+  <meta name="system-permissions" content='{{ (userdata["system_permissions"] if userdata else {}) | tojson }}' />
   <title>Hail | {% block title %}{% endblock %}</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="shortcut icon" href="{{ base_path }}/common_static/hail_logo_sq.ico" type="image/x-icon" />
@@ -14,11 +15,6 @@
   {% if use_tailwind %}
   <link rel="stylesheet" type="text/css" href="{{ base_path }}/common_static/css/output.css" />
   <script defer src="{{ base_path }}/common_static/lib/alpinejs/cdn.min.js"></script>
-  <style>
-    [x-cloak] {
-      display: none !important;
-    }
-  </style>
   {% else %}
   <link rel="stylesheet" type="text/css" href="{{ base_path }}/common_static/css/main.css" />
   {% endif %}

@@ -117,7 +117,7 @@ WHERE removed = 0 AND inst_coll = %s;
     def config(self):
         return {
             'name': self.name,
-            'worker_disk_size_gb': self.boot_disk_size_gb,
+            'boot_disk_size_gb': self.boot_disk_size_gb,
             'max_instances': self.max_instances,
             'max_live_instances': self.max_live_instances,
             'max_new_instances_per_autoscaler_loop': self.max_new_instances_per_autoscaler_loop,

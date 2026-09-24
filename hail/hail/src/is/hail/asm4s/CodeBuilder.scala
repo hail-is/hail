@@ -4,8 +4,6 @@ import is.hail.{lir, EmitTracebackInAssertions}
 import is.hail.collection.implicits.toRichIterable
 import is.hail.utils.Traceback
 
-import scala.collection.compat._
-
 import org.objectweb.asm.Opcodes.{INVOKESTATIC, INVOKEVIRTUAL}
 
 abstract class SettableBuilder {

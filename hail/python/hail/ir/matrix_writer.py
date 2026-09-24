@@ -22,15 +22,13 @@ class MatrixNativeWriter(MatrixWriter):
     @typecheck_method(
         path=str,
         overwrite=bool,
-        stage_locally=bool,
         codec_spec=nullable(str),
         partitions=nullable(str),
         partitions_type=nullable(hail_type),
     )
-    def __init__(self, path, overwrite, stage_locally, codec_spec, partitions, partitions_type):
+    def __init__(self, path, overwrite, codec_spec, partitions, partitions_type):
         self.path = path
         self.overwrite = overwrite
-        self.stage_locally = stage_locally
         self.codec_spec = codec_spec
         self.partitions = partitions
         self.partitions_type = partitions_type
@@ -40,7 +38,6 @@ class MatrixNativeWriter(MatrixWriter):
             'name': 'MatrixNativeWriter',
             'path': self.path,
             'overwrite': self.overwrite,
-            'stageLocally': self.stage_locally,
             'codecSpecJSONStr': self.codec_spec,
             'partitions': self.partitions,
             'partitionsTypeStr': self.partitions_type._parsable_string() if self.partitions_type is not None else None,
@@ -52,7 +49,6 @@ class MatrixNativeWriter(MatrixWriter):
             isinstance(other, MatrixNativeWriter)
             and other.path == self.path
             and other.overwrite == self.overwrite
-            and other.stage_locally == self.stage_locally
             and other.codec_spec == self.codec_spec
             and other.partitions == self.partitions
             and other.partitions_type == self.partitions_type
@@ -177,11 +173,10 @@ class MatrixBlockMatrixWriter(MatrixWriter):
 
 
 class MatrixNativeMultiWriter(object):
-    @typecheck_method(paths=sequenceof(str), overwrite=bool, stage_locally=bool, codec_spec=nullable(str))
-    def __init__(self, paths, overwrite, stage_locally, codec_spec):
+    @typecheck_method(paths=sequenceof(str), overwrite=bool, codec_spec=nullable(str))
+    def __init__(self, paths, overwrite, codec_spec):
         self.paths = paths
         self.overwrite = overwrite
-        self.stage_locally = stage_locally
         self.codec_spec = codec_spec
 
     def render(self):
@@ -189,7 +184,6 @@ class MatrixNativeMultiWriter(object):
             'name': 'MatrixNativeMultiWriter',
             'paths': list(self.paths),
             'overwrite': self.overwrite,
-            'stageLocally': self.stage_locally,
             'codecSpecJSONStr': self.codec_spec,
         }
         return escape_str(json.dumps(writer))
@@ -199,6 +193,5 @@ class MatrixNativeMultiWriter(object):
             isinstance(other, MatrixNativeMultiWriter)
             and other.paths == self.paths
             and other.overwrite == self.overwrite
-            and other.stage_locally == self.stage_locally
             and other.codec_spec == self.codec_spec
         )

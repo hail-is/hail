@@ -1,36 +1,41 @@
 package is.hail.expr.ir.analyses
 
-import is.hail.expr.ir.{BaseIR, Memo, UsesAndDefs, VisitIR}
+import is.hail.expr.ir.{BaseIR, IRTraversal, Memo, UsesAndDefs}
 import is.hail.expr.ir.defs.{Recur, Ref, TailLoop}
 import is.hail.types.virtual.TStream
 
-object ControlFlowPreventsSplit {
+import scala.annotation.tailrec
 
-  def apply(x: BaseIR, parentPointers: Memo[BaseIR], usesAndDefs: UsesAndDefs): Memo[Unit] = {
+object ControlFlowPreventsSplit {
+  def apply(x: BaseIR, usesAndDefs: UsesAndDefs): Memo[Unit] = {
     val m = Memo.empty[Unit]
-    VisitIR(x) {
-      case r @ Recur(name, _, _) =>
-        var parent: BaseIR = r
-        while (
-          parent match {
+
+    @tailrec def unwind(p: BaseIR => Boolean)(stack: List[BaseIR]): Unit =
+      stack match {
+        case x :: xs if p(x) =>
+          if (!m.contains(x)) m.bind(x, ())
+          unwind(p)(xs)
+        case Nil =>
+          throw new AssertionError("unwound past ir root")
+        case _ =>
+      }
+
+    IRTraversal.trace(x).foreach { path =>
+      path.head match {
+        case r @ Recur(name, _, _) =>
+          m.bind(r, ())
+          unwind {
             case TailLoop(`name`, _, _, _) => false
             case _ => true
-          }
-        ) {
-          if (!m.contains(parent))
-            m.bind(parent, ())
-          parent = parentPointers.lookup(parent)
-        }
-      case r @ Ref(_, t) if t.isInstanceOf[TStream] =>
-        val declaration = usesAndDefs.defs.lookup(r)
-        var parent: BaseIR = r
-        while (!(parent.eq(declaration))) {
-          if (!m.contains(parent))
-            m.bind(parent, ())
-          parent = parentPointers.lookup(parent)
-        }
-      case _ =>
+          }(path.tail)
+        case r @ Ref(_, t) if t.isInstanceOf[TStream] =>
+          m.bind(r, ())
+          val declaration = usesAndDefs.defs.lookup(r)
+          unwind(!_.eq(declaration))(path.tail)
+        case _ =>
+      }
     }
+
     m
   }
 }

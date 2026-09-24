@@ -1,20 +1,19 @@
 package is.hail.backend
 
+import is.hail.TestUtils._
 import is.hail.backend.service.WireProtocol
 import is.hail.utils.{handleForPython, using, HailWorkerException}
 
 import java.io.{ByteArrayInputStream, ByteArrayOutputStream, DataInputStream, DataOutputStream}
 
+import org.junit.jupiter.api.Test
+import org.scalacheck.Prop.forAll
 import org.scalatest.matchers.should.Matchers.convertToAnyShouldWrapper
-import org.scalatestplus.scalacheck.CheckerAsserting.assertingNatureOfAssertion
-import org.scalatestplus.scalacheck.ScalaCheckDrivenPropertyChecks
-import org.scalatestplus.testng.TestNGSuite
-import org.testng.annotations.Test
 
-class WorkerSuite extends TestNGSuite with ScalaCheckDrivenPropertyChecks {
+class WorkerSuite {
 
   @Test def testWriteReadSuccess(): Unit =
-    forAll { (partitionId: Int, payload: Array[Byte]) =>
+    check(forAll { (partitionId: Int, payload: Array[Byte]) =>
       val buffer =
         using(new ByteArrayOutputStream()) { bs =>
           using(new DataOutputStream(bs)) { os =>
@@ -30,10 +29,10 @@ class WorkerSuite extends TestNGSuite with ScalaCheckDrivenPropertyChecks {
 
       readPartition shouldBe partitionId
       result shouldBe payload
-    }
+    })
 
   @Test def testWriteReadFailure(): Unit =
-    forAll { (partitionId: Int, payload: Throwable) =>
+    check(forAll { (partitionId: Int, payload: Throwable) =>
       val buffer =
         using(new ByteArrayOutputStream()) { bs =>
           using(new DataOutputStream(bs)) { os =>
@@ -54,6 +53,6 @@ class WorkerSuite extends TestNGSuite with ScalaCheckDrivenPropertyChecks {
         expandedMessage = expanded,
         errorId = errorId,
       )
-    }
+    })
 
 }

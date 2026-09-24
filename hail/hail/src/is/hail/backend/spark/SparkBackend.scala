@@ -3,7 +3,6 @@ package is.hail.backend.spark
 import is.hail.annotations._
 import is.hail.backend._
 import is.hail.backend.Backend.PartitionFn
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.collection.implicits._
 import is.hail.expr.Validate
 import is.hail.expr.ir._
@@ -17,6 +16,7 @@ import is.hail.types._
 import is.hail.types.physical.{PStruct, PTuple}
 import is.hail.utils._
 
+import scala.collection.immutable.ArraySeq
 import scala.collection.mutable
 import scala.concurrent.{CancellationException, ExecutionException}
 import scala.reflect.ClassTag
@@ -349,10 +349,11 @@ class SparkBackend(val spark: SparkSession) extends Backend with Logging {
     )
   }
 
-  override def execute(ctx: ExecuteContext, ir: IR): Either[Unit, (PTuple, Long)] =
-    ctx.time {
-      TypeCheck(ctx, ir)
-      Validate(ir)
+  override def execute(ctx: ExecuteContext, ir0: IR): Either[Unit, (PTuple, Long)] =
+    TimedBlock.enter {
+      TypeCheck(ctx, ir0)
+      Validate(ir0)
+      val ir = NormalizeNames()(ctx, ir0)
 
       if (ctx.flags.isDefined(ExecutionCache.Flags.UseFastRestarts))
         ctx.irMetadata.semhash = SemanticHash(ctx, ir)

@@ -2,8 +2,8 @@ package is.hail.utils
 
 import scala.collection.mutable
 
+import org.junit.jupiter.api.Test
 import org.scalatest.matchers.should.Matchers._
-import org.testng.annotations.Test
 
 class GraphSuite {
 

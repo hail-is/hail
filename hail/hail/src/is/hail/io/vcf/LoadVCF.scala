@@ -5,15 +5,14 @@ import is.hail.asm4s._
 import is.hail.backend.{BroadcastValue, ExecuteContext, HailStateManager}
 import is.hail.backend.spark.SparkBackend
 import is.hail.collection.{FastSeq, MissingArrayBuilder}
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.collection.implicits.toRichIterable
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir.{
   CloseableIterator, EmitCode, EmitCodeBuilder, EmitMethodBuilder, GenericLine, GenericLines,
-  GenericTableValue, IEmitCode, IR, IRParser, LowerMatrixIR, MatrixHybridReader, MatrixReader,
+  GenericTableValue, IEmitCode, IR, IRParser, MatrixHybridReader, MatrixReader,
 }
 import is.hail.expr.ir.defs.{Literal, PartitionReader}
-import is.hail.expr.ir.lowering.TableStage
+import is.hail.expr.ir.lowering.{LowerMatrixIR, TableStage}
 import is.hail.expr.ir.streams.StreamProducer
 import is.hail.io.{checkGzipOfGlobbedFiles, VCFAttributes, VCFMetadata}
 import is.hail.io.fs.{FS, FileListEntry}
@@ -32,7 +31,7 @@ import is.hail.variant._
 import scala.annotation.meta.param
 import scala.annotation.switch
 import scala.collection.BufferedIterator
-import scala.collection.compat._
+import scala.collection.immutable.ArraySeq
 import scala.jdk.CollectionConverters._
 
 import htsjdk.variant.vcf._
@@ -183,11 +182,11 @@ case class VCFHeaderInfo(
     rvb.addAnnotation(rvb.currentType().virtualType, sampleIds.toFastSeq)
     rvb.addAnnotation(
       rvb.currentType().virtualType,
-      infoFields.map { case (x1, x2) => Row(x1, x2.parsableString()) }.toFastSeq,
+      infoFields.map { case (x1, x2) => RowSeq(x1, x2.parsableString()) }.toFastSeq,
     )
     rvb.addAnnotation(
       rvb.currentType().virtualType,
-      formatFields.map { case (x1, x2) => Row(x1, x2.parsableString()) }.toFastSeq,
+      formatFields.map { case (x1, x2) => RowSeq(x1, x2.parsableString()) }.toFastSeq,
     )
     rvb.addAnnotation(rvb.currentType().virtualType, if (dropAttrs) Map.empty else filtersAttrs)
     rvb.addAnnotation(rvb.currentType().virtualType, if (dropAttrs) Map.empty else infoAttrs)
@@ -2041,7 +2040,9 @@ class MatrixVCFReader(
         )
     }
 
-    val globals = Row(sampleIDs.zipWithIndex.map { case (s, i) => Row(s, i.toLong) }.toFastSeq)
+    val globals = RowSeq(sampleIDs.zipWithIndex.map { case (s, i) =>
+      RowSeq(s, i.toLong)
+    }.toFastSeq)
 
     val fullRowPType: PType = fullRVDType.rowType
 
@@ -2129,7 +2130,7 @@ class MatrixVCFReader(
   }
 
   override def lowerGlobals(ctx: ExecuteContext, requestedGlobalsType: TStruct): IR = {
-    val globals = Row(sampleIDs.zipWithIndex.map(t => Row(t._1, t._2.toLong)).toFastSeq)
+    val globals = RowSeq(sampleIDs.zipWithIndex.map(t => RowSeq(t._1, t._2.toLong)).toFastSeq)
     Literal.coerce(
       requestedGlobalsType,
       fullType.globalType.valueSubsetter(requestedGlobalsType)

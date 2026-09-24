@@ -5,6 +5,7 @@ import copy
 import functools
 import os
 import subprocess as sp
+import sys
 import time
 import uuid
 import warnings
@@ -24,6 +25,7 @@ from hailtop.aiotools.router_fs import RouterAsyncFS
 from hailtop.aiotools.validators import validate_file
 from hailtop.batch.hail_genetics_images import HAIL_GENETICS_IMAGES, hailgenetics_hail_image_for_current_python_version
 from hailtop.batch_client.aioclient import BatchClient as AioBatchClient
+from hailtop.batch_client.aioclient import BatchNotAuthenticatedError
 from hailtop.batch_client.parse import parse_cpu_in_mcpu
 from hailtop.config import ConfigVariable, configuration_of, get_deploy_config, get_remote_tmpdir
 from hailtop.utils import async_to_blocking, bounded_gather, parse_docker_image_reference, url_scheme
@@ -220,6 +222,7 @@ class LocalBackend(Backend[None]):
         copied_input_resource_files = set()
         os.makedirs(tmpdir + '/inputs/', exist_ok=True)
 
+        python3 = shq(sys.executable)
         requester_pays_project_json = orjson.dumps(batch.requester_pays_project).decode('utf-8')
 
         def copy_input(job, r):
@@ -232,7 +235,9 @@ class LocalBackend(Backend[None]):
                     if input_scheme != '':
                         transfers_bytes = orjson.dumps([{"from": r._input_path, "to": r._get_path(tmpdir)}])
                         transfers = transfers_bytes.decode('utf-8')
-                        return [f'python3 -m hailtop.aiotools.copy {shq(requester_pays_project_json)} {shq(transfers)}']
+                        return [
+                            f'{python3} -m hailtop.aiotools.copy {shq(requester_pays_project_json)} {shq(transfers)}'
+                        ]
 
                     absolute_input_path = os.path.realpath(os.path.expanduser(r._input_path))
 
@@ -281,7 +286,9 @@ class LocalBackend(Backend[None]):
                 input_transfers = orjson.dumps(input_transfer_dicts).decode('utf-8')
                 code = new_code_block()
                 code += ["# Write input resources to output destinations"]
-                code += [f'python3 -m hailtop.aiotools.copy {shq(requester_pays_project_json)} {shq(input_transfers)}']
+                code += [
+                    f'{python3} -m hailtop.aiotools.copy {shq(requester_pays_project_json)} {shq(input_transfers)}'
+                ]
                 code += ['\n']
                 run_code(code)
 
@@ -374,7 +381,7 @@ class LocalBackend(Backend[None]):
                 if output_transfer_dicts:
                     output_transfers = orjson.dumps(output_transfer_dicts).decode('utf-8')
                     code += [
-                        f'python3 -m hailtop.aiotools.copy {shq(requester_pays_project_json)} {shq(output_transfers)}'
+                        f'{python3} -m hailtop.aiotools.copy {shq(requester_pays_project_json)} {shq(output_transfers)}'
                     ]
                 code += ['\n']
 
@@ -538,7 +545,11 @@ class ServiceBackend(Backend[bc.Batch]):
         -------
         A list of the supported cloud regions
         """
-        return async_to_blocking(self._batch_client_sync().supported_regions())
+        try:
+            return async_to_blocking(self._batch_client_sync().supported_regions())
+        except (BatchNotAuthenticatedError, PermissionError) as e:
+            # Reduce stack trace here. Users won't care where this came from. They care they're not authenticated.
+            raise e.with_traceback(None) from None
 
     def default_region(self):
         """
@@ -554,7 +565,11 @@ class ServiceBackend(Backend[bc.Batch]):
         -------
         The default region jobs run in when no regions are specified
         """
-        return async_to_blocking(self._batch_client_sync().default_region())
+        try:
+            return async_to_blocking(self._batch_client_sync().default_region())
+        except (BatchNotAuthenticatedError, PermissionError) as e:
+            # Reduce stack trace here. Users won't care where this came from. They care they're not authenticated.
+            raise e.with_traceback(None) from None
 
     def __init__(
         self,

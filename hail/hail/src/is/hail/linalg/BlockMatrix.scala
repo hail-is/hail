@@ -5,7 +5,6 @@ import is.hail.asm4s.HailClassLoader
 import is.hail.backend.{BroadcastValue, ExecuteContext, HailStateManager}
 import is.hail.backend.spark.{unsafeHailClassLoaderForSparkWorkers, SparkBackend, SparkTaskContext}
 import is.hail.collection.{FastSeq, IntArrayBuilder}
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.collection.implicits._
 import is.hail.expr.ir.{partFile, TableReader, TableValue, ThreefryRandomEngine}
 import is.hail.io._
@@ -20,7 +19,7 @@ import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.utils.implicits.ByteTrackingOutputStream
 
-import scala.collection.immutable.NumericRange
+import scala.collection.immutable.{ArraySeq, NumericRange}
 
 import java.io._
 
@@ -409,7 +408,6 @@ object BlockMatrix {
 
     def blockMatrixURI(matrixIdx: Int): String = prefix + "_" + matrixIdx
     val fs = ctx.fs
-    val tmpdir = ctx.localTmpdir
 
     bms.zipWithIndex.foreach { case (_, bIdx) =>
       val uri = blockMatrixURI(bIdx)
@@ -474,9 +472,7 @@ object BlockMatrix {
         fileName,
         null,
         (_, _, _) => null,
-        false,
         fs,
-        tmpdir,
         trueIt,
         writeBlock,
       )
@@ -998,7 +994,6 @@ class BlockMatrix(
     uri: String,
     overwrite: Boolean = false,
     forceRowMajor: Boolean = false,
-    stageLocally: Boolean = false,
   ): Unit = {
     val fs = ctx.fs
     if (overwrite)
@@ -1021,7 +1016,7 @@ class BlockMatrix(
       (1L, bytesWritten)
     }
 
-    val fileData = blocks.writePartitions(ctx, uri, stageLocally, writeBlock)
+    val fileData = blocks.writePartitions(ctx, uri, writeBlock)
 
     using(new DataOutputStream(fs.create(uri + metadataRelativePath))) { os =>
       implicit val formats = DefaultFormats
@@ -2137,7 +2132,7 @@ private class BlockMatrixMultiplyRDD(l: BlockMatrix, r: BlockMatrix)
     val b =
       if (_b.majorStride < math.max(if (_b.isTranspose) _b.cols else _b.rows, 1)) _b.copy else _b
 
-    import com.github.fommil.netlib.BLAS.{getInstance => blas}
+    import dev.ludovic.netlib.blas.BLAS.{getInstance => blas}
     blas.dgemm(
       if (a.isTranspose) "T" else "N",
       if (b.isTranspose) "T" else "N",

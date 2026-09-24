@@ -1,13 +1,11 @@
 package is.hail.collection
 
-import is.hail.collection.compat.mutable.Growable
 import is.hail.collection.implicits.toRichIterator
 import is.hail.utils.{Muple, OrderingView}
 
 import scala.collection.{mutable, BufferedIterator}
+import scala.collection.mutable.Growable
 import scala.reflect.ClassTag
-
-import org.typelevel.scalaccompat.annotation.nowarn213
 
 /** A StateMachine has the same primary interface as FlipbookIterator, but the implementations are
   * not expected to be checked (for instance, value does not need to assert isValid). The only
@@ -124,7 +122,7 @@ object FlipbookIterator {
         } else {
           val v = q.dequeue()
           value += v
-          while (!q.isEmpty && ord(q.head._1, v._1) == 0)
+          while (q.nonEmpty && ord(q.head._1, v._1) == 0)
             value += q.dequeue()
         }
       }
@@ -159,8 +157,8 @@ abstract class FlipbookIterator[A] extends BufferedIterator[A] { self =>
 
   override def filter(pred: A => Boolean): FlipbookIterator[A] = FlipbookIterator(
     new StateMachine[A] {
-      override def value = self.value
-      override def isValid = self.isValid
+      override def value: A = self.value
+      override def isValid: Boolean = self.isValid
 
       override def advance(): Unit =
         do self.advance() while (self.isValid && !pred(self.value))
@@ -175,7 +173,7 @@ abstract class FlipbookIterator[A] extends BufferedIterator[A] { self =>
     new StateMachine[B] {
       var value: B = _
       if (self.isValid) value = f(self.value)
-      override def isValid = self.isValid
+      override def isValid: Boolean = self.isValid
 
       override def advance(): Unit = {
         self.advance()
@@ -184,16 +182,14 @@ abstract class FlipbookIterator[A] extends BufferedIterator[A] { self =>
     }
   )
 
-  @nowarn213("msg=GenTraversableOnce in package collection is deprecated")
-  @nowarn213("msg=toIterator in class IterableOnceExtensionMethods is deprecated")
-  override def flatMap[B](f: A => scala.collection.GenTraversableOnce[B]): FlipbookIterator[B] =
+  override def flatMap[B](f: A => IterableOnce[B]): FlipbookIterator[B] =
     FlipbookIterator(
       new StateMachine[B] {
         var it: FlipbookIterator[B] = _
-        if (self.isValid) it = f(self.value).toIterator.toFlipbookIterator
+        if (self.isValid) it = f(self.value).iterator.toFlipbookIterator
         findNextValid()
         override def value: B = it.value
-        override def isValid = self.isValid
+        override def isValid: Boolean = self.isValid
 
         override def advance(): Unit = {
           it.advance()
@@ -203,14 +199,14 @@ abstract class FlipbookIterator[A] extends BufferedIterator[A] { self =>
         def findNextValid(): Unit =
           while (self.isValid && !it.isValid) {
             self.advance()
-            if (self.isValid) it = f(self.value).toIterator.toFlipbookIterator
+            if (self.isValid) it = f(self.value).iterator.toFlipbookIterator
           }
       }
     )
 
   private[this] trait ValidityCachingStateMachine extends StateMachine[A] {
     private[this] var _isValid: Boolean = _
-    final override def isValid = _isValid
+    final override def isValid: Boolean = _isValid
 
     final def refreshValidity(): Unit =
       _isValid = calculateValidity
@@ -226,7 +222,7 @@ abstract class FlipbookIterator[A] extends BufferedIterator[A] { self =>
     val stepSM = new ValidityCachingStateMachine {
       override def value: A = self.value
       override def calculateValidity: Boolean = self.isValid && ord.isEquivalent(self.value)
-      override def advance() = {
+      override def advance(): Unit = {
         self.advance()
         refreshValidity()
       }
@@ -235,7 +231,7 @@ abstract class FlipbookIterator[A] extends BufferedIterator[A] { self =>
     val sm = new StateMachine[FlipbookIterator[A]] {
       var isValid: Boolean = true
       val value: FlipbookIterator[A] = stepIterator
-      override def advance() = {
+      override def advance(): Unit = {
         stepIterator.exhaust()
         if (self.isValid) {
           ord.setValue(self.value)

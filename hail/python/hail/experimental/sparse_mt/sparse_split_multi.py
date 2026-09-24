@@ -230,10 +230,7 @@ def sparse_split_multi(sparse_mt, *, filter_changed_loci=False):
                             hl.range(0, 2).map(
                                 lambda i: hl.min(
                                     hl.range(0, hl.len(old_entry.LA))
-                                    .filter(
-                                        lambda j: hl.downcode(hl.unphased_diploid_gt_index_call(j), local_a_index)
-                                        == hl.unphased_diploid_gt_index_call(i)
-                                    )
+                                    .filter(lambda j: hl.int32(j == local_a_index) == i)
                                     .map(lambda idx: old_entry.LPL[idx])
                                 )
                             ),

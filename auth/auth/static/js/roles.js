@@ -5,7 +5,7 @@ document.getElementsByName('remove-role-button').forEach(button => {
 });
 
 document.getElementsByName('add-role-button').forEach(button => {
-        button.addEventListener('click', (_e) => { addRole(button.dataset['username-input-id'], button.dataset.role); })
+        button.addEventListener('click', (_e) => { addRole(button.dataset.usernameInputId, button.dataset.role); })
 });
 
 async function removeRole(username, roleName) {
@@ -14,7 +14,7 @@ async function removeRole(username, roleName) {
     }
 
     try {
-        const response = await fetch("{{ base_path }}/api/v1alpha/system_roles/${username}", {
+        const response = await fetch(`{{ base_path }}/api/v1alpha/system_roles/${username}`, {
             method: 'PATCH',
             headers: {
                 'Content-Type': 'application/json',
@@ -47,7 +47,7 @@ async function addRole(usernameInputId, roleName) {
     }
 
     try {
-        const response = await fetch("{{ base_path }}/api/v1alpha/system_roles/${username}", {
+        const response = await fetch(`{{ base_path }}/api/v1alpha/system_roles/${username}`, {
             method: 'PATCH',
             headers: {
                 'Content-Type': 'application/json',

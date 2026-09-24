@@ -1,24 +1,24 @@
 package is.hail.annotations
 
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.types.physical._
 import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.variant.Locus
+
+import scala.collection.immutable.ArraySeq
 
 import java.io.{ObjectInputStream, ObjectOutputStream}
 
 import com.esotericsoftware.kryo.{Kryo, KryoSerializable}
 import com.esotericsoftware.kryo.io.{Input, Output}
 import org.apache.spark.sql.Row
-import sun.reflect.generics.reflectiveObjects.NotImplementedException
 
 trait UnKryoSerializable extends KryoSerializable {
   override def write(kryo: Kryo, output: Output): Unit =
-    throw new NotImplementedException()
+    throw new UnsupportedOperationException
 
   override def read(kryo: Kryo, input: Input): Unit =
-    throw new NotImplementedException()
+    throw new UnsupportedOperationException
 }
 
 class UnsafeIndexedSeq(
@@ -210,10 +210,10 @@ class UnsafeRow(val t: PBaseStruct, var region: Region, var offset: Long)
   }
 
   private def writeObject(s: ObjectOutputStream): Unit =
-    throw new NotImplementedException()
+    throw new UnsupportedOperationException
 
   private def readObject(s: ObjectInputStream): Unit =
-    throw new NotImplementedException()
+    throw new UnsupportedOperationException
 }
 
 object SafeRow {
@@ -224,7 +224,7 @@ object SafeRow {
 
   def selectFields(t: PBaseStruct, region: Region, off: Long)(selectIdx: IndexedSeq[Int]): Row = {
     val fullRow = new UnsafeRow(t, region, off)
-    Row.fromSeq(selectIdx.map(i => Annotation.copy(t.types(i).virtualType, fullRow.get(i))))
+    RowSeq.fromSeq(selectIdx.map(i => Annotation.copy(t.types(i).virtualType, fullRow.get(i))))
   }
 
   def selectFields(t: PBaseStruct, rv: RegionValue)(selectIdx: IndexedSeq[Int]): Row =

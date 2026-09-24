@@ -11,10 +11,22 @@ import is.hail.types.physical._
 import is.hail.types.physical.stypes.{SType, SValue}
 import is.hail.types.physical.stypes.concrete.{SIndexablePointer, SIndexablePointerValue}
 import is.hail.types.physical.stypes.interfaces.SIndexableValue
+import is.hail.types.physical.stypes.primitives.{SInt32, SInt32Value}
 import is.hail.types.virtual._
 
-final case class EArray(val elementType: EType, override val required: Boolean = false)
-    extends EContainer {
+final case class EArray(
+  override val elementType: EType,
+  override val required: Boolean = false,
+  lengthEType: EIntegral,
+) extends EContainer {
+  def writeLength(cb: EmitCodeBuilder, out: Value[OutputBuffer], len: Code[Int]): Unit = {
+    val lsv = new SInt32Value(cb.memoize(len))
+    lengthEType.buildEncoder(SInt32, cb.emb.ecb).apply(cb, lsv, out)
+  }
+
+  def readLength(cb: EmitCodeBuilder, region: Value[Region], in: Value[InputBuffer]): Value[Int] =
+    lengthEType.buildDecoder(TInt32, cb.emb.ecb).apply(cb, region, in).asInt32.value
+
   override def _decodedSType(requestedType: Type): SType = {
     val elementPType = elementType.decodedPType(requestedType.asInstanceOf[TContainer].elementType)
     requestedType match {
@@ -37,7 +49,7 @@ final case class EArray(val elementType: EType, override val required: Boolean =
     val prefixLen = cb.newLocal[Int]("prefixLen", prefixLength)
     val i = cb.newLocal[Int]("i", 0)
 
-    cb += out.writeInt(prefixLen)
+    writeLength(cb, out, prefixLen)
 
     value.st match {
       case SIndexablePointer(pType: PCanonicalArrayBackedContainer)
@@ -120,7 +132,7 @@ final case class EArray(val elementType: EType, override val required: Boolean =
       s"${arrayType.elementType.required} | ${elementType.required}",
     )
 
-    val len = cb.memoize(in.readInt(), "len")
+    val len = readLength(cb, region, in)
     val array = cb.memoize(arrayType.allocate(region, len), "array")
     arrayType.storeLength(cb, array, len)
 
@@ -197,7 +209,7 @@ final case class EArray(val elementType: EType, override val required: Boolean =
 
   override def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer]): Unit = {
     val skip = elementType.buildSkip(cb.emb.ecb)
-    val len = cb.newLocal[Int]("len", in.readInt())
+    val len = readLength(cb, r, in)
     val i = cb.newLocal[Int]("i")
     if (elementType.required) {
       cb.for_(cb.assign(i, 0), i < len, cb.assign(i, i + 1), skip(cb, r, in))
@@ -214,14 +226,34 @@ final case class EArray(val elementType: EType, override val required: Boolean =
     }
   }
 
+  // It was a mistake to simply use write/readInt for lengths in 'version 1' so
+  // the new serialization gets to be version 2 while the old version has
+  // a very long and descriptive name to indicate what it is and to discourage
+  // use
+  private def ver: String = lengthEType match {
+    case EInt32Required => "LegacyFullWidthIntegerLength"
+    case EVarintRequired => "2"
+  }
+
   override def _asIdent = s"array_of_${elementType.asIdent}"
-  override def _toPretty = s"EArray[$elementType]"
+  override def _toPretty = s"EArray$ver[$elementType]"
 
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean = false): Unit = {
-    sb ++= "EArray["
+    sb ++= s"EArray$ver["
     elementType.pretty(sb, indent, compact)
     sb += ']'
   }
 
-  override def setRequired(newRequired: Boolean): EArray = EArray(elementType, newRequired)
+  override def setRequired(newRequired: Boolean): EArray =
+    EArray(elementType, newRequired, lengthEType)
+}
+
+object EArray {
+  def apply(elementType: EType, required: Boolean): EArray =
+    EArray(elementType, required, EVarintRequired)
+}
+
+object EArrayLegacyFullWidthIntegerLength {
+  def apply(elementType: EType, required: Boolean): EArray =
+    EArray(elementType, required, EInt32Required)
 }

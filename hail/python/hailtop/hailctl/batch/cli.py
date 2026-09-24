@@ -98,26 +98,60 @@ class JobContainer(str, Enum):
     OUTPUT = 'output'
 
 
+def _get_job_or_exit(client, batch_id: int, job_id: int):
+    job = get_job_if_exists(client, batch_id, job_id)
+    if job is None:
+        print(f"Job with ID {job_id} on batch {batch_id} not found")
+        raise typer.Exit(1)
+    return job
+
+
 @app.command()
 def log(
     batch_id: int,
     job_id: int,
     container: Ann[Optional[JobContainer], Opt(help='Container name of the desired job')] = None,
+    attempt: Ann[
+        Optional[str], Opt(help='Attempt ID to retrieve log for (defaults to most recent); requires --container')
+    ] = None,
     output: StructuredFormatOption = StructuredFormat.YAML,
+    raw: Ann[bool, Opt(help='Write log bytes directly to stdout without decoding')] = False,
 ):
     """Get the log for the job with id JOB_ID in the batch with id BATCH_ID."""
+    import sys  # pylint: disable=import-outside-toplevel
+
+    from hailtop.batch_client.client import BatchClient  # pylint: disable=import-outside-toplevel
+
+    if attempt is not None and container is None:
+        raise typer.BadParameter('--attempt requires --container to be specified')
+    if raw and container is None:
+        raise typer.BadParameter('--raw requires --container to be specified')
+
+    with BatchClient('') as client:
+        maybe_job = _get_job_or_exit(client, batch_id, job_id)
+
+        if container:
+            log_bytes = maybe_job.container_log(container.value, attempt_id=attempt)
+            if raw:
+                sys.stdout.buffer.write(log_bytes)
+            else:
+                sys.stdout.write(log_bytes.decode(errors='replace'))
+        else:
+            print(make_formatter(output)(maybe_job.log()))
+
+
+@app.command()
+def attempts(
+    batch_id: int,
+    job_id: int,
+    output: StructuredFormatOption = StructuredFormat.YAML,
+):
+    """List all attempts for the job with id JOB_ID in the batch with id BATCH_ID."""
     from hailtop.batch_client.client import BatchClient  # pylint: disable=import-outside-toplevel
 
     with BatchClient('') as client:
-        maybe_job = get_job_if_exists(client, batch_id, job_id)
-        if maybe_job is None:
-            print(f"Job with ID {job_id} on batch {batch_id} not found")
-            return
-
-        if container:
-            print(maybe_job.container_log(container))
-        else:
-            print(make_formatter(output)(maybe_job.log()))
+        maybe_job = _get_job_or_exit(client, batch_id, job_id)
+        print(make_formatter(output)(maybe_job.attempts()))
 
 
 @app.command()
@@ -149,17 +183,85 @@ def job(batch_id: int, job_id: int, output: StructuredFormatOption = StructuredF
     from hailtop.batch_client.client import BatchClient  # pylint: disable=import-outside-toplevel
 
     with BatchClient('') as client:
-        job = get_job_if_exists(client, batch_id, job_id)
-
-        if job is not None:
-            assert job._status
-            print(
-                make_formatter(output)(
-                    [cast(Dict[str, Any], job._status)]  # https://stackoverflow.com/q/71986632/6823256
-                )
+        job = _get_job_or_exit(client, batch_id, job_id)
+        assert job._status
+        print(
+            make_formatter(output)(
+                [cast(Dict[str, Any], job._status)]  # https://stackoverflow.com/q/71986632/6823256
             )
-        else:
-            print(f"Job with ID {job_id} on batch {batch_id} not found")
+        )
+
+
+_VALID_JOB_STATES = frozenset([
+    'pending',
+    'ready',
+    'creating',
+    'running',
+    'live',
+    'cancelled',
+    'error',
+    'failed',
+    'bad',
+    'success',
+    'done',
+])
+
+
+@app.command()
+def jobs(
+    batch_id: int,
+    state: Ann[
+        Optional[str],
+        Opt(
+            help=(
+                'Filter by job state. One of: pending, ready, creating, running, live, '
+                'cancelled, error, failed, bad, success, done. '
+                '"bad" matches error or failed; "live" matches ready, creating, or running; '
+                '"done" matches cancelled, error, failed, or success.'
+            )
+        ),
+    ] = None,
+    exit_code: Ann[Optional[int], Opt(help='Filter by exit code.')] = None,
+    name: Ann[Optional[str], Opt(help='Filter by job name (attribute).')] = None,
+    limit: Ann[int, Opt(help='Maximum number of jobs to return. 0 means no limit.')] = 50,
+    last_job_id: Ann[Optional[int], Opt(help='Return jobs after this job id (for pagination).')] = None,
+    output: StructuredFormatOption = StructuredFormat.YAML,
+):
+    """List jobs in the batch with id BATCH_ID."""
+    from hailtop.batch_client.client import BatchClient  # pylint: disable=import-outside-toplevel
+
+    if state is not None and state not in _VALID_JOB_STATES:
+        raise typer.BadParameter(
+            f'Invalid state "{state}". Must be one of: {", ".join(sorted(_VALID_JOB_STATES))}',
+            param_hint='--state',
+        )
+
+    terms = []
+    if state is not None:
+        terms.append(f'state={state}')
+    if exit_code is not None:
+        terms.append(f'exit_code={exit_code}')
+    if name is not None:
+        terms.append(f'name={name}')
+
+    q = '\n'.join(terms) if terms else None
+
+    with BatchClient('') as client:
+        batch = get_batch_if_exists(client, batch_id)
+        if batch is None:
+            print(f"Batch with id {batch_id} not found")
+            raise typer.Exit(1)
+
+        results = []
+        for job in batch.jobs(q=q, version=2, last_job_id=last_job_id):
+            results.append(job)
+            if 0 < limit <= len(results):
+                break
+
+    if results:
+        print(make_formatter(output)(results))
+    else:
+        print('No jobs found.')
 
 
 @app.command('init', help='Initialize a Hail Batch environment.')

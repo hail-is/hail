@@ -9,11 +9,21 @@ from gear.cloud_config import get_global_config
 from hailtop.config import get_deploy_config
 
 from ....batch_configuration import DEFAULT_NAMESPACE, DOCKER_PREFIX, DOCKER_ROOT_IMAGE, INTERNAL_GATEWAY_IP
+from ....driver.exceptions import LocalSSDNotSupportedError
 from ....file_store import FileStore
 from ....instance_config import InstanceConfig
 from ...resource_utils import unreserved_worker_data_disk_size_gib
-from ...utils import ACCEPTABLE_QUERY_JAR_URL_PREFIX
-from ..resource_utils import GPUConfig, gcp_machine_type_to_parts, machine_type_to_gpu
+from ...utils import ACCEPTABLE_QUERY_JAR_URL_PREFIX, SPARK_ARCHIVE_URL_PREFIX
+from ..resource_utils import (
+    GPUConfig,
+    gcp_boot_disk_type,
+    gcp_data_disk_device_name,
+    gcp_data_disk_type,
+    gcp_hyperdisk_performance_overrides,
+    gcp_local_ssd_count,
+    gcp_machine_type_to_parts,
+    machine_type_to_gpu,
+)
 
 log = logging.getLogger('create_instance')
 
@@ -59,25 +69,37 @@ def create_vm_config(
     assert parts
     cores = parts.cores
 
+    if local_ssd_data_disk and parts.machine_family == 'n4':
+        raise LocalSSDNotSupportedError(parts.machine_family)
+
     region = instance_config.region_for(zone)
     docker_run_gpu_args = '--runtime=nvidia --gpus all' if machine_type_to_gpu(machine_type_full) else ''
     if local_ssd_data_disk:
-        worker_data_disk = {
-            'type': 'SCRATCH',
-            'autoDelete': True,
-            'interface': 'NVME',
-            'initializeParams': {'diskType': f'zones/{zone}/diskTypes/local-ssd'},
-        }
-        worker_data_disk_name = 'nvme0n1'
+        num_local_ssds = gcp_local_ssd_count(parts.machine_family, cores)
+        worker_data_disks = [
+            {
+                'type': 'SCRATCH',
+                'autoDelete': True,
+                'interface': 'NVME',
+                'initializeParams': {'diskType': f'zones/{zone}/diskTypes/local-ssd'},
+            }
+            for _ in range(num_local_ssds)
+        ]
+        worker_data_disk_name = 'md0' if num_local_ssds > 1 else 'nvme0n1'
     else:
-        worker_data_disk = {
-            'autoDelete': True,
-            'initializeParams': {
-                'diskType': f'projects/{project}/zones/{zone}/diskTypes/pd-ssd',
-                'diskSizeGb': str(data_disk_size_gb),
-            },
-        }
-        worker_data_disk_name = 'nvme0n2' if 'g2' in machine_type else 'sdb'
+        num_local_ssds = 0
+        data_disk_type = gcp_data_disk_type(parts.machine_family)
+        worker_data_disks = [
+            {
+                'autoDelete': True,
+                'initializeParams': {
+                    'diskType': f'projects/{project}/zones/{zone}/diskTypes/{data_disk_type}',
+                    'diskSizeGb': str(data_disk_size_gb),
+                    **gcp_hyperdisk_performance_overrides(data_disk_type),
+                },
+            }
+        ]
+        worker_data_disk_name = gcp_data_disk_device_name(parts.machine_family, machine_type)
 
     if job_private:
         unreserved_disk_storage_gb = data_disk_size_gb
@@ -108,6 +130,7 @@ def create_vm_config(
 
         return result
 
+    boot_disk_type = gcp_boot_disk_type(parts.machine_family)
     config = {
         'name': machine_name,
         'machineType': f'projects/{project}/zones/{zone}/machineTypes/{machine_type}',
@@ -117,12 +140,14 @@ def create_vm_config(
                 'boot': True,
                 'autoDelete': True,
                 'initializeParams': {
-                    'sourceImage': f'projects/{project}/global/images/batch-worker-17',
-                    'diskType': f'projects/{project}/zones/{zone}/diskTypes/pd-ssd',
+                    # NB: create a new worker image with gcp-create-worker-image.sh
+                    'sourceImage': f'projects/{project}/global/images/batch-worker-24',
+                    'diskType': f'projects/{project}/zones/{zone}/diskTypes/{boot_disk_type}',
                     'diskSizeGb': str(boot_disk_size_gb),
+                    **gcp_hyperdisk_performance_overrides(boot_disk_type),
                 },
             },
-            worker_data_disk,
+            *worker_data_disks,
         ],
         'networkInterfaces': [
             {
@@ -174,8 +199,10 @@ nohup /bin/bash run.sh >run.log 2>&1 &
 set -x
 
 WORKER_DATA_DISK_NAME="{worker_data_disk_name}"
+NUM_LOCAL_SSDS="{num_local_ssds}"
 UNRESERVED_WORKER_DATA_DISK_SIZE_GB="{unreserved_disk_storage_gb}"
 ACCEPTABLE_QUERY_JAR_URL_PREFIX="{ACCEPTABLE_QUERY_JAR_URL_PREFIX}"
+SPARK_ARCHIVE_URL_PREFIX="{SPARK_ARCHIVE_URL_PREFIX}"
 
 CORES=$(nproc)
 NAMESPACE=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/namespace")
@@ -198,35 +225,9 @@ DOCKER_PREFIX=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.int
 
 INTERNAL_GATEWAY_IP=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/internal_ip")
 
-# format worker data disk
-sudo mkfs.xfs -m reflink=1 -n ftype=1 /dev/$WORKER_DATA_DISK_NAME
-sudo mkdir -p /mnt/disks/$WORKER_DATA_DISK_NAME
-sudo mount -o prjquota /dev/$WORKER_DATA_DISK_NAME /mnt/disks/$WORKER_DATA_DISK_NAME
-sudo chmod a+w /mnt/disks/$WORKER_DATA_DISK_NAME
-XFS_DEVICE=$(xfs_info /mnt/disks/$WORKER_DATA_DISK_NAME | head -n 1 | awk '{{ print $1 }}' | awk  'BEGIN {{ FS = "=" }}; {{ print $2 }}')
-
-# reconfigure docker to use local SSD
-sudo service docker stop
-sudo mv /var/lib/docker /mnt/disks/$WORKER_DATA_DISK_NAME/docker
-sudo ln -s /mnt/disks/$WORKER_DATA_DISK_NAME/docker /var/lib/docker
-sudo service docker start
-
-# reconfigure /batch and /logs and /gcsfuse to use local SSD
-sudo mkdir -p /mnt/disks/$WORKER_DATA_DISK_NAME/batch/
-sudo ln -s /mnt/disks/$WORKER_DATA_DISK_NAME/batch /batch
-
-sudo mkdir -p /mnt/disks/$WORKER_DATA_DISK_NAME/logs/
-sudo ln -s /mnt/disks/$WORKER_DATA_DISK_NAME/logs /logs
-
-sudo mkdir -p /mnt/disks/$WORKER_DATA_DISK_NAME/cloudfuse/
-sudo ln -s /mnt/disks/$WORKER_DATA_DISK_NAME/cloudfuse /cloudfuse
-
-sudo mkdir -p /etc/netns
-
-# Setup ops agent
+# Setup ops agent before anything else so startup failures are visible in Cloud Logging
 touch /worker.log
 touch /run.log
-mkdir -p /batch/jvm-container-logs/
 
 sudo tee /etc/google-cloud-ops-agent/config.yaml <<EOF
 logging:
@@ -276,6 +277,46 @@ metrics:
 EOF
 
 sudo systemctl restart google-cloud-ops-agent
+
+# combine multiple local SSDs into a single RAID0 array
+if [ "$NUM_LOCAL_SSDS" -gt 1 ]; then
+    DEVICES=""
+    for i in $(seq 1 $NUM_LOCAL_SSDS); do
+        DEVICES="$DEVICES /dev/nvme0n$i"
+    done
+    mdadm --create /dev/md0 --level=0 --raid-devices=$NUM_LOCAL_SSDS $DEVICES --force --run
+fi
+
+# format worker data disk
+sudo mkfs.xfs -m reflink=1 -n ftype=1 /dev/$WORKER_DATA_DISK_NAME
+sudo mkdir -p /mnt/disks/$WORKER_DATA_DISK_NAME
+sudo mount -o prjquota /dev/$WORKER_DATA_DISK_NAME /mnt/disks/$WORKER_DATA_DISK_NAME
+sudo chmod a+w /mnt/disks/$WORKER_DATA_DISK_NAME
+XFS_DEVICE=$(xfs_info /mnt/disks/$WORKER_DATA_DISK_NAME | head -n 1 | awk '{{ print $1 }}' | awk  'BEGIN {{ FS = "=" }}; {{ print $2 }}')
+
+# reconfigure docker and containerd to use local SSD
+sudo service docker stop
+sudo service containerd stop
+sudo mv /var/lib/docker /mnt/disks/$WORKER_DATA_DISK_NAME/docker
+sudo ln -s /mnt/disks/$WORKER_DATA_DISK_NAME/docker /var/lib/docker
+sudo mv /var/lib/containerd /mnt/disks/$WORKER_DATA_DISK_NAME/containerd
+sudo ln -s /mnt/disks/$WORKER_DATA_DISK_NAME/containerd /var/lib/containerd
+sudo service containerd start
+sudo service docker start
+
+# reconfigure /batch and /logs and /gcsfuse to use local SSD
+sudo mkdir -p /mnt/disks/$WORKER_DATA_DISK_NAME/batch/
+sudo ln -s /mnt/disks/$WORKER_DATA_DISK_NAME/batch /batch
+
+sudo mkdir -p /mnt/disks/$WORKER_DATA_DISK_NAME/logs/
+sudo ln -s /mnt/disks/$WORKER_DATA_DISK_NAME/logs /logs
+
+sudo mkdir -p /mnt/disks/$WORKER_DATA_DISK_NAME/cloudfuse/
+sudo ln -s /mnt/disks/$WORKER_DATA_DISK_NAME/cloudfuse /cloudfuse
+
+sudo mkdir -p /etc/netns
+
+mkdir -p /batch/jvm-container-logs/
 
 # private job network = 172.20.0.0/16
 # public job network = 172.21.0.0/16
@@ -333,6 +374,7 @@ docker run \
 -e INTERNET_INTERFACE=$INTERNET_INTERFACE \
 -e UNRESERVED_WORKER_DATA_DISK_SIZE_GB=$UNRESERVED_WORKER_DATA_DISK_SIZE_GB \
 -e ACCEPTABLE_QUERY_JAR_URL_PREFIX=$ACCEPTABLE_QUERY_JAR_URL_PREFIX \
+-e SPARK_ARCHIVE_URL_PREFIX=$SPARK_ARCHIVE_URL_PREFIX \
 -e INTERNAL_GATEWAY_IP=$INTERNAL_GATEWAY_IP \
 -v /var/run/docker.sock:/var/run/docker.sock \
 -v /var/run/netns:/var/run/netns:shared \

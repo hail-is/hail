@@ -1,7 +1,7 @@
 package is.hail.expr.ir
 
-import is.hail.HailSuite
-import is.hail.annotations.Region
+import is.hail.TestUtils.check
+import is.hail.annotations.{Region, RegionPool}
 import is.hail.asm4s._
 import is.hail.asm4s.implicits.{valueToRichCodeInputBuffer, valueToRichCodeOutputBuffer}
 import is.hail.backend.ExecuteContext
@@ -17,9 +17,9 @@ import scala.collection.mutable
 
 import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
 
-import org.scalacheck.Gen._
-import org.scalatestplus.scalacheck.ScalaCheckDrivenPropertyChecks
-import org.testng.annotations.Test
+import org.junit.jupiter.api.Test
+import org.scalacheck.Gen.{choose, containerOf, prob, zip}
+import org.scalacheck.Prop.forAll
 
 class TestBTreeKey(mb: EmitMethodBuilder[_]) extends BTreeKey {
   private val comp = mb.ecb.getOrderingFunction(SInt64, SInt64, CodeOrdering.Compare())
@@ -236,9 +236,9 @@ class TestSet {
   def getElements: Array[java.lang.Long] = map.toArray
 }
 
-class StagedBTreeSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
+class StagedBTreeSuite {
 
-  @Test def testBTree(): Unit = {
+  @Test def testBTree(pool: RegionPool)(implicit ctx: ExecuteContext): Unit = {
     pool.scopedRegion { region =>
       val refSet = new TestSet()
       val nodeSizeParams = Array(
@@ -259,7 +259,7 @@ class StagedBTreeSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
           !(l1 == null) && ((l2 == null) || (l1 < l2))
         }
 
-        forAll(sets) { set =>
+        check(forAll(sets) { set =>
           refSet.clear()
           testSet.clear()
           assert(refSet.getElements sameElements testSet.getElements)
@@ -273,7 +273,7 @@ class StagedBTreeSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
             val testSet2 = BTreeBackedSet.bulkLoad(ctx, region, serialized, n)
             refSet.getElements.sortWith(lt) sameElements testSet2.getElements.sortWith(lt)
           }
-        }
+        })
       }
     }
   }

@@ -17,6 +17,8 @@ HAIL_QUERY_N_CORES = os.environ.get('HAIL_QUERY_N_CORES', '2')
 def hl_init_for_test(**kwargs):
     backend_name = choose_backend(kwargs.get('backend'))
 
+    flags = {'strict_invariants': "1", **kwargs.pop('flags', dict())}
+
     init_kwargs = {
         'gcs_requester_pays_configuration': GCS_REQUESTER_PAYS_PROJECT,
         'backend': backend_name,
@@ -33,6 +35,7 @@ def hl_init_for_test(**kwargs):
         }
 
     hl.init(**init_kwargs)
+    hl._set_flags(**flags)
 
 
 def hl_stop_for_test():

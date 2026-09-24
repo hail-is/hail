@@ -1,10 +1,11 @@
 package is.hail.expr.ir.functions
 
 import is.hail.backend.ExecuteContext
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir.MatrixValue
 import is.hail.linalg.{BlockMatrix, BlockMatrixMetadata, GridPartitioner, WriteBlocksRDD}
 import is.hail.utils._
+
+import scala.collection.immutable.ArraySeq
 
 import java.io.DataOutputStream
 

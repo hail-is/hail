@@ -10,23 +10,23 @@ import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.utils.StackSafe._
 
-import scala.collection.compat._
 import scala.reflect.ClassTag
 
-object TypeCheck {
+object TypeCheck extends Logging {
   def apply(ctx: ExecuteContext, ir: BaseIR): Unit =
     apply(ctx, ir, BindingEnv.empty)
 
   def apply(ctx: ExecuteContext, ir: BaseIR, env: BindingEnv[Type]): Unit =
-    ctx.time {
+    TimedBlock.enter {
       try
         check(ctx, ir, env).run()
       catch {
         case e: Throwable =>
-          fatal(
-            s"Error while typechecking IR:\n${Pretty(ctx, ir, preserveNames = true, allowUnboundRefs = true)}",
+          logger.fatal(
+            s"Error while typechecking IR: ${Pretty(ctx, ir, allowUnboundRefs = true)}",
             e,
           )
+          throw e
       }
     }
 
@@ -480,7 +480,8 @@ object TypeCheck {
         assert(x.typ == aggBody.typ)
       case x @ AggGroupBy(key, aggIR, _) =>
         assert(x.typ == TDict(key.typ, aggIR.typ))
-      case x @ AggArrayPerElement(_, _, _, aggBody, knownLength, _) =>
+      case x @ AggArrayPerElement(a, _, _, aggBody, knownLength, _) =>
+        assert(a.typ.isInstanceOf[TArray])
         assert(x.typ == TArray(aggBody.typ))
         assert(knownLength.forall(_.typ == TInt32))
       case InitOp(_, args, aggSig) =>
@@ -489,7 +490,10 @@ object TypeCheck {
           s"${args.map(_.typ)} !=  ${aggSig.initOpTypes}",
         )
       case SeqOp(_, args, aggSig) =>
-        assert(args.map(_.typ) == aggSig.seqOpTypes)
+        assert(
+          args.map(_.typ) == aggSig.seqOpTypes,
+          s"${args.map(_.typ)} !=  ${aggSig.seqOpTypes}\n$aggSig",
+        )
       case _: CombOp =>
       case _: ResultOp =>
       case AggStateValue(_, _) =>
@@ -555,7 +559,10 @@ object TypeCheck {
             !t.colType.hasField(MatrixReader.colUIDFieldName),
           t,
         )
-        assert(children.forall(_.typ == t))
+        assert(
+          children.forall(_.typ == t),
+          "MatrixMultiWrite requires MatrixTable inputs of the same type",
+        )
       case x @ TableAggregate(_, query) =>
         assert(x.typ == query.typ)
       case x @ MatrixAggregate(_, query) =>
@@ -597,9 +604,8 @@ object TypeCheck {
             assert(reader.spec.encodedType.decodedPType(requestedType).virtualType == requestedType)
           case _ => // do nothing, we can't in general typecheck an arbitrary value reader
         }
-      case WriteValue(_, path, _, stagingFile) =>
+      case WriteValue(_, path, _) =>
         assert(path.typ == TString)
-        assert(stagingFile.forall(_.typ == TString))
       case Consume(_) =>
 
       case TableAggregateByKey(child, _) =>

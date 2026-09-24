@@ -59,9 +59,9 @@ def build_python_image(
         major_version = int(version[0])
         minor_version = int(version[1])
 
-    if major_version != 3 or minor_version < 9:
+    if major_version != 3 or minor_version < 12:
         raise ValueError(
-            f'Python versions older than 3.9 (you are using {major_version}.{minor_version}) are not supported'
+            f'Python versions older than 3.12 (you are using {major_version}.{minor_version}) are not supported'
         )
 
     if slim:

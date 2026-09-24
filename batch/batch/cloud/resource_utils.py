@@ -13,6 +13,7 @@ from .azure.resource_utils import (
     azure_valid_machine_types,
 )
 from .gcp.resource_utils import (
+    GCP_MACHINE_FAMILY,
     gcp_is_valid_storage_request,
     gcp_local_ssd_size,
     gcp_machine_type_to_cores_and_memory_bytes,
@@ -115,4 +116,4 @@ def local_ssd_size(cloud: str, worker_type: str, cores: int) -> int:
     if cloud == 'azure':
         return azure_local_ssd_size(worker_type, cores)
     assert cloud == 'gcp', cloud
-    return gcp_local_ssd_size()
+    return gcp_local_ssd_size(GCP_MACHINE_FAMILY, cores)

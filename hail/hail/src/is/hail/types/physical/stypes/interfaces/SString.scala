@@ -3,6 +3,7 @@ package is.hail.types.physical.stypes.interfaces
 import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir.EmitCodeBuilder
+import is.hail.io.PrefixCoder
 import is.hail.types.{RPrimitive, TypeWithRequiredness}
 import is.hail.types.physical.stypes.{SType, SValue}
 import is.hail.types.physical.stypes.primitives.SInt32Value
@@ -21,4 +22,7 @@ trait SStringValue extends SValue {
   def loadString(cb: EmitCodeBuilder): Value[String]
 
   def toBytes(cb: EmitCodeBuilder): SBinaryValue
+
+  override def prefixCode(cb: EmitCodeBuilder, pc: Value[PrefixCoder]) =
+    toBytes(cb).prefixCode(cb, pc)
 }

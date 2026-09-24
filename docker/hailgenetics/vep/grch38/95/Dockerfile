@@ -71,6 +71,7 @@ RUN export KENT_SRC=$PWD/kent-335_base/src && \
     make clean && make && \
     mkdir -p $VEP_DIR/cpanm && \
     export PERL5LIB=\$PERL5LIB:$HOME/cpanm/lib/perl5 && \
+    cpanm Test::Most@0.38 && \
     cpanm Bio::DB::BigFile
 
 RUN wget https://github.com/samtools/samtools/releases/download/1.22/samtools-1.22.tar.bz2 && \

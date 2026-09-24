@@ -43,7 +43,7 @@ jobs:
         run: |
           # Convert comma-separated list to JSON array
           images=$(echo "$IMAGES" | jq -R -s -c 'split(",")|map(select(length>0)|gsub("\\n";""))')
-          echo "matrix=${images}" >> $GITHUB_OUTPUT
+          echo "matrix=${images}" >> "$GITHUB_OUTPUT"
 
   scan:
     needs: prepare
@@ -113,7 +113,7 @@ jobs:
         id: safe-name
         run: |
           SAFE_NAME=$(echo "${{ matrix.image }}" | tr ':/' '__')
-          echo "name=${SAFE_NAME}" >> $GITHUB_OUTPUT
+          echo "name=${SAFE_NAME}" >> "$GITHUB_OUTPUT"
 
 
       - name: Upload sarif scan results
@@ -154,7 +154,7 @@ jobs:
           cp "$BASE_FILE" combined-results/combined.sarif
 
           # Combine the rest
-          for sarif_file in $(find all-artifacts -name "*.sarif" -type f); do
+          while IFS= read -r sarif_file; do
             if [ "$sarif_file" != "$BASE_FILE" ]; then
               echo "Combining $sarif_file"
               jq -s '
@@ -166,7 +166,7 @@ jobs:
               ' combined-results/combined.sarif "$sarif_file" > combined-results/temp.sarif
               mv combined-results/temp.sarif combined-results/combined.sarif
             fi
-          done
+          done < <(find all-artifacts -name "*.sarif" -type f)
 
       - name: Upload combined SARIF to GitHub Security
         uses: github/codeql-action/upload-sarif@v3

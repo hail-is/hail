@@ -1,14 +1,15 @@
 package is.hail.expr.ir.analyses
 
 import is.hail.backend.ExecuteContext
-import is.hail.expr.ir.{MatrixRangeReader, _}
+import is.hail.expr.ir._
 import is.hail.expr.ir.defs._
 import is.hail.expr.ir.functions.{TableCalculateNewPartitions, WrappedMatrixToValueFunction}
+import is.hail.expr.ir.lowering.invariant.UniquelyNamed
 import is.hail.io.fs.FS
 import is.hail.io.vcf.MatrixVCFReader
 import is.hail.methods._
 import is.hail.types.virtual._
-import is.hail.utils.{Logging, TreeTraversal}
+import is.hail.utils.{Logging, TimedBlock, TreeTraversal}
 import is.hail.utils.implicits.toRichBoolean
 
 import scala.collection.mutable
@@ -27,10 +28,8 @@ case object SemanticHash extends Logging {
     MurmurHash3.hash32x86(bytes, 0, bytes.length, x)
 
   def apply(ctx: ExecuteContext, root: BaseIR): Option[Type] =
-    ctx.time {
-      // Running the algorithm on the name-normalised IR
-      // removes sensitivity to compiler-generated names
-      val nameNormalizedIR = NormalizeNames(allowFreeVariables = true)(ctx, root)
+    TimedBlock.enter {
+      UniquelyNamed.verify(ctx, root)
 
       def go: Option[Int] = {
         var hash: Type =
@@ -38,7 +37,7 @@ case object SemanticHash extends Logging {
 
         // Include an encoding of a node's position in the parent's child array
         // to differentiate between IR trees that look identical when flattened
-        for ((ir, index) <- levelOrder(nameNormalizedIR)) {
+        for ((ir, index) <- levelOrder(root)) {
           try {
             val bytes = encode(ctx.fs, ir, index)
             hash = extend(hash, bytes)
@@ -88,7 +87,7 @@ case object SemanticHash extends Logging {
         buffer += a.isScan.toByte
 
       case Block(bindings, _) =>
-        for (b <- bindings) buffer += b.scope.toByte
+        for (b <- bindings) buffer += b.scope.toInt.toByte
 
       case a: AggArrayPerElement =>
         buffer += a.isScan.toByte

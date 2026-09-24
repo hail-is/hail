@@ -52,16 +52,13 @@ class CombinerOutType(NamedTuple):
 
 
 FAST_CODEC_SPEC = """{
-  "name": "LEB128BufferSpec",
+  "name": "BlockingBufferSpec",
+  "blockSize": 65536,
   "child": {
-    "name": "BlockingBufferSpec",
+    "name": "ZstdBlockBufferSpec",
     "blockSize": 65536,
     "child": {
-      "name": "ZstdBlockBufferSpec",
-      "blockSize": 65536,
-      "child": {
-        "name": "StreamBlockBufferSpec"
-      }
+      "name": "StreamBlockBufferSpec2"
     }
   }
 }"""

@@ -7,6 +7,7 @@ import orjson
 import pyspark
 import pyspark.sql
 from pyspark import SparkConf, SparkContext
+from pyspark.find_spark_home import _find_spark_home
 from pyspark.sql import SparkSession
 
 from hail.expr.table_type import ttable
@@ -23,7 +24,7 @@ from hailtop.utils import async_to_blocking
 
 from ..fs.hadoop_fs import HadoopFS
 from .backend import local_jar_information
-from .py4j_backend import Py4JBackend, raise_when_mismatched_hail_versions
+from .py4j_backend import Py4JBackend, _log_suppress_exceptions, raise_when_mismatched_hail_versions
 
 
 def _modify_spark_conf(conf: pyspark.SparkConf, key: str, update: Callable[[str | None], str]):
@@ -35,14 +36,26 @@ def _append_delimited(*xs: str, sep: str) -> Callable[[str | None], str]:
     return lambda csv: sep.join(xs if csv is None else (csv, *xs))
 
 
+def _sparkmonitor_listener_jar() -> str:
+    from sparkmonitor import kernelextension
+
+    # sparkmonitor selects its listener jar by inspecting the jars in SPARK_HOME,
+    # which pip installations of pyspark don't always export
+    os.environ.setdefault('SPARK_HOME', _find_spark_home())
+    jar = kernelextension.get_listener_jar_path(*kernelextension.get_spark_versions())
+    if not jar:
+        raise ValueError(
+            f"sparkmonitor has no listener jar compatible with the Spark installation at '{os.environ['SPARK_HOME']}'"
+        )
+    return jar
+
+
 def _configure_spark_classpath(conf: SparkConf):
     info = local_jar_information()
     classpath = [info.hail_jar, *info.extra_classpath]
 
     if os.environ.get('HAIL_SPARK_MONITOR') or os.environ.get('AZURE_SPARK') == '1':
-        import sparkmonitor
-
-        classpath.append(os.path.join(os.path.dirname(sparkmonitor.__file__), 'listener.jar'))
+        classpath.append(_sparkmonitor_listener_jar())
         _modify_spark_conf(
             conf,
             'spark.extraListeners',
@@ -86,19 +99,20 @@ def _get_or_create_pyspark_session(
     # How we source and apply sparkconf depends on the execution environment.
     #
     # If hail is running in a python shell then we need to configure the driver
-    # and worker classpath before starting the jvm. Note that defaults are read
-    # after jvm initialisation and so specifying `loadDefaults=True` here has
-    # no effect.
+    # and worker classpath before starting the jvm: defaults are read after jvm
+    # initialisation; specifying `loadDefaults=True` here has no effect.
     #
     # If hail is running as a spark-submit job within a managed spark service
     # like dataproc, then the jvm has already been started and conf passed to
-    # `_ensure_initialized` is ignored.
+    # `_ensure_initialized` is ignored: Only jvm-launch settings (spark.jars,
+    # driver classpath, jvm options, etc) are fixed: conf applied at
+    # `SparkSession.Builder.getOrCreate` below still takes effect as the spark
+    # context does not exist yet.
     #
-    # Once the jvm has been initialised, we can load default values and apply
-    # configuration defined in python and scala. While we don't ship a
-    # spark-defaults.conf file with hail, users are free to supply and edit
-    # one. This is the mechanism used by the install_gcs_connector script to
-    # configure hadoop fs auth.
+    # If a spark context already exists (a pyspark-shell-based kernel), none of
+    # this conf applies and hail works only if the cluster's spark-defaults.conf
+    # carries hail's classpath. While we don't ship a spark-defaults.conf file
+    # with hail, users are free to supply and edit one, e.g. for hadoop fs auth.
     conf = SparkConf(loadDefaults=False).setAll(list((spark_conf or dict()).items()))
     _configure_spark_classpath(conf)
     SparkContext._ensure_initialized(conf=conf)
@@ -239,20 +253,23 @@ class SparkBackend(Py4JBackend):
         self.router_fs = None
 
     def stop(self):
-        if self._hail_managed_spark:
-            self._spark.stop()
-            super().stop()
-            SparkContext._gateway.shutdown()
+        try:
+            if self._hail_managed_spark:
+                _log_suppress_exceptions(self._spark.stop)
+                super().stop()
+                _log_suppress_exceptions(lambda: SparkContext._gateway.shutdown())
 
-            # clean up pyspark's global state to support
-            # re-init with different spark conf
-            with pyspark.SparkContext._lock:
-                pyspark.SparkContext._gateway = None
-                pyspark.SparkContext._jvm = None
-        else:
-            super().stop()
-
-        self.router_fs = None
+                # clean up pyspark's global state to support
+                # re-init with different spark conf; pyspark only does this
+                # itself when the JVM is still reachable
+                with pyspark.SparkContext._lock:
+                    pyspark.SparkContext._active_spark_context = None
+                    pyspark.SparkContext._gateway = None
+                    pyspark.SparkContext._jvm = None
+            else:
+                super().stop()
+        finally:
+            self.router_fs = None
 
     def from_spark(self, df, key):
         result_tuple = self._jbackend.pyFromDF(df._jdf, key)

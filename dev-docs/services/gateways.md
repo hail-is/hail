@@ -35,3 +35,58 @@ can dynamically load this new configuration as it changes without dropping exist
 You can see CI's current view of the cluster's namespaces/services at ci.hail.is/namespaces
 and can inspect the current Envoy config at ci.hail.is/envoy-config/gateway and
 ci.hail.is/envoy-config/internal-gateway.
+
+## Operations
+
+Both gateways are **unmanaged** — they are not deployed by CI and must be updated manually.
+
+### Updating the Envoy version
+
+Envoy releases quarterly minor versions (`1.33`, `1.34`, …) and patch releases within each series.
+Patch releases are security/bug fixes only and are safe to apply without reviewing breaking changes.
+Minor version bumps may contain breaking changes and should be done deliberately after reading the
+[Envoy version history](https://www.envoyproxy.io/docs/envoy/latest/version_history/version_history).
+
+To update to the latest patch release within the current minor series:
+
+```bash
+make update-gateways-envoy
+```
+
+This updates the image tag in `gateway/deployment.yaml` and `internal-gateway/deployment.yaml`
+and deploys both gateways via `kubectl apply`.
+
+### Deploying gateway changes
+
+To apply any change to the gateway (image version, listener config, TLS params, etc.):
+
+```bash
+make -C gateway deploy
+make -C internal-gateway deploy
+```
+
+This renders the Jinja2 templates and runs `kubectl apply`, which triggers a zero-downtime
+rolling update of the gateway pods.
+
+Note: `make -C gateway deploy` does **not** update the xDS routing ConfigMaps — those are
+managed automatically by CI every 10 seconds and do not require a manual deploy.
+
+If something goes wrong, roll back to the previous deployment immediately:
+
+```bash
+kubectl rollout undo deployment gateway-deployment
+kubectl rollout undo deployment internal-gateway
+```
+
+Kubernetes retains the previous ReplicaSet so this is instant and zero-downtime.
+
+### Renewing TLS certificates
+
+See [letsencrypt.md](letsencrypt.md). After updating the `letsencrypt-config` secret, restart
+the gateway pods to pick up the new certificate:
+
+```bash
+kubectl rollout restart deployment gateway-deployment
+```
+
+This is a pod restart only — it does not change the Envoy image or any config.

@@ -2,14 +2,13 @@ package is.hail.rvd
 
 import is.hail.annotations._
 import is.hail.backend.{ExecuteContext, HailStateManager}
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.compatibility
 import is.hail.expr.{ir, JSONAnnotationImpex}
 import is.hail.expr.ir.{
   flatMapIR, partFile, IR, PartitionNativeReader, PartitionZippedIndexedNativeReader,
   PartitionZippedNativeReader,
 }
-import is.hail.expr.ir.defs.{Literal, ReadPartition, Ref, ToStream}
+import is.hail.expr.ir.defs.{Literal, ReadPartition, ToStream}
 import is.hail.expr.ir.lowering.{TableStage, TableStageDependency}
 import is.hail.io._
 import is.hail.io.fs.FS
@@ -20,7 +19,7 @@ import is.hail.types.physical._
 import is.hail.types.virtual._
 import is.hail.utils._
 
-import scala.collection.compat._
+import scala.collection.immutable.ArraySeq
 
 import org.apache.spark.TaskContext
 import org.apache.spark.sql.Row
@@ -132,7 +131,7 @@ object AbstractRVDSpec {
         val contextsValue: IndexedSeq[Any] =
           (leftParts lazyZip rightParts lazyZip leftParts.indices)
             .map { (path1, path2, partIdx) =>
-              Row(Row(partIdx.toLong, path1), Row(partIdx.toLong, path2))
+              RowSeq(RowSeq(partIdx.toLong, path1), RowSeq(partIdx.toLong, path2))
             }
 
         val ctxIR = ToStream(Literal(TArray(reader.contextType), contextsValue))
@@ -187,7 +186,7 @@ object AbstractRVDSpec {
         val kSize = specLeft.key.size
         val contextsValues: IndexedSeq[Row] =
           partsAndIntervals.zipWithIndex.map { case ((partPath, interval), partIdx) =>
-            Row(
+            RowSeq(
               partIdx.toLong,
               s"$absPathLeft/parts/$partPath",
               s"$absPathRight/parts/$partPath",
@@ -198,15 +197,13 @@ object AbstractRVDSpec {
 
         val contexts = ToStream(Literal(TArray(reader.contextType), contextsValues))
 
-        val body = (ctx: IR) => ReadPartition(ctx, requestedType, reader)
-
-        { (globals: IR) =>
+        { globals =>
           val ts = TableStage(
             globals,
             tmpPartitioner.coarsen(requestedKey.length),
             TableStageDependency.none,
             contexts,
-            body,
+            ctx => ReadPartition(ctx, requestedType, reader),
           )
           if (filterIntervals)
             ts.repartitionNoShuffle(ctx, partitioner, dropEmptyPartitions = true)
@@ -259,20 +256,18 @@ abstract class AbstractRVDSpec {
       val contexts = ToStream(Literal(
         TArray(ctxType),
         absolutePartPaths(path).zipWithIndex.map {
-          case (x, i) => Row(i.toLong, x)
+          case (x, i) => RowSeq(i.toLong, x)
         },
       ))
 
-      val body = (ctx: IR) =>
-        ReadPartition(ctx, requestedType.rowType, PartitionNativeReader(rSpec, uidFieldName))
-
-      (globals: IR) =>
+      globals =>
         TableStage(
           globals,
           part.coarsen(part.kType.fieldNames.takeWhile(requestedType.rowType.hasField).length),
           TableStageDependency.none,
           contexts,
-          body,
+          ctx =>
+            ReadPartition(ctx, requestedType.rowType, PartitionNativeReader(rSpec, uidFieldName)),
         )
   }
 
@@ -468,19 +463,16 @@ case class IndexedRVDSpec2(
 
   override def indexSpec: AbstractIndexSpec = _indexSpec
 
-  override def partitioner(sm: HailStateManager): RVDPartitioner = {
-    val keyType = codecSpec2.encodedVirtualType.asInstanceOf[TStruct].select(key)._1
-    val rangeBoundsType = TArray(TInterval(keyType))
-    new RVDPartitioner(
-      sm,
-      keyType,
-      JSONAnnotationImpex.importAnnotation(
-        _jRangeBounds,
-        rangeBoundsType,
-        padNulls = false,
-      ).asInstanceOf[IndexedSeq[Interval]],
-    )
-  }
+  private[this] val keyType: TStruct =
+    codecSpec2.encodedVirtualType.asInstanceOf[TStruct].select(_key)._1
+
+  private[this] lazy val partitionBounds: IndexedSeq[Interval] =
+    JSONAnnotationImpex
+      .importAnnotation(_jRangeBounds, TArray(TInterval(keyType)), padNulls = false)
+      .asInstanceOf[IndexedSeq[Interval]]
+
+  override def partitioner(sm: HailStateManager): RVDPartitioner =
+    new RVDPartitioner(sm, keyType, partitionBounds)
 
   override def partFiles: IndexedSeq[String] = _partFiles
 
@@ -517,7 +509,7 @@ case class IndexedRVDSpec2(
         val intersectionInterval =
           extendedNP.rangeBounds(newPartIdx)
             .intersect(extendedNP.kord, oldInterval).get
-        Row(
+        RowSeq(
           oldPartIdx.toLong,
           s"$path/parts/$partFile",
           s"$path/${indexSpec.relPath}/$partFile.idx",
@@ -565,18 +557,17 @@ case class IndexedRVDSpec2(
 
       assert(TArray(TArray(reader.contextType)).typeCheck(nestedContexts))
 
-      { (globals: IR) =>
+      globals =>
         TableStage(
           globals,
           newPartitioner,
           TableStageDependency.none,
           contexts = ToStream(Literal(TArray(TArray(reader.contextType)), nestedContexts)),
-          body = (ctxs: Ref) =>
+          body = ctxs =>
             flatMapIR(ToStream(ctxs, true)) { ctx =>
               ReadPartition(ctx, requestedType.rowType, reader)
             },
         )
-      }
 
     case None =>
       super.readTableStage(ctx, path, requestedType, uidFieldName, newPartitioner, filterIntervals)

@@ -1,16 +1,15 @@
 package is.hail.backend.service
 
-import is.hail.Revision
+import is.hail.{Revision, SparkVersion}
 import is.hail.backend._
 import is.hail.backend.Backend.PartitionFn
 import is.hail.backend.ExecutionCache.Flags.UseFastRestarts
 import is.hail.backend.local.LocalTaskContext
 import is.hail.backend.service.ServiceBackend.Flags._
 import is.hail.collection.FastSeq
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.Validate
 import is.hail.expr.ir.{
-  CompileAndEvaluate, IR, IRSize, LoweringAnalyses, SortField, TableIR, TableReader, TypeCheck,
+  CompileAndEvaluate, IR, IRSize, NormalizeNames, SortField, TableIR, TableReader, TypeCheck,
 }
 import is.hail.expr.ir.analyses.SemanticHash
 import is.hail.expr.ir.lowering._
@@ -21,6 +20,7 @@ import is.hail.types._
 import is.hail.types.physical._
 import is.hail.utils._
 
+import scala.collection.immutable.ArraySeq
 import scala.concurrent._
 import scala.concurrent.duration.Duration
 import scala.math.Ordered.orderingToOrdered
@@ -149,6 +149,7 @@ class ServiceBackend(
             command = null,
             spec = jarSpec,
             profile = ctx.flags.get(UseAsyncProfiler) != null,
+            sparkVersion = SparkVersion,
           )
 
         val defaultJob =
@@ -442,10 +443,12 @@ class ServiceBackend(
     batchClient.close()
   }
 
-  override def execute(ctx: ExecuteContext, ir: IR): Either[Unit, (PTuple, Long)] =
-    ctx.time {
-      TypeCheck(ctx, ir)
-      Validate(ir)
+  override def execute(ctx: ExecuteContext, ir0: IR): Either[Unit, (PTuple, Long)] =
+    TimedBlock.enter {
+      TypeCheck(ctx, ir0)
+      Validate(ir0)
+      val ir = NormalizeNames()(ctx, ir0)
+
       val queryID = Backend.nextID()
       logger.info(s"starting execution of query $queryID of initial size ${IRSize(ir)}")
       if (ctx.flags.isDefined(ExecutionCache.Flags.UseFastRestarts))

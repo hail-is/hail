@@ -12,6 +12,12 @@ from ....utils import WindowFractionCounter
 
 log = logging.getLogger('zones')
 
+# IMPORTANT TERMINOLOGY BEFORE READING THIS MODULE:
+#   region: us-central1
+#   zone:   us-central1-b
+# These two are easy to conflate, and there are almost certainly places in the
+# codebase that do. Be careful and be deliberate about which one you mean.
+
 
 class ZoneWeight:
     def __init__(self, zone, weight):
@@ -95,10 +101,12 @@ class ZoneMonitor(CloudLocationMonitor):
         regions: List[str],
         machine_type: str,
     ) -> str:
-        zone_weights = self.compute_zone_weights(cores, local_ssd_data_disk, data_disk_size_gb, preemptible, regions)
+        machine_family = machine_type.split("-")[0]
+        zone_weights = self.compute_zone_weights(
+            cores, local_ssd_data_disk, data_disk_size_gb, preemptible, regions, machine_family
+        )
 
         zones = [zw.zone for zw in zone_weights]
-        machine_family = machine_type.split("-")[0]
         if machine_family in self._machine_family_valid_zones:
             valid_zones = self._machine_family_valid_zones[machine_family]
             zones = [z for z in zones if z in valid_zones]
@@ -127,6 +135,7 @@ class ZoneMonitor(CloudLocationMonitor):
         data_disk_size_gb: int,
         preemptible: bool,
         regions: List[str],
+        machine_family: str,
     ) -> List[ZoneWeight]:
         weights = []
         for region_name, r in self._region_info.items():
@@ -135,18 +144,26 @@ class ZoneMonitor(CloudLocationMonitor):
 
             quota_remaining = {q['metric']: q['limit'] - q['usage'] for q in r['quotas']}
 
-            cpu_label = 'PREEMPTIBLE_CPUS' if preemptible else 'CPUS'
-            remaining = quota_remaining[cpu_label] / worker_cores
-
-            if local_ssd_data_disk:
-                specific_disk_type_quota = quota_remaining['LOCAL_SSD_TOTAL_GB']
+            if machine_family == 'n4':
+                # n4 has no quota metric in this API: its CPU and Hyperdisk quotas live in GCP's
+                # newer Cloud Quotas system, and the generic CPUS metric doesn't count n4 usage
+                # (unlike n1). With no signal, weight all candidate zones equally; quota
+                # exhaustion surfaces as an ordinary GCE creation error.
+                # TODO: needs a Cloud Quotas / Service Usage client, which hailtop lacks.
+                weight = 1.0
             else:
-                specific_disk_type_quota = quota_remaining['SSD_TOTAL_GB']
-            # FIXME: data_disk_size_gb is assumed to be constant across all instances, but it is
-            # passed as a variable parameter to this function!!
-            remaining = min(remaining, specific_disk_type_quota / data_disk_size_gb)
+                cpu_label = 'PREEMPTIBLE_CPUS' if preemptible else 'CPUS'
+                remaining = quota_remaining[cpu_label] / worker_cores
 
-            weight = max(remaining / len(r['zones']), 1)
+                if local_ssd_data_disk:
+                    specific_disk_type_quota = quota_remaining['LOCAL_SSD_TOTAL_GB']
+                else:
+                    specific_disk_type_quota = quota_remaining['SSD_TOTAL_GB']
+                # FIXME: data_disk_size_gb is assumed to be constant across all instances, but it is
+                # passed as a variable parameter to this function!!
+                remaining = min(remaining, specific_disk_type_quota / data_disk_size_gb)
+
+                weight = max(remaining / len(r['zones']), 1)
             for z in r['zones']:
                 zone_name = url_basename(z)
                 weights.append(ZoneWeight(zone_name, weight))

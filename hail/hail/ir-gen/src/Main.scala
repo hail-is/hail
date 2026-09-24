@@ -1,6 +1,5 @@
 import scala.annotation.nowarn
-import scala.collection.compat._
-import scala.collection.compat.immutable.ArraySeq
+import scala.collection.immutable.ArraySeq
 
 import mainargs.{main, ParserForMethods}
 
@@ -73,7 +72,7 @@ trait IRDSL {
 
   type Trait
 
-  val TrivialIR: Trait
+  val Atom: Trait
   val BaseRef: Trait
   def TypedIR(t: String): Trait
   val NDArrayIR: Trait
@@ -118,7 +117,7 @@ object IRDSL_Impl extends IRDSL {
 
   final case class Trait(name: String)
 
-  override val TrivialIR: Trait = Trait("TrivialIR")
+  override val Atom: Trait = Trait("Atom")
   override val BaseRef: Trait = Trait("BaseRef")
   override def TypedIR(typ: String): Trait = Trait(s"TypedIR[$typ]")
   override val NDArrayIR: Trait = Trait("NDArrayIR")
@@ -578,18 +577,19 @@ object Main {
 
     val r = Seq.newBuilder[NodeDef]
 
-    r += node("I32", in("x", att("Int"))).withTraits(TrivialIR)
-    r += node("I64", in("x", att("Long"))).withTraits(TrivialIR)
-    r += node("F32", in("x", att("Float"))).withTraits(TrivialIR)
-    r += node("F64", in("x", att("Double"))).withTraits(TrivialIR)
-    r += node("Str", in("x", att("String"))).withTraits(TrivialIR)
+    r += node("I32", in("x", att("Int"))).withTraits(Atom)
+    r += node("I64", in("x", att("Long"))).withTraits(Atom)
+    r += node("F32", in("x", att("Float"))).withTraits(Atom)
+    r += node("F64", in("x", att("Double"))).withTraits(Atom)
+    // Making Str < Atom would lead to code bloat
+    r += node("Str", in("x", att("String")))
       .withPreamble(
         "override def toString(): String = s\"\"\"Str(\"${StringEscapeUtils.escapeString(x)}\")\"\"\""
       ): @nowarn("msg=possible missing interpolator")
-    r += node("True").withTraits(TrivialIR)
-    r += node("False").withTraits(TrivialIR)
-    r += node("Void").withTraits(TrivialIR)
-    r += node("NA", _typ()).withTraits(TrivialIR)
+    r += node("True").withTraits(Atom)
+    r += node("False").withTraits(Atom)
+    r += node("Void").withTraits(Atom)
+    r += node("NA", _typ()).withTraits(Atom)
     r += node("UUID4", in("id", att("String")))
       .withDocstring(
         """WARNING! This node can only be used when trying to append a one-off,
@@ -640,7 +640,7 @@ object Main {
       .withPreamble("override lazy val size: Int = bindings.length + 1")
       .withCompanionExtension
 
-    r += node("Ref", name, _typ().mutable).withTraits(BaseRef)
+    r += node("Ref", name, _typ().mutable).withTraits(BaseRef, Atom)
 
     r += node(
       "TailLoop",
@@ -659,7 +659,7 @@ object Main {
     r += node("Recur", name, in("args", child.*), _typ().mutable).withTraits(BaseRef)
 
     r += node("RelationalLet", name, in("value", child), in("body", child))
-    r += node("RelationalRef", name, _typ()).withTraits(BaseRef)
+    r += node("RelationalRef", name, _typ()).withTraits(BaseRef, Atom)
 
     r += node("ApplyBinaryPrimOp", in("op", att("BinaryOp")), in("l", child), in("r", child))
     r += node("ApplyUnaryPrimOp", in("op", att("UnaryOp")), in("x", child))
@@ -671,7 +671,9 @@ object Main {
     )
 
     r += node("MakeArray", in("args", child.*), _typ("TArray")).withCompanionExtension
-    r += node("MakeStream", in("args", child.*), _typ("TStream"), mmPerElt).withCompanionExtension
+    r += node("MakeStream", in("args", child.*), _typ("TStream"), mmPerElt)
+      .typed("TStream")
+      .withCompanionExtension
     r += node("ArrayRef", in("a", child), in("i", child), errorID)
     r += node(
       "ArraySlice",
@@ -716,9 +718,9 @@ object Main {
 
     r += node("ToSet", in("a", child))
     r += node("ToDict", in("a", child))
-    r += node("ToArray", in("a", child))
-    r += node("CastToArray", in("a", child))
-    r += node("ToStream", in("a", child), mmPerElt)
+    r += node("ToArray", in("a", child)).typed("TArray")
+    r += node("CastToArray", in("a", child)).typed("TArray")
+    r += node("ToStream", in("a", child), mmPerElt).typed("TStream")
     r += node("GroupByKey", in("collection", child))
 
     r += node(
@@ -943,7 +945,7 @@ object Main {
       .withTraits(NDArrayIR)
     r += node("NDArrayReindex", in("nd", child), in("indexExpr", att("Int").*))
       .withTraits(NDArrayIR)
-    r += node("NDArrayAgg", in("nd", child), in("axes", att("Int").*))
+    r += node("NDArrayAgg", in("nd", child), in("axes", att("Int").*)).withTraits(NDArrayIR)
     r += node("NDArrayWrite", in("nd", child), in("path", child)).typed("TVoid.type")
     r += node("NDArrayMatMul", in("l", child), in("r", child), errorID).withTraits(NDArrayIR)
     r += node(
@@ -1082,7 +1084,9 @@ object Main {
     r += node("GetTupleElement", in("o", child), in("idx", att("Int")))
 
     r += node("In", in("i", att("Int")), in("_typ", att("EmitParamType")))
-      .withDocstring("Function input").withCompanionExtension
+      .withTraits(Atom)
+      .withDocstring("Function input")
+      .withCompanionExtension
 
     r += node("Die", in("message", child), in("_typ", att("Type")), errorID).withCompanionExtension
     r += node("ConsoleLog", in("message", child), in("result", child))
@@ -1090,7 +1094,7 @@ object Main {
     r += node(
       "ApplyIR",
       in("function", att("String")),
-      in("typeArgs", att("Seq[Type]")),
+      in("typeArgs", att("IndexedSeq[Type]")),
       in("args", child.*),
       in("returnType", att("Type")),
       errorID,
@@ -1100,7 +1104,7 @@ object Main {
     r += node(
       "Apply",
       in("function", att("String")),
-      in("typeArgs", att("Seq[Type]")),
+      in("typeArgs", att("IndexedSeq[Type]")),
       in("args", child.*),
       in("returnType", att("Type")),
       errorID,
@@ -1109,7 +1113,7 @@ object Main {
     r += node(
       "ApplySpecial",
       in("function", att("String")),
-      in("typeArgs", att("Seq[Type]")),
+      in("typeArgs", att("IndexedSeq[Type]")),
       in("args", child.*),
       in("returnType", att("Type")),
       errorID,
@@ -1184,7 +1188,6 @@ object Main {
       in("value", child),
       in("path", child),
       in("writer", att("ValueWriter")),
-      in("stagingFile", child.?).withDefault("None"),
     )
 
     r.result()
@@ -1209,7 +1212,6 @@ object Main {
         "UnseededMissingnessObliviousJVMFunction, TableToValueFunction, MatrixToValueFunction, " +
         "BlockMatrixToValueFunction}",
       "is.hail.expr.ir.defs.exts._",
-      "scala.collection.compat._",
     )
     val gen = pack + "\n\n" + imports.map(i => s"import $i").mkString("\n") + "\n\n" + allNodes.map(
       _.generateDef

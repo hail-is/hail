@@ -1,12 +1,12 @@
 package is.hail.methods
 
-import is.hail.HailSuite
+import is.hail.TestUtils._
 import is.hail.utils._
 
 import breeze.linalg._
-import org.testng.annotations.Test
+import org.junit.jupiter.api.Test
 
-class SkatSuite extends HailSuite {
+class SkatSuite {
 
   @Test def smallNLargeNEqualityTest(): Unit = {
     val rand = scala.util.Random

@@ -3,11 +3,12 @@ package is.hail.expr.ir.agg
 import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.backend.ExecuteContext
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, IEmitCode}
 import is.hail.types.VirtualTypeWithReq
 import is.hail.types.physical.stypes.EmitType
 import is.hail.types.virtual.Type
+
+import scala.collection.immutable.ArraySeq
 
 class PrevNonNullAggregator(typ: VirtualTypeWithReq) extends StagedAggregator {
   type State = TypedRegionBackedAggState

@@ -276,13 +276,31 @@ class IAMManager:
     async def all_sa_dicts(self) -> Generator[ServiceAccountDict, None, None]:
         res = await self.iam_client.get('/serviceAccounts')
         next_page_token = res.get('nextPageToken')
-        for acc in res['accounts']:
+        for acc in res.get('accounts', []):
             yield acc
         while next_page_token is not None:
             res = await self.iam_client.get('/serviceAccounts', params={'pageToken': next_page_token})
             next_page_token = res.get('nextPageToken')
-            for acc in res['accounts']:
+            for acc in res.get('accounts', []):
                 yield acc
+
+
+# Accounts that require manual follow-up after key rotation.
+FOLLOWUP_REQUIRED: Dict[str, str] = {
+    'trivy-scanner': (
+        'ACTION REQUIRED: The new key must be copied to the GOOGLE_GAR_CREDENTIALS GitHub secret.\n'
+        'Retrieve the new key with:\n'
+        '  kubectl get secret trivy-scanner-gsa-key -n default -o jsonpath=\'{.data.key\\.json}\' | base64 -d\n'
+        'Then update the secret in github used by the trivy scanner.\n'
+        'See dev-docs/refreshing-trivy-scanner-github-secret.md for full instructions.'
+    ),
+    'appsecpentest': (
+        'ACTION REQUIRED: The new key can be shared with appsec to update their pentest processor.\n'
+        'Retrieve the new key with:\n'
+        '  SECRET=$(kubectl get secrets | grep appsec | grep gsa-key | awk \'{print $1}\')\n'
+        '  kubectl get secret $SECRET -n default -o jsonpath=\'{.data.key\\.json}\' | base64 -d'
+    ),
+}
 
 
 async def add_new_keys(
@@ -316,6 +334,9 @@ async def add_new_keys(
         new_secrets = await asyncio.gather(*[k8s_manager.update_gsa_key_secret(s, key_data) for s in sa.kube_secrets])
         sa.kube_secrets = list(new_secrets)
         sa.list_keys(sys.stdout)
+        followup = next((msg for prefix, msg in FOLLOWUP_REQUIRED.items() if sa.username().startswith(prefix)), None)
+        if followup:
+            print(f'{WARNING_YELLOW}{followup}{ENDC}')
 
 
 async def delete_old_keys(

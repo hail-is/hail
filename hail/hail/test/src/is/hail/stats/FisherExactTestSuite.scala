@@ -1,10 +1,8 @@
 package is.hail.stats
 
-import is.hail.HailSuite
+import org.junit.jupiter.api.Test
 
-import org.testng.annotations.Test
-
-class FisherExactTestSuite extends HailSuite {
+class FisherExactTestSuite {
 
   @Test def testPvalue(): Unit = {
     val a = 5

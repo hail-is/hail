@@ -179,10 +179,14 @@ def instance_family_from_sku(sku: dict) -> Optional[str]:
     category = sku['category']
     if category['resourceGroup'] == 'N1Standard':
         return 'n1'
+    if sku['description'].startswith("N2 Instance") or sku['description'].startswith("Spot Preemptible N2 Instance"):
+        return 'n2'
     if sku['description'].startswith("G2 Instance") or sku['description'].startswith("Spot Preemptible G2 Instance"):
         return 'g2'
     if sku['description'].startswith("A2 Instance") or sku['description'].startswith("Spot Preemptible A2 Instance"):
         return 'a2'
+    if sku['description'].startswith("N4 Instance") or sku['description'].startswith("Spot Preemptible N4 Instance"):
+        return 'n4'
     return None
 
 
@@ -283,7 +287,7 @@ def process_accelerator_sku(sku: dict, regions: List[str]) -> List[GCPAccelerato
 def process_memory_sku(sku: dict, regions: List[str]) -> List[GCPMemoryPrice]:
     category = sku['category']
     assert category['resourceFamily'] == 'Compute', sku
-    assert 'Ram' in sku['description']
+    assert 'Ram' in sku['description'] or 'Memory' in sku['description']
 
     instance_family = instance_family_from_sku(sku)
     preemptible = preemptible_from_sku(sku)
@@ -363,6 +367,39 @@ def process_disk_sku(sku: dict, regions: List[str]) -> List[GCPDiskPrice]:
     return disk_prices
 
 
+def process_hyperdisk_sku(sku: dict, regions: List[str]) -> List[GCPDiskPrice]:
+    category = sku['category']
+    assert category['resourceFamily'] == 'Storage', sku
+    # NB: GCP does not give standalone Hyperdisk Balanced SKUs (Capacity/IOPS/Throughput) their
+    # own resourceGroup -- they share 'SSD' with plain pd-ssd. Only Hyperdisk Storage Pools SKUs
+    # get a dedicated resourceGroup ('HDBSP'). So, like compute SKUs, we have to disambiguate by
+    # description. Confirmed against the live Cloud Billing Catalog on 2026-08-14.
+    assert category['resourceGroup'] == 'SSD', sku
+    assert sku['description'].startswith('Hyperdisk Balanced Capacity'), sku
+    # Exclude sibling products that also start with this prefix: Confidential Mode has its own
+    # pricing, and 'Regional'/'High Availability' Hyperdisk Balanced HA is a distinct product
+    # (Balanced HA capacity's description doesn't start with this prefix at all, but guard anyway).
+    assert 'Confidential Mode' not in sku['description'], sku
+    assert 'Regional' not in sku['description'], sku
+
+    effective_start_date = parse_effective_start_date(sku)
+
+    # https://cloud.google.com/billing/docs/reference/rest/v1/services.skus/list#sku
+    pricing_info = sku['pricingInfo'][-1]  # A timeline of pricing info for this SKU in chronological order.
+    pricing_expression = pricing_info['pricingExpression']
+    assert pricing_expression['usageUnit'] == 'GiBy.mo', sku
+    cost_per_month = pricing_expression_to_price_per_unit(pricing_expression)
+
+    hyperdisk_prices = []
+    service_regions = sku['serviceRegions']
+    for service_region in service_regions:
+        if service_region in regions:
+            hyperdisk_prices.append(
+                GCPDiskPrice('hyperdisk-balanced', service_region, cost_per_month, sku['skuId'], effective_start_date)
+            )
+    return hyperdisk_prices
+
+
 async def fetch_prices(
     billing_client: aiogoogle.GoogleBillingClient, regions: List[str], currency_code: str
 ) -> AsyncGenerator[Price, None]:
@@ -378,6 +415,13 @@ async def fetch_prices(
             # therefore, it is safe to skip adding prices for reserved resources.
             continue
 
+        if 'DWS' in sku['description']:
+            # DWS (Dynamic Workload Scheduler) is another example of the same problem as reserved
+            # resources. The hail product names are the same but the SKUs are different. Since we
+            # also don't use DWS, we can skip DWS SKUs too to avoid bringing in the wrong resources
+            # and prices.
+            continue
+
         if 'GPU' in category['resourceGroup']:
             for accelerator_price in process_accelerator_sku(sku, regions):
                 yield accelerator_price
@@ -385,7 +429,7 @@ async def fetch_prices(
             if 'Core' in sku['description']:
                 for compute_price in process_compute_sku(sku, regions):
                     yield compute_price
-            elif 'Ram' in sku['description']:
+            elif 'Ram' in sku['description'] or 'Memory' in sku['description']:
                 for memory_price in process_memory_sku(sku, regions):
                     yield memory_price
         elif category['resourceFamily'] == 'Storage':
@@ -399,3 +443,11 @@ async def fetch_prices(
             ):
                 for disk_price in process_disk_sku(sku, regions):
                     yield disk_price
+            elif (
+                category['resourceGroup'] == 'SSD'
+                and sku['description'].startswith('Hyperdisk Balanced Capacity')
+                and 'Confidential Mode' not in sku['description']
+                and 'Regional' not in sku['description']
+            ):
+                for hyperdisk_price in process_hyperdisk_sku(sku, regions):
+                    yield hyperdisk_price

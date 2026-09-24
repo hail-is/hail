@@ -21,6 +21,7 @@ from ....file_store import FileStore
 from ....instance_config import InstanceConfig, QuantifiedResource
 from ..instance_config import GCPSlimInstanceConfig
 from ..resource_utils import (
+    GCP_LOCAL_SSD_PARTITION_SIZE_GIB,
     GCP_MACHINE_FAMILY,
     family_worker_type_cores_to_gcp_machine_type,
     gcp_machine_type_to_cores_and_memory_bytes,
@@ -111,7 +112,10 @@ class GCPResourceManager(CloudResourceManager):
         instance_config: InstanceConfig,
     ) -> List[QuantifiedResource]:
         if local_ssd_data_disk:
-            assert data_disk_size_gb == 375
+            assert (
+                data_disk_size_gb % GCP_LOCAL_SSD_PARTITION_SIZE_GIB == 0
+                and data_disk_size_gb >= GCP_LOCAL_SSD_PARTITION_SIZE_GIB
+            )
 
         resource_rates = self.billing_manager.resource_rates
 

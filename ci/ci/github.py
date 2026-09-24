@@ -5,25 +5,29 @@ import json
 import logging
 import os
 import random
+import re
 import secrets
+import time
 from shlex import quote as shq
-from typing import Any, Dict, Iterable, List, Optional, Sequence, Set, Union
+from typing import Any, Dict, FrozenSet, Iterable, List, Optional, Protocol, Sequence, Set, Union
 
 import aiohttp
 import aiohttp.client_exceptions
 import gidgethub
 import prometheus_client as pc  # type: ignore
+import yaml
 import zulip
 from gidgethub import aiohttp as gh_aiohttp
 
 from gear import Database, UserData
 from hailtop.batch_client.aioclient import Batch, BatchClient
 from hailtop.config import get_deploy_config
-from hailtop.utils import RETRY_FUNCTION_SCRIPT, check_shell, check_shell_output
+from hailtop.utils import RETRY_FUNCTION_SCRIPT, CalledProcessError, check_shell, check_shell_output
 
 from .build import BuildConfiguration, Code
+from .build_selection import compute_requested_steps
 from .constants import AUTHORIZED_USERS, COMPILER_TEAM, GITHUB_CLONE_URL, GITHUB_STATUS_CONTEXT, SERVICES_TEAM
-from .environment import DEPLOY_STEPS
+from .environment import CLOUD, DEPLOY_STEPS, REGION
 from .globals import is_test_deployment
 from .utils import GithubStatus, add_deployed_services, github_status
 
@@ -40,6 +44,10 @@ if os.path.exists("/zulip-config/.zuliprc"):
     zulip_client = zulip.Client(config_file="/zulip-config/.zuliprc")
 
 TRACKED_PRS = pc.Gauge('ci_tracked_prs', 'PRs currently being monitored by CI', ['build_state', 'review_state'])
+WATCHED_BRANCH_UPDATE_LATENCY = pc.Gauge(
+    'ci_watched_branch_update_latency_seconds',
+    'Duration of the most recent WatchedBranch update cycle',
+)
 
 MAX_CONCURRENT_PR_BATCHES = 3
 
@@ -197,6 +205,7 @@ HIGH_PRIORITY = 'prio:high'
 STACKED_PR = 'stacked PR'
 WIP = 'WIP'
 DO_NOT_TEST = 'do-not-test'
+RERUN_ALL_TESTS = 'rerun all tests'
 
 DO_NOT_MERGE = {STACKED_PR, WIP}
 
@@ -220,6 +229,32 @@ else
   time retry git fetch -q origin
 fi
 """
+
+
+def _read_pip_version(repo_dir: str) -> Optional[str]:
+    makefile_path = f'{repo_dir}/hail/Makefile'
+    try:
+        with open(makefile_path, 'r', encoding='utf-8') as f:
+            makefile = f.read()
+    except FileNotFoundError:
+        return None
+
+    major_minor_m = re.search(r'^HAIL_MAJOR_MINOR_VERSION\s*:=\s*(\S+)', makefile, re.MULTILINE)
+    patch_m = re.search(r'^HAIL_PATCH_VERSION\s*:=\s*(\S+)', makefile, re.MULTILINE)
+    if not major_minor_m or not patch_m:
+        raise ValueError(f'could not parse HAIL_PIP_VERSION from {makefile_path}')
+    pip_version = f'{major_minor_m.group(1)}.{patch_m.group(1)}'
+
+    generated_path = f'{repo_dir}/hail/env/HAIL_PIP_VERSION'
+    if os.path.exists(generated_path):
+        with open(generated_path, 'r', encoding='utf-8') as f:
+            generated = f.read().strip()
+        if generated != pip_version:
+            raise ValueError(
+                f'HAIL_PIP_VERSION mismatch: Makefile says {pip_version!r}, generated file says {generated!r}'
+            )
+
+    return pip_version
 
 
 class PR(Code):
@@ -258,6 +293,11 @@ class PR(Code):
         # 'error', 'success', 'failure', None
         self.build_state: Optional[str] = None
 
+        self.pending_build_reason: str = 'unknown'
+        self.tactical: bool = False
+
+        self.pip_version: Optional[str] = None
+
         self.intended_github_status: GithubStatus = self.github_status_from_build_state()
         self.last_known_github_status: Dict[str, GithubStatus] = {}
 
@@ -268,8 +308,8 @@ class PR(Code):
         self.developers = developers
 
     def set_build_state(self, build_state):
-        log.info(f'{self.short_str()}: Build state changing from {self.build_state} => {build_state}')
         if build_state != self.build_state:
+            log.info(f'{self.short_str()}: build state changing: {self.build_state} => {build_state}')
             self.decrement_pr_metric()
             self.build_state = build_state
             self.increment_pr_metric()
@@ -348,6 +388,7 @@ class PR(Code):
             self.batch = None
             self.source_sha_failed = None
             self.set_build_state(None)
+            self.pending_build_reason = f'new commit {new_source_sha[:8]}'
             self.target_branch.batch_changed = True
             self.target_branch.state_changed = True
 
@@ -383,6 +424,7 @@ class PR(Code):
             'checkout_script': self.checkout_script(),
             'developers': self.developers,
             'number': self.number,
+            'pip_version': self.pip_version or '',
             'source_repo': source_repo.short_str(),
             'source_repo_url': source_repo.url,
             'source_sha': self.source_sha,
@@ -429,7 +471,10 @@ class PR(Code):
                 assignees.add(select_random_teammate(SERVICES_TEAM).gh_username)
             if ASSIGN_COMPILER in self.body:
                 assignees.add(select_random_teammate(COMPILER_TEAM).gh_username)
+            if not assignees:
+                return
             data = {'assignees': list(assignees)}
+            log.info(f'{self.short_str()}: assigning reviewers: {data}')
             try:
                 await gh_client.post(
                     f'/repos/{self.target_branch.branch.repo.short_str()}/issues/{self.number}/assignees', data=data
@@ -439,72 +484,7 @@ class PR(Code):
             except aiohttp.client_exceptions.ClientResponseError:
                 log.exception(f'{self.short_str()}: Unexpected exception in post to github: {data}')
 
-    async def _update_github(self, gh):
-        results = []
-        cursor = None
-        review_decision = None
-
-        def query():
-            return f"""
-                query {{
-                  repository (
-                    owner: "{self.target_branch.branch.repo.owner}",
-                    name: "{self.target_branch.branch.repo.name}"
-                  ) {{
-                    pullRequest (number: {self.number}) {{
-                      reviewDecision
-                      commits (last: 1) {{
-                        nodes {{
-                          commit {{
-                            statusCheckRollup {{
-                              contexts (first: 10{f', after: "{cursor}"' if cursor is not None else ''}) {{
-                                nodes {{
-                                  __typename
-                                  ... on CheckRun {{
-                                    name
-                                    conclusion
-                                    isRequired (pullRequestNumber: {self.number})
-                                  }}
-                                  ... on StatusContext {{
-                                    context
-                                    state
-                                    isRequired (pullRequestNumber: {self.number})
-                                  }}
-                                }}
-                                pageInfo {{
-                                  endCursor
-                                  hasNextPage
-                                }}
-                              }}
-                            }}
-                          }}
-                        }}
-                      }}
-                    }}
-                  }}
-                }}
-            """
-
-        def review_decision_and_commit_status(pull_request, rollup):
-            nonlocal review_decision
-            if review_decision is None:
-                review_decision = (
-                    pull_request["reviewDecision"] if pull_request["reviewDecision"] is not None else "API_NONE"
-                )
-            if rollup is not None:
-                results.extend(rollup["contexts"]["nodes"])
-
-        while (
-            rollup := (
-                pull_request := (await gh.post("/graphql", data={"query": query()}))["data"]["repository"][
-                    "pullRequest"
-                ]
-            )["commits"]["nodes"][0]["commit"]["statusCheckRollup"]
-        ) is not None and rollup["contexts"]["pageInfo"]["hasNextPage"]:
-            cursor = rollup["contexts"]["pageInfo"]["endCursor"]
-            review_decision_and_commit_status(pull_request, rollup)
-        review_decision_and_commit_status(pull_request, rollup)
-
+    def _apply_github_data(self, review_decision: str, check_nodes: List[Dict[str, Any]]):
         if review_decision == 'APPROVED':
             review_state = 'approved'
         elif review_decision == 'CHANGES_REQUESTED':
@@ -526,7 +506,7 @@ class PR(Code):
             self.target_branch.state_changed = True
 
         last_known_github_status = {}
-        for check in results:
+        for check in check_nodes:
             if check["isRequired"]:
                 if (typename := check["__typename"]) == "StatusContext":
                     last_known_github_status[check["context"]] = github_status(check["state"])
@@ -544,6 +524,9 @@ class PR(Code):
     async def _start_build(self, db: Database, batch_client: BatchClient):
         assert await self.authorized(db)
 
+        reason = self.pending_build_reason
+        self.pending_build_reason = 'unknown'
+
         # clear current batch
         self.batch = None
         self.set_build_state(None)
@@ -558,20 +541,85 @@ mkdir -p {shq(repo_dir)}
 (cd {shq(repo_dir)}; {self.checkout_script()})
 """)
 
+            self.pip_version = _read_pip_version(repo_dir)
+
             sha_out, _ = await check_shell_output(f'git -C {shq(repo_dir)} rev-parse HEAD')
             self.sha = sha_out.decode('utf-8').strip()
 
+            assert self.target_branch.sha is not None
+            diff_out, _ = await check_shell_output(
+                f'git -C {shq(repo_dir)} diff --name-only {shq(self.target_branch.sha)}...HEAD'
+            )
+            changed_files = [f for f in diff_out.decode('utf-8').strip().split('\n') if f]
+            log.info(f'PR #{self.number} changed files ({len(changed_files)}): {changed_files}')
+
             with open(f'{repo_dir}/build.yaml', 'r', encoding='utf-8') as f:
-                config = BuildConfiguration(self, f.read(), scope='test')
-                namespace = config.namespace()
-                services = config.deployed_services()
+                build_yaml = f.read()
+            always_run_steps = set(yaml.safe_load(build_yaml).get('alwaysRunSteps', []))
+            # None means run everything; a list (possibly empty) means run only those steps + label-forced.
+            if RERUN_ALL_TESTS in self.labels or 'build.yaml' in changed_files:
+                log.info(f'PR #{self.number} running full test suite (rerun all tests label or build.yaml changed)')
+                requested_step_names: Optional[List[str]] = None
+            else:
+                requested_steps_set = compute_requested_steps(build_yaml, changed_files, scope='test', cloud=CLOUD)
+                log.info(f'PR #{self.number} selected steps ({len(requested_steps_set)})')
+                requested_step_names = list(requested_steps_set)
+
+            tactical = self.tactical
+            tactical_skipped: Dict[str, int] = {}
+            tactically_succeeded_always_run_steps: FrozenSet[str] = frozenset()
+            if tactical and requested_step_names is not None:
+                succeeded_steps: Dict[str, int] = {}
+                # See select_steps' docstring for why alwaysRunSteps need to be in this scan too.
+                requested_steps_set = set(requested_step_names) | always_run_steps
+                async for b in batch_client.list_batches(
+                    f'test=1 pr={self.number} source_sha={self.source_sha} target_sha={self.target_branch.sha} user:ci',
+                    limit=50,
+                ):
+                    step_states: Dict[str, List[str]] = {}
+                    async for job in b.jobs():
+                        if job['name']:
+                            name = job['name']
+                            if name in requested_steps_set:
+                                step_name = name
+                            else:
+                                stripped = re.sub(r'_\d+$', '', name)
+                                if stripped not in requested_steps_set:
+                                    continue
+                                step_name = stripped
+                            step_states.setdefault(step_name, []).append(job['state'])
+                    # list_batches is newest-first; overwriting on each older batch means we
+                    # end up pointing to the oldest batch where every shard of the step passed.
+                    for step_name, states in step_states.items():
+                        if all(s == 'Success' for s in states):
+                            succeeded_steps[step_name] = b.id
+                    if succeeded_steps.keys() >= requested_steps_set:
+                        break
+                tactical_skipped = {s: succeeded_steps[s] for s in requested_step_names if s in succeeded_steps}
+                requested_step_names = [s for s in requested_step_names if s not in succeeded_steps]
+                tactically_succeeded_always_run_steps = frozenset(always_run_steps & succeeded_steps.keys())
+                log.info(
+                    f'PR #{self.number} tactical retry: skipping {len(tactical_skipped)} already-succeeded steps: {list(tactical_skipped)}'
+                )
+
+            config = BuildConfiguration(
+                self,
+                build_yaml,
+                scope='test',
+                requested_step_names=requested_step_names,
+                tactically_succeeded_always_run_steps=tactically_succeeded_always_run_steps,
+                pr_labels=frozenset(self.labels),
+            )
+            namespace: Optional[str] = config.namespace()
+            services: List[str] = config.deployed_services()
             with open(f'{repo_dir}/ci/test/resources/build.yaml', 'r', encoding='utf-8') as f:
                 test_services = BuildConfiguration(self, f.read(), scope='test').deployed_services()
-
             services.extend(test_services)
-            tomorrow = datetime.datetime.utcnow() + datetime.timedelta(days=1)
-            assert namespace is not None
-            await add_deployed_services(db, namespace, services, tomorrow)
+
+            # namespace is None when no service deploy steps are selected (e.g. hail-only PRs).
+            if namespace is not None:
+                tomorrow = datetime.datetime.utcnow() + datetime.timedelta(days=1)
+                await add_deployed_services(db, namespace, services, tomorrow)
 
             log.info(f'creating test batch for {self.number}')
             batch = batch_client.create_batch(
@@ -581,14 +629,38 @@ mkdir -p {shq(repo_dir)}
                     'source_branch': self.source_branch.short_str(),
                     'target_branch': self.target_branch.branch.short_str(),
                     'pr': str(self.number),
-                    'namespace': namespace,
+                    'namespace': namespace or 'N/A',
                     'source_sha': self.source_sha,
                     'target_sha': self.target_branch.sha,
+                    'name': f'PR test #{self.number}: {self.source_branch.name} @ {self.source_sha[:8]} -> {self.target_branch.branch.name} @ {(self.target_branch.sha or "unknown")[:8]}',
+                    'batch_type': 'ci/test/pr',
+                    'reason': reason,
                 },
                 callback=CALLBACK_URL,
             )
+            if tactical_skipped:
+                # A step removed from requested_step_names may still run if it's a transitive
+                # dependency of another step that is still required. Only show steps that are
+                # genuinely absent from the batch.
+                actually_running = {step.name for step in config.steps}
+                tactical_skipped = {s: bid for s, bid in tactical_skipped.items() if s not in actually_running}
+            if tactical_skipped:
+                skipped_log_lines = ['Skipped (already succeeded with matching source and target SHA):']
+                skipped_log_lines += [
+                    f'  * {step}: {deploy_config.external_url("batch", f"/batches/{batch_id}")}'
+                    for step, batch_id in sorted(tactical_skipped.items())
+                ]
+                shell_script = '\n'.join(f'echo {shq(line)}' for line in skipped_log_lines)
+                batch.create_job(
+                    'ubuntu:24.04',
+                    command=['/bin/sh', '-c', shell_script],
+                    attributes={'name': 'Tactical Retry Skipped Test Log'},
+                    always_run=True,
+                    regions=[REGION],
+                )
             config.build(batch, self, scope='test')
             await batch.submit()
+            self.tactical = False
             self.batch = batch
         except concurrent.futures.CancelledError:
             raise
@@ -657,6 +729,23 @@ mkdir -p {shq(repo_dir)}
                 self.source_sha_failed = True
             self.target_branch.state_changed = True
 
+    async def _determine_build_reason(self, batch_client, db: Database) -> str:
+        most_recent = None
+        async for b in batch_client.list_batches(
+            f'test=1 pr={self.number} target_branch={self.target_branch.branch.short_str()} user:ci',
+            limit=1,
+        ):
+            most_recent = b
+        if most_recent is None:
+            return 'initial build'
+        most_recent_status = await most_recent.last_known_status()
+        prior_source_sha = most_recent_status.get('attributes', {}).get('source_sha')
+        if prior_source_sha and prior_source_sha != self.source_sha:
+            return f'new commit {self.source_sha[:8]}'
+        if await self.is_invalidated_batch(most_recent, db):
+            return 'old batch invalidated'
+        return 'unknown'
+
     async def _heal(self, batch_client, db: Database, on_deck, gh):
         # can't merge target if we don't know what it is
         if self.target_branch.sha is None:
@@ -677,6 +766,11 @@ mkdir -p {shq(repo_dir)}
             return
 
         if not self.batch or (on_deck and self.batch.attributes['target_sha'] != self.target_branch.sha):
+            if self.batch:
+                old_target = self.batch.attributes['target_sha']
+                self.pending_build_reason = f'target sha updated {old_target[:8]} -> {self.target_branch.sha[:8]}'
+            elif self.pending_build_reason == 'unknown':
+                self.pending_build_reason = await self._determine_build_reason(batch_client, db)
             if on_deck or self.target_branch.n_running_batches < MAX_CONCURRENT_PR_BATCHES:
                 self.target_branch.n_running_batches += 1
                 async with repos_lock:
@@ -723,6 +817,100 @@ git merge {shq(self.source_sha)} -m 'merge PR'
 """
 
 
+class _GitHubGraphQL(Protocol):
+    async def post(self, url: str, *, data: Any) -> Any: ...
+
+
+_GITHUB_GRAPHQL_PR_CHUNK_SIZE = 100
+
+
+async def _fetch_pr_github_data(
+    gh: _GitHubGraphQL,
+    owner: str,
+    repo_name: str,
+    pr_numbers: List[int],
+) -> Dict[int, tuple]:
+    """Fetch review decisions and status check rollup for all PRs, batched in chunks.
+
+    Uses GraphQL aliases (pr_N: pullRequest(number: N) {{ ... }}) to reduce round-trips.
+    Chunks requests to avoid GitHub query complexity timeouts (~2s per 20-PR chunk vs ~6s for 56).
+    Paginates if any PR has more than 20 check contexts, which is not expected in practice.
+
+    Returns dict mapping pr_number -> (review_decision: str, check_nodes: List[dict]).
+    review_decision is the raw GraphQL PullRequestReviewDecision value, or "API_NONE" when null.
+    """
+    accumulated_nodes: Dict[int, List[Dict[str, Any]]] = {n: [] for n in pr_numbers}
+    review_decisions: Dict[int, Optional[str]] = {n: None for n in pr_numbers}
+
+    chunks = [
+        pr_numbers[i : i + _GITHUB_GRAPHQL_PR_CHUNK_SIZE]
+        for i in range(0, len(pr_numbers), _GITHUB_GRAPHQL_PR_CHUNK_SIZE)
+    ]
+    for chunk in chunks:
+        # remaining maps pr_number -> cursor (None = first page)
+        remaining: Dict[int, Optional[str]] = {n: None for n in chunk}
+
+        while remaining:
+
+            def build_query(remaining: Dict[int, Optional[str]]) -> str:
+                aliases = []
+                for pr_number, cursor in remaining.items():
+                    cursor_arg = f', after: "{cursor}"' if cursor is not None else ''
+                    aliases.append(f"""
+                        pr_{pr_number}: pullRequest(number: {pr_number}) {{
+                          reviewDecision
+                          commits(last: 1) {{
+                            nodes {{
+                              commit {{
+                                statusCheckRollup {{
+                                  contexts(first: 20{cursor_arg}) {{
+                                    nodes {{
+                                      __typename
+                                      ... on CheckRun {{
+                                        name
+                                        conclusion
+                                        isRequired(pullRequestNumber: {pr_number})
+                                      }}
+                                      ... on StatusContext {{
+                                        context
+                                        state
+                                        isRequired(pullRequestNumber: {pr_number})
+                                      }}
+                                    }}
+                                    pageInfo {{
+                                      endCursor
+                                      hasNextPage
+                                    }}
+                                  }}
+                                }}
+                              }}
+                            }}
+                          }}
+                        }}
+                    """)
+                return f'query {{ repository(owner: "{owner}", name: "{repo_name}") {{ {"".join(aliases)} }} }}'
+
+            repo_data = (await gh.post("/graphql", data={"query": build_query(remaining)}))["data"]["repository"]
+
+            next_remaining: Dict[int, Optional[str]] = {}
+            for pr_number in list(remaining.keys()):
+                pr_data = repo_data[f"pr_{pr_number}"]
+                if review_decisions[pr_number] is None:
+                    raw = pr_data["reviewDecision"]
+                    review_decisions[pr_number] = raw if raw is not None else "API_NONE"
+                rollup = pr_data["commits"]["nodes"][0]["commit"]["statusCheckRollup"]
+                if rollup is not None:
+                    accumulated_nodes[pr_number].extend(rollup["contexts"]["nodes"])
+                    if rollup["contexts"]["pageInfo"]["hasNextPage"]:
+                        next_remaining[pr_number] = rollup["contexts"]["pageInfo"]["endCursor"]
+
+            if next_remaining:
+                log.warning(f'_fetch_pr_github_data: pagination required for PRs {list(next_remaining.keys())}')
+            remaining = next_remaining
+
+    return {n: (review_decisions[n] or "API_NONE", accumulated_nodes[n]) for n in pr_numbers}
+
+
 class WatchedBranch(Code):
     def __init__(
         self,
@@ -740,6 +928,8 @@ class WatchedBranch(Code):
 
         self.prs: Dict[int, PR] = {}
         self.sha: Optional[str] = None
+
+        self.pip_version: Optional[str] = None
 
         self.deploy_batch: Union[Batch, MergeFailureBatch, None] = None
         # success, failure, pending
@@ -776,6 +966,7 @@ class WatchedBranch(Code):
         return {
             'checkout_script': self.checkout_script(),
             'branch': self.branch.name,
+            'pip_version': self.pip_version or '',
             'repo': self.branch.repo.short_str(),
             'repo_url': self.branch.repo.url,
             'sha': self.sha,
@@ -806,6 +997,7 @@ class WatchedBranch(Code):
             log.info(f'already updating {self.short_str()}')
             return
 
+        t_update_start = time.monotonic()
         try:
             log.info(f'start update {self.short_str()}')
             self.updating = True
@@ -825,7 +1017,9 @@ class WatchedBranch(Code):
                     if (self.deploy_batch is None or self.deploy_state is not None) and not frozen and self.mergeable:
                         await self.try_to_merge(gh)
         finally:
-            log.info(f'update done {self.short_str()}')
+            t_total = time.monotonic() - t_update_start
+            WATCHED_BRANCH_UPDATE_LATENCY.set(t_total)
+            log.info(f'update done {self.short_str()} in {t_total:.1f}s')
             self.updating = False
 
     async def try_to_merge(self, gh):
@@ -859,6 +1053,8 @@ class WatchedBranch(Code):
                 pr.update_from_gh_json(gh_json_pr)
             else:
                 pr = PR.from_gh_json(gh_json_pr, self)
+                if self.prs:
+                    pr.pending_build_reason = 'initial build'
             new_prs[number] = pr
         for number, pr in self.prs.items():
             if number not in new_prs:
@@ -868,8 +1064,33 @@ class WatchedBranch(Code):
         for pr in new_prs.values():
             await pr.assign_gh_reviewer_if_requested(gh)
 
-        for pr in new_prs.values():
-            await pr._update_github(gh)
+        if new_prs:
+            pr_github_data = await _fetch_pr_github_data(
+                gh, self.branch.repo.owner, self.branch.repo.name, list(new_prs.keys())
+            )
+
+            summary = []
+            for pr_number, (review_decision, check_nodes) in pr_github_data.items():
+                required_nodes = [c for c in check_nodes if c["isRequired"]]
+                required_statuses = [
+                    github_status(c["conclusion"] if c["__typename"] == "CheckRun" else c["state"])
+                    for c in required_nodes
+                ]
+                if any(s == GithubStatus.FAILURE for s in required_statuses):
+                    check_decision = 'failing'
+                elif required_statuses and all(s == GithubStatus.SUCCESS for s in required_statuses):
+                    check_decision = 'passing'
+                else:
+                    check_decision = 'pending'
+                summary.append((pr_number, review_decision, len(check_nodes), len(required_nodes), check_decision))
+            log.info(
+                f'update github {self.short_str()}: PR data fetched '
+                f'(pr_number, review_decision, total_checks, required_checks, check_decision): {summary}'
+            )
+
+            for pr in new_prs.values():
+                review_decision, check_nodes = pr_github_data[pr.number]
+                pr._apply_github_data(review_decision, check_nodes)
 
     async def _update_deploy(self, batch_client, db: Database):
         assert self.deployable
@@ -999,8 +1220,26 @@ url: {url}
 mkdir -p {shq(repo_dir)}
 (cd {shq(repo_dir)}; {self.checkout_script()})
 """)
+            self.pip_version = _read_pip_version(repo_dir)
+            pip_version = self.pip_version
+            if pip_version is None:
+                raise ValueError(f'could not determine HAIL_PIP_VERSION: hail/Makefile not found in {repo_dir}')
+            is_release = False
+            try:
+                await check_shell_output(
+                    f'git -C {shq(repo_dir)} ls-remote --exit-code --tags origin {shq(pip_version)}'
+                )
+            except CalledProcessError as e:
+                if e.returncode == 2:
+                    is_release = True
+                else:
+                    raise
+            log.info(f'deploy for {self.branch.short_str()} @ {self.sha[:8]}: is_release={is_release}')
+
             with open(f'{repo_dir}/build.yaml', 'r', encoding='utf-8') as f:
-                config = BuildConfiguration(self, f.read(), requested_step_names=DEPLOY_STEPS, scope='deploy')
+                config = BuildConfiguration(
+                    self, f.read(), requested_step_names=DEPLOY_STEPS or None, scope='deploy', is_release=is_release
+                )
                 namespace = config.namespace()
                 services = config.deployed_services()
             with open(f'{repo_dir}/ci/test/resources/build.yaml', 'r', encoding='utf-8') as f:
@@ -1011,12 +1250,17 @@ mkdir -p {shq(repo_dir)}
             await add_deployed_services(db, namespace, services, None)
 
             log.info(f'creating deploy batch for {self.branch.short_str()}')
+            batch_name = f'Deploy {self.branch.name} @ {self.sha[:8]}'
+            if is_release:
+                batch_name += f' / Release {pip_version}'
             deploy_batch = batch_client.create_batch(
                 attributes={
                     'token': secrets.token_hex(16),
                     'deploy': '1',
                     'target_branch': self.branch.short_str(),
                     'sha': self.sha,
+                    'name': batch_name,
+                    'batch_type': 'ci/release/prod' if is_release else 'ci/deploy/prod',
                 },
                 callback=CALLBACK_URL,
             )
@@ -1130,6 +1374,8 @@ mkdir -p {shq(repo_dir)}
                     'sha': self.sha,
                     'user': self.user,
                     'dev_deploy': '1',
+                    'name': f'Dev deploy {self.branch.name} by {self.user} @ {self.sha[:8]}',
+                    'batch_type': 'hailctl/dev_deploy/deploy_batch',
                 }
             )
             config.build(deploy_batch, self, scope='dev')

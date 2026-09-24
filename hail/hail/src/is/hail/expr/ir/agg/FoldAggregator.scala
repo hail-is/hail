@@ -3,13 +3,14 @@ package is.hail.expr.ir.agg
 import is.hail.annotations.Region
 import is.hail.asm4s.Value
 import is.hail.backend.ExecuteContext
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir.{
   Emit, EmitClassBuilder, EmitCode, EmitCodeBuilder, EmitContext, EmitEnv, EmitMethodBuilder, Env,
   IEmitCode, IR, Name,
 }
 import is.hail.types.physical.stypes.EmitType
 import is.hail.types.virtual.Type
+
+import scala.collection.immutable.ArraySeq
 
 // (IR => T), seq op (IR T => T), and comb op (IR (T,T) => T)
 

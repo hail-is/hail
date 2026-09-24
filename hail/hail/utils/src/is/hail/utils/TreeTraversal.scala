@@ -21,9 +21,9 @@ object TreeTraversal {
           stack = (node, adj(node)) :: stack
         }
 
-        val (node, _) = stack.head
+        val entry = stack.head
         stack = stack.tail
-        node
+        entry._1
       }
     }
 

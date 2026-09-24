@@ -1,12 +1,12 @@
 package is.hail.io.fs
 
 import is.hail.collection.FastSeq
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.io.fs.FSUtil.dropTrailingSlash
 import is.hail.io.fs.GoogleStorageFS.RequesterPaysFailure
 import is.hail.services.{isTransientError, retryTransientErrors}
 import is.hail.services.oauth2.GoogleCloudCredentials
 
+import scala.collection.immutable.ArraySeq
 import scala.jdk.CollectionConverters._
 
 import java.io.{FileNotFoundException, IOException}

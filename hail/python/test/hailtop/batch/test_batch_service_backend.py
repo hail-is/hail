@@ -867,7 +867,6 @@ def test_submit_sequential_qob_pipelines(request, service_backend: ServiceBacken
     assert status['state'] == 'success', str((status, r.debug_info()))
 
 
-@pytest.mark.xfail(reason='Concurrent QoB pipelines are not supported', strict=False)
 def test_race_qob_pipelines(request, service_backend: ServiceBackend):
     b = Batch(request.node.nodeid, service_backend, default_image=HAIL_GENETICS_HAIL_IMAGE)
 

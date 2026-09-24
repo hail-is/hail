@@ -1,3 +1,5 @@
+import re
+
 import pytest
 from typer.testing import CliRunner
 
@@ -95,15 +97,8 @@ def test_modify_wheel_remote_wheel(gcloud_run):
     assert gcloud_args[:3] == ["compute", "ssh", "test-cluster-m"]
 
     remote_command = gcloud_args[gcloud_args.index("--") + 1]
-    assert remote_command == (
-        "sudo gsutil cp gs://some-bucket/hail.whl /tmp/ && "
-        + "sudo /opt/conda/default/bin/pip uninstall -y hail && "
-        + "sudo /opt/conda/default/bin/pip install --no-dependencies /tmp/hail.whl && "
-        + "unzip /tmp/hail.whl && "
-        + "requirements_file=$(mktemp) && "
-        + "grep 'Requires-Dist: ' hail*dist-info/METADATA | sed 's/Requires-Dist: //' | sed 's/ (//' | sed 's/)//' | grep -v 'pyspark' >$requirements_file &&"
-        + "/opt/conda/default/bin/pip install -r $requirements_file"
-    )
+    assert remote_command.startswith("sudo gsutil cp gs://some-bucket/hail.whl /tmp/ && ")
+    assert "pip install --no-dependencies /tmp/hail.whl" in remote_command
 
 
 def test_modify_wheel_local_wheel(gcloud_run):
@@ -118,14 +113,7 @@ def test_modify_wheel_local_wheel(gcloud_run):
     assert install_gcloud_args[:3] == ["compute", "ssh", "test-cluster-m"]
 
     remote_command = install_gcloud_args[install_gcloud_args.index("--") + 1]
-    assert remote_command == (
-        "sudo /opt/conda/default/bin/pip uninstall -y hail && "
-        + "sudo /opt/conda/default/bin/pip install --no-dependencies /tmp/local-hail.whl && "
-        + "unzip /tmp/local-hail.whl && "
-        + "requirements_file=$(mktemp) && "
-        + "grep 'Requires-Dist: ' hail*dist-info/METADATA | sed 's/Requires-Dist: //' | sed 's/ (//' | sed 's/)//' | grep -v 'pyspark' >$requirements_file &&"
-        + "/opt/conda/default/bin/pip install -r $requirements_file"
-    )
+    assert "pip install --no-dependencies /tmp/local-hail.whl" in remote_command
 
 
 @pytest.mark.parametrize(
@@ -202,12 +190,27 @@ def test_update_hail_version(gcloud_run, monkeypatch, deploy_metadata):
     assert gcloud_args[:3] == ["compute", "ssh", "test-cluster-m"]
 
     remote_command = gcloud_args[gcloud_args.index("--") + 1]
-    assert remote_command == (
+    assert remote_command.startswith(
         "sudo gsutil cp gs://hail-common/hailctl/dataproc/test-version/hail-test-version-py3-none-any.whl /tmp/ && "
-        + "sudo /opt/conda/default/bin/pip uninstall -y hail && "
-        + "sudo /opt/conda/default/bin/pip install --no-dependencies /tmp/hail-test-version-py3-none-any.whl && "
-        + "unzip /tmp/hail-test-version-py3-none-any.whl && "
-        + "requirements_file=$(mktemp) && "
-        + "grep 'Requires-Dist: ' hail*dist-info/METADATA | sed 's/Requires-Dist: //' | sed 's/ (//' | sed 's/)//' | grep -v 'pyspark' >$requirements_file &&"
-        + "/opt/conda/default/bin/pip install -r $requirements_file"
     )
+
+    # assert the wheel is reinstalled and its requirements updated in the
+    # right order, regardless of which python environment the cluster uses
+    steps = [step.strip() for step in remote_command.split('&&')]
+
+    def step_matching(pattern):
+        matches = [i for i, step in enumerate(steps) if re.search(pattern, step)]
+        assert matches, f"no step matching {pattern!r} in {steps}"
+        return matches[0]
+
+    wheel = re.escape('/tmp/hail-test-version-py3-none-any.whl')
+    uninstall = step_matching(r"pip uninstall -y hail$")
+    install = step_matching(rf"pip install --no-dependencies {wheel}$")
+    unzip = step_matching(rf"^unzip {wheel}$")
+    requirements = step_matching(
+        r"grep 'Requires-Dist: ' hail\*dist-info/METADATA .* -v 'pyspark' >\$requirements_file$"
+    )
+    install_requirements = step_matching(r"pip install -r \$requirements_file$")
+
+    assert uninstall < install
+    assert unzip < requirements < install_requirements

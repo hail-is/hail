@@ -109,6 +109,16 @@ class DeployConfig:
             return ''
         return f'{self._base_path}/{service}'
 
+    def external_origin(self, service) -> str:
+        # Unlike domain()/scheme(), this always returns the internet-facing origin, regardless of
+        # the location (e.g. k8s-internal) this process itself was deployed to. Browsers can only
+        # ever reach services at their external origin.
+        if self._base_path is None:
+            if service == 'www':
+                return f'https://{self._domain}'
+            return f'https://{service}.{self._domain}'
+        return f'https://{self._domain}'
+
     def base_url(self, service, base_scheme='http'):
         return f'{self.scheme(base_scheme)}://{self.domain(service)}{self.base_path(service)}'
 

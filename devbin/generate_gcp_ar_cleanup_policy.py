@@ -126,6 +126,9 @@ def scrape_build_yaml(file_path: str):
 deploy_packages.extend(scrape_build_yaml('build.yaml'))
 deploy_packages.extend(scrape_build_yaml('ci/test/resources/build.yaml'))
 
+# hail-benchmark is pushed by benchmark_in_batch.py at runtime, not a buildImage2 step
+deploy_packages.append('hail-benchmark')
+
 deploy_packages = list(set(deploy_packages))
 
 third_party_packages.sort()
@@ -138,6 +141,7 @@ policies = [
     DeletePolicy('delete_test_deploy', 'tagged', tag_prefixes=['test-deploy-'], older_than='3d'),
     DeletePolicy('delete_pr_cache', 'tagged', tag_prefixes=['cache-pr-'], older_than='7d'),
     DeletePolicy('delete_cache', 'tagged', tag_prefixes=['cache-'], older_than='30d'),
+    DeletePolicy('delete_deploy', 'tagged', tag_prefixes=['deploy-'], older_than='30d'),
     ConditionalKeepPolicy('keep_third_party', 'any', package_name_prefixes=third_party_packages),
     MostRecentVersionKeepPolicy('keep_most_recent_deploy', package_name_prefixes=deploy_packages, keep_count=10),
 ]

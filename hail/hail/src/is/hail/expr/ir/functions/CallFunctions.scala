@@ -1,7 +1,6 @@
 package is.hail.expr.ir.functions
 
 import is.hail.asm4s.Code
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.types.physical.{PCanonicalArray, PInt32}
 import is.hail.types.physical.stypes._
 import is.hail.types.physical.stypes.concrete.{SCanonicalCall, SIndexablePointer}
@@ -10,6 +9,7 @@ import is.hail.types.physical.stypes.primitives.{SBoolean, SInt32}
 import is.hail.types.virtual._
 import is.hail.variant._
 
+import scala.collection.immutable.ArraySeq
 import scala.reflect.classTag
 
 object CallFunctions extends RegistryFunctions {

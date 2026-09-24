@@ -252,6 +252,8 @@ spec:
                key: query_storage_uri
          - name: HAIL_QUERY_ACCEPTABLE_JAR_SUBFOLDER
            value: "/jars"
+         - name: HAIL_QUERY_SPARK_ARCHIVE_SUBFOLDER
+           value: "/spark"
 {% else %}
          - name: HAIL_QUERY_STORAGE_URI
            valueFrom:
@@ -260,6 +262,8 @@ spec:
                key: test_storage_uri
          - name: HAIL_QUERY_ACCEPTABLE_JAR_SUBFOLDER
            value: "/{{ default_ns.name }}/jars"
+         - name: HAIL_QUERY_SPARK_ARCHIVE_SUBFOLDER
+           value: "/{{ default_ns.name }}/spark"
 {% endif %}
         volumeMounts:
          - name: deploy-config
@@ -461,6 +465,8 @@ spec:
                key: query_storage_uri
          - name: HAIL_QUERY_ACCEPTABLE_JAR_SUBFOLDER
            value: "/jars"
+         - name: HAIL_QUERY_SPARK_ARCHIVE_SUBFOLDER
+           value: "/spark"
 {% else %}
          - name: HAIL_QUERY_STORAGE_URI
            valueFrom:
@@ -469,6 +475,8 @@ spec:
                key: test_storage_uri
          - name: HAIL_QUERY_ACCEPTABLE_JAR_SUBFOLDER
            value: "/{{ default_ns.name }}/jars"
+         - name: HAIL_QUERY_SPARK_ARCHIVE_SUBFOLDER
+           value: "/{{ default_ns.name }}/spark"
 {% endif %}
         ports:
          - containerPort: 443

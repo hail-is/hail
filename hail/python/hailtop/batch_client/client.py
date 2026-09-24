@@ -88,8 +88,8 @@ class Job:
     def _wait_for_states(self, *states: str):
         return async_to_blocking(self._async_job._wait_for_states(*states))
 
-    def container_log(self, container_name):
-        return async_to_blocking(self._async_job.container_log(container_name))
+    def container_log(self, container_name, attempt_id=None):
+        return async_to_blocking(self._async_job.container_log(container_name, attempt_id=attempt_id))
 
     def log(self):
         return async_to_blocking(self._async_job.log())
@@ -274,8 +274,8 @@ class Batch:
     def last_known_status(self):
         return async_to_blocking(self._async_batch.last_known_status())
 
-    def jobs(self, q=None, version=None):
-        return ait_to_blocking(self._async_batch.jobs(q=q, version=version))
+    def jobs(self, q=None, version=None, last_job_id=None):
+        return ait_to_blocking(self._async_batch.jobs(q=q, version=version, last_job_id=last_job_id))
 
     def get_job(self, job_id: int) -> Job:
         j = async_to_blocking(self._async_batch.get_job(job_id))

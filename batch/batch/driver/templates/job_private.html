@@ -5,6 +5,7 @@
 <h1>{{ jpim.name }}</h1>
 
 <h2>Configuration</h2>
+{% if userdata['system_permissions']['update_deployed_system_state'] %}
 <div class="attributes">
   <form action="{{ base_path }}/config-update/jpim" method="POST">
     <div>Boot disk size (in GB): <input name="boot_disk_size_gb" value="{{ jpim.boot_disk_size_gb }}" /></div>
@@ -19,6 +20,16 @@
     </button>
   </form>
 </div>
+{% else %}
+<div class="attributes">
+  <div>Boot disk size (in GB): {{ jpim.boot_disk_size_gb }}</div>
+  <div>Max instances: {{ jpim.max_instances }}</div>
+  <div>Max live instances: {{ jpim.max_live_instances }}</div>
+  <div>Max new instances per autoscaler loop: {{ jpim.max_new_instances_per_autoscaler_loop }}</div>
+  <div>Autoscaler loop period in seconds: {{ jpim.autoscaler_loop_period_secs }}</div>
+  <div>Worker max idle time in seconds: {{ jpim.worker_max_idle_time_secs }}</div>
+</div>
+{% endif %}
 
 <h2>User Resources</h2>
 <table class="data-table" id="user_resources">
@@ -114,7 +125,7 @@
     <td class="numeric-cell">{{ instance.failed_request_count }}</td>
     <td>{{ instance.time_created_str() }}</td>
     <td>{{ instance.last_updated_str() }} ago</td>
-    <td><a target="_blank" href="https://console.cloud.google.com/logs/query;query=resource.type%3D%22gce_instance%22%20AND%20labels.%22compute.googleapis.com%2Fresource_name%22%3D%22{{ instance.name }}%22">Logs<i class="material-icons text-icon">open_in_new</i></a></td>
+    <td><a target="_blank" href="https://console.cloud.google.com/logs/query;query=%22{{ instance.name }}%22%0A-protoPayload.serviceName%3D%22logging.googleapis.com%22%0A-protoPayload.serviceName%3D%22securitycenter.googleapis.com%22">Logs<i class="material-icons text-icon">open_in_new</i></a></td>
   </tr>
   {% endfor %}
   </tbody>

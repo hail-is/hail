@@ -13,7 +13,7 @@ Not absolutely necessary but installing skopeo will make this go a lot smoother 
 "no space left on device" issues.
 
 ```bash
-$ brew install skopeo
+brew install skopeo
 ```
 
 ### Set the `kubectl` Context
@@ -32,5 +32,5 @@ See [Connecting Docker to Container Registry Credentials](connecting_docker_to_c
 ## Run the following command to update the image:
 
 ```bash
-$ NAMESPACE=default make -C  docker/third-party copy
+NAMESPACE=default make -C  docker/third-party copy
 ```

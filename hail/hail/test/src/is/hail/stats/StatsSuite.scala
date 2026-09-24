@@ -1,14 +1,13 @@
 package is.hail.stats
 
-import is.hail.HailSuite
 import is.hail.utils._
 
 import org.apache.commons.math3.distribution.{
   ChiSquaredDistribution, GammaDistribution, NormalDistribution,
 }
-import org.testng.annotations.Test
+import org.junit.jupiter.api.Test
 
-class StatsSuite extends HailSuite {
+class StatsSuite {
 
   @Test def chiSquaredTailTest(): Unit = {
     val chiSq1 = new ChiSquaredDistribution(1)

@@ -7,15 +7,17 @@ from .auth import (
     maybe_parse_bearer_header,
 )
 from .auth_utils import create_session, insert_user
+from .cors import HAIL_SERVICES, cors_allow_hail_services
 from .csrf import check_csrf_token, new_csrf_token
 from .database import Database, Transaction, create_database_pool, resolve_test_db_endpoint, transaction
-from .http_server_utils import json_request, json_response
+from .http_server_utils import json_request, json_response, version_response
 from .k8s_cache import K8sCache
 from .metrics import monitor_endpoints_middleware
 from .session import setup_aiohttp_session
 from .system_permissions import SystemPermission
 
 __all__ = [
+    'HAIL_SERVICES',
     'AuthServiceAuthenticator',
     'Authenticator',
     'CommonAiohttpAppKeys',
@@ -25,6 +27,7 @@ __all__ = [
     'Transaction',
     'UserData',
     'check_csrf_token',
+    'cors_allow_hail_services',
     'create_database_pool',
     'create_session',
     'get_authenticator',
@@ -37,4 +40,5 @@ __all__ = [
     'resolve_test_db_endpoint',
     'setup_aiohttp_session',
     'transaction',
+    'version_response',
 ]

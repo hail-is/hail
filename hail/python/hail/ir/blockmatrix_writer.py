@@ -21,12 +21,11 @@ class BlockMatrixWriter(object):
 
 
 class BlockMatrixNativeWriter(BlockMatrixWriter):
-    @typecheck_method(path=str, overwrite=bool, force_row_major=bool, stage_locally=bool)
-    def __init__(self, path, overwrite, force_row_major, stage_locally):
+    @typecheck_method(path=str, overwrite=bool, force_row_major=bool)
+    def __init__(self, path, overwrite, force_row_major):
         self.path = path
         self.overwrite = overwrite
         self.force_row_major = force_row_major
-        self.stage_locally = stage_locally
 
     def render(self):
         writer = {
@@ -34,7 +33,6 @@ class BlockMatrixNativeWriter(BlockMatrixWriter):
             'path': self.path,
             'overwrite': self.overwrite,
             'forceRowMajor': self.force_row_major,
-            'stageLocally': self.stage_locally,
         }
         return escape_str(json.dumps(writer))
 
@@ -47,7 +45,6 @@ class BlockMatrixNativeWriter(BlockMatrixWriter):
             and self.path == other.path
             and self.overwrite == other.overwrite
             and self.force_row_major == other.force_row_major
-            and self.stage_locally == other.stage_locally
         )
 
 
@@ -202,12 +199,11 @@ class BlockMatrixPersistWriter(BlockMatrixWriter):
 
 
 class BlockMatrixNativeMultiWriter(BlockMatrixMultiWriter):
-    @typecheck_method(prefix=str, overwrite=bool, force_row_major=bool, stage_locally=bool)
-    def __init__(self, prefix, overwrite, force_row_major, stage_locally):
+    @typecheck_method(prefix=str, overwrite=bool, force_row_major=bool)
+    def __init__(self, prefix, overwrite, force_row_major):
         self.prefix = prefix
         self.overwrite = overwrite
         self.force_row_major = force_row_major
-        self.stage_locally = stage_locally
 
     def render(self):
         writer = {
@@ -215,7 +211,6 @@ class BlockMatrixNativeMultiWriter(BlockMatrixMultiWriter):
             'prefix': self.prefix,
             'overwrite': self.overwrite,
             'forceRowMajor': self.force_row_major,
-            'stageLocally': self.stage_locally,
         }
         return escape_str(json.dumps(writer))
 
@@ -228,5 +223,4 @@ class BlockMatrixNativeMultiWriter(BlockMatrixMultiWriter):
             and self.prefix == other.prefix
             and self.overwrite == other.overwrite
             and self.force_row_major == other.force_row_major
-            and self.stage_locally == other.stage_locally
         )

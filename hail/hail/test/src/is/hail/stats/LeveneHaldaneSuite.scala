@@ -3,10 +3,9 @@ package is.hail.stats
 import is.hail.utils._
 
 import org.apache.commons.math3.util.CombinatoricsUtils.factorialLog
-import org.scalatestplus.testng.TestNGSuite
-import org.testng.annotations.Test
+import org.junit.jupiter.api.Test
 
-class LeveneHaldaneSuite extends TestNGSuite {
+class LeveneHaldaneSuite {
 
   def LH(n: Int, nA: Int)(nAB: Int): Double = {
     assert(nA >= 0 && nA <= n)

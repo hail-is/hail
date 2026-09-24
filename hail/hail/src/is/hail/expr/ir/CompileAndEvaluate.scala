@@ -9,6 +9,7 @@ import is.hail.expr.ir.lowering.LoweringPipeline
 import is.hail.types.physical.PTuple
 import is.hail.types.physical.stypes.PTypeReferenceSingleCodeType
 import is.hail.types.virtual._
+import is.hail.utils.TimedBlock
 
 import java.io.PrintWriter
 
@@ -20,7 +21,7 @@ object CompileAndEvaluate {
     ir: IR,
     lower: LoweringPipeline = LoweringPipeline(),
   ): T =
-    ctx.time {
+    TimedBlock.enter {
       _apply(ctx, ir, lower) match {
         case Left(()) => ().asInstanceOf[T]
         case Right((t, off)) => SafeRow(t, off).getAs[T](0)
@@ -46,7 +47,7 @@ object CompileAndEvaluate {
     lower: LoweringPipeline = LoweringPipeline(),
     print: Option[PrintWriter] = None,
   ): Either[Unit, (PTuple, Long)] =
-    ctx.time {
+    TimedBlock.enter {
       val ir = lower(ctx, ir0).asInstanceOf[IR]
 
       ir.typ match {
@@ -62,7 +63,7 @@ object CompileAndEvaluate {
 
           val unit: Unit = ctx.scopedExecution { (hcl, fs, htc, r) =>
             val execute = f(hcl, fs, htc, r)
-            ctx.time(execute(r))
+            TimedBlock.enter(execute(r))
           }
 
           Left(unit)
@@ -80,7 +81,7 @@ object CompileAndEvaluate {
 
           val res = ctx.scopedExecution { (hcl, fs, htc, r) =>
             val execute = f(hcl, fs, htc, r)
-            ctx.time(execute(r))
+            TimedBlock.enter(execute(r))
           }
 
           Right((resType, res))

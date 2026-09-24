@@ -12,7 +12,7 @@ from ....batch_configuration import DEFAULT_NAMESPACE, DOCKER_PREFIX, DOCKER_ROO
 from ....file_store import FileStore
 from ....instance_config import InstanceConfig
 from ...resource_utils import unreserved_worker_data_disk_size_gib
-from ...utils import ACCEPTABLE_QUERY_JAR_URL_PREFIX
+from ...utils import ACCEPTABLE_QUERY_JAR_URL_PREFIX, SPARK_ARCHIVE_URL_PREFIX
 from ..resource_utils import azure_machine_type_to_parts
 
 log = logging.getLogger('create_instance')
@@ -135,6 +135,7 @@ set -x
 WORKER_DATA_DISK_NAME="{worker_data_disk_name}"
 UNRESERVED_WORKER_DATA_DISK_SIZE_GB="{unreserved_disk_storage_gb}"
 ACCEPTABLE_QUERY_JAR_URL_PREFIX="{ACCEPTABLE_QUERY_JAR_URL_PREFIX}"
+SPARK_ARCHIVE_URL_PREFIX="{SPARK_ARCHIVE_URL_PREFIX}"
 
 # format worker data disk
 sudo mkfs.xfs -f -m reflink=1 -n ftype=1 {disk_location}
@@ -273,6 +274,7 @@ docker run \
 -e INTERNET_INTERFACE=$INTERNET_INTERFACE \
 -e UNRESERVED_WORKER_DATA_DISK_SIZE_GB=$UNRESERVED_WORKER_DATA_DISK_SIZE_GB \
 -e ACCEPTABLE_QUERY_JAR_URL_PREFIX=$ACCEPTABLE_QUERY_JAR_URL_PREFIX \
+-e SPARK_ARCHIVE_URL_PREFIX=$SPARK_ARCHIVE_URL_PREFIX \
 -e INTERNAL_GATEWAY_IP=$INTERNAL_GATEWAY_IP \
 -v /var/run/docker.sock:/var/run/docker.sock \
 -v /var/run/netns:/var/run/netns:shared \

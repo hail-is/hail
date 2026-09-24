@@ -1,31 +1,16 @@
 package is.hail.types.physical.stypes.primitives
 
-import is.hail.annotations.Region
 import is.hail.asm4s.{Code, FloatInfo, Settable, SettableBuilder, TypeInfo, Value}
 import is.hail.collection.FastSeq
 import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.types.physical.{PFloat32, PType}
-import is.hail.types.physical.stypes.{SSettable, SType, SValue}
+import is.hail.types.physical.stypes.{SSettable, SValue}
 import is.hail.types.virtual.{TFloat32, Type}
 
 case object SFloat32 extends SPrimitive {
   override def ti: TypeInfo[_] = FloatInfo
 
   override lazy val virtualType: Type = TFloat32
-
-  override def castRename(t: Type): SType = this
-
-  override def _coerceOrCopy(
-    cb: EmitCodeBuilder,
-    region: Value[Region],
-    value: SValue,
-    deepCopy: Boolean,
-  ): SValue =
-    value.st match {
-      case SFloat32 => value
-    }
-
-  override def settableTupleTypes(): IndexedSeq[TypeInfo[_]] = FastSeq(FloatInfo)
 
   override def fromSettables(settables: IndexedSeq[Settable[_]]): SFloat32Settable = {
     val IndexedSeq(x: Settable[Float @unchecked]) = settables

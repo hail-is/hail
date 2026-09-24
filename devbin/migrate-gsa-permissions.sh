@@ -12,13 +12,13 @@ fi
 
 PROJECT=$1
 ADMIN_POD=$(kfind1 admin-pod)
-ACCOUNTS=$(kubectl -n default exec -it $ADMIN_POD -- mysql -NBe "SELECT hail_identity FROM auth.users WHERE state != 'deleted'" | grep -Eo "(\w|-)+@$PROJECT.iam.gserviceaccount.com" | awk '{print $1}')
+ACCOUNTS=$(kubectl -n default exec -i $ADMIN_POD -- mysql -NBe "SELECT hail_identity FROM auth.users WHERE state != 'deleted'" | grep -Eo "(\w|-)+@$PROJECT.iam.gserviceaccount.com" | awk '{print $1}')
 
 echo "Found the following user service accounts in $PROJECT:"
 for ACCOUNT in $ACCOUNTS; do
   echo "    $ACCOUNT"
 done
-confirm 'This script will add the batch user as a service account user to these accounts.'
+confirm 'This script will add batch2-agent as a service account user to these accounts.'
 
 if [ $? -ne 0 ]; then
   exit 0

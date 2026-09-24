@@ -1,9 +1,10 @@
 package is.hail.utils
 
 import is.hail.annotations._
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.sparkextras.implicits.toRichRow
 import is.hail.types.virtual.TBoolean
+
+import scala.collection.immutable.ArraySeq
 
 import org.apache.spark.sql.Row
 import org.json4s.JValue

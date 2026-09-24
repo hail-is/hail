@@ -1,11 +1,10 @@
 package is.hail.scalacheck
 
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.Nat
 import is.hail.types.virtual._
 import is.hail.variant.ReferenceGenome.hailReferences
 
-import scala.collection.compat._
+import scala.collection.immutable.ArraySeq
 
 import org.scalacheck.{Arbitrary, Gen}
 import org.scalacheck.Arbitrary.arbitrary

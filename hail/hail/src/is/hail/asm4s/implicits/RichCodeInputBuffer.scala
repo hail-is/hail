@@ -29,6 +29,15 @@ class RichCodeInputBuffer(
   def readLong(): Code[Long] =
     ib.invoke[Long]("readLong")
 
+  def readVarint(): Code[Int] =
+    ib.invoke[Int]("readVarint")
+
+  def readVarintLong(): Code[Long] =
+    ib.invoke[Long]("readVarintLong")
+
+  def skipVarint(): Code[Unit] =
+    ib.invoke[Unit]("skipVarint")
+
   def readFloat(): Code[Float] =
     ib.invoke[Float]("readFloat")
 

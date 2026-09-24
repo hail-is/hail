@@ -6,7 +6,6 @@ import is.hail.expr.ir.defs._
 import is.hail.expr.ir.functions.{
   TableCalculateNewPartitions, TableToValueFunction, WrappedMatrixToTableFunction,
 }
-import is.hail.expr.ir.lowering.LowerDistributedSort.LocalSortReader
 import is.hail.io.avro.AvroTableReader
 import is.hail.io.bgen.MatrixBGENReader
 import is.hail.io.plink.MatrixPLINKReader
@@ -36,7 +35,6 @@ object CanLowerEfficiently {
         case TableRead(_, _, _: MatrixVCFReader) =>
         case TableRead(_, _, _: AvroTableReader) =>
         case TableRead(_, _, _: RVDTableReader) =>
-        case TableRead(_, _, _: LocalSortReader) =>
         case TableRead(_, _, _: DistributionSortReader) =>
         case TableRead(_, _, _: MatrixBGENReader) =>
         case TableRead(_, _, _: TableFromBlockMatrixNativeReader) =>

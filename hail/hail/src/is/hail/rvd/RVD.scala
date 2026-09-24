@@ -5,8 +5,6 @@ import is.hail.asm4s.HailClassLoader
 import is.hail.backend.{ExecuteContext, HailStateManager, HailTaskContext}
 import is.hail.backend.spark.{SparkBackend, SparkTaskContext}
 import is.hail.collection.FastSeq
-import is.hail.collection.compat._
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.collection.implicits._
 import is.hail.expr.ir.InferPType
 import is.hail.expr.ir.PruneDeadFields.isSupertype
@@ -22,6 +20,7 @@ import is.hail.types.virtual.{MatrixType, TInterval, TStruct}
 import is.hail.utils._
 import is.hail.utils.PartitionCounts.{getPCSubsetOffset, incrementalPCSubsetOffset, PCSubsetOffset}
 
+import scala.collection.immutable.ArraySeq
 import scala.collection.parallel.CollectionConverters._
 import scala.reflect.ClassTag
 
@@ -675,7 +674,7 @@ class RVD(
 
     val pred: (RVDContext, Long) => Boolean = (ctx: RVDContext, ptr: Long) => {
       val ur = new UnsafeRow(localRowPType, ctx.r, ptr)
-      val key = Row.fromSeq(
+      val key = RowSeq.fromSeq(
         kRowFieldIdx.map(i => ur.get(i))
       )
       intervalsBc.value.contains(key)
@@ -845,10 +844,9 @@ class RVD(
     ctx: ExecuteContext,
     path: String,
     idxRelPath: String,
-    stageLocally: Boolean,
     codecSpec: AbstractTypedCodecSpec,
   ): IndexedSeq[FileWriteMetadata] = {
-    val fileData = crdd.writeRows(ctx, path, idxRelPath, typ, stageLocally, codecSpec)
+    val fileData = crdd.writeRows(ctx, path, idxRelPath, typ, codecSpec)
     val spec = MakeRVDSpec(
       codecSpec,
       fileData.map(_.path),
@@ -1010,8 +1008,8 @@ class RVD(
         val interval = r.getAs[Interval](rightTyp.kFieldIdx(0))
         if (interval != null) {
           val wrappedInterval = interval.copy(
-            start = Row(interval.start),
-            end = Row(interval.end),
+            start = RowSeq(interval.start),
+            end = RowSeq(interval.end),
           )
           val bytes = encoder.regionValueToBytes(ctx.r, ptr)
           partBc.value.queryInterval(wrappedInterval).map(i => ((i, interval), bytes))
@@ -1146,7 +1144,7 @@ object RVD extends Logging {
     }.flatten
 
     val kOrd = PartitionBoundOrdering(sm, typ.kType.virtualType).toOrdering
-    ArraySeq.unsafeWrapArray(keyInfo.sortInPlaceBy(_.min)(kOrd).array)
+    ArraySeq.unsafeWrapArray(keyInfo.sortedInPlaceBy(_.min)(kOrd))
   }
 
   def coerce(
@@ -1375,7 +1373,6 @@ object RVD extends Logging {
     rvds: IndexedSeq[RVD],
     paths: IndexedSeq[String],
     bufferSpec: BufferSpec,
-    stageLocally: Boolean,
   ): IndexedSeq[IndexedSeq[FileWriteMetadata]] = {
     val first = rvds.head
     rvds.foreach { rvd =>
@@ -1388,7 +1385,6 @@ object RVD extends Logging {
     }
 
     val sc = SparkBackend.sparkContext
-    val localTmpdir = execCtx.localTmpdir
     val fs = execCtx.fs
 
     val nRVDs = rvds.length
@@ -1428,7 +1424,6 @@ object RVD extends Logging {
         ContextRDD.inCtx { (hcl, ctx) =>
           val fullPath = paths(originIdx)
           val fileData = RichContextRDDRegionValue.writeSplitRegion(
-            localTmpdir,
             fsBc.value,
             fullPath,
             localTyp,
@@ -1437,7 +1432,6 @@ object RVD extends Logging {
             hcl,
             ctx,
             partDigits,
-            stageLocally,
             makeIndexWriter,
             os => makeRowsEnc(os, hcl),
             os => makeEntriesEnc(os, hcl),
@@ -1446,7 +1440,7 @@ object RVD extends Logging {
         }
     }
 
-    val partFilePartitionCounts = execCtx.time {
+    val partFilePartitionCounts = TimedBlock.enter {
       val rdd = new OriginUnionRDD(first.crdd.rdd.sparkContext, rvds.map(_.crdd.rdd), partF)
       new ContextRDD(rdd).collect()
     }
@@ -1458,7 +1452,7 @@ object RVD extends Logging {
 
     val fileData = fileDataByOrigin.map(_.result())
 
-    execCtx.timer.time("writeMetadataInParallel")(
+    TimedBlock.enter("writeMetadataInParallel")(
       fileData.zipWithIndex
         .par
         .foreach { case (partFiles, i) =>

@@ -3,7 +3,6 @@ package is.hail.io.avro
 import is.hail.annotations.Region
 import is.hail.asm4s.{Field => _, _}
 import is.hail.backend.ExecuteContext
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, EmitMethodBuilder, EmitValue, IEmitCode}
 import is.hail.expr.ir.defs.PartitionReader
 import is.hail.expr.ir.streams.StreamProducer
@@ -13,6 +12,7 @@ import is.hail.types.physical.stypes.concrete._
 import is.hail.types.physical.stypes.interfaces.{primitive, SBaseStructValue, SStreamValue}
 import is.hail.types.virtual._
 
+import scala.collection.immutable.ArraySeq
 import scala.jdk.CollectionConverters._
 
 import java.io.InputStream

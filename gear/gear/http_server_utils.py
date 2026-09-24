@@ -1,8 +1,15 @@
 from collections.abc import Mapping
-from typing import Any, Callable, Optional
+from typing import TYPE_CHECKING, Any, Callable, Optional
 
 import orjson
 from aiohttp import web
+
+from hailtop import __version__
+
+from .system_permissions import SystemPermission
+
+if TYPE_CHECKING:
+    from .auth import UserData
 
 
 async def json_request(request: web.Request) -> Any:
@@ -19,6 +26,14 @@ async def json_request(request: web.Request) -> Any:
         request['request_data'].update({'raw_data': result})
 
     return result
+
+
+def version_response(userdata: Optional['UserData']) -> web.Response:
+    is_sysadmin = userdata is not None and userdata['system_permissions'].get(
+        SystemPermission.READ_DEPLOYED_SYSTEM_STATE, False
+    )
+    version = __version__ if is_sysadmin else __version__.split('-', maxsplit=1)[0]
+    return web.Response(text=version)
 
 
 def json_response(

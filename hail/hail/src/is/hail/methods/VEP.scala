@@ -3,7 +3,6 @@ package is.hail.methods
 import is.hail.annotations._
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.collection.implicits.toRichIterator
 import is.hail.expr._
 import is.hail.expr.ir.TableValue
@@ -17,6 +16,7 @@ import is.hail.utils._
 import is.hail.variant.{Locus, RegionValueVariant}
 import is.hail.variant.VariantMethods.locusAllelesToString
 
+import scala.collection.immutable.ArraySeq
 import scala.collection.mutable
 import scala.jdk.CollectionConverters._
 
@@ -230,12 +230,12 @@ class VEP(private val params: VEPParameters, conf: VEPConfiguration)
 
     val globalValue =
       if (params.csq)
-        Row(getCSQHeaderDefinition(cmd, conf.env).getOrElse {
+        RowSeq(getCSQHeaderDefinition(cmd, conf.env).getOrElse {
           logger.warn(f"Could not get VEP CSQ header, cmd = ${cmd.mkString(" ")}")
           ""
         })
       else
-        Row()
+        RowSeq()
 
     TableValue(ctx, outType, BroadcastRow(ctx, globalValue, outType.globalType), vepRVD)
   }

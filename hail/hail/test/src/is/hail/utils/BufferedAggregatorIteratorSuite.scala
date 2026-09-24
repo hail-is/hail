@@ -1,14 +1,12 @@
 package is.hail.utils
 
-import scala.collection.compat._
+import is.hail.TestUtils._
 
+import org.junit.jupiter.api.Test
 import org.scalacheck.Gen
 import org.scalacheck.Gen._
+import org.scalacheck.Prop.forAll
 import org.scalatest.matchers.should.Matchers.{be, convertToAnyShouldWrapper}
-import org.scalatestplus.scalacheck.CheckerAsserting.assertingNatureOfAssertion
-import org.scalatestplus.scalacheck.ScalaCheckDrivenPropertyChecks
-import org.scalatestplus.testng.TestNGSuite
-import org.testng.annotations.Test
 
 class SumAgg {
   var x: Long = 0
@@ -22,7 +20,7 @@ class SumAgg {
     s"${getClass.getSimpleName}($x)"
 }
 
-class BufferedAggregatorIteratorSuite extends TestNGSuite with ScalaCheckDrivenPropertyChecks {
+class BufferedAggregatorIteratorSuite {
 
   private[this] lazy val gen: Gen[(Array[(Int, Long)], Int)] =
     for {
@@ -31,7 +29,7 @@ class BufferedAggregatorIteratorSuite extends TestNGSuite with ScalaCheckDrivenP
     } yield (data, len)
 
   @Test def test(): Unit =
-    forAll(gen) { case (arr, bufferSize) =>
+    check(forAll(gen) { case (arr, bufferSize) =>
       val simple: Map[Int, Long] =
         arr.groupBy(_._1).map { case (k, a) => k -> a.map(_._2).sum }
 
@@ -48,6 +46,6 @@ class BufferedAggregatorIteratorSuite extends TestNGSuite with ScalaCheckDrivenP
           .groupMapReduce(_._1)(_._2)(_ comb _)
           .view.mapValues(_.x).toMap
       simple should be(buffAgg)
-    }
+    })
 
 }

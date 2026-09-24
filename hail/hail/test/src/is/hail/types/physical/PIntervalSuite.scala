@@ -2,15 +2,16 @@ package is.hail.types.physical
 
 import is.hail.annotations.Region
 import is.hail.asm4s._
+import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.EmitFunctionBuilder
 import is.hail.types.physical.stypes.concrete.{SUnreachableInterval, SUnreachableIntervalValue}
 import is.hail.types.virtual.{TInt32, TInterval}
 import is.hail.utils._
 
-import org.testng.annotations.Test
+import org.junit.jupiter.api.Test
 
 class PIntervalSuite extends PhysicalTestUtils {
-  @Test def copyTests(): Unit = {
+  @Test def copyTests(implicit ctx: ExecuteContext): Unit = {
     def runTests(deepCopy: Boolean, interpret: Boolean = false): Unit = {
       copyTestExecutor(
         PCanonicalInterval(PInt64()),
@@ -60,8 +61,7 @@ class PIntervalSuite extends PhysicalTestUtils {
     runTests(false, true)
   }
 
-  // Just makes sure we can generate code to store an unreachable interval
-  @Test def storeUnreachable(): Unit = {
+  @Test def storeUnreachable(implicit ctx: ExecuteContext): Unit = {
     val ust = SUnreachableInterval(TInterval(TInt32))
     val usv = new SUnreachableIntervalValue(ust)
     val pt = PCanonicalInterval(PInt32Required, true)

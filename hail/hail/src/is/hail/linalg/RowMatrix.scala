@@ -1,8 +1,8 @@
 package is.hail.linalg
 
+import is.hail.annotations.RowSeq
 import is.hail.backend.{BroadcastValue, ExecuteContext, HailStateManager}
 import is.hail.backend.spark.SparkBackend
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.io.InputBuffer
 import is.hail.io.fs.FS
 import is.hail.rvd.RVDPartitioner
@@ -10,10 +10,11 @@ import is.hail.sparkextras.implicits._
 import is.hail.types.virtual.{TInt64, TStruct}
 import is.hail.utils._
 
+import scala.collection.immutable.ArraySeq
+
 import breeze.linalg.DenseMatrix
 import org.apache.spark.{Partition, Partitioner, TaskContext}
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.Row
 
 object RowMatrix {
   def apply(rows: RDD[(Long, Array[Double])], nCols: Int): RowMatrix =
@@ -97,7 +98,7 @@ class RowMatrix(
       ArraySeq.tabulate(partStarts.length - 1) { i =>
         val start = partStarts(i)
         val end = partStarts(i + 1)
-        Interval(Row(start), Row(end), includesStart = true, includesEnd = false)
+        Interval(RowSeq(start), RowSeq(end), includesStart = true, includesEnd = false)
       },
     )
   }

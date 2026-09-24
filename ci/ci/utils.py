@@ -131,12 +131,14 @@ class GithubStatus(Enum):
     FAILURE = 'failure'
 
 
-def github_status(state: str) -> GithubStatus:
+def github_status(state: Optional[str]) -> GithubStatus:
     """
     Converts a state for a commit status (https://docs.github.com/en/graphql/reference/enums#statusstate)
     or a conclusion for a check (https://docs.github.com/en/graphql/reference/enums#checkconclusionstate)
     from the GraphQL API to a GithubStatus.
     """
+    if state is None:
+        return GithubStatus.PENDING
     if state in {"PENDING", "EXPECTED", "ACTION_REQUIRED", "STALE"}:
         return GithubStatus.PENDING
     if state in {"FAILURE", "ERROR", "TIMED_OUT", "CANCELLED", "STARTUP_FAILURE", "SKIPPED"}:

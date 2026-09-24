@@ -414,6 +414,22 @@ paths:
           required: true
           schema:
             type: number
+        - name: q
+          in: query
+          description: >
+            Query string in v1 format, e.g. "state = Failed" or "user:alice". A bare word
+            matching a known state search term (e.g. "bad", "running", "done") filters jobs to
+            that group of states.
+          required: false
+          schema:
+            type: string
+            example: "bad"
+        - name: last_job_id
+          in: query
+          description: "Job ID to resume pagination after."
+          required: false
+          schema:
+            type: integer
       responses:
         '200':
           description: "Successfully retrieved the jobs in the batch."
@@ -489,6 +505,28 @@ paths:
           required: true
           schema:
             type: number
+        - name: q
+          in: query
+          description: >
+            Query string in v1 format, e.g. "state = Failed" or "user:alice". A bare word
+            matching a known state search term (e.g. "bad", "running", "done") filters jobs to
+            that group of states.
+          required: false
+          schema:
+            type: string
+            example: "bad"
+        - name: last_job_id
+          in: query
+          description: "Job ID to resume pagination after."
+          required: false
+          schema:
+            type: integer
+        - name: recursive
+          in: query
+          description: "Include jobs from nested job groups, not just this one."
+          required: false
+          schema:
+            type: boolean
       responses:
         '200':
           description: "Successfully retrieved the jobs in the job group."
@@ -577,6 +615,79 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/JobAttemptsResponse'
+  '/api/v1alpha/batches/{batch_id}/timing':
+    get:
+      summary: "Get job timing for a batch"
+      description: >
+        Get the start/end time of every attempt of every job in the batch, for building a
+        timing overview of the whole batch. Jobs that have not started yet have an empty
+        attempts array. Paginated by job_offset — see JobOffsetPagination.
+      operationId: getBatchTimingv1alpha
+      tags:
+        - Batches API v1Alpha
+      parameters:
+        - name: batch_id
+          in: path
+          description: "The ID of the batch."
+          required: true
+          schema:
+            type: number
+        - name: job_offset
+          in: query
+          description: "Job id offset to page from. Job ids within a batch are dense (1..n_jobs), so this maps directly onto a job_id range rather than a real SQL OFFSET. Defaults to 0."
+          required: false
+          schema:
+            type: integer
+        - name: page_size
+          in: query
+          description: "Number of jobs to include in this page (not number of attempts). Defaults to 50, capped at 1000."
+          required: false
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: "Successfully retrieved the job timing for the batch."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BatchTimingResponse'
+  '/api/v1alpha/batches/{batch_id}/job_graph':
+    get:
+      summary: "Get the job dependency graph for a batch"
+      description: >
+        Get every job's parent ids for the whole batch, for rendering a job dependency DAG.
+        Jobs with no parents have an empty parent_ids array. Paginated by job_offset — see
+        JobOffsetPagination. Job metadata (name, state) is not included here; join client-side
+        against the existing jobs list endpoint by job_id.
+      operationId: getJobGraphv1alpha
+      tags:
+        - Batches API v1Alpha
+      parameters:
+        - name: batch_id
+          in: path
+          description: "The ID of the batch."
+          required: true
+          schema:
+            type: number
+        - name: job_offset
+          in: query
+          description: "Job id offset to page from. Job ids within a batch are dense (1..n_jobs), so this maps directly onto a job_id range rather than a real SQL OFFSET. Defaults to 0."
+          required: false
+          schema:
+            type: integer
+        - name: page_size
+          in: query
+          description: "Number of jobs to include in this page (not number of edges). Defaults to 50, capped at 1000."
+          required: false
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: "Successfully retrieved the job graph for the batch."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobGraphResponse'
   '/api/v1alpha/batches/{batch_id}/jobs/{job_id}/log':
     get:
       summary: "Get job log"
@@ -631,6 +742,12 @@ paths:
           required: true
           schema:
             type: string
+        - name: attempt_id
+          in: query
+          description: "Return the log for a specific attempt. Defaults to the current or most recent attempt."
+          required: false
+          schema:
+            type: string
       responses:
         '200':
           description: "Successfully retrieved the log of the job in the container."
@@ -638,11 +755,19 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ContainerLogResponse'
-  '/api/v1alpha/batches/{batch_id}/jobs/{job_id}/resources_usage':
+  '/api/v1alpha/batches/{batch_id}/jobs/{job_id}/log/{container}/signed_url':
     get:
-      summary: "Get job resource usage"
-      description: "Get the resources usage of a job."
-      operationId: getResourcesUsageInJobv1alpha
+      summary: "Get signed URL for job log"
+      description: |
+        Returns a time-limited GCS signed URL for direct download of a job's container log.
+        The URL is valid for 15 minutes from the time of issue. Range requests are supported,
+        so parallel download tools work correctly as long as all streams are initiated within
+        the validity window.
+        Only available for completed jobs (or a specific past attempt via attempt_id).
+        Only available for GCP deployments using GCS logs.
+        The signed URL is returned without first verifying the log file exists in GCS;
+        callers should handle a 404 from GCS if the log was never written (e.g. preempted job).
+      operationId: getLogSignedUrlInJobContainerV1alpha
       tags:
         - Batches API v1Alpha
       parameters:
@@ -658,9 +783,69 @@ paths:
           required: true
           schema:
             type: number
+        - name: container
+          in: path
+          description: "The name of the container."
+          required: true
+          schema:
+            type: string
+        - name: attempt_id
+          in: query
+          description: "Return the signed URL for a specific attempt. Defaults to the most recent attempt."
+          required: false
+          schema:
+            type: string
       responses:
         '200':
-          description: "Successfully retrieved the resources usage of the job."
+          description: "Successfully generated a signed URL for the log."
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - signed_url
+                  - expires_at
+                properties:
+                  signed_url:
+                    type: string
+                    description: "A GCS signed URL for direct download of the log. Valid until expires_at."
+                  expires_at:
+                    type: string
+                    format: date-time
+                    description: "ISO 8601 timestamp at which the signed URL expires."
+        '404':
+          description: "Job has never started (no attempt found), or the job/container is unknown."
+        '501':
+          description: "Signed URLs are not supported in this deployment."
+  '/api/v1alpha/batches/{batch_id}/jobs/{job_id}/resource_usage':
+    get:
+      summary: "Get job resource usage"
+      description: "Get the resource usage of a job."
+      operationId: getResourceUsageInJobv1alpha
+      tags:
+        - Batches API v1Alpha
+      parameters:
+        - name: batch_id
+          in: path
+          description: "The ID of the batch."
+          required: true
+          schema:
+            type: number
+        - name: job_id
+          in: path
+          description: "The ID of the job."
+          required: true
+          schema:
+            type: number
+        - name: attempt_id
+          in: query
+          description: "Return resource usage for a specific attempt. Defaults to the current or most recent attempt."
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: "Successfully retrieved the resource usage of the job."
           content:
             application/json:
               schema:
@@ -670,8 +855,6 @@ paths:
       summary: List batches (v2)
       description: Get a list of batches using v2 query format
       tags: [Batches]
-      security:
-        - developerAuth: []
       parameters:
         - name: q
           in: query
@@ -709,6 +892,21 @@ paths:
           required: true
           schema:
             type: number
+        - name: q
+          in: query
+          description: >
+            Query string in v2 format, e.g. "state = Failed" or "state = bad" ("bad" is a state
+            search term covering both Failed and Error).
+          required: false
+          schema:
+            type: string
+            example: "state = bad"
+        - name: last_job_id
+          in: query
+          description: "Job ID to resume pagination after."
+          required: false
+          schema:
+            type: integer
       responses:
         '200':
           description: "Successfully retrieved the jobs in the batch."
@@ -736,6 +934,27 @@ paths:
           required: true
           schema:
             type: number
+        - name: q
+          in: query
+          description: >
+            Query string in v2 format, e.g. "state = Failed" or "state = bad" ("bad" is a state
+            search term covering both Failed and Error).
+          required: false
+          schema:
+            type: string
+            example: "state = bad"
+        - name: last_job_id
+          in: query
+          description: "Job ID to resume pagination after."
+          required: false
+          schema:
+            type: integer
+        - name: recursive
+          in: query
+          description: "Include jobs from nested job groups, not just this one."
+          required: false
+          schema:
+            type: boolean
       responses:
         '200':
           description: "Successfully retrieved the jobs in the job group."
@@ -743,13 +962,98 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/JobV2ListResponse'
+  '/api/v1alpha/billing':
+    get:
+      summary: "Get billing records"
+      description: >
+        Return per-(billing_project, user) cost records for a date range.
+        Non-developers see only their own records; developers see all.
+        Costs are plain floats in USD. Omitting `end` includes currently-running batches;
+        supplying `end` excludes them.
+      operationId: getBilling
+      tags:
+        - Billing Projects
+      parameters:
+        - name: start
+          in: query
+          description: "Start date in MM/DD/YYYY format. Defaults to the first day of the current month."
+          required: false
+          schema:
+            type: string
+            example: "04/01/2026"
+        - name: end
+          in: query
+          description: "End date in MM/DD/YYYY format (inclusive, optional). Omit to include currently-running batches."
+          required: false
+          schema:
+            type: string
+            example: "04/21/2026"
+      responses:
+        '200':
+          description: "Billing records retrieved successfully."
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BillingRecord'
+        '401':
+          description: Unauthorized
+  '/api/v1alpha/billing_breakdown':
+    get:
+      summary: "Get billing breakdown"
+      description: >
+        Return per-(billing_project, user, resource) cost records for a date range.
+        Billing managers (READ_ALL_BILLING_PROJECTS) see all records; other users see only
+        rows where the user matches their own username. Costs are plain floats in USD.
+        Rows with zero cost are excluded. The `resource` field uses internal resource names
+        such as `"service-fee"`, `"compute/n1-standard/preemptible/us-central1"`, etc.
+      operationId: getBillingBreakdown
+      tags:
+        - Billing Projects
+      parameters:
+        - name: start
+          in: query
+          description: "Start date in MM/DD/YYYY format."
+          required: true
+          schema:
+            type: string
+            example: "05/01/2026"
+        - name: end
+          in: query
+          description: "End date in MM/DD/YYYY format (inclusive). Required."
+          required: true
+          schema:
+            type: string
+            example: "05/31/2026"
+      responses:
+        '200':
+          description: "Billing breakdown retrieved successfully."
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BillingBreakdownRecord'
+        '400':
+          description: "Missing or invalid date parameters."
+        '401':
+          description: Unauthorized
   '/api/v1alpha/billing_projects':
     get:
       summary: "List billing projects"
-      description: "List billing projects."
+      description: "List billing projects. Optionally filter by status."
       operationId: getBillingProjects
       tags:
         - Billing Projects
+      parameters:
+        - name: status
+          in: query
+          description: "Filter by billing project status. If omitted, returns both open and closed projects."
+          required: false
+          schema:
+            type: string
+            enum: [open, closed]
       responses:
         '200':
           description: "Successfully retrieved the billing projects."
@@ -757,6 +1061,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/BillingProjectListResponse'
+        '400':
+          description: "Invalid status value."
   '/api/v1alpha/billing_projects/{billing_project}':
     get:
       summary: "Get a billing project"
@@ -783,8 +1089,6 @@ paths:
       summary: Create billing project
       description: Create a new billing project
       tags: [Billing]
-      security:
-        - developerAuth: []
       parameters:
         - name: billing_project
           in: path
@@ -907,8 +1211,6 @@ paths:
       summary: Delete billing project
       description: Delete an existing billing project
       tags: [Billing]
-      security:
-        - developerAuth: []
       parameters:
         - name: billing_project
           in: path
@@ -935,8 +1237,6 @@ paths:
       summary: Edit billing limits
       description: Edit billing limits for a billing project
       tags: [Billing]
-      security:
-        - developerAuth: []
       parameters:
         - name: billing_project
           in: path
@@ -974,6 +1274,38 @@ paths:
           description: Forbidden - requires developer privileges
         '404':
           description: Billing project not found
+  '/api/v1alpha/batches/{batch_id}/jobs/{job_id}/jvm_profile':
+    get:
+      summary: "Get JVM profile data"
+      description: "Get raw JVM profiling data for a completed job. Only available for jobs run with profiling enabled."
+      operationId: getJvmProfile
+      tags:
+        - Batches API v1Alpha
+      parameters:
+        - name: batch_id
+          in: path
+          description: "The ID of the batch."
+          required: true
+          schema:
+            type: number
+        - name: job_id
+          in: path
+          description: "The ID of the job."
+          required: true
+          schema:
+            type: number
+      responses:
+        '200':
+          description: "Raw JVM profile data."
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '401':
+          description: Unauthorized
+        '404':
+          description: "Profile not available (job not complete, profiling not enabled, or profile not yet uploaded)."
   '/batches':
     get:
       summary: "Batches page (UI)"
@@ -1246,8 +1578,6 @@ paths:
       summary: Edit billing limits
       description: Edit billing limits for a billing project
       tags: [Billing]
-      security:
-        - developerAuth: []
       parameters:
         - name: billing_project
           in: path
@@ -1313,8 +1643,6 @@ paths:
       summary: Create billing project
       description: Create a new billing project
       tags: [Billing]
-      security:
-        - developerAuth: []
       parameters:
         - name: billing_project
           in: path
@@ -1546,53 +1874,256 @@ components:
     CreateJobRequest:
       type: object
       required:
-        - job_spec
+        - job_id
+        - process
       properties:
-        job_spec:
+        job_id:
+          type: integer
+          description: "Job ID, unique within the batch update. Job ids must be contiguous and increasing across the job specs in a request."
+        process:
+          description: "What the job executes. A sum type discriminated by the 'type' field."
+          oneOf:
+            - $ref: '#/components/schemas/DockerProcess'
+            - $ref: '#/components/schemas/JvmProcess'
+          discriminator:
+            propertyName: type
+            mapping:
+              docker: '#/components/schemas/DockerProcess'
+              jvm: '#/components/schemas/JvmProcess'
+        always_copy_output:
+          type: boolean
+          description: "Copy output files even if the job fails"
+        always_run:
+          type: boolean
+          description: "Run this job even if its parents failed or the batch was cancelled"
+        attributes:
+          type: object
+          additionalProperties:
+            type: string
+          description: "Key-value pairs of attributes for the job"
+        env:
+          type: array
+          description: "Environment variables"
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+              value:
+                type: string
+        cloudfuse:
+          type: array
+          description: "Cloud storage buckets to mount with FUSE"
+          items:
+            type: object
+            required:
+              - bucket
+              - mount_path
+              - read_only
+            properties:
+              bucket:
+                type: string
+                minLength: 1
+                description: "Name of the bucket to mount"
+              mount_path:
+                type: string
+                minLength: 1
+                description: "Path at which to mount the bucket in the container"
+              read_only:
+                type: boolean
+                description: "Mount the bucket read-only"
+        input_files:
+          type: array
+          description: "Files to copy into the job's container before it runs"
+          items:
+            $ref: '#/components/schemas/FileTransfer'
+        output_files:
+          type: array
+          description: "Files to copy out of the job's container after it runs"
+          items:
+            $ref: '#/components/schemas/FileTransfer'
+        mount_tokens:
+          type: boolean
+          description: "Mount user tokens into the container"
+        network:
+          type: string
+          enum: ["public", "private"]
+          description: "Network access for the job"
+        n_max_attempts:
+          type: integer
+          description: "Maximum number of times this job may be attempted"
+        unconfined:
+          type: boolean
+          description: "Run the container without default security confinement"
+        parent_ids:
+          type: array
+          items:
+            type: integer
+          description: "IDs of jobs this job depends on (alias for absolute_parent_ids)"
+        absolute_parent_ids:
+          type: array
+          items:
+            type: integer
+          description: "Batch-wide IDs of jobs this job depends on"
+        in_update_parent_ids:
+          type: array
+          items:
+            type: integer
+          description: "IDs, relative to the current update, of jobs this job depends on"
+        absolute_job_group_id:
+          type: integer
+          description: "Batch-wide ID of the job group this job belongs to"
+        in_update_job_group_id:
+          type: integer
+          description: "ID, relative to the current update, of the job group this job belongs to"
+        port:
+          type: integer
+          description: "Port to expose"
+        regions:
+          type: array
+          items:
+            type: string
+          description: "Regions in which this job may be scheduled"
+        requester_pays_project:
+          type: string
+          description: "Project to bill for accessing requester-pays buckets"
+        resources:
+          type: object
+          properties:
+            cpu:
+              type: string
+              pattern: '^[+]?((?:[0-9]*[.])?[0-9]+)([m])?$'
+              description: "CPU request, e.g. '1' or '500m'"
+            memory:
+              description: "Memory request: either a quantity, e.g. '3.75Gi', or a memory type"
+              oneOf:
+                - type: string
+                  pattern: '^[+]?((?:[0-9]*[.])?[0-9]+)([KMGTP][i]?)?B?$'
+                - type: string
+                  enum: ["lowmem", "standard", "highmem"]
+            storage:
+              type: string
+              pattern: '^[+]?((?:[0-9]*[.])?[0-9]+)([KMGTP][i]?)?B?$'
+              description: "Storage request, e.g. '10Gi'"
+            machine_type:
+              type: string
+              description: "Specific machine type on which to run the job"
+            preemptible:
+              type: boolean
+              description: "Whether the job may run on a preemptible instance"
+        secrets:
+          type: array
+          description: "Kubernetes secrets to mount into the container"
+          items:
+            type: object
+            required:
+              - namespace
+              - name
+              - mount_path
+            properties:
+              namespace:
+                type: string
+                pattern: '^[a-z0-9](?:[-a-z0-9]*[a-z0-9])?(?:\.[a-z0-9](?:[-a-z0-9]*[a-z0-9])?)*$'
+                maxLength: 253
+              name:
+                type: string
+                pattern: '^[a-z0-9](?:[-a-z0-9]*[a-z0-9])?(?:\.[a-z0-9](?:[-a-z0-9]*[a-z0-9])?)*$'
+                maxLength: 253
+              mount_path:
+                type: string
+        service_account:
           type: object
           required:
-            - command
+            - namespace
+            - name
           properties:
-            command:
-              type: array
-              items:
-                type: string
-              description: "Command to execute"
-            env:
-              type: object
-              additionalProperties:
-                type: string
-              description: "Environment variables"
-            port:
-              type: integer
-              description: "Port to expose"
-            resources:
-              type: object
-              properties:
-                cpu:
-                  type: string
-                memory:
-                  type: string
-                storage:
-                  type: string
-            service_account:
-              type: object
-              properties:
-                namespace:
-                  type: string
-                name:
-                  type: string
-            timeout:
-              type: integer
-              description: "Job timeout in seconds"
-            attributes:
-              type: object
-              additionalProperties:
-                type: string
-              description: "Job attributes"
-            callback:
+            namespace:
               type: string
-              description: "Callback URL"
+              pattern: '^[a-z0-9](?:[-a-z0-9]*[a-z0-9])?(?:\.[a-z0-9](?:[-a-z0-9]*[a-z0-9])?)*$'
+              maxLength: 253
+            name:
+              type: string
+              pattern: '^[a-z0-9](?:[-a-z0-9]*[a-z0-9])?(?:\.[a-z0-9](?:[-a-z0-9]*[a-z0-9])?)*$'
+              maxLength: 253
+        timeout:
+          type: number
+          exclusiveMinimum: 0
+          description: "Job timeout in seconds"
+        user_code:
+          type: string
+          description: "The user code that created this job, for display purposes"
+
+    FileTransfer:
+      type: object
+      required:
+        - from
+        - to
+      properties:
+        from:
+          type: string
+          description: "Source path"
+        to:
+          type: string
+          description: "Destination path"
+
+    DockerProcess:
+      type: object
+      required:
+        - type
+        - command
+        - image
+      properties:
+        type:
+          type: string
+          enum: ["docker"]
+        command:
+          type: array
+          items:
+            type: string
+          description: "Command to execute in the container"
+        image:
+          type: string
+          description: "Docker image to run"
+        mount_docker_socket:
+          type: boolean
+          deprecated: true
+          description: "DEPRECATED. No longer supported; requests with this set to true are rejected."
+
+    JvmProcess:
+      type: object
+      required:
+        - type
+        - jar_spec
+        - command
+      properties:
+        type:
+          type: string
+          enum: ["jvm"]
+        jar_spec:
+          type: object
+          required:
+            - type
+            - value
+          properties:
+            type:
+              type: string
+              enum: ["git_revision", "jar_url"]
+              description: "How the JAR is specified"
+            value:
+              type: string
+              description: "The git revision or JAR URL"
+        command:
+          type: array
+          items:
+            type: string
+          description: "Command to pass to the JVM entryway"
+        profile:
+          type: boolean
+          description: "Enable JVM profiling"
+        spark_version:
+          type: string
+          pattern: '^\d+\.\d+\.\d+$'
+          description: "Spark version that this version of hail requires, e.g. '3.5.3'"
 
     CreateBillingProjectRequest:
       type: object
@@ -1746,6 +2277,16 @@ components:
           additionalProperties:
             type: string
 
+    CostBreakdownEntry:
+      type: object
+      properties:
+        resource:
+          type: string
+          description: "Name of the resource"
+        cost:
+          type: number
+          description: "Cost for this resource in USD"
+
     JobResponse:
       type: object
       properties:
@@ -1755,17 +2296,34 @@ components:
         job_id:
           type: integer
           description: "The job ID"
+        job_group_id:
+          type: integer
+          description: "ID of the job group this job belongs to"
+        name:
+          type: string
+          description: "Name of the job"
+          nullable: true
+        user:
+          type: string
+          description: "User who owns the job"
+        billing_project:
+          type: string
+          description: "Billing project for the job"
         state:
           type: string
-          enum: ["pending", "running", "succeeded", "failed", "cancelled"]
+          enum: ["Pending", "Ready", "Creating", "Running", "Failed", "Cancelled", "Error", "Success"]
           description: "Current state of the job"
+        display_state:
+          type: string
+          description: "Human-readable display state"
+          nullable: true
         exit_code:
           type: integer
           description: "Exit code of the job"
           nullable: true
         duration:
           type: number
-          description: "Duration of the job in seconds"
+          description: "Duration of the job in milliseconds"
           nullable: true
         start_time:
           type: string
@@ -1777,11 +2335,38 @@ components:
           format: date-time
           description: "When the job ended"
           nullable: true
+        cost:
+          type: number
+          description: "Total cost of the job in USD"
+          nullable: true
+        msec_mcpu:
+          type: integer
+          description: "Millisecond milli-CPU usage"
+        cost_breakdown:
+          type: array
+          description: "Per-resource cost breakdown"
+          items:
+            $ref: '#/components/schemas/CostBreakdownEntry'
+        always_run:
+          type: boolean
+          description: "Whether the job runs regardless of the batch's success state"
+        n_max_attempts:
+          type: integer
+          description: "Maximum number of times this job will be attempted"
+        inst_coll:
+          type: string
+          description: "Instance collection the job ran on"
+          nullable: true
         attributes:
           type: object
           description: "Key-value pairs of attributes for the job"
           additionalProperties:
             type: string
+          nullable: true
+        status:
+          type: object
+          description: "Detailed job status"
+          nullable: true
         spec:
           $ref: '#/components/schemas/CreateJobRequest'
 
@@ -1899,6 +2484,10 @@ components:
         instance_name:
           type: string
           description: "Name of the instance that ran the attempt"
+        location:
+          type: string
+          description: "Zone or region where the attempt ran (e.g. 'us-central1-a')"
+          nullable: true
         start_time:
           type: string
           format: date-time
@@ -1924,6 +2513,88 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/JobAttemptResponse'
+
+    JobOffsetPagination:
+      type: object
+      description: >
+        Pagination info shared by endpoints that page over a batch's jobs by job_offset (see
+        the job_offset/page_size query params on those endpoints).
+      properties:
+        current_job_offset:
+          type: integer
+          description: "The job_offset that produced this page."
+        next_page_job_offset:
+          type: integer
+          description: "The job_offset to request for the next page. Null if this is the last page."
+          nullable: true
+        page_size:
+          type: integer
+          description: "The page_size that produced this page."
+        total_jobs:
+          type: integer
+          description: "Total number of jobs in the batch."
+
+    AttemptTiming:
+      type: object
+      properties:
+        attempt_id:
+          type: string
+          description: "ID of the attempt"
+        start_time:
+          type: integer
+          description: "When the attempt started, in epoch milliseconds"
+          nullable: true
+        end_time:
+          type: integer
+          description: "When the attempt ended, in epoch milliseconds"
+          nullable: true
+        reason:
+          type: string
+          description: "Reason for the attempt status"
+          nullable: true
+
+    JobTiming:
+      type: object
+      properties:
+        job_id:
+          type: integer
+          description: "ID of the job"
+        attempts:
+          type: array
+          items:
+            $ref: '#/components/schemas/AttemptTiming'
+
+    BatchTimingResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/JobTiming'
+        pagination:
+          $ref: '#/components/schemas/JobOffsetPagination'
+
+    JobGraphEntry:
+      type: object
+      properties:
+        job_id:
+          type: integer
+          description: "ID of the job"
+        parent_ids:
+          type: array
+          items:
+            type: integer
+          description: "IDs of this job's parents"
+
+    JobGraphResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/JobGraphEntry'
+        pagination:
+          $ref: '#/components/schemas/JobOffsetPagination'
 
     ResourceUsageResponse:
       type: object
@@ -2185,6 +2856,35 @@ components:
           description: "List of child job groups"
           items:
             $ref: '#/components/schemas/JobGroupResponse'
+
+    BillingRecord:
+      type: object
+      properties:
+        billing_project:
+          type: string
+          description: "The billing project."
+        user:
+          type: string
+          description: "The user."
+        total_spent:
+          type: number
+          description: "Total cost in USD."
+
+    BillingBreakdownRecord:
+      type: object
+      properties:
+        billing_project:
+          type: string
+          description: "The billing project."
+        user:
+          type: string
+          description: "The user."
+        resource:
+          type: string
+          description: "Internal resource name (e.g. 'service-fee', 'compute/n1-standard/preemptible/us-central1')."
+        cost:
+          type: number
+          description: "Cost in USD for this (billing_project, user, resource) combination."
 
     CreateJobGroupResponse:
       type: object

@@ -1,11 +1,12 @@
 package is.hail.expr.ir
 
 import is.hail.collection.FastSeq
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir.defs._
 import is.hail.types.tcoerce
 import is.hail.types.virtual._
 import is.hail.types.virtual.TIterable.elementType
+
+import scala.collection.immutable.ArraySeq
 
 sealed abstract class AggEnv {
   def empty: AggEnv = this match {
@@ -17,8 +18,7 @@ sealed abstract class AggEnv {
   }
 
   def isEmpty: Boolean = this match {
-    case AggEnv.Create(bindings) => bindings.isEmpty
-    case AggEnv.Bind(bindings) => bindings.isEmpty
+    case a: AggEnv.Modify => a.bindings.isEmpty
     case _ => true
   }
 }
@@ -27,8 +27,10 @@ object AggEnv {
   case object NoOp extends AggEnv
   case object Drop extends AggEnv
   case object Promote extends AggEnv
-  final case class Create(bindings: Seq[Int]) extends AggEnv
-  final case class Bind(bindings: Seq[Int]) extends AggEnv
+
+  abstract class Modify extends AggEnv { def bindings: Seq[Int] }
+  final case class Create(override val bindings: Seq[Int]) extends Modify
+  final case class Bind(override val bindings: Seq[Int]) extends Modify
 
   def bindOrNoOp(bindings: Seq[Int]): AggEnv =
     if (bindings.nonEmpty) Bind(bindings) else NoOp
@@ -224,38 +226,40 @@ object Bindings {
   private def childEnvValue(ir: IR, i: Int): Bindings[Type] =
     ir match {
       case Block(bindings, _) =>
-        val bindingsTypes = bindings.view.take(i).map(b => b.name -> b.value.typ).to(ArraySeq)
+        val types = ArraySeq.newBuilder[(Name, Type)]
+        types.sizeHint(i)
+
         val eval = ArraySeq.newBuilder[Int]
+        eval.sizeHint(i) // most likely binding in eval
+
         val agg = ArraySeq.newBuilder[Int]
         val scan = ArraySeq.newBuilder[Int]
-        for (k <- 0 until i) bindings(k) match {
-          case Binding(_, _, Scope.EVAL) =>
-            eval += k
-          case Binding(_, _, Scope.AGG) =>
-            agg += k
-          case Binding(_, _, Scope.SCAN) =>
-            scan += k
+
+        for (k <- 0 until i) {
+          val Binding(name, value, scope) = bindings(k)
+          types += name -> value.typ
+          scope match {
+            case Scope.EVAL =>
+              eval += k
+            case Scope.AGG =>
+              agg += k
+            case Scope.SCAN =>
+              scan += k
+          }
         }
-        if (i < bindings.length) bindings(i).scope match {
-          case Scope.EVAL =>
-            Bindings(
-              bindingsTypes,
-              eval.result(),
-              AggEnv.bindOrNoOp(agg.result()),
-              AggEnv.bindOrNoOp(scan.result()),
-            )
-          case Scope.AGG =>
-            Bindings(bindingsTypes, agg.result(), AggEnv.Promote, AggEnv.bindOrNoOp(scan.result()))
-          case Scope.SCAN =>
-            Bindings(bindingsTypes, scan.result(), AggEnv.bindOrNoOp(agg.result()), AggEnv.Promote)
-        }
-        else
+
+        if (i == bindings.length || bindings(i).scope == Scope.EVAL)
           Bindings(
-            bindingsTypes,
+            types.result(),
             eval.result(),
             AggEnv.bindOrNoOp(agg.result()),
             AggEnv.bindOrNoOp(scan.result()),
           )
+        else if (bindings(i).scope == Scope.AGG)
+          Bindings(types.result(), agg.result(), AggEnv.Promote, AggEnv.bindOrNoOp(scan.result()))
+        else // SCAN
+          Bindings(types.result(), scan.result(), AggEnv.bindOrNoOp(agg.result()), AggEnv.Promote)
+
       case TailLoop(name, args, resultType, _) if i == args.length =>
         Bindings(
           args.map { case (name, ir) => name -> ir.typ } :+
@@ -317,6 +321,7 @@ object Bindings {
         Bindings(
           FastSeq(name -> elementType(a.typ)),
           agg = AggEnv.Create(FastSeq(0)),
+          scan = AggEnv.Drop,
         )
       case StreamScan(a, zero, accumName, valueName, _) if i == 2 =>
         Bindings(FastSeq(accumName -> zero.typ, valueName -> elementType(a.typ)))
@@ -325,6 +330,7 @@ object Bindings {
         Bindings(
           FastSeq(name -> eltType),
           eval = FastSeq(0),
+          agg = AggEnv.Drop,
           scan = AggEnv.Create(FastSeq(0)),
         )
       case StreamJoinRightDistinct(ll, rr, _, _, l, r, _, _) if i == 2 =>

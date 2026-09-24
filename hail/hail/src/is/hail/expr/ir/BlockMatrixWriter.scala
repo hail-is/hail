@@ -3,7 +3,6 @@ package is.hail.expr.ir
 import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.backend.ExecuteContext
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.Nat
 import is.hail.expr.ir.defs.{MetadataWriter, Str, UUID4, WriteMetadata, WriteValue}
 import is.hail.expr.ir.lowering.{BlockMatrixStage2, LowererUnsupportedOperation}
@@ -15,6 +14,8 @@ import is.hail.types.TypeWithRequiredness
 import is.hail.types.encoded.{EBlockMatrixNDArray, EType}
 import is.hail.types.virtual._
 import is.hail.utils._
+
+import scala.collection.immutable.ArraySeq
 
 import java.io.DataOutputStream
 
@@ -55,12 +56,11 @@ case class BlockMatrixNativeWriter(
   path: String,
   overwrite: Boolean,
   forceRowMajor: Boolean,
-  stageLocally: Boolean,
 ) extends BlockMatrixWriter {
   override def pathOpt: Option[String] = Some(path)
 
   override def apply(ctx: ExecuteContext, bm: BlockMatrix): Unit =
-    bm.write(ctx, path, overwrite, forceRowMajor, stageLocally)
+    bm.write(ctx, path, overwrite, forceRowMajor)
 
   override def loweredTyp: Type = TVoid
 
@@ -81,23 +81,17 @@ case class BlockMatrixNativeWriter(
     val paths = s.collectBlocks(evalCtx, "block_matrix_native_writer") { (_, idx, block) =>
       val suffix = strConcat("parts/part-", idx, UUID4())
       val filepath = strConcat(s"$path/", suffix)
-      WriteValue(
-        block,
-        filepath,
-        writer,
-        if (stageLocally) Some(strConcat(s"${ctx.localTmpdir}/", suffix)) else None,
-      )
+      WriteValue(block, filepath, writer)
     }
     RelationalWriter.scoped(path, overwrite, None)(WriteMetadata(
       paths,
-      BlockMatrixNativeMetadataWriter(path, stageLocally, s.typ),
+      BlockMatrixNativeMetadataWriter(path, s.typ),
     ))
   }
 }
 
 case class BlockMatrixNativeMetadataWriter(
   path: String,
-  stageLocally: Boolean,
   typ: BlockMatrixType,
 ) extends MetadataWriter with Logging {
 

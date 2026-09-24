@@ -1,11 +1,11 @@
 package is.hail.asm4s
 
 import is.hail.collection.FastSeq
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.lir
 import is.hail.lir.{Block, ControlX, ValueX}
 
+import scala.collection.immutable.ArraySeq
 import scala.reflect.ClassTag
 
 import java.io.PrintStream
@@ -1838,7 +1838,7 @@ object CodeLabel {
 class CodeLabel(val L: lir.Block) extends Code[Unit] {
   private var _start: lir.Block = L
 
-//  // for debugging
+  // for debugging
 //  val stack = Thread.currentThread().getStackTrace
 //  var clearStack: Array[StackTraceElement] = _
 
@@ -1860,13 +1860,19 @@ class CodeLabel(val L: lir.Block) extends Code[Unit] {
   }
 
   override def check(): Unit =
-    /* if (_start == null) { println(clearStack.mkString("\n")) println("-----")
-     * println(stack.mkString("\n")) } */
+//    if (_start == null) {
+//      println(clearStack.mkString("\n"))
+//      println("-----")
+//      println(stack.mkString("\n"))
+//    }
     assert(_start != null)
 
   override def clear(): Unit =
-    /* if (clearStack != null) { println(clearStack.mkString("\n")) } assert(clearStack == null)
-     * clearStack = Thread.currentThread().getStackTrace */
+//    if (clearStack != null) {
+//      println(clearStack.mkString("\n"))
+//    }
+//    assert(clearStack == null)
+//    clearStack = Thread.currentThread().getStackTrace
     _start = null
 
   def goto: Code[Unit] = Code.void(lir.goto(L))

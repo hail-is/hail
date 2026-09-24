@@ -109,7 +109,7 @@ class PSTBuilder(
 
   private def computeBackEdges(): Unit = {
     // recursion will blow out the stack
-    val stack = mutable.ArrayStack.empty[(Int, Iterator[Int])]
+    val stack = mutable.Stack.empty[(Int, Iterator[Int])]
     val onStack = mutable.Set[Int]()
     val visited = mutable.Set[Int]()
 
@@ -164,7 +164,7 @@ class PSTBuilder(
     var k = 0
 
     // recursion will blow out the stack
-    val stack = mutable.ArrayStack.empty[(Int, Iterator[Int])]
+    val stack = mutable.Stack.empty[(Int, Iterator[Int])]
 
     def push(b: Int): Unit = {
       val i = k

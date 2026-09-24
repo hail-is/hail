@@ -4399,7 +4399,7 @@ class NDArrayExpression(Expression):
             for i, tuple_field_type in enumerate(shape.dtype.types):
                 if tuple_field_type not in [hl.tint32, hl.tint64]:
                     raise TypeError(f"Argument {i} of reshape needs to be an integer, got {tuple_field_type}.")
-            shape_ir = hl.or_missing(hl.is_defined(shape), hl.tuple([hl.int64(i) for i in shape]))._ir
+            shape_ir = hl.bind(lambda s: hl.or_missing(hl.is_defined(s), hl.tuple([hl.int64(i) for i in s])), shape)._ir
             ndim = len(shape)
         else:
             wrapped_shape = wrap_to_list(shape)

@@ -2,7 +2,6 @@ package is.hail.sparkextras.implicits
 
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.collection.implicits.{toRichIterable, toRichOrderedSeq}
 import is.hail.expr.ir.ExportType
 import is.hail.io.FileWriteMetadata
@@ -10,6 +9,7 @@ import is.hail.io.compress.{BGzipCodec, ComposableBGzipCodec, ComposableBGzipOut
 import is.hail.sparkextras._
 import is.hail.utils._
 
+import scala.collection.immutable.ArraySeq
 import scala.collection.mutable
 import scala.reflect.ClassTag
 
@@ -225,7 +225,6 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
   def writePartitions(
     ctx: ExecuteContext,
     path: String,
-    stageLocally: Boolean,
     write: (Iterator[T], OutputStream) => (Long, Long),
   )(implicit T: ClassTag[T]
   ): IndexedSeq[FileWriteMetadata] =
@@ -233,7 +232,6 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
       ctx,
       path,
       null,
-      stageLocally,
       (_, _, _) => null,
       (_, _, it, os, _) => write(it, os),
     )

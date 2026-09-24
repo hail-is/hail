@@ -1,10 +1,10 @@
 package is.hail.io.fs
 
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.io.compress.{BGzipInputStream, BGzipOutputStream}
 import is.hail.io.fs.FSUtil.{containsWildcard, dropTrailingSlash}
 import is.hail.utils._
 
+import scala.collection.immutable.ArraySeq
 import scala.io.Source
 
 import java.io._
@@ -111,7 +111,10 @@ trait CompressionCodec {
 object GZipCompressionCodec extends CompressionCodec {
   // java.util.zip.GZIPInputStream does not support concatenated files/multiple blocks
   override def makeInputStream(is: InputStream): InputStream =
-    new GzipCompressorInputStream(is, true)
+    GzipCompressorInputStream.builder()
+      .setInputStream(is)
+      .setDecompressConcatenated(true)
+      .get()
 
   override def makeOutputStream(os: OutputStream): OutputStream = new GZIPOutputStream(os)
 }

@@ -2,8 +2,8 @@ import importlib.resources
 from pathlib import Path
 from sys import version_info
 
-if version_info < (3, 10):
-    raise EnvironmentError(f'Hail requires Python 3.10 or later, found {version_info.major}.{version_info.minor}')
+if version_info < (3, 12):
+    raise EnvironmentError(f'Hail requires Python 3.12 or later, found {version_info.major}.{version_info.minor}')
 
 
 def __resource(name: str) -> Path:

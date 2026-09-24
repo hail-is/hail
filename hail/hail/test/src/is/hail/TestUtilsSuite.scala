@@ -1,9 +1,11 @@
 package is.hail
 
-import breeze.linalg.{DenseMatrix, DenseVector}
-import org.testng.annotations.Test
+import is.hail.TestUtils._
 
-class TestUtilsSuite extends HailSuite {
+import breeze.linalg.{DenseMatrix, DenseVector}
+import org.junit.jupiter.api.Test
+
+class TestUtilsSuite {
 
   @Test def matrixEqualityTest(): Unit = {
     val M = DenseMatrix((1d, 0d), (0d, 1d))
@@ -15,8 +17,8 @@ class TestUtilsSuite extends HailSuite {
     assertMatrixEqualityDouble(M, M1, 0.001)
     assertVectorEqualityDouble(V, 2d * V1)
 
-    assertThrows[Exception](assertVectorEqualityDouble(V, V1))
-    assertThrows[Exception](assertMatrixEqualityDouble(M, M1))
+    intercept[AssertionError](assertVectorEqualityDouble(V, V1)): Unit
+    intercept[AssertionError](assertMatrixEqualityDouble(M, M1)): Unit
   }
 
   @Test def constantVectorTest(): Unit = {

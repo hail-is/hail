@@ -1,7 +1,8 @@
 package is.hail.asm4s
 
-import is.hail.HailSuite
-import is.hail.annotations.Region
+import is.hail.TestUtils._
+import is.hail.annotations.{Region, RowSeq}
+import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.{EmitCodeBuilder, EmitFunctionBuilder, EmitValue, IEmitCode}
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.{EmitType, SValue}
@@ -12,11 +13,11 @@ import is.hail.types.physical.stypes.primitives.{
 import is.hail.types.virtual.{TInt32, TInt64, TStruct}
 
 import org.apache.spark.sql.Row
-import org.testng.annotations.Test
+import org.junit.jupiter.api.Test
 
-class CodeSuite extends HailSuite {
+class CodeSuite {
 
-  @Test def testForLoop(): Unit = {
+  @Test def testForLoop(implicit ctx: ExecuteContext): Unit = {
     val fb = EmitFunctionBuilder[Int](ctx, "foo")
     fb.emitWithBuilder[Int] { cb =>
       val i = cb.newLocal[Int]("i")
@@ -26,11 +27,11 @@ class CodeSuite extends HailSuite {
       sum
     }
 
-    val result = fb.resultWithIndex()(theHailClassLoader, ctx.fs, ctx.taskContext, ctx.r)()
-    assert(result == 10)
+    val result = fb.resultWithIndex()(ctx.theHailClassLoader, ctx.fs, ctx.taskContext, ctx.r)()
+    assertEq(result, 10)
   }
 
-  @Test def testSizeBasic(): Unit = {
+  @Test def testSizeBasic(implicit ctx: ExecuteContext): Unit = {
     val int64 = new SInt64Value(5L)
     val int32 = new SInt32Value(2)
     val struct = new SStackStructValue(
@@ -46,18 +47,19 @@ class CodeSuite extends HailSuite {
       val fb = EmitFunctionBuilder[Long](ctx, "test_size_in_bytes")
       val mb = fb.apply_method
       mb.emit(EmitCodeBuilder.scopedCode(mb)(cb => v.sizeToStoreInBytes(cb).value))
-      fb.result()(theHailClassLoader)()
+      fb.result()(ctx.theHailClassLoader)()
     }
 
-    assert(testSizeHelper(int64) == 8L)
-    assert(testSizeHelper(int32) == 4L)
-    assert(
-      testSizeHelper(struct) == 16L
+    assertEq(testSizeHelper(int64), 8L)
+    assertEq(testSizeHelper(int32), 4L)
+    assertEq(
+      testSizeHelper(struct),
+      16L,
     ) // 1 missing byte that gets 4 byte aligned, 8 bytes for long, 4 bytes for missing int
-    assert(testSizeHelper(str) == 7L) // 4 byte header, 3 bytes for the 3 letters.
+    assertEq(testSizeHelper(str), 7L) // 4 byte header, 3 bytes for the 3 letters.
   }
 
-  @Test def testArraySizeInBytes(): Unit = {
+  @Test def testArraySizeInBytes(implicit ctx: ExecuteContext): Unit = {
     val fb = EmitFunctionBuilder[Region, Long](ctx, "test_size_in_bytes")
     val mb = fb.apply_method
     val ptype = PCanonicalArray(PInt32())
@@ -73,12 +75,13 @@ class CodeSuite extends HailSuite {
       }
       sarray.sizeToStoreInBytes(cb).value
     })
-    assert(
-      fb.result()(theHailClassLoader)(ctx.r) == 36L
+    assertEq(
+      fb.result()(ctx.theHailClassLoader)(ctx.r),
+      36L,
     ) // 2 missing bytes 8 byte aligned + 8 header bytes + 5 elements * 4 bytes for ints.
   }
 
-  @Test def testIntervalSizeInBytes(): Unit = {
+  @Test def testIntervalSizeInBytes(implicit ctx: ExecuteContext): Unit = {
     val fb = EmitFunctionBuilder[Region, Long](ctx, "test_size_in_bytes")
     val mb = fb.apply_method
 
@@ -111,50 +114,60 @@ class CodeSuite extends HailSuite {
       )
       sval.sizeToStoreInBytes(cb).value
     })
-    assert(fb.result()(theHailClassLoader)(ctx.r) == 72L) // 2 28 byte structs, plus 2 1 byte booleans that get 8 byte for an extra 8 bytes, plus missing bytes.
+    assertEq(
+      fb.result()(ctx.theHailClassLoader)(ctx.r),
+      72L,
+    ) // 2 28 byte structs, plus 2 1 byte booleans that get 8 byte for an extra 8 bytes, plus missing bytes.
   }
 
-  @Test def testHash(): Unit = {
+  @Test def testHash(implicit ctx: ExecuteContext): Unit = {
     val fields = IndexedSeq(
       PField("a", PCanonicalString(), 0),
       PField("b", PInt32(), 1),
       PField("c", PFloat32(), 2),
     )
-    assert(hashTestNumHelper(new SInt32Value(6)) == hashTestNumHelper(new SInt32Value(6)))
-    assert(hashTestNumHelper(new SInt64Value(5000000000L)) == hashTestNumHelper(
-      new SInt64Value(5000000000L)
-    ))
-    assert(
-      hashTestNumHelper(new SFloat32Value(3.14f)) == hashTestNumHelper(new SFloat32Value(3.14f))
+    assertEq(hashTestNumHelper(new SInt32Value(6)), hashTestNumHelper(new SInt32Value(6)))
+    assertEq(
+      hashTestNumHelper(new SInt64Value(5000000000L)),
+      hashTestNumHelper(new SInt64Value(5000000000L)),
     )
-    assert(hashTestNumHelper(new SFloat64Value(5000000000.89d)) == hashTestNumHelper(
-      new SFloat64Value(5000000000.89d)
-    ))
-    assert(hashTestStringHelper("dog") == hashTestStringHelper("dog"))
-    assert(hashTestArrayHelper(IndexedSeq(1, 2, 3, 4, 5, 6)) == hashTestArrayHelper(IndexedSeq(1, 2,
-      3, 4, 5, 6)))
+    assertEq(
+      hashTestNumHelper(new SFloat32Value(3.14f)),
+      hashTestNumHelper(new SFloat32Value(3.14f)),
+    )
+    assertEq(
+      hashTestNumHelper(new SFloat64Value(5000000000.89d)),
+      hashTestNumHelper(new SFloat64Value(5000000000.89d)),
+    )
+    assertEq(hashTestStringHelper("dog"), hashTestStringHelper("dog"))
+    assertEq(
+      hashTestArrayHelper(IndexedSeq(1, 2, 3, 4, 5, 6)),
+      hashTestArrayHelper(IndexedSeq(1, 2, 3, 4, 5, 6)),
+    )
     assert(hashTestArrayHelper(IndexedSeq(1, 2)) != hashTestArrayHelper(IndexedSeq(3, 4, 5, 6, 7)))
-    assert(hashTestStructHelper(Row("wolf", 8, .009f), fields) == hashTestStructHelper(
-      Row("wolf", 8, .009f),
-      fields,
-    ))
-    assert(hashTestStructHelper(Row("w", 8, .009f), fields) != hashTestStructHelper(
-      Row("opaque", 8, .009f),
-      fields,
-    ))
+    assertEq(
+      hashTestStructHelper(RowSeq("wolf", 8, .009f), fields),
+      hashTestStructHelper(RowSeq("wolf", 8, .009f), fields),
+    )
+    assert(
+      hashTestStructHelper(RowSeq("w", 8, .009f), fields) != hashTestStructHelper(
+        RowSeq("opaque", 8, .009f),
+        fields,
+      )
+    )
   }
 
-  def hashTestNumHelper(v: SValue): Int = {
+  def hashTestNumHelper(v: SValue)(implicit ctx: ExecuteContext): Int = {
     val fb = EmitFunctionBuilder[Int](ctx, "test_hash")
     val mb = fb.apply_method
     mb.emit(EmitCodeBuilder.scopedCode(mb) { cb =>
       val hash = v.hash(cb)
       hash.value
     })
-    fb.result()(theHailClassLoader)()
+    fb.result()(ctx.theHailClassLoader)()
   }
 
-  def hashTestStringHelper(toHash: String): Int = {
+  def hashTestStringHelper(toHash: String)(implicit ctx: ExecuteContext): Int = {
     val pstring = PCanonicalString()
     val fb = EmitFunctionBuilder[Region, Int](ctx, "test_hash")
     val mb = fb.apply_method
@@ -166,11 +179,11 @@ class CodeSuite extends HailSuite {
       val hash = i.hash(cb)
       hash.value
     })
-    val region = Region(pool = pool)
-    fb.result()(theHailClassLoader)(region)
+    val region = Region(pool = ctx.r.pool)
+    fb.result()(ctx.theHailClassLoader)(region)
   }
 
-  def hashTestArrayHelper(toHash: IndexedSeq[Int]): Int = {
+  def hashTestArrayHelper(toHash: IndexedSeq[Int])(implicit ctx: ExecuteContext): Int = {
     val pArray = PCanonicalArray(PInt32(true))
     val fb = EmitFunctionBuilder[Long, Int](ctx, "test_hash")
     val mb = fb.apply_method
@@ -180,12 +193,13 @@ class CodeSuite extends HailSuite {
       val hash = arrayToHash.hash(cb)
       hash.value
     })
-    val region = Region(pool = pool)
+    val region = Region(pool = ctx.r.pool)
     val arrayPointer = pArray.unstagedStoreJavaObject(ctx.stateManager, toHash, region)
-    fb.result()(theHailClassLoader)(arrayPointer)
+    fb.result()(ctx.theHailClassLoader)(arrayPointer)
   }
 
-  def hashTestStructHelper(toHash: Row, fields: IndexedSeq[PField]): Int = {
+  def hashTestStructHelper(toHash: Row, fields: IndexedSeq[PField])(implicit ctx: ExecuteContext)
+    : Int = {
     val pStruct = PCanonicalStruct(fields)
     val fb = EmitFunctionBuilder[Long, Int](ctx, "test_hash")
     val mb = fb.apply_method
@@ -195,8 +209,8 @@ class CodeSuite extends HailSuite {
       val hash = structToHash.hash(cb)
       hash.value
     })
-    val region = Region(pool = pool)
+    val region = Region(pool = ctx.r.pool)
     val structPointer = pStruct.unstagedStoreJavaObject(ctx.stateManager, toHash, region)
-    fb.result()(theHailClassLoader)(structPointer)
+    fb.result()(ctx.theHailClassLoader)(structPointer)
   }
 }

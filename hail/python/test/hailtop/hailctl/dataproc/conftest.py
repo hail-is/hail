@@ -21,10 +21,30 @@ def gcloud_run():
     return Mock()
 
 
+@pytest.fixture
+def gcloud_output():
+    return Mock(return_value="")
+
+
+@pytest.fixture
+def machine_type_info():
+    """Fixture for (vCPUs, memory GiB) of machine types used in tests."""
+    return {
+        "n4-standard-8": (8, 32),
+        "n4-standard-16": (16, 64),
+        "n4-standard-32": (32, 128),
+        "n4-highmem-8": (8, 64),
+        "n4-highmem-16": (16, 128),
+        "n2-standard-8": (8, 32),
+        "n2-highmem-8": (8, 64),
+    }
+
+
 @pytest.fixture(autouse=True)
-def patch_gcloud(monkeypatch, gcloud_run, gcloud_config):
+def patch_gcloud(monkeypatch, gcloud_run, gcloud_output, gcloud_config, machine_type_info):
     """Automatically replace gcloud functions with mocks."""
     monkeypatch.setattr("hailtop.hailctl.dataproc.gcloud.run", gcloud_run)
+    monkeypatch.setattr("hailtop.hailctl.dataproc.gcloud.output", gcloud_output)
     monkeypatch.setattr(
         "hailtop.hailctl.dataproc.gcloud.get_version", Mock(return_value=MINIMUM_REQUIRED_GCLOUD_VERSION)
     )
@@ -33,6 +53,11 @@ def patch_gcloud(monkeypatch, gcloud_run, gcloud_config):
         return gcloud_config.get(setting, None)
 
     monkeypatch.setattr("hailtop.hailctl.dataproc.gcloud.get_config", mock_gcloud_get_config)
+
+    def mock_get_machine_type_info(machine_type):
+        return machine_type_info[machine_type]
+
+    monkeypatch.setattr("hailtop.hailctl.dataproc.gcloud.get_machine_type_info", mock_get_machine_type_info)
 
     yield
 

@@ -2,10 +2,9 @@ package is.hail.annotations
 
 import is.hail.expr.ir.agg._
 
-import org.scalatestplus.testng.TestNGSuite
-import org.testng.annotations.Test
+import org.junit.jupiter.api.Test
 
-class ApproxCDFAggregatorSuite extends TestNGSuite {
+class ApproxCDFAggregatorSuite {
   @Test
   def testMerge(): Unit = {
     val array: Array[Double] = Array(1, 3, 5, 0, 0, 0, 2, 4, 6)

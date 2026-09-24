@@ -39,7 +39,7 @@ object LegacyEncodedTypeParser {
       case "Int" => (TInt32, EInt32(req))
       case "Float32" => (TFloat32, EFloat32(req))
       case "Float64" => (TFloat64, EFloat64(req))
-      case "String" => (TString, EBinary(req))
+      case "String" => (TString, EBinaryLegacyFullWidthIntegerLength(req))
       case "Locus" =>
         punctuation(it, "(")
         val rg = identifier(it)
@@ -48,7 +48,7 @@ object LegacyEncodedTypeParser {
           TLocus(rg),
           EBaseStruct(
             FastSeq(
-              EField("contig", EBinaryRequired, 0),
+              EField("contig", EBinaryLegacyFullWidthIntegerLengthRequired, 0),
               EField("position", EInt32Required, 1),
             ),
             req,
@@ -59,12 +59,12 @@ object LegacyEncodedTypeParser {
         punctuation(it, "[")
         val (elementType, elementEType) = legacy_type_expr(it)
         punctuation(it, "]")
-        (TArray(elementType), EArray(elementEType, req))
+        (TArray(elementType), EArrayLegacyFullWidthIntegerLength(elementEType, req))
       case "Set" =>
         punctuation(it, "[")
         val (elementType, elementEType) = legacy_type_expr(it)
         punctuation(it, "]")
-        (TSet(elementType), EArray(elementEType, req))
+        (TSet(elementType), EArrayLegacyFullWidthIntegerLength(elementEType, req))
       case "Dict" =>
         punctuation(it, "[")
         val (keyType, keyEType) = legacy_type_expr(it)
@@ -73,7 +73,7 @@ object LegacyEncodedTypeParser {
         punctuation(it, "]")
         (
           TDict(keyType, valueType),
-          EArray(
+          EArrayLegacyFullWidthIntegerLength(
             EBaseStruct(
               FastSeq(
                 EField("key", keyEType, 0),

@@ -1,28 +1,29 @@
 package is.hail.collection
 
-import org.scalatestplus.testng.TestNGSuite
-import org.testng.annotations.Test
+import is.hail.TestUtils._
 
-class ArrayBuilderSuite extends TestNGSuite {
+import org.junit.jupiter.api.Test
+
+class ArrayBuilderSuite {
   @Test def addOneElement(): Unit = {
     val ab = new IntArrayBuilder(0)
     ab += 3
     val a = ab.result()
-    assert(a.length == 1)
-    assert(a(0) == 3)
+    assertEq(a.length, 1)
+    assertEq(a(0), 3)
   }
 
   @Test def addArray(): Unit = {
     val ab = new IntArrayBuilder(0)
     ab ++= Array.fill[Int](5)(2)
     val a = ab.result()
-    assert(a.length == 5)
+    assertEq(a.length, 5)
     assert(a.forall(_ == 2))
 
     val ab2 = new IntArrayBuilder(0)
     ab2 ++= (Array.fill[Int](4)(3), 2)
     val a2 = ab2.result()
-    assert(a2.length == 2)
+    assertEq(a2.length, 2)
     assert(a2.forall(_ == 3))
 
     ab2(0) = 5

@@ -3,14 +3,18 @@ package is.hail.expr.ir
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.NormalizeNames.needsRenaming
 import is.hail.expr.ir.defs._
+import is.hail.expr.ir.lowering.invariant.{NoSharedNodes, UniquelyNamed}
 import is.hail.types.virtual.Type
 import is.hail.utils.StackSafe._
+import is.hail.utils.TimedBlock
 
 import scala.annotation.tailrec
+import scala.collection.mutable
 
 object NormalizeNames {
   def apply[T <: BaseIR](allowFreeVariables: Boolean = false)(ctx: ExecuteContext, ir: T): T =
-    ctx.time {
+    TimedBlock.enter {
+      NoSharedNodes.verify(ctx, ir)
       val freeVariables: Set[Name] = ir match {
         case ir: IR =>
           if (allowFreeVariables) {
@@ -26,14 +30,14 @@ object NormalizeNames {
           Set.empty
       }
       val env = BindingEnv.empty[Name].createAgg.createScan
-      val noSharing = ir.noSharing(ctx)
       val normalize = new NormalizeNames(freeVariables)
-      val res = normalize.normalizeIR(noSharing, env).run().asInstanceOf[T]
+      val res = normalize.normalizeIR(ir, env).run().asInstanceOf[T]
+      UniquelyNamed.verify(ctx, res)
       uidCounter = math.max(uidCounter, normalize.count.toLong)
       res
     }
 
-  protected def needsRenaming(ir: BaseIR): Boolean = ir match {
+  def needsRenaming(ir: BaseIR): Boolean = ir match {
     case _: RelationalLetMatrixTable | _: TableGen | _: TableMapPartitions | _: RelationalLetTable =>
       true
     case _: MatrixIR | _: TableIR =>
@@ -74,7 +78,7 @@ class NormalizeNames(freeVariables: Set[Name]) {
     case Ref(name, typ) =>
       val newName = env.eval.lookupOption(name).getOrElse {
         if (!freeVariables.contains(name)) throw new RuntimeException(
-          s"found free variable in normalize: $name; ${env.pretty(x => x.str)}"
+          s"found free variable in normalize: $name: ${typ._toPretty}; ${env.pretty(x => x.str)}"
         )
         else name
       }
@@ -98,7 +102,7 @@ class NormalizeNames(freeVariables: Set[Name]) {
       }
       Recur(newName, args, typ).mapChildrenStackSafe(normalizeIR(_, env))
     case ir =>
-      val bindingsMap = is.hail.collection.compat.mutable.AnyRefMap.empty[Name, Name]
+      val bindingsMap = mutable.HashMap.empty[Name, Name]
       val updateEnv: (BindingEnv[Name], Bindings[Type]) => BindingEnv[Name] =
         if (needsRenaming(ir)) { (env, bindings) =>
           val bindingsNames = bindings.map((name, _) => bindingsMap.getOrElseUpdate(name, gen()))

@@ -4,11 +4,10 @@ import is.hail.annotations.Region
 import is.hail.asm4s.{coerce => _, _}
 import is.hail.backend.HailStateManager
 import is.hail.expr.ir._
-import is.hail.expr.ir.defs._
 import is.hail.io.fs.FS
 import is.hail.io.vcf.{LoadVCF, VCFHeaderInfo}
 import is.hail.types.physical.stypes._
-import is.hail.types.physical.stypes.concrete.SJavaString
+import is.hail.types.physical.stypes.concrete.{SJavaBytes, SJavaString}
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives._
 import is.hail.types.virtual._
@@ -188,10 +187,6 @@ object UtilFunctions extends RegistryFunctions {
   def nanmax_ignore_missing(l: Double, lMissing: Boolean, r: Double, rMissing: Boolean): Double =
     if (lMissing) r else if (rMissing) l else nanmax(l, r)
 
-  def intMin(a: IR, b: IR): IR = If(ApplyComparisonOp(LT, a, b), a, b)
-
-  def intMax(a: IR, b: IR): IR = If(ApplyComparisonOp(GT, a, b), a, b)
-
   def format(f: String, args: Row): String =
     try
       String.format(f, args.toSeq.map(_.asInstanceOf[java.lang.Object]): _*)
@@ -309,8 +304,8 @@ object UtilFunctions extends RegistryFunctions {
     }
 
     Array(TInt32, TInt64).foreach { t =>
-      registerIR2("min", t, t, t)((_, a, b, _) => intMin(a, b))
-      registerIR2("max", t, t, t)((_, a, b, _) => intMax(a, b))
+      registerIR2("min", t, t, t)((_, a, b, _) => minIR(a, b))
+      registerIR2("max", t, t, t)((_, a, b, _) => maxIR(a, b))
     }
 
     Array("min", "max").foreach { name =>
@@ -663,5 +658,19 @@ object UtilFunctions extends RegistryFunctions {
           VCFHeaderInfo.headerTypePType.loadCheapSCode(cb, addr)
         }
     }
+
+    registerSCode1(
+      "sizeofValue",
+      tv("T"),
+      TInt64,
+      (_, _) => SInt64,
+    )((region, cb, st, sv, _) => sv.sizeToStoreInBytes(cb))
+
+    registerSCode1(
+      "prefixCode",
+      tv("T"),
+      TBinary,
+      (_, _) => SJavaBytes,
+    )((region, cb, st, sv, _) => sv.prefixCode(cb))
   }
 }

@@ -1,12 +1,30 @@
 import pytest
 
 from batch.cloud.azure.resource_utils import MACHINE_TYPE_TO_PARTS as MACHINE_TYPE_TO_PARTS_AZURE
-from batch.cloud.gcp.resource_utils import MACHINE_TYPE_TO_PARTS as MACHINE_TYPE_TO_PARTS_GCP
-from batch.cloud.gcp.resource_utils import gcp_worker_memory_per_core_mib, machine_type_to_gpu_num
+from batch.cloud.gcp.instance_config import GCPSlimInstanceConfig, region_from_location
+from batch.cloud.gcp.resource_utils import (
+    GCP_HYPERDISK_BALANCED_FREE_IOPS,
+    GCP_HYPERDISK_BALANCED_FREE_THROUGHPUT_MIB_PER_SEC,
+    gcp_boot_disk_type,
+    gcp_data_disk_device_name,
+    gcp_data_disk_type,
+    gcp_hyperdisk_performance_overrides,
+    gcp_local_ssd_count,
+    gcp_local_ssd_size,
+    gcp_worker_memory_per_core_mib,
+    machine_type_to_gpu_num,
+)
+from batch.cloud.gcp.resource_utils import (
+    MACHINE_TYPE_TO_PARTS as MACHINE_TYPE_TO_PARTS_GCP,
+)
 from batch.cloud.gcp.resources import GCPAcceleratorResource, gcp_resource_from_dict
 from batch.cloud.resource_utils import adjust_cores_for_packability
+from batch.driver.billing_manager import ProductVersions
+from batch.driver.exceptions import LocalSSDNotSupportedError
+from batch.driver.naming import build_inst_coll_regex, make_machine_name
 from batch.utils import rewrite_dockerhub_image
 from hailtop.batch_client.parse import parse_memory_in_bytes
+from hailtop.utils import secret_alnum_string
 
 
 def test_packability():
@@ -33,11 +51,15 @@ def test_memory_str_to_bytes():
 
 
 def test_gcp_worker_memory_per_core_mib():
-    with pytest.raises(AssertionError):
-        assert gcp_worker_memory_per_core_mib('n2', 'standard')
     assert gcp_worker_memory_per_core_mib('n1', 'standard') == 3840
     assert gcp_worker_memory_per_core_mib('n1', 'highmem') == 6656
     assert gcp_worker_memory_per_core_mib('n1', 'highcpu') == 924
+    assert gcp_worker_memory_per_core_mib('n2', 'standard') == 4096
+    assert gcp_worker_memory_per_core_mib('n2', 'highmem') == 8192
+    assert gcp_worker_memory_per_core_mib('n2', 'highcpu') == 1024
+    assert gcp_worker_memory_per_core_mib('n4', 'standard') == 4096
+    assert gcp_worker_memory_per_core_mib('n4', 'highmem') == 8192
+    assert gcp_worker_memory_per_core_mib('n4', 'highcpu') == 2048
 
 
 def test_gcp_machine_memory_per_core_mib():
@@ -48,6 +70,21 @@ def test_gcp_machine_memory_per_core_mib():
             assert int(machine_parts.memory / machine_parts.cores / 1024**2) == 6656
         elif machine_parts.machine_family == 'n1' and machine_parts.worker_type == 'highcpu':
             assert int(machine_parts.memory / machine_parts.cores / 1024**2) == 924
+        elif machine_parts.machine_family == 'n2' and machine_parts.worker_type == 'standard':
+            assert int(machine_parts.memory / machine_parts.cores / 1024**2) == 4096
+        elif machine_parts.machine_family == 'n2' and machine_parts.worker_type == 'highmem':
+            if machine_parts.cores == 128:
+                assert int(machine_parts.memory / machine_parts.cores / 1024**2) == 6912
+            else:
+                assert int(machine_parts.memory / machine_parts.cores / 1024**2) == 8192
+        elif machine_parts.machine_family == 'n2' and machine_parts.worker_type == 'highcpu':
+            assert int(machine_parts.memory / machine_parts.cores / 1024**2) == 1024
+        elif machine_parts.machine_family == 'n4' and machine_parts.worker_type == 'standard':
+            assert int(machine_parts.memory / machine_parts.cores / 1024**2) == 4096
+        elif machine_parts.machine_family == 'n4' and machine_parts.worker_type == 'highmem':
+            assert int(machine_parts.memory / machine_parts.cores / 1024**2) == 8192
+        elif machine_parts.machine_family == 'n4' and machine_parts.worker_type == 'highcpu':
+            assert int(machine_parts.memory / machine_parts.cores / 1024**2) == 2048
         elif machine_parts.machine_family == 'g2' and machine_parts.worker_type == 'standard':
             assert int(machine_parts.memory / machine_parts.cores / 1024**2) == 4096
         elif machine_parts.machine_family == 'a2' and machine_parts.worker_type == 'highgpu':
@@ -69,6 +106,138 @@ def test_azure_machine_memory_per_core_mib():
             assert int(machine_parts.memory / machine_parts.cores / 1024**2) == 4096
         elif machine_parts.family == 'E':
             assert int(machine_parts.memory / machine_parts.cores / 1024**2) == 8192
+
+
+@pytest.mark.parametrize(
+    "family,cores,expected",
+    [
+        ('n1', 16, 1),
+        ('n1', 96, 1),
+        ('n2', 2, 1),
+        ('n2', 4, 1),
+        ('n2', 8, 1),
+        ('n2', 16, 2),
+        ('n2', 32, 4),
+        ('n2', 48, 8),
+        ('n2', 64, 8),
+        ('n2', 80, 8),
+        ('n2', 96, 16),
+        ('n2', 128, 16),
+    ],
+)
+def test_gcp_local_ssd_count(family, cores, expected):
+    assert gcp_local_ssd_count(family, cores) == expected
+
+
+def test_gcp_local_ssd_count_rejects_n4():
+    # n4 supports zero local SSDs; it must never fall through to the generic non-n2 default of 1.
+    with pytest.raises(LocalSSDNotSupportedError):
+        gcp_local_ssd_count('n4', 16)
+
+
+def test_gcp_instance_config_rejects_local_ssd_on_n4():
+    # An unprovisionable combination must be rejected where the config is built, before any
+    # billing resources exist for it. The empty ProductVersions asserts that: no product
+    # lookup happens before the check.
+    with pytest.raises(LocalSSDNotSupportedError):
+        GCPSlimInstanceConfig.create(
+            product_versions=ProductVersions({}),
+            machine_type='n4-standard-16',
+            preemptible=False,
+            local_ssd_data_disk=True,
+            data_disk_size_gb=375,
+            boot_disk_size_gb=30,
+            job_private=False,
+            location='us-central1-a',
+        )
+
+
+def test_gcp_instance_config_rejects_unknown_machine_type():
+    with pytest.raises(ValueError, match='bad machine_type'):
+        GCPSlimInstanceConfig.create(
+            product_versions=ProductVersions({}),
+            machine_type='n4-nonsense-16',
+            preemptible=False,
+            local_ssd_data_disk=False,
+            data_disk_size_gb=375,
+            boot_disk_size_gb=30,
+            job_private=False,
+            location='us-central1-a',
+        )
+
+
+def test_gcp_disk_type_helpers():
+    assert gcp_boot_disk_type('n4') == 'hyperdisk-balanced'
+    assert gcp_boot_disk_type('n2') == 'pd-ssd'
+    assert gcp_boot_disk_type('n1') == 'pd-ssd'
+
+    assert gcp_data_disk_type('n4') == 'hyperdisk-balanced'
+    assert gcp_data_disk_type('n2') == 'pd-ssd'
+    assert gcp_data_disk_type('n1') == 'pd-ssd'
+
+    assert gcp_data_disk_device_name('n4', 'n4-standard-16') == 'nvme0n2'
+    assert gcp_data_disk_device_name('g2', 'g2-standard-4') == 'nvme0n2'
+    assert gcp_data_disk_device_name('n2', 'n2-standard-16') == 'sdb'
+    assert gcp_data_disk_device_name('n1', 'n1-standard-16') == 'sdb'
+
+
+def test_gcp_hyperdisk_performance_overrides_pin_free_baseline():
+    overrides = gcp_hyperdisk_performance_overrides('hyperdisk-balanced')
+    assert overrides == {
+        'provisionedIops': str(GCP_HYPERDISK_BALANCED_FREE_IOPS),
+        'provisionedThroughput': str(GCP_HYPERDISK_BALANCED_FREE_THROUGHPUT_MIB_PER_SEC),
+    }
+    assert GCP_HYPERDISK_BALANCED_FREE_IOPS == 3000
+    assert GCP_HYPERDISK_BALANCED_FREE_THROUGHPUT_MIB_PER_SEC == 140
+
+
+def test_gcp_hyperdisk_performance_overrides_noop_for_non_hyperdisk():
+    # provisionedIops/provisionedThroughput are rejected by the GCE API for non-Hyperdisk disk
+    # types, so no fields should be added for e.g. pd-ssd.
+    assert not gcp_hyperdisk_performance_overrides('pd-ssd')
+
+
+@pytest.mark.parametrize(
+    "family,cores,expected",
+    [
+        ('n1', 16, 375),
+        ('n2', 2, 375),
+        ('n2', 16, 750),
+        ('n2', 48, 3000),
+        ('n2', 128, 6000),
+    ],
+)
+def test_gcp_local_ssd_size(family, cores, expected):
+    assert gcp_local_ssd_size(family, cores) == expected
+
+
+@pytest.mark.parametrize(
+    "location,expected",
+    [
+        ('us-central1', 'us-central1'),
+        ('us-east1', 'us-east1'),
+        ('northamerica-northeast1', 'northamerica-northeast1'),
+        ('us-central1-a', 'us-central1'),
+        ('us-central1-b', 'us-central1'),
+        ('northamerica-northeast1-a', 'northamerica-northeast1'),
+    ],
+)
+def test_region_from_location(location, expected):
+    assert region_from_location(location) == expected
+
+
+@pytest.mark.parametrize(
+    "location",
+    [
+        '',
+        'uscentral1',
+        'us-central1-a-b',
+        'us-central1-a-b-c',
+    ],
+)
+def test_region_from_location_rejects_malformed(location):
+    with pytest.raises(ValueError, match='Expected a GCP region or zone'):
+        region_from_location(location)
 
 
 def test_gcp_resource_from_dict():
@@ -154,3 +323,48 @@ def test_gcp_accelerator_to_from_dict():
 def test_rewrite_dockerhub_image(image, expected):
     dockerhub_prefix = "us-central1-docker.pkg.dev/my-project/dockerhubproxy"
     assert rewrite_dockerhub_image(image, dockerhub_prefix) == expected
+
+
+_INST_COLL_NAMES = [
+    'standard',
+    'highmem',
+    'lowmem',
+    'standard-np',  # hyphenated
+    'pool-abcde',  # last segment looks like an old 5-char suffix
+    'pool-abcdef',  # last segment looks like half the old 6-6 suffix
+    'pool-abcdef-ghijkl',  # last two segments look like the old 6-6 suffix
+    'pool-abcde-fghij',  # two 5-char segments
+]
+
+
+@pytest.mark.parametrize('inst_coll_name', _INST_COLL_NAMES)
+def test_machine_name_inst_coll_roundtrip(inst_coll_name):
+    manager_prefix = 'batch-worker-default-'
+    child_prefix = f'{manager_prefix}{inst_coll_name}-'
+    machine_name = make_machine_name(child_prefix)
+    assert len(machine_name) <= 63, f'machine name exceeds GCE limit: {machine_name!r}'
+    match = build_inst_coll_regex(manager_prefix).search(machine_name)
+    assert match is not None, f'regex did not match {machine_name!r}'
+    assert match.group('inst_coll') == inst_coll_name
+
+
+@pytest.mark.parametrize('inst_coll_name', _INST_COLL_NAMES)
+def test_machine_name_inst_coll_roundtrip_long_namespace(inst_coll_name):
+    # Verify names stay within GCE's 63-char limit even with long namespaces (e.g. CI test namespaces).
+    ns = secret_alnum_string(20, case='lower')
+    manager_prefix = f'batch-worker-{ns}-'
+    child_prefix = f'{manager_prefix}{inst_coll_name}-'
+    machine_name = make_machine_name(child_prefix)
+    assert len(machine_name) <= 63, f'machine name exceeds GCE limit: {machine_name!r}'
+    match = build_inst_coll_regex(manager_prefix).search(machine_name)
+    assert match is not None, f'regex did not match {machine_name!r}'
+    assert match.group('inst_coll') == inst_coll_name
+
+
+@pytest.mark.parametrize('inst_coll_name', _INST_COLL_NAMES)
+def test_old_style_machine_name_inst_coll_roundtrip(inst_coll_name):
+    manager_prefix = 'batch-worker-default-'
+    machine_name = f'{manager_prefix}{inst_coll_name}-ab1cd'  # fixed 5-char alphanumeric suffix
+    match = build_inst_coll_regex(manager_prefix).search(machine_name)
+    assert match is not None, f'regex did not match {machine_name!r}'
+    assert match.group('inst_coll') == inst_coll_name

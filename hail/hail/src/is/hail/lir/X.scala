@@ -4,10 +4,10 @@ import is.hail.asm4s.{
   arrayInfo, ByteInfo, ClassInfo, DoubleInfo, FloatInfo, IntInfo, LongInfo, TypeInfo,
 }
 import is.hail.collection.ObjectArrayStack
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.utils._
 import is.hail.utils.implicits.toRichBoolean
 
+import scala.collection.immutable.ArraySeq
 import scala.collection.mutable
 
 import java.io.PrintWriter

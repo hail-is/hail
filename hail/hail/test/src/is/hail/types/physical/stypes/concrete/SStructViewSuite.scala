@@ -1,15 +1,15 @@
 package is.hail.types.physical.stypes.concrete
 
-import is.hail.HailSuite
+import is.hail.TestUtils._
 import is.hail.collection.FastSeq
 import is.hail.types.physical.stypes.SType
 import is.hail.types.physical.stypes.interfaces.SBaseStruct
 import is.hail.types.tcoerce
 import is.hail.types.virtual.{TInt32, TInt64, TStruct}
 
-import org.testng.annotations.Test
+import org.junit.jupiter.api.Test
 
-class SStructViewSuite extends HailSuite {
+class SStructViewSuite {
 
   val xyz: SBaseStruct =
     tcoerce[SBaseStruct](
@@ -32,7 +32,7 @@ class SStructViewSuite extends HailSuite {
         rename = newtype,
       )
 
-    assert(SStructView.subset(FastSeq("z"), xyz).castRename(newtype) == expected)
+    assertEq(SStructView.subset(FastSeq("z"), xyz).castRename(newtype), expected)
   }
 
   @Test def testSubsetRenameSubset(): Unit = {
@@ -51,12 +51,12 @@ class SStructViewSuite extends HailSuite {
         rename = TStruct("x" -> TStruct("b" -> TInt32)),
       )
 
-    assert(subset == expected)
+    assertEq(subset, expected)
   }
 
   @Test def testAssertIsomorphism(): Unit =
-    assertThrows[AssertionError] {
+    intercept[AssertionError] {
       SStructView.subset(FastSeq("x", "y"), xyz)
         .castRename(TStruct("x" -> TInt64, "x" -> TInt32))
-    }
+    }: Unit
 }

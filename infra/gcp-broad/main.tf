@@ -593,11 +593,6 @@ resource "google_artifact_registry_repository" "dockerhub_remote" {
   }
 }
 
-resource "google_service_account" "gcr_push" {
-  account_id = "gcr-push"
-  display_name = "push to gcr.io"
-}
-
 resource "google_artifact_registry_repository_iam_member" "artifact_registry_batch_agent_viewer" {
   provider = google-beta
   project = var.gcp_project
@@ -625,15 +620,6 @@ resource "google_artifact_registry_repository_iam_member" "artifact_registry_ci_
   location = var.artifact_registry_location
   role = "roles/artifactregistry.admin"
   member = "serviceAccount:${module.ci_gsa_secret.email}"
-}
-
-resource "google_artifact_registry_repository_iam_member" "artifact_registry_push_admin" {
-  provider = google-beta
-  project = var.gcp_project
-  repository = google_artifact_registry_repository.repository.name
-  location = var.artifact_registry_location
-  role = "roles/artifactregistry.repoAdmin"
-  member = "serviceAccount:${google_service_account.gcr_push.email}"
 }
 
 

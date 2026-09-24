@@ -6,7 +6,7 @@ import logging
 import os
 from collections import defaultdict, namedtuple
 from contextlib import AsyncExitStack
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import aiohttp_session
 import prometheus_client as pc  # type: ignore
@@ -17,9 +17,12 @@ from gear import (
     AuthServiceAuthenticator,
     CommonAiohttpAppKeys,
     Database,
+    SystemPermission,
+    UserData,
     json_response,
     setup_aiohttp_session,
     transaction,
+    version_response,
 )
 from hailtop import __version__, aiotools, httpx
 from hailtop.aiocloud import aiogoogle
@@ -40,12 +43,15 @@ from web_common import (
     setup_aiohttp_jinja2,
     setup_common_static_routes,
     web_security_headers,
+    web_security_headers_inline_styles,
     web_security_headers_swagger,
 )
 
 from .configuration import HAIL_USE_FULL_QUERY
 
 log = logging.getLogger('monitoring')
+
+MONITORING_ROOT = os.path.dirname(os.path.abspath(__file__))
 
 routes = web.RouteTableDef()
 
@@ -148,8 +154,14 @@ async def _billing(request: web.Request):
     return (cost_by_service, compute_cost_breakdown, cost_by_sku_source, time_period_query)
 
 
+@routes.get('/api/v1alpha/version')
+@auth.maybe_authenticated_user
+async def get_version(_, userdata: Optional[UserData]) -> web.Response:
+    return version_response(userdata)
+
+
 @routes.get('/api/v1alpha/billing')
-@auth.authenticated_developers_only()
+@auth.authenticated_users_with_permission(SystemPermission.VIEW_MONITORING_DASHBOARDS, redirect=False)
 async def get_billing(request: web.Request, _) -> web.Response:
     cost_by_service, compute_cost_breakdown, cost_by_sku_label, time_period_query = await _billing(request)
     resp = {
@@ -162,8 +174,8 @@ async def get_billing(request: web.Request, _) -> web.Response:
 
 
 @routes.get('/billing')
-@web_security_headers
-@auth.authenticated_developers_only()
+@web_security_headers_inline_styles
+@auth.authenticated_users_with_permission(SystemPermission.VIEW_MONITORING_DASHBOARDS)
 async def billing(request: web.Request, userdata) -> web.Response:  # pylint: disable=unused-argument
     cost_by_service, compute_cost_breakdown, cost_by_sku_label, time_period_query = await _billing(request)
     context = {
@@ -175,30 +187,26 @@ async def billing(request: web.Request, userdata) -> web.Response:  # pylint: di
     return await render_template('monitoring', request, userdata, 'billing.html', context)
 
 
-async def query_billing_body(app):
-    db = app[AppKeys.DB]
-    bigquery_client = app[AppKeys.BQ_CLIENT]
+async def _fetch_billing_month(db, bigquery_client, dt, full_query=False):
+    month = dt.month
+    year = dt.year
 
-    async def _query(dt):
-        month = dt.month
-        year = dt.year
+    start = datetime.date(year, month, 1)
+    _, last_day_of_month = calendar.monthrange(year, month)
 
-        start = datetime.date(year, month, 1)
-        _, last_day_of_month = calendar.monthrange(year, month)
+    if full_query or HAIL_USE_FULL_QUERY:
+        end = datetime.date(year, month, last_day_of_month) + datetime.timedelta(days=7)
+    else:
+        end = start + datetime.timedelta(days=1)
 
-        if HAIL_USE_FULL_QUERY:
-            end = datetime.date(year, month, last_day_of_month) + datetime.timedelta(days=7)
-        else:
-            end = start + datetime.timedelta(days=1)
+    date_format = '%Y-%m-%d'
+    start_str = datetime.date.strftime(start, date_format)
+    end_str = datetime.date.strftime(end, date_format)
 
-        date_format = '%Y-%m-%d'
-        start_str = datetime.date.strftime(start, date_format)
-        end_str = datetime.date.strftime(end, date_format)
+    invoice_month = datetime.date.strftime(start, '%Y%m')
 
-        invoice_month = datetime.date.strftime(start, '%Y%m')
-
-        # service.id: service.description -- "6F81-5844-456A": "Compute Engine"
-        cmd = f"""
+    # service.id: service.description -- "6F81-5844-456A": "Compute Engine"
+    cmd = f"""
 SELECT service.id as service_id, service.description as service_description, sku.id as sku_id, sku.description as sku_description, SUM(cost) as cost,
 CASE
   WHEN service.id = "6F81-5844-456A" AND EXISTS(SELECT 1 FROM UNNEST(labels) WHERE key = "namespace" and value = "default") THEN "batch-production"
@@ -208,53 +216,117 @@ CASE
   WHEN service.id = "6F81-5844-456A" THEN "unknown"
   ELSE NULL
 END AS source
-FROM `broad-ctsa.hail_billing.gcp_billing_export_v1_0055E5_9CA197_B9B894`
+FROM `hail-vdc.hail_vdc_billing.gcp_billing_export_v1_00E7E5_D339BE_C54ACE`
 WHERE DATE(_PARTITIONTIME) >= "{start_str}" AND DATE(_PARTITIONTIME) <= "{end_str}" AND project.name = "{PROJECT}" AND invoice.month = "{invoice_month}"
 GROUP BY service_id, service_description, sku_id, sku_description, source;
 """
 
-        log.info(f'querying BigQuery with command: {cmd}')
+    log.info(f'querying BigQuery with command: {cmd}')
 
-        records = [
-            (
-                year,
-                month,
-                record['service_id'],
-                record['service_description'],
-                record['sku_id'],
-                record['sku_description'],
-                record['source'],
-                record['cost'],
-            )
-            async for record in await bigquery_client.query(cmd)
-        ]
+    records = [
+        (
+            year,
+            month,
+            record['service_id'],
+            record['service_description'],
+            record['sku_id'],
+            record['sku_description'],
+            record['source'],
+            record['cost'],
+        )
+        async for record in await bigquery_client.query(cmd)
+    ]
 
-        @transaction(db)
-        async def insert(tx):
-            await tx.just_execute(
-                """
+    @transaction(db)
+    async def insert(tx):
+        await tx.just_execute(
+            """
 DELETE FROM monitoring_billing_data WHERE year = %s AND month = %s;
 """,
-                (year, month),
-            )
+            (year, month),
+        )
 
-            await tx.execute_many(
-                """
+        await tx.execute_many(
+            """
 INSERT INTO monitoring_billing_data (year, month, service_id, service_description, sku_id, sku_description, source, cost)
 VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
 """,
-                records,
-            )
+            records,
+        )
 
-        await insert()
+    await insert()
+
+
+@routes.post('/api/v1alpha/billing/fetch')
+@auth.authenticated_users_with_permission(SystemPermission.VIEW_MONITORING_DASHBOARDS, redirect=False)
+async def fetch_billing_json(request: web.Request, _) -> web.Response:
+    date_format = '%m/%Y'
+    if request.content_length:
+        try:
+            body = await request.json()
+        except Exception as exc:
+            raise web.HTTPBadRequest(reason='Request body must be valid JSON.') from exc
+        if not isinstance(body, dict):
+            raise web.HTTPBadRequest(reason='Request body must be a JSON object.')
+    else:
+        body = {}
+    time_period_raw = body.get('time_period')
+    if time_period_raw is not None and not isinstance(time_period_raw, str):
+        raise web.HTTPBadRequest(reason='time_period must be a string.')
+    time_period_query = time_period_raw or datetime.datetime.now().strftime(date_format)
+    try:
+        time_period = datetime.datetime.strptime(time_period_query, date_format)
+    except ValueError as exc:
+        raise web.HTTPBadRequest(reason='Invalid time_period.') from exc
+
+    db = request.app[AppKeys.DB]
+    bigquery_client = request.app[AppKeys.BQ_CLIENT]
+    await _fetch_billing_month(db, bigquery_client, time_period, full_query=True)
+
+    records = [
+        record
+        async for record in db.execute_and_fetchall(
+            'SELECT * FROM monitoring_billing_data WHERE year = %s AND month = %s;',
+            (time_period.year, time_period.month),
+        )
+    ]
+    cost_by_service, compute_cost_breakdown, cost_by_sku_label = format_data(records)
+    return json_response({
+        'time_period_query': time_period_query,
+        'cost_by_service': cost_by_service,
+        'compute_cost_breakdown': compute_cost_breakdown,
+        'cost_by_sku_label': cost_by_sku_label,
+    })
+
+
+@routes.post('/billing/fetch')
+@web_security_headers
+@auth.authenticated_users_with_permission(SystemPermission.VIEW_MONITORING_DASHBOARDS)
+async def fetch_billing_html(request: web.Request, _) -> web.Response:
+    date_format = '%m/%Y'
+    time_period_query = request.query.get('time_period', datetime.datetime.now().strftime(date_format))
+    try:
+        time_period = datetime.datetime.strptime(time_period_query, date_format)
+    except ValueError as exc:
+        raise web.HTTPBadRequest(reason='Invalid time_period.') from exc
+
+    db = request.app[AppKeys.DB]
+    bigquery_client = request.app[AppKeys.BQ_CLIENT]
+    await _fetch_billing_month(db, bigquery_client, time_period, full_query=True)
+    raise web.HTTPFound(deploy_config.base_path('monitoring') + f'/billing?time_period={time_period_query}')
+
+
+async def query_billing_body(app):
+    db = app[AppKeys.DB]
+    bigquery_client = app[AppKeys.BQ_CLIENT]
 
     log.info('updating billing information')
     now = datetime.datetime.now()
-    await _query(now)
+    await _fetch_billing_month(db, bigquery_client, now)
     last_month = get_previous_month(now)
     end_last_month = get_last_day_month(last_month)
     if now < end_last_month + datetime.timedelta(days=7):
-        await _query(last_month)
+        await _fetch_billing_month(db, bigquery_client, last_month)
 
     now_msecs = time_msecs()
     await db.execute_update('UPDATE monitoring_billing_mark SET mark = %s;', (now_msecs,))
@@ -280,7 +352,7 @@ async def monitor_disks(app):
     disk_counts = defaultdict(list)
 
     for zone in app[AppKeys.ZONES]:
-        async for disk in await compute_client.list(f'/zones/{zone}/disks', params={'filter': '(labels.batch = 1)'}):
+        async for disk in compute_client.list(f'/zones/{zone}/disks', params={'filter': '(labels.batch = 1)'}):
             namespace = disk['labels']['namespace']
             size_gb = int(disk['sizeGb'])
 
@@ -316,7 +388,7 @@ async def monitor_instances(app):
     instance_counts: Dict[InstanceLabels, int] = defaultdict(int)
 
     for zone in app[AppKeys.ZONES]:
-        async for instance in await compute_client.list(
+        async for instance in compute_client.list(
             f'/zones/{zone}/instances', params={'filter': '(labels.role = batch2-agent)'}
         ):
             instance_labels = InstanceLabels(
@@ -389,6 +461,16 @@ async def on_cleanup(app):
     await app[AppKeys.EXIT_STACK].aclose()
 
 
+@routes.get('/cost-analysis')
+@web_security_headers_inline_styles
+@auth.authenticated_users_with_permission([
+    SystemPermission.VIEW_MONITORING_DASHBOARDS,
+    SystemPermission.READ_ALL_BILLING_PROJECTS,
+])
+async def cost_analysis(request: web.Request, userdata) -> web.Response:
+    return await render_template('monitoring', request, userdata, 'cost_analysis.html', {'use_tailwind': True})
+
+
 @routes.get('/swagger')
 @web_security_headers_swagger
 async def swagger(request):
@@ -409,6 +491,8 @@ def run():
 
     setup_aiohttp_jinja2(app, 'monitoring')
     setup_common_static_routes(routes)
+    os.makedirs(f'{MONITORING_ROOT}/static/compiled-js', exist_ok=True)
+    routes.static('/monitoring/static/compiled-js', f'{MONITORING_ROOT}/static/compiled-js')
     app.add_routes(routes)
     app.router.add_get("/metrics", server_stats)
 

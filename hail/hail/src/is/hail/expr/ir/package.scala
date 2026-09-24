@@ -2,8 +2,8 @@ package is.hail.expr
 
 import is.hail.asm4s._
 import is.hail.collection.FastSeq
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.collection.implicits.toRichIterable
+import is.hail.expr.ir.{Memoized => M}
 import is.hail.expr.ir.defs._
 import is.hail.expr.ir.functions.IRFunctionRegistry
 import is.hail.expr.ir.lowering.TableStageDependency
@@ -16,13 +16,23 @@ import is.hail.types.virtual.TIterable.elementType
 import is.hail.utils.fatal
 
 import scala.collection.BufferedIterator
+import scala.collection.immutable.ArraySeq
 
 import java.util.UUID
 
 import org.apache.commons.lang3.StringUtils
 import org.apache.spark.TaskContext
 
-package object ir extends CompileOps {
+package ir {
+  trait LowerPriorityImplicits {
+    implicit def irToPrimitiveIR(ir: IR): PrimitiveIR = new PrimitiveIR(ir)
+    implicit def irToMemoized[S](ir: IR): M[S] = M.memo(ir)
+    implicit def bindingToMemoized[S](binding: (Name, IR)): M[S] = M.let(binding)
+    implicit def irToIROps(ir: IR): IROps = new IROps(ir)
+  }
+}
+
+package object ir extends CompileOps with LowerPriorityImplicits {
   type TokenIterator = BufferedIterator[Token]
   type IEmitCode = IEmitCodeGen[SValue]
 
@@ -45,15 +55,17 @@ package object ir extends CompileOps {
       If(IsNA(pred), False(), pred)
     }
 
-  def invoke(name: String, rt: Type, typeArgs: Seq[Type], errorID: Int, args: IR*): IR =
-    IRFunctionRegistry.lookup(name, rt, typeArgs, args.map(_.typ)) match {
-      case Some(f) => f(args, errorID)
+  def invoke(name: String, rt: Type, typeArgs: IndexedSeq[Type], errorID: Int, args: IR*): IR = {
+    val argSeq = args.toFastSeq
+    IRFunctionRegistry.lookup(name, rt, typeArgs, argSeq.map(_.typ)) match {
+      case Some(f) => f(argSeq, errorID)
       case None => fatal(
           s"no conversion found for $name[${typeArgs.mkString(", ")}](${args.map(_.typ).mkString(", ")}) => $rt"
         )
     }
+  }
 
-  def invoke(name: String, rt: Type, typeArgs: Seq[Type], args: IR*): IR =
+  def invoke(name: String, rt: Type, typeArgs: IndexedSeq[Type], args: IR*): IR =
     invoke(name, rt, typeArgs, ErrorIDs.NO_ERROR, args: _*)
 
   def invoke(name: String, rt: Type, args: IR*): IR =
@@ -62,7 +74,10 @@ package object ir extends CompileOps {
   def invoke(name: String, rt: Type, errorID: Int, args: IR*): IR =
     invoke(name, rt, ArraySeq.empty, errorID, args: _*)
 
-  implicit def irToPrimitiveIR(ir: IR): PrimitiveIR = new PrimitiveIR(ir)
+  implicit def atomToPrimitiveIR(ir: Atom): PrimitiveIR = new PrimitiveIR(ir)
+  implicit def atomicBinding[N](binding: (N, Atom)): (N, IR) = (binding._1, binding._2)
+  implicit def atomToMemoized[S](a: Atom): M[S] = M.pure(a)
+  implicit def atomicBindingMemoized[S](binding: (Name, Atom)): M[S] = M.let(binding)
 
   implicit def intToIR(i: Int): I32 = I32(i)
 
@@ -72,7 +87,7 @@ package object ir extends CompileOps {
 
   implicit def doubleToIR(d: Double): F64 = F64(d)
 
-  implicit def booleanToIR(b: Boolean): TrivialIR = if (b) True() else False()
+  implicit def booleanToIR(b: Boolean): IR with Atom = if (b) True() else False()
 
   def zero(t: Type): IR = t match {
     case TInt32 => I32(0)
@@ -81,76 +96,100 @@ package object ir extends CompileOps {
     case TFloat64 => F64(0d)
   }
 
-  def bindIRs(values: IR*)(body: Seq[Ref] => IR): IR = {
-    val bindings = values.toFastSeq.map(freshName() -> _)
-    Let(bindings, body(bindings.map(b => Ref(b._1, b._2.typ))))
+  def bindIRs(values: IR*)(body: IndexedSeq[Atom] => IR): IR = {
+    val bindings = values.toFastSeq.map(expr => Binding(freshName(), expr, Scope.EVAL))
+    Block(bindings, body(bindings.map(b => Ref(b.name, b.value.typ))))
   }
 
-  def bindIR(v: IR)(body: Ref => IR): IR =
-    bindIRs(v) { case Seq(ref) => body(ref) }
+  def bindIR(v: IR)(body: Atom => IR): IR = {
+    val ref = Ref(freshName(), v.typ)
+    new Block(ArraySeq(Binding(ref.name, v, Scope.EVAL)), body(ref))
+  }
 
-  def relationalBindIR(v: IR)(body: RelationalRef => IR): IR = {
+  def relationalBindIR(v: IR)(body: Atom => IR): IR = {
     val ref = RelationalRef(freshName(), v.typ)
     RelationalLet(ref.name, v, body(ref))
   }
 
   def iota(start: IR, step: IR): IR = StreamIota(start, step)
 
-  def dropWhile(v: IR)(f: Ref => IR): IR = {
+  def dropWhile(v: IR)(f: Atom => IR): IR = {
     val ref = Ref(freshName(), tcoerce[TStream](v.typ).elementType)
     StreamDropWhile(v, ref.name, f(ref))
   }
 
-  def takeWhile(v: IR)(f: Ref => IR): IR = {
+  def takeWhile(v: IR)(f: Atom => IR): IR = {
     val ref = Ref(freshName(), tcoerce[TStream](v.typ).elementType)
     StreamTakeWhile(v, ref.name, f(ref))
   }
 
-  def maxIR(a: IR, b: IR): IR =
-    If(a > b, a, b)
+  def maxIR(A: IR, B: IR): IR =
+    M.eval {
+      for {
+        a <- A
+        b <- B
+      } yield If(a > b, a, b)
+    }
 
-  def minIR(a: IR, b: IR): IR =
-    If(a < b, a, b)
+  def minIR(A: IR, B: IR): IR =
+    M.eval {
+      for {
+        a <- A
+        b <- B
+      } yield If(a < b, a, b)
+    }
 
-  def streamAggIR(stream: IR)(f: Ref => IR): StreamAgg = {
+  def streamAggIR(stream: IR)(f: Atom => IR): StreamAgg = {
     val ref = Ref(freshName(), tcoerce[TStream](stream.typ).elementType)
     StreamAgg(stream, ref.name, f(ref))
   }
 
-  def streamAggScanIR(stream: IR)(f: Ref => IR): StreamAggScan = {
+  def streamAggScanIR(stream: IR)(f: Atom => IR): StreamAggScan = {
     val ref = Ref(freshName(), tcoerce[TStream](stream.typ).elementType)
     StreamAggScan(stream, ref.name, f(ref))
   }
 
-  def forIR(stream: IR)(f: Ref => IR): IR = {
+  def forIR(stream: IR)(f: Atom => IR): IR = {
     val ref = Ref(freshName(), tcoerce[TStream](stream.typ).elementType)
     StreamFor(stream, ref.name, f(ref))
   }
 
-  def filterIR(stream: IR)(f: Ref => IR): IR = {
+  def filterIR(stream: IR)(f: Atom => IR): IR = {
     val ref = Ref(freshName(), tcoerce[TStream](stream.typ).elementType)
     StreamFilter(stream, ref.name, f(ref))
   }
 
-  def mapIR(stream: IR)(f: Ref => IR): IR = {
+  def maybeIR(ir: IR)(f: Atom => IR): IR =
+    ir.bind { a =>
+      val r = f(a)
+      If(IsNA(a), NA(r.typ), r)
+    }
+
+  def guardIR(condition: IR)(body: IR): IR =
+    If(condition, body, NA(body.typ))
+
+  def mapIR(stream: IR)(f: Atom => IR): IR with TypedIR[TStream] = {
     val ref = Ref(freshName(), tcoerce[TStream](stream.typ).elementType)
     StreamMap(stream, ref.name, f(ref))
   }
 
-  def mapArray(array: IR)(f: Ref => IR): IR =
+  def mapArray(array: IR)(f: Atom => IR): IR with TypedIR[TArray] =
     ToArray(mapIR(ToStream(array))(f))
 
-  def flatMapIR(stream: IR)(f: Ref => IR): IR = {
+  def concatIR(containers: IR*): IR =
+    flatten(MakeStream(containers: _*))
+
+  def flatMapIR(stream: IR)(f: Atom => IR): IR with TypedIR[TStream] = {
     val ref = Ref(freshName(), tcoerce[TStream](stream.typ).elementType)
     StreamFlatMap(stream, ref.name, f(ref))
   }
 
-  def flatten(stream: IR): IR =
+  def flatten(stream: IR): IR with TypedIR[TStream] =
     flatMapIR(if (stream.typ.isInstanceOf[TStream]) stream else ToStream(stream)) { elt =>
       if (elt.typ.isInstanceOf[TStream]) elt else ToStream(elt)
     }
 
-  def foldIR(stream: IR, zero: IR)(f: (Ref, Ref) => IR): StreamFold = {
+  def foldIR(stream: IR, zero: IR)(f: (Atom, Atom) => IR): StreamFold = {
     val elt = Ref(freshName(), tcoerce[TStream](stream.typ).elementType)
     val accum = Ref(freshName(), zero.typ)
     StreamFold(stream, zero, accum.name, elt.name, f(accum, elt))
@@ -160,9 +199,9 @@ package object ir extends CompileOps {
     stream: IR,
     inits: IR*
   )(
-    seqs: ((Ref, IndexedSeq[Ref]) => IR)*
+    seqs: ((Atom, IndexedSeq[Atom]) => IR)*
   )(
-    result: IndexedSeq[Ref] => IR
+    result: IndexedSeq[Atom] => IR
   ): IR = {
     val elt = Ref(freshName(), tcoerce[TStream](stream.typ).elementType)
     val accums = inits.toFastSeq.map(i => Ref(freshName(), i.typ))
@@ -175,13 +214,13 @@ package object ir extends CompileOps {
     )
   }
 
-  def streamScanIR(stream: IR, zero: IR)(f: (Ref, Ref) => IR): IR = {
+  def streamScanIR(stream: IR, zero: IR)(f: (Atom, Atom) => IR): IR = {
     val elt = Ref(freshName(), tcoerce[TStream](stream.typ).elementType)
     val accum = Ref(freshName(), zero.typ)
     StreamScan(stream, zero, accum.name, elt.name, f(accum, elt))
   }
 
-  def sortIR(stream: IR)(f: (Ref, Ref) => IR): IR = {
+  def sortIR(stream: IR)(f: (Atom, Atom) => IR): IR = {
     val t = tcoerce[TStream](stream.typ).elementType
     val l = Ref(freshName(), t)
     val r = Ref(freshName(), t)
@@ -200,10 +239,10 @@ package object ir extends CompileOps {
     requiresMemoryManagement: Boolean = false,
     rightKeyIsDistinct: Boolean = true,
   )(
-    f: (Ref, Ref) => IR
+    f: (Atom, Atom) => IR
   ): IR = {
-    val lRef = Ref(freshName(), left.typ.asInstanceOf[TStream].elementType)
-    val rRef = Ref(freshName(), right.typ.asInstanceOf[TStream].elementType)
+    val lRef = Ref(freshName(), TIterable.elementType(left.typ))
+    val rRef = Ref(freshName(), TIterable.elementType(right.typ))
     StreamJoin(
       left,
       right,
@@ -218,7 +257,7 @@ package object ir extends CompileOps {
     )
   }
 
-  def zipJoin2IR(streams: IndexedSeq[IR], key: IndexedSeq[String])(f: (Ref, Ref) => IR): IR = {
+  def zipJoin2IR(streams: IndexedSeq[IR], key: IndexedSeq[String])(f: (Atom, Atom) => IR): IR = {
     val eltType = tcoerce[TStruct](elementType(streams.head.typ))
     val curKey = Ref(freshName(), eltType.typeAfterSelectNames(key))
     val curVals = Ref(freshName(), TArray(eltType))
@@ -232,11 +271,32 @@ package object ir extends CompileOps {
     rkey: IndexedSeq[String],
     joinType: String,
   )(
-    f: (Ref, Ref) => IR
-  ): IR = {
-    val lRef = Ref(freshName(), left.typ.asInstanceOf[TStream].elementType)
-    val rRef = Ref(freshName(), right.typ.asInstanceOf[TStream].elementType)
+    f: (Atom, Atom) => IR
+  ): IR with TypedIR[TStream] = {
+    val lRef = Ref(freshName(), TIterable.elementType(left.typ))
+    val rRef = Ref(freshName(), TIterable.elementType(right.typ))
     StreamJoinRightDistinct(left, right, lkey, rkey, lRef.name, rRef.name, f(lRef, rRef), joinType)
+  }
+
+  def leftIntervalJoinIR(
+    left: IR,
+    right: IR,
+    keyField: String,
+    intervalField: String,
+  )(
+    f: (Atom, Atom) => IR
+  ): IR with TypedIR[TStream] = {
+    val lRef = Ref(freshName(), TIterable.elementType(left.typ))
+    val rRef = Ref(freshName(), TArray(TIterable.elementType(right.typ)))
+    StreamLeftIntervalJoin(
+      left,
+      right,
+      keyField,
+      intervalField,
+      lRef.name,
+      rRef.name,
+      f(lRef, rRef),
+    )
   }
 
   def streamSumIR(stream: IR): IR =
@@ -254,7 +314,13 @@ package object ir extends CompileOps {
 
   def selectIR(old: IR, fields: String*): SelectFields = SelectFields(old, fields.toFastSeq)
 
-  def zip2(s1: IR, s2: IR, behavior: ArrayZipBehavior.ArrayZipBehavior)(f: (Ref, Ref) => IR): IR = {
+  def zip2(
+    s1: IR,
+    s2: IR,
+    behavior: ArrayZipBehavior.ArrayZipBehavior,
+  )(
+    f: (Atom, Atom) => IR
+  ): IR = {
     val r1 = Ref(freshName(), tcoerce[TStream](s1.typ).elementType)
     val r2 = Ref(freshName(), tcoerce[TStream](s2.typ).elementType)
     StreamZip(FastSeq(s1, s2), FastSeq(r1.name, r2.name), f(r1, r2), behavior)
@@ -276,24 +342,24 @@ package object ir extends CompileOps {
     behavior: ArrayZipBehavior.ArrayZipBehavior,
     errorId: Int = ErrorIDs.NO_ERROR,
   )(
-    f: IndexedSeq[Ref] => IR
+    f: IndexedSeq[Atom] => IR
   ): IR = {
     val refs = ss.map(s => Ref(freshName(), tcoerce[TStream](s.typ).elementType))
     StreamZip(ss, refs.map(_.name), f(refs), behavior, errorId)
   }
 
-  def ndMap(nd: IR)(f: Ref => IR): IR = {
+  def ndMap(nd: IR)(f: Atom => IR): IR = {
     val ref = Ref(freshName(), tcoerce[TNDArray](nd.typ).elementType)
     NDArrayMap(nd, ref.name, f(ref))
   }
 
-  def ndMap2(nd1: IR, nd2: IR)(f: (Ref, Ref) => IR): IR = {
+  def ndMap2(nd1: IR, nd2: IR)(f: (Atom, Atom) => IR): IR = {
     val ref1 = Ref(freshName(), tcoerce[TNDArray](nd1.typ).elementType)
     val ref2 = Ref(freshName(), tcoerce[TNDArray](nd2.typ).elementType)
     NDArrayMap2(nd1, nd2, ref1.name, ref2.name, f(ref1, ref2), ErrorIDs.NO_ERROR)
   }
 
-  def bmMap(bm: BlockMatrixIR, needsDense: Boolean)(f: Ref => IR): BlockMatrixMap = {
+  def bmMap(bm: BlockMatrixIR, needsDense: Boolean)(f: Atom => IR): BlockMatrixMap = {
     val ref = Ref(freshName(), bm.typ.elementType)
     BlockMatrixMap(bm, ref.name, f(ref), needsDense)
   }
@@ -303,12 +369,12 @@ package object ir extends CompileOps {
   def maketuple(fields: IR*): MakeTuple =
     MakeTuple(fields.toFastSeq.zipWithIndex.map { case (field, idx) => (idx, field) })
 
-  def aggBindIR(v: IR, isScan: Boolean = false)(body: Ref => IR): IR = {
+  def aggBindIR(v: IR, isScan: Boolean = false)(body: Atom => IR): IR = {
     val ref = Ref(freshName(), v.typ)
     AggLet(ref.name, v, body(ref), isScan = isScan)
   }
 
-  def aggExplodeIR(v: IR, isScan: Boolean = false)(body: Ref => IR): AggExplode = {
+  def aggExplodeIR(v: IR, isScan: Boolean = false)(body: Atom => IR): AggExplode = {
     val r = Ref(freshName(), v.typ.asInstanceOf[TIterable].elementType)
     AggExplode(v, r.name, body(r), isScan)
   }
@@ -318,15 +384,21 @@ package object ir extends CompileOps {
     knownLength: Option[IR] = None,
     isScan: Boolean = false,
   )(
-    body: (Ref, Ref) => IR
+    body: (Atom, Atom) => IR
   ): AggArrayPerElement = {
     val elt = Ref(freshName(), v.typ.asInstanceOf[TIterable].elementType)
     val idx = Ref(freshName(), TInt32)
     AggArrayPerElement(v, elt.name, idx.name, body(elt, idx), knownLength, isScan)
   }
 
-  def aggFoldIR(zero: IR, isScan: Boolean = false)(seqOp: Ref => IR)(combOp: (Ref, Ref) => IR)
-    : AggFold = {
+  def aggFoldIR(
+    zero: IR,
+    isScan: Boolean = false,
+  )(
+    seqOp: Atom => IR
+  )(
+    combOp: (Atom, Atom) => IR
+  ): AggFold = {
     val accum1 = Ref(freshName(), zero.typ)
     val accum2 = Ref(freshName(), zero.typ)
     AggFold(zero, seqOp(accum1), combOp(accum1, accum2), accum1.name, accum2.name, isScan)
@@ -339,7 +411,7 @@ package object ir extends CompileOps {
     dynamicID: IR = NA(TString),
     tsd: Option[TableStageDependency] = None,
   )(
-    body: (Ref, Ref) => IR
+    body: (Atom, Atom) => IR
   ): CollectDistributedArray = {
     val contextRef = Ref(freshName(), contexts.typ.asInstanceOf[TStream].elementType)
     val globalRef = Ref(freshName(), globals.typ)
@@ -356,22 +428,31 @@ package object ir extends CompileOps {
     )
   }
 
-  def tailLoop(resultType: Type, inits: IR*)(f: (IndexedSeq[IR] => IR, IndexedSeq[Ref]) => IR)
-    : IR = {
+  def tailLoop(
+    resultType: Type,
+    inits: IR*
+  )(
+    f: (IndexedSeq[IR] => IR, IndexedSeq[Atom]) => IR
+  ): IR = {
     val loopName = freshName()
     val vars = inits.toFastSeq.map(x => Ref(freshName(), x.typ))
     def recur(vs: IndexedSeq[IR]): IR = Recur(loopName, vs, resultType)
     TailLoop(loopName, vars.map(_.name).zip(inits), resultType, f(recur, vars))
   }
 
-  def mapPartitions(child: TableIR)(f: (Ref, Ref) => IR): TableMapPartitions = {
+  def mapPartitions(child: TableIR)(f: (Atom, Atom) => IR): TableMapPartitions = {
     val globals = Ref(freshName(), child.typ.globalType)
     val part = Ref(freshName(), TStream(child.typ.rowType))
     TableMapPartitions(child, globals.name, part.name, f(globals, part))
   }
 
-  def mapPartitions(child: TableIR, requestedKey: Int, allowedOverlap: Int)(f: (Ref, Ref) => IR)
-    : TableMapPartitions = {
+  def mapPartitions(
+    child: TableIR,
+    requestedKey: Int,
+    allowedOverlap: Int,
+  )(
+    f: (Atom, Atom) => IR
+  ): TableMapPartitions = {
     val globals = Ref(freshName(), child.typ.globalType)
     val part = Ref(freshName(), TStream(child.typ.rowType))
     TableMapPartitions(
@@ -390,7 +471,7 @@ package object ir extends CompileOps {
     partitioner: RVDPartitioner,
     errorID: Int = ErrorIDs.NO_ERROR,
   )(
-    f: (Ref, Ref) => IR
+    f: (Atom, Atom) => IR
   ): TableGen = {
     TypeCheck.coerce[TStream]("contexts", contexts.typ): Unit
     val c = Ref(freshName(), elementType(contexts.typ))
@@ -400,24 +481,15 @@ package object ir extends CompileOps {
 
   def strConcat(irs: AnyRef*): IR = {
     assert(irs.nonEmpty)
-    var s: IR = null
-    irs.foreach { xAny =>
-      val x = xAny match {
-        case x: IR => x
-        case x: String => Str(x)
+
+    def str(x: AnyRef): IR =
+      x match {
+        case s: String => Str(s)
+        case a: Atom => if (a.typ == TString) a else a.invoke("str", TString)
+        case ir: IR => if (ir.typ == TString) ir else ir.invoke("str", TString)
       }
 
-      val xstr = if (x.typ == TString)
-        x
-      else
-        invoke("str", TString, x)
-
-      if (s == null)
-        s = xstr
-      else
-        s = invoke("concat", TString, s, xstr)
-    }
-    s
+    irs.tail.foldLeft(str(irs.head))(_ + str(_))
   }
 
   def logIR(result: IR, messages: AnyRef*): IR = ConsoleLog(strConcat(messages: _*), result)

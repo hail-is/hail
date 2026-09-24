@@ -3,7 +3,7 @@ import json
 import logging
 from collections import Counter, defaultdict
 from shlex import quote as shq
-from typing import Dict, List, Optional, Sequence, Set, TypedDict
+from typing import Dict, FrozenSet, List, Optional, Sequence, Set, TypedDict
 
 import jinja2
 import yaml
@@ -11,6 +11,7 @@ import yaml
 from gear.cloud_config import get_global_config
 from hailtop.utils import RETRY_FUNCTION_SCRIPT, flatten
 
+from .build_selection import _ancestors_closure, select_steps
 from .environment import (
     BUILDKIT_IMAGE,
     CI_UTILS_IMAGE,
@@ -84,11 +85,12 @@ class Code(abc.ABC):
 
 
 class StepParameters:
-    def __init__(self, code, scope, json, name_step):
+    def __init__(self, code, scope, json, name_step, is_release: bool = False):
         self.code = code
         self.scope = scope
         self.json = json
         self.name_step = name_step
+        self.is_release = is_release
 
 
 class BuildConfigurationError(Exception):
@@ -102,48 +104,69 @@ class BuildConfiguration:
         config_str: str,
         scope: str,
         *,
-        requested_step_names: Sequence[str] = (),
+        requested_step_names: Optional[Sequence[str]] = None,
         excluded_step_names: Sequence[str] = (),
+        pr_labels: FrozenSet[str] = frozenset(),
+        is_release: bool = False,
+        tactically_succeeded_always_run_steps: FrozenSet[str] = frozenset(),
     ):
         if len(excluded_step_names) > 0 and scope != 'dev':
             raise BuildConfigurationError('Excluding build steps is only permitted in a dev scope')
 
+        self.pr_labels = pr_labels
+
+        self.is_release = is_release
         config = yaml.safe_load(config_str)
-        if requested_step_names:
+        if requested_step_names is not None:
             log.info(f"Constructing build configuration with steps: {requested_step_names}")
 
         runnable_steps: List[Step] = []
         name_step: Dict[str, Step] = {}
         for step_config in config['steps']:
-            step = Step.from_json(StepParameters(code, scope, step_config, name_step))
+            step = Step.from_json(StepParameters(code, scope, step_config, name_step, is_release))
             if step.name not in excluded_step_names and step.can_run_in_current_cloud():
                 name_step[step.name] = step
                 runnable_steps.append(step)
 
-        if requested_step_names:
-            # transitively close requested_step_names over dependencies
-            visited = set()
+        forced_step_names = {step.name for step in runnable_steps if step.is_forced_by_labels(pr_labels)}
+        full_deps_map: Dict[str, List[str]] = {step.name: [d.name for d in step.deps] for step in runnable_steps}
+        self.transitively_forced: Set[str] = _ancestors_closure(forced_step_names, full_deps_map)
 
-            def visit_dependent(step: Step):
-                if step not in visited and step.name not in excluded_step_names:
-                    if not step.can_run_in_current_cloud():
-                        raise BuildConfigurationError(f'Step {step.name} cannot be run in cloud {CLOUD}')
-                    visited.add(step)
-                    for s2 in step.deps:
-                        if not s2.run_if_requested:
-                            visit_dependent(s2)
-
-            for step_name in requested_step_names:
-                visit_dependent(name_step[step_name])
-            self.steps = [step for step in runnable_steps if step in visited]
+        if requested_step_names is not None:
+            seeds = set(requested_step_names) | forced_step_names
+            # Use raw step configs so the selection logic stays pure and testable.
+            valid_raw_steps = [
+                s
+                for s in config['steps']
+                if s.get('name') in name_step
+                and (name_step[s['name']].can_run_in_scope(scope) or s['name'] in self.transitively_forced)
+            ]
+            always_run_steps = set(config.get('alwaysRunSteps', [])) - tactically_succeeded_always_run_steps
+            # follow_forward=False for dev/deploy: see select_steps' docstring.
+            selected_names = select_steps(seeds, valid_raw_steps, always_run_steps, follow_forward=scope == 'test')
+            self.steps = [
+                step
+                for step in runnable_steps
+                if step.name in selected_names
+                and (
+                    not step.only_if_release
+                    or step.is_forced_by_labels(pr_labels)
+                    or (is_release and scope == 'deploy')
+                )
+            ]
         else:
-            self.steps = [step for step in runnable_steps if not step.run_if_requested]
+            self.steps = [
+                step
+                for step in runnable_steps
+                if step.is_forced_by_labels(pr_labels)
+                or (not step.run_if_requested and (not step.only_if_release or (is_release and scope == 'deploy')))
+            ]
 
     def build(self, batch, code, scope):
         assert scope in ('deploy', 'test', 'dev')
 
         for step in self.steps:
-            if step.can_run_in_scope(scope):
+            if step.can_run_in_scope(scope) or step.name in self.transitively_forced:
                 assert step.can_run_in_current_cloud()
                 step.build(batch, code, scope)
 
@@ -162,7 +185,7 @@ class BuildConfiguration:
                 f"Cleanup {step.name} after running {[parent_step.name for parent_step in step_to_parent_steps[step]]}"
             )
 
-            if step.can_run_in_scope(scope):
+            if step.can_run_in_scope(scope) or step.name in self.transitively_forced:
                 step.cleanup(batch, scope, parent_jobs)
 
     def namespace(self) -> Optional[str]:
@@ -193,9 +216,19 @@ class Step(abc.ABC):
                 raise BuildConfigurationError(f'found duplicate dependencies of {self.name}: {duplicates}')
             self.deps = [params.name_step[d] for d in json['dependsOn'] if d in params.name_step]
 
+        self.after_steps: List[Step] = []
+        if 'after' in json:
+            duplicates = [name for name, count in Counter(json['after']).items() if count > 1]
+            if duplicates:
+                raise BuildConfigurationError(f'found duplicate after of {self.name}: {duplicates}')
+            self.after_steps = [params.name_step[d] for d in json['after'] if d in params.name_step]
+
         self.scopes = json.get('scopes')
         self.clouds = json.get('clouds')
         self.run_if_requested = json.get('runIfRequested', False)
+        self.force_if_labeled: List[str] = json.get('forceIfLabeled', [])
+        self.only_if_release = json.get('onlyIfRelease', False)
+        self.is_release = params.is_release
 
         self.token = generate_token()
 
@@ -205,17 +238,16 @@ class Step(abc.ABC):
         config['token'] = self.token
         config['deploy'] = scope == 'deploy'
         config['scope'] = scope
+        config['is_release'] = self.is_release
         config['code'] = code.config()
         config['ci_storage_uri'] = STORAGE_URI
-        if self.deps:
-            for d in self.deps:
-                config[d.name] = d.config(scope)
+        for d in self.deps + self.after_steps:
+            config[d.name] = d.config(scope)
         return config
 
     def deps_parents(self):
-        if not self.deps:
-            return None
-        return flatten([d.wrapped_job() for d in self.deps])
+        parents = flatten([d.wrapped_job() for d in self.deps + self.after_steps])
+        return parents or None
 
     def all_deps(self):
         visited: Set[Step] = set([self])
@@ -234,6 +266,9 @@ class Step(abc.ABC):
 
     def can_run_in_scope(self, scope: str):
         return self.scopes is None or scope in self.scopes
+
+    def is_forced_by_labels(self, pr_labels: FrozenSet[str]) -> bool:
+        return any(label in pr_labels for label in self.force_if_labeled)
 
     @staticmethod
     def from_json(params: StepParameters):
@@ -552,11 +587,14 @@ class RunImageStep(Step):
 
     def build(self, batch, code, scope):
         if self.num_splits == 1:
-            self.jobs = [self._build_job(batch, code, scope, self.name, None, None)]
+            self.jobs = [self._build_job(batch, batch, code, scope, self.name, None, None)]
         else:
+            # Multiple splits get put into a job group together:
+            step_group = batch.create_job_group(attributes={'name': self.name})
             self.jobs = [
                 self._build_job(
                     batch,
+                    step_group,
                     code,
                     scope,
                     f'{self.name}_{i}',
@@ -566,7 +604,7 @@ class RunImageStep(Step):
                 for i in range(self.num_splits)
             ]
 
-    def _build_job(self, batch, code, scope, job_name, env, output_prefix):
+    def _build_job(self, batch, job_creator, code, scope, job_name, env, output_prefix):
         template = jinja2.Template(self.script, undefined=jinja2.StrictUndefined, trim_blocks=True, lstrip_blocks=True)
         rendered_script = template.render(**self.input_config(code, scope))
 
@@ -595,7 +633,7 @@ class RunImageStep(Step):
                 mount_path = secret['mountPath']
                 secrets.append({'namespace': namespace, 'name': name, 'mount_path': mount_path})
 
-        return batch.create_job(
+        return job_creator.create_job(
             self.image,
             command=['bash', '-c', rendered_script],
             port=self.port,

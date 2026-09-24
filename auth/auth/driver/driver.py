@@ -14,6 +14,7 @@ import kubernetes_asyncio.config
 from gear import Database, create_session
 from gear.clients import get_identity_client
 from gear.cloud_config import get_gcp_config, get_global_config
+from gear.system_permissions import SystemPermission
 from hailtop import aiotools, httpx
 from hailtop import batch_client as bc
 from hailtop.aiocloud.aioazure import AzureGraphClient
@@ -395,7 +396,22 @@ async def _create_user(app, user, skip_trial_bp, cleanup):
         token = secret_alnum_string(3, case='numbers')
         ident_token = f'{username}-{token}'
 
-    if user['is_developer'] == 1 or user['is_service_account'] == 1 or username == 'test':
+    system_permissions = []
+    if len(user['system_roles']) > 0:
+        # Fetch system permissions for the user's system roles
+        system_permissions = [
+            x['name']
+            async for x in db.select_and_fetchall(
+                'SELECT system_permissions.name FROM system_permissions JOIN system_role_permissions ON system_permissions.id = system_role_permissions.permission_id JOIN users_system_roles ON system_role_permissions.role_id = users_system_roles.role_id WHERE users_system_roles.user_id = %s',
+                (user['id'],),
+            )
+        ]
+
+    if (
+        SystemPermission.ACCESS_DEVELOPER_ENVIRONMENTS.value in system_permissions
+        or user['is_service_account'] == 1
+        or username == 'test'
+    ):
         ident = username
     else:
         ident = ident_token
@@ -451,15 +467,6 @@ async def _create_user(app, user, skip_trial_bp, cleanup):
             {'key.json': secret_data},
         )
         updates['hail_credentials_secret_name'] = hail_credentials_secret_name
-
-    namespace_name = user['namespace_name']
-    # auth services in test namespaces cannot/should not be creating and deleting namespaces
-    if namespace_name is None and user['is_developer'] == 1 and not is_test_deployment:
-        namespace_name = ident
-        namespace = K8sNamespaceResource(k8s_client)
-        cleanup.append(namespace.delete)
-        await namespace.create(namespace_name)
-        updates['namespace_name'] = namespace_name
 
     if not skip_trial_bp and user['is_service_account'] != 1:
         trial_bp = user['trial_bp_name']
@@ -530,7 +537,9 @@ async def delete_user(app, user):
     namespace_name = user['namespace_name']
     # auth services in test namespaces cannot/should not be creating and deleting namespaces
     if namespace_name is not None and namespace_name != DEFAULT_NAMESPACE and not is_test_deployment:
-        assert user['is_developer'] == 1
+        # Previously we asserted is_developer here. But it's easier to get a namespace without the right permission
+        # as roles are shuffled, and we would want to delete a floating developer namespace anyway...
+        # so let's just delete it.
 
         # don't bother deleting database-server-config since we're
         # deleting the namespace
@@ -574,18 +583,116 @@ WHERE hail_identity = %s
     )
 
 
+async def _users_in_state_with_roles(db: Database, state: str) -> List[dict]:
+    users = [
+        x
+        async for x in db.select_and_fetchall(
+            """
+SELECT users.*, GROUP_CONCAT(system_roles.name ORDER BY system_roles.name SEPARATOR ',') AS role_names
+FROM users
+LEFT JOIN users_system_roles ON users.id = users_system_roles.user_id
+LEFT JOIN system_roles ON users_system_roles.role_id = system_roles.id
+WHERE users.state = %s
+GROUP BY users.id
+""",
+            (state,),
+        )
+    ]
+
+    for user in users:
+        user['system_roles'] = user['role_names'].split(',') if user['role_names'] else []
+        del user['role_names']
+
+    return users
+
+
+async def _create_missing_namespaces(app):
+    if is_test_deployment:
+        return
+    db = app['db']
+    k8s_client = app['k8s_client']
+
+    users = [
+        x
+        async for x in db.execute_and_fetchall(
+            """
+SELECT DISTINCT u.id, u.username
+FROM users u
+JOIN users_system_roles usr ON u.id = usr.user_id
+JOIN system_role_permissions srp ON usr.role_id = srp.role_id
+JOIN system_permissions sp ON srp.permission_id = sp.id
+WHERE u.state = 'active'
+  AND sp.name = 'access_developer_environments'
+  AND u.namespace_name IS NULL
+"""
+        )
+    ]
+    for user in users:
+        namespace_name = user['username']
+        log.info(f'creating namespace {namespace_name} for user {user["username"]}')
+        namespace = K8sNamespaceResource(k8s_client)
+        try:
+            await namespace.create(namespace_name)
+            n_rows = await db.execute_update(
+                'UPDATE users SET namespace_name = %s WHERE id = %s AND namespace_name IS NULL',
+                (namespace_name, user['id']),
+            )
+            if n_rows == 0:
+                await namespace.delete()
+        except Exception:
+            log.exception(f'failed to create namespace for user {user["username"]}')
+            try:
+                await namespace.delete()
+            except Exception:
+                log.exception('caught exception while cleaning up namespace, ignoring')
+
+
+async def _remove_stale_namespaces(app):
+    if is_test_deployment:
+        return
+    db = app['db']
+    k8s_client = app['k8s_client']
+
+    users = [
+        x
+        async for x in db.execute_and_fetchall(
+            """
+SELECT u.id, u.namespace_name
+FROM users u
+WHERE u.namespace_name IS NOT NULL
+  AND u.id NOT IN (
+      SELECT usr.user_id
+      FROM users_system_roles usr
+      JOIN system_role_permissions srp ON usr.role_id = srp.role_id
+      JOIN system_permissions sp ON srp.permission_id = sp.id
+      WHERE sp.name = 'access_developer_environments'
+  )
+"""
+        )
+    ]
+    for user in users:
+        namespace_name = user['namespace_name']
+        log.info(f'deleting stale namespace {namespace_name}')
+        try:
+            await K8sNamespaceResource(k8s_client, namespace_name).delete()
+            await db.execute_update(
+                'UPDATE users SET namespace_name = NULL WHERE id = %s AND namespace_name = %s',
+                (user['id'], namespace_name),
+            )
+        except Exception:
+            log.exception(f'failed to delete namespace {namespace_name}')
+
+
 async def update_users(app):
     log.info('in update_users')
 
     db = app['db']
 
-    creating_users = [x async for x in db.execute_and_fetchall('SELECT * FROM users WHERE state = %s;', 'creating')]
-
+    creating_users = await _users_in_state_with_roles(db, 'creating')
     for user in creating_users:
         await create_user(app, user)
 
-    deleting_users = [x async for x in db.execute_and_fetchall('SELECT * FROM users WHERE state = %s;', 'deleting')]
-
+    deleting_users = await _users_in_state_with_roles(db, 'deleting')
     for user in deleting_users:
         await delete_user(app, user)
 
@@ -597,6 +704,9 @@ async def update_users(app):
     ]
     for user in users_without_hail_identity_uid:
         await resolve_identity_uid(app, user['hail_identity'])
+
+    await _create_missing_namespaces(app)
+    await _remove_stale_namespaces(app)
 
     return True
 

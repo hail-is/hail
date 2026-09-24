@@ -2,7 +2,6 @@ package is.hail.backend.local
 
 import is.hail.backend._
 import is.hail.backend.Backend.PartitionFn
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.Validate
 import is.hail.expr.ir._
 import is.hail.expr.ir.analyses.SemanticHash
@@ -11,6 +10,7 @@ import is.hail.types._
 import is.hail.types.physical.PTuple
 import is.hail.utils._
 
+import scala.collection.immutable.ArraySeq
 import scala.reflect.ClassTag
 import scala.util.control.NonFatal
 
@@ -113,10 +113,12 @@ object LocalBackend extends Backend with Logging {
       print = print,
     )
 
-  override def execute(ctx: ExecuteContext, ir: IR): Either[Unit, (PTuple, Long)] =
-    ctx.time {
-      TypeCheck(ctx, ir)
-      Validate(ir)
+  override def execute(ctx: ExecuteContext, ir0: IR): Either[Unit, (PTuple, Long)] =
+    TimedBlock.enter {
+      TypeCheck(ctx, ir0)
+      Validate(ir0)
+      val ir = NormalizeNames()(ctx, ir0)
+
       val queryID = Backend.nextID()
       logger.info(s"starting execution of query $queryID of initial size ${IRSize(ir)}")
       if (ctx.flags.isDefined(ExecutionCache.Flags.UseFastRestarts))

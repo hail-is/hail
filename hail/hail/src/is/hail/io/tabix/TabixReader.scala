@@ -1,12 +1,12 @@
 package is.hail.io.tabix
 
 import is.hail.collection.IntArrayBuilder
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.io.compress.BGzipLineReader
 import is.hail.io.fs.FS
 import is.hail.utils._
 import is.hail.utils.implicits.toRichInputStream
 
+import scala.collection.immutable.ArraySeq
 import scala.collection.mutable
 
 import java.io.InputStream

@@ -5,7 +5,7 @@ import mill.api.{PathRef, Task, TaskCtx}
 import mill.meta.MillBuildRootModule
 import mill.scalalib.Dep
 
-import millbuild.*
+import millbuild.BuildMode
 import millbuild.MvnCoordinate.*
 
 import scala.collection.immutable.ArraySeq
@@ -22,8 +22,9 @@ object `package` extends MillBuildRootModule:
 
   override def mvnDeps: T[Seq[Dep]] =
     Seq(
+      `mill-contrib-jmh` :: "1.0.6",
       `mill-scalafix` :::: "0.6.0",
-      `scalac-options` :: "0.1.8",
+      `scalac-options` :: "0.1.11",
     )
     
   private def customSources: T[Seq[PathRef]] =
@@ -42,37 +43,25 @@ object `package` extends MillBuildRootModule:
          |object BuildConfig {
          |  val buildMode =
          |    BuildMode.${buildMode().getOrElse(BuildMode.Release)}
-         |  val bspScalaVersion: String =
-         |    "${bspScalaVersion().getOrElse("2.13")}"
          |}
       """.stripMargin
     )
     super.generatedSources() ++ Seq(PathRef(Task.dest))
   }
 
-  def getConfig(name: String)(implicit ctx: TaskCtx.Env): Option[String] =
+  def getConfig(name: String)(implicit ctx: TaskCtx.Env): Seq[String] =
     ctx.env
       .get(name map { case '-' => '_'; case c => c.toUpper })
       .orElse {
         val path = moduleDir / "config" / name
         Option.when(os.exists(path))(os.read(path))
       }
-
-  def bspScalaVersion: T[Option[String]] =
-    Task.Input {
-      val opt = getConfig("scala-version")
-      opt.foreach { ver =>
-        require(
-          SupportedScalaVersions `contains` ver,
-          s"SCALA_VERSION may be one of ${SupportedScalaVersions.quoted.mkString(",")}; found '$ver'."
-        )
-      }
-      opt
-    }
+      .to(ArraySeq)
+      .flatMap(_.split(',').map(_.strip))
 
   def buildMode: T[Option[BuildMode]] =
     Task.Input {
-      getConfig("hail-build-mode").map { raw =>
+      getConfig("hail-build-mode").headOption.map { raw =>
         try
           BuildMode.valueOf(raw)
         catch {

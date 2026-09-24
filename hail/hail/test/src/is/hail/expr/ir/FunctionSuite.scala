@@ -1,17 +1,20 @@
 package is.hail.expr.ir
 
-import is.hail.{ExecStrategy, HailSuite}
+import is.hail.ExecStrategy
 import is.hail.ExecStrategy.ExecStrategy
+import is.hail.TestUtils._
 import is.hail.asm4s._
+import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir.defs.{ApplyBinaryPrimOp, I32, In}
 import is.hail.expr.ir.functions.{IRFunctionRegistry, RegistryFunctions}
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.virtual._
 import is.hail.variant.Call2
 
-import org.testng.annotations.Test
+import scala.collection.immutable.ArraySeq
+
+import org.junit.jupiter.api.Test
 
 object ScalaTestObject {
   def testFunction(): Int = 1
@@ -47,14 +50,14 @@ object TestRegisterFunctions extends RegistryFunctions {
   }
 }
 
-class FunctionSuite extends HailSuite {
+class FunctionSuite {
 
   implicit val execStrats: Set[ExecStrategy] = ExecStrategy.javaOnly
 
   TestRegisterFunctions.registerAll()
 
   @Test
-  def testCodeFunction(): Unit =
+  def testCodeFunction(implicit ctx: ExecuteContext): Unit =
     assertEvalsTo(
       invoke("triangle", TInt32, In(0, TInt32)),
       FastSeq(5 -> TInt32),
@@ -62,7 +65,7 @@ class FunctionSuite extends HailSuite {
     )
 
   @Test
-  def testStaticFunction(): Unit =
+  def testStaticFunction(implicit ctx: ExecuteContext): Unit =
     assertEvalsTo(
       invoke("compare", TInt32, In(0, TInt32), I32(0)) > 0,
       FastSeq(5 -> TInt32),
@@ -70,15 +73,15 @@ class FunctionSuite extends HailSuite {
     )
 
   @Test
-  def testScalaFunction(): Unit =
+  def testScalaFunction(implicit ctx: ExecuteContext): Unit =
     assertEvalsTo(invoke("foobar1", TInt32), 1)
 
   @Test
-  def testIRConversion(): Unit =
+  def testIRConversion(implicit ctx: ExecuteContext): Unit =
     assertEvalsTo(invoke("addone", TInt32, In(0, TInt32)), FastSeq(5 -> TInt32), 6)
 
   @Test
-  def testScalaFunctionCompanion(): Unit =
+  def testScalaFunctionCompanion(implicit ctx: ExecuteContext): Unit =
     assertEvalsTo(invoke("foobar2", TInt32), 2)
 
   @Test
@@ -86,27 +89,27 @@ class FunctionSuite extends HailSuite {
     assert(IRFunctionRegistry.lookup(
       "testCodeUnification",
       TInt32,
-      Seq(TInt32, TInt32),
+      ArraySeq(TInt32, TInt32),
     ).isDefined)
     assert(IRFunctionRegistry.lookup(
       "testCodeUnification",
       TInt32,
-      Seq(TInt64, TInt32),
+      ArraySeq(TInt64, TInt32),
     ).isEmpty)
     assert(IRFunctionRegistry.lookup(
       "testCodeUnification",
       TInt64,
-      Seq(TInt32, TInt32),
+      ArraySeq(TInt32, TInt32),
     ).isEmpty)
     assert(IRFunctionRegistry.lookup(
       "testCodeUnification2",
       TArray(TInt32),
-      Seq(TArray(TInt32)),
+      ArraySeq(TArray(TInt32)),
     ).isDefined)
   }
 
   @Test
-  def testUnphasedDiploidGtIndexCall(): Unit =
+  def testUnphasedDiploidGtIndexCall(implicit ctx: ExecuteContext): Unit =
     assertEvalsTo(
       invoke("UnphasedDiploidGtIndexCall", TCall, In(0, TInt32)),
       FastSeq(0 -> TInt32),
@@ -114,7 +117,7 @@ class FunctionSuite extends HailSuite {
     )
 
   @Test
-  def testGetOrGenMethod(): Unit = {
+  def testGetOrGenMethod(implicit ctx: ExecuteContext): Unit = {
     val fb = EmitFunctionBuilder[Int](ctx, "foo")
     val i = fb.genFieldThisRef[Int]()
     val mb1 = fb.getOrGenEmitMethod("foo", "foo", FastSeq[ParamType](), UnitInfo) { mb =>
@@ -129,8 +132,8 @@ class FunctionSuite extends HailSuite {
       cb.invokeVoid(mb2, cb.this_)
       i
     }
-    pool.scopedRegion { r =>
-      assert(fb.resultWithIndex().apply(theHailClassLoader, ctx.fs, ctx.taskContext, r)() == 2)
+    ctx.r.pool.scopedRegion { r =>
+      assertEq(fb.resultWithIndex().apply(ctx.theHailClassLoader, ctx.fs, ctx.taskContext, r)(), 2)
     }
   }
 }

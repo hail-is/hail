@@ -1,7 +1,7 @@
 package is.hail.asm4s
 
 import is.hail.annotations.Region
-import is.hail.io.{InputBuffer, OutputBuffer}
+import is.hail.io.{InputBuffer, OutputBuffer, PrefixCoder}
 
 package object implicits {
   implicit def valueToRichCodeInputBuffer(in: Value[InputBuffer]): RichCodeInputBuffer =
@@ -21,4 +21,7 @@ package object implicits {
 
   implicit def valueToRichCodeRegion(region: Value[Region]): RichCodeRegion =
     new RichCodeRegion(region)
+
+  implicit def valueToRichCodePrefixCoder(pc: Value[PrefixCoder]): RichCodePrefixCoder =
+    new RichCodePrefixCoder(pc)
 }

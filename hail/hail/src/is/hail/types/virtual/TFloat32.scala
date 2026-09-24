@@ -2,6 +2,7 @@ package is.hail.types.virtual
 
 import is.hail.annotations._
 import is.hail.backend.HailStateManager
+import is.hail.expr.orderings.compat.FloatOrdering
 import is.hail.utils._
 
 case object TFloat32 extends TNumeric {
@@ -33,7 +34,7 @@ case object TFloat32 extends TNumeric {
     })
 
   override def mkOrdering(sm: HailStateManager, missingEqual: Boolean): ExtendedOrdering =
-    ExtendedOrdering.extendToNull(implicitly[Ordering[Float]], missingEqual)
+    ExtendedOrdering.extendToNull(FloatOrdering, missingEqual)
 
   override def isIsomorphicTo(t: Type): Boolean =
     this == t

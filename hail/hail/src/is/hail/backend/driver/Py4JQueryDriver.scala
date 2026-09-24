@@ -5,7 +5,6 @@ import is.hail.asm4s.HailClassLoader
 import is.hail.backend._
 import is.hail.backend.spark.SparkBackend
 import is.hail.collection.FastSeq
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.collection.implicits.toRichIterable
 import is.hail.expr.{JSONAnnotationImpex, SparkAnnotationImpex}
 import is.hail.expr.ir._
@@ -21,14 +20,14 @@ import is.hail.types.physical.PStruct
 import is.hail.types.virtual.{TArray, TInterval}
 import is.hail.types.virtual.Kinds.{BlockMatrix, Matrix, Table, Value}
 import is.hail.utils._
-import is.hail.utils.ExecutionTimer.Timings
 import is.hail.utils.implicits.toRichString
 import is.hail.variant.ReferenceGenome
 
 import scala.annotation.nowarn
-import scala.collection.compat._
+import scala.collection.immutable.ArraySeq
 import scala.collection.mutable
 import scala.jdk.CollectionConverters._
+import scala.util.control.NonFatal
 
 import java.io.Closeable
 import java.net.InetSocketAddress
@@ -38,7 +37,7 @@ import com.sun.net.httpserver.{HttpExchange, HttpServer}
 import org.apache.hadoop.conf.Configuration
 import org.apache.spark.sql.DataFrame
 import org.json4s._
-import org.json4s.jackson.{JsonMethods, Serialization}
+import org.json4s.jackson.JsonMethods
 import sourcecode.Enclosing
 
 final class Py4JQueryDriver(backend: Backend) extends Closeable with Logging {
@@ -59,26 +58,34 @@ final class Py4JQueryDriver(backend: Backend) extends Closeable with Logging {
     newFs(CloudStorageConfig.readEnv(None))
   )
 
+  // Driver state is owned by the executor's single thread: operations that
+  // touch it run there serially.
+  private[this] val executor =
+    new SerialExecutor("Py4J Driver Execution Thread")
+
+  def pyCancel(): Unit =
+    executor.cancel()
+
   def pyFs: FS =
-    synchronized(tmpFileManager.fs)
+    executor.run(tmpFileManager.fs)
 
   def pyGetFlag(name: String): String =
-    synchronized(flags.get(name))
+    executor.run(flags.get(name))
 
   def pySetFlag(name: String, value: String): Unit =
-    synchronized(flags.set(name, value))
+    executor.run(flags.set(name, value))
 
   def pyAvailableFlags: java.util.ArrayList[String] =
     flags.available
 
   def pySetRemoteTmp(tmp: String): Unit =
-    synchronized { tmpdir = tmp }
+    executor.run { tmpdir = tmp }
 
   def pyGetRemoteTmp: String =
-    synchronized(tmpdir)
+    executor.run(tmpdir)
 
   def pySetLocalTmp(tmp: String): Unit =
-    synchronized {
+    executor.run {
       localTmpdir = tmp
       backend match {
         case s: SparkBackend if tmp != "file://" + s.sc.getConf.get("spark.local.dir", "") =>
@@ -92,10 +99,10 @@ final class Py4JQueryDriver(backend: Backend) extends Closeable with Logging {
     }
 
   def pyGetLocalTmp: String =
-    synchronized(localTmpdir)
+    executor.run(localTmpdir)
 
   def pySetGcsRequesterPaysConfig(project: String, buckets: util.List[String]): Unit =
-    synchronized {
+    executor.run {
       tmpFileManager.close()
 
       val cloudfsConf = CloudStorageConfig.readEnv(None)
@@ -126,16 +133,16 @@ final class Py4JQueryDriver(backend: Backend) extends Closeable with Logging {
     }
 
   def pyRemoveJavaIR(id: Int): Unit =
-    synchronized(irCache -= id: Unit)
+    executor.run(irCache -= id: Unit)
 
   def pyAddSequence(name: String, fastaFile: String, indexFile: String): Unit =
-    synchronized {
+    executor.run {
       val seq = IndexedFastaSequenceFile(tmpFileManager.fs, fastaFile, indexFile)
       references(name).addSequence(seq)
     }
 
   def pyRemoveSequence(name: String): Unit =
-    synchronized(references(name).removeSequence())
+    executor.run(references(name).removeSequence())
 
   def pyExportBlockMatrix(
     pathIn: String,
@@ -175,7 +182,7 @@ final class Py4JQueryDriver(backend: Backend) extends Closeable with Logging {
             exportType,
           )
       }
-    }._1
+    }
   }
 
   def pyRegisterIR(
@@ -196,7 +203,7 @@ final class Py4JQueryDriver(backend: Backend) extends Closeable with Logging {
         returnType,
         bodyStr,
       ): Unit
-    }._1
+    }
 
   def pyExecuteLiteral(irStr: String): Int =
     withExecuteContext(selfContainedExecution = false) { ctx =>
@@ -208,7 +215,7 @@ final class Py4JQueryDriver(backend: Backend) extends Closeable with Logging {
           val field = GetFieldByIdx(EncodedLiteral.fromPTypeAndAddress(pt, addr, ctx), 0)
           addJavaIR(ctx, field)
       }
-    }._1
+    }
 
   def pyFromDF(df: DataFrame, jKey: java.util.List[String]): (Int, String) =
     withExecuteContext(selfContainedExecution = false) { ctx =>
@@ -227,14 +234,14 @@ final class Py4JQueryDriver(backend: Backend) extends Closeable with Logging {
       )
       val id = addJavaIR(ctx, tir)
       (id, JsonMethods.compact(tir.typ.toJSON))
-    }._1
+    }
 
   def pyToDF(s: String): DataFrame =
     withExecuteContext(selfContainedExecution = false) { ctx =>
       val tir = IRParser.parse_table_ir(ctx, s)
       val tv = Interpret(tir, ctx)
       tv.toDF(ctx)
-    }._1
+    }
 
   def pyReadMultipleMatrixTables(jsonQuery: String): util.List[MatrixIR] =
     withExecuteContext(selfContainedExecution = false) { ctx =>
@@ -258,16 +265,16 @@ final class Py4JQueryDriver(backend: Backend) extends Closeable with Logging {
 
       logger.info("pyReadMultipleMatrixTables: returning N matrix tables")
       matrixReaders
-    }._1
+    }
 
   def pyAddReference(jsonConfig: String): Unit =
-    synchronized(addReference(ReferenceGenome.fromJSON(jsonConfig)))
+    executor.run(addReference(ReferenceGenome.fromJSON(jsonConfig)))
 
   def pyRemoveReference(name: String): Unit =
-    synchronized(removeReference(name))
+    executor.run(removeReference(name))
 
   def pyAddLiftover(name: String, chainFile: String, destRGName: String): Unit =
-    synchronized {
+    executor.run {
       references(name).addLiftover(
         references(destRGName),
         LiftOver(tmpFileManager.fs, chainFile),
@@ -275,19 +282,19 @@ final class Py4JQueryDriver(backend: Backend) extends Closeable with Logging {
     }
 
   def pyRemoveLiftover(name: String, destRGName: String): Unit =
-    synchronized(references(name).removeLiftover(destRGName))
+    executor.run(references(name).removeLiftover(destRGName))
 
   def parse_blockmatrix_ir(s: String): BlockMatrixIR =
     withExecuteContext(selfContainedExecution = false) { ctx =>
       IRParser.parse_blockmatrix_ir(ctx, s)
-    }._1
+    }
 
   private[this] def fileAndLineCounts(
     regex: String,
     files: Seq[String],
     maxLines: Int,
   ): Map[String, Array[WithContext[String]]] =
-    synchronized {
+    executor.run {
       val regexp = regex.r
       backend.asSpark.sc
         .textFilesLines(tmpFileManager.fs.globAll(files).map(_.getPath))
@@ -313,15 +320,18 @@ final class Py4JQueryDriver(backend: Backend) extends Closeable with Logging {
   private[this] def addReference(rg: ReferenceGenome): Unit =
     ReferenceGenome.addFatalOnCollision(references, FastSeq(rg))
 
-  override def close(): Unit =
-    synchronized {
-      blockMatrixCache.clear()
-      compiledCodeCache.clear()
-      irCache.clear()
-      coercerCache.clear()
-      backend.close()
-      IRFunctionRegistry.clearUserFunctions()
+  override def close(): Unit = {
+    try executor.close()
+    catch {
+      case NonFatal(t) => logger.warn(t)
     }
+    blockMatrixCache.clear()
+    compiledCodeCache.clear()
+    irCache.clear()
+    coercerCache.clear()
+    backend.close()
+    IRFunctionRegistry.clearUserFunctions()
+  }
 
   private[this] def removeReference(name: String): Unit =
     references -= name
@@ -331,16 +341,15 @@ final class Py4JQueryDriver(backend: Backend) extends Closeable with Logging {
   )(
     f: ExecuteContext => T
   )(implicit E: Enclosing
-  ): (T, Timings) =
-    synchronized {
-      ExecutionTimer.time { timer =>
+  ): T =
+    executor.run {
+      TimedBlock.enter {
         ExecuteContext.scoped(
           tmpdir = tmpdir,
           localTmpdir = localTmpdir,
           backend = backend,
           references = references.toMap,
           fs = tmpFileManager.fs,
-          timer = timer,
           tempFileManager =
             if (!selfContainedExecution) NonOwningTempFileManager(tmpFileManager)
             else new OwningTempFileManager(tmpFileManager.fs),
@@ -411,11 +420,6 @@ final class Py4JQueryDriver(backend: Backend) extends Closeable with Logging {
         override def payload(req: HttpExchange): JValue =
           using(req.getRequestBody)(JsonMethods.parse(_))
 
-        override def timings(req: HttpExchange, t: Timings): Unit = {
-          val ts = Serialization.write(Map("timings" -> t))
-          req.getResponseHeaders.add("X-Hail-Timings", ts)
-        }
-
         override def result(req: HttpExchange, result: Array[Byte]): Unit =
           respond(req, 200, result)
 
@@ -440,7 +444,7 @@ final class Py4JQueryDriver(backend: Backend) extends Closeable with Logging {
       }
 
       implicit object Context extends Context {
-        override def scoped[A](req: HttpExchange)(f: ExecuteContext => A): (A, Timings) =
+        override def scoped[A](req: HttpExchange)(f: ExecuteContext => A): A =
           withExecuteContext()(f)
 
         override def putReferences(req: HttpExchange)(refs: Iterable[ReferenceGenome]): Unit =

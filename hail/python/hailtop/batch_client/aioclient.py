@@ -284,10 +284,12 @@ class Job:
             tries += 1
             await sleep_before_try(tries)
 
-    async def container_log(self, container_name: str) -> bytes:
+    async def container_log(self, container_name: str, attempt_id: Optional[str] = None) -> bytes:
         self._raise_if_not_submitted()
+        params = {'attempt_id': attempt_id} if attempt_id else {}
         async with await self._client._get(
-            f'/api/v1alpha/batches/{self.batch_id}/jobs/{self.job_id}/log/{container_name}'
+            f'/api/v1alpha/batches/{self.batch_id}/jobs/{self.job_id}/log/{container_name}',
+            params=params,
         ) as resp:
             return await resp.read()
 
@@ -433,11 +435,11 @@ class JobGroup:
         q: Optional[str] = None,
         version: Optional[int] = None,
         recursive: bool = False,
+        last_job_id: Optional[int] = None,
     ) -> AsyncIterator[JobListEntryV1Alpha]:
         self._raise_if_not_submitted()
         if version is None:
             version = 1
-        last_job_id = None
         while True:
             params: Dict[str, Any] = {'recursive': str(recursive)}
             if q is not None:
@@ -471,10 +473,24 @@ class JobGroup:
     def create_job(self, image: str, command: List[str], **kwargs) -> Job:
         return self._batch._create_job(self, {'command': command, 'image': image, 'type': 'docker'}, **kwargs)
 
-    def create_jvm_job(self, jar_spec: Dict[str, str], argv: List[str], *, profile: bool = False, **kwargs):
-        return self._batch._create_job(
-            self, {'type': 'jvm', 'jar_spec': jar_spec, 'command': argv, 'profile': profile}, **kwargs
-        )
+    def create_jvm_job(
+        self,
+        jar_spec: dict[str, str],
+        argv: list[str],
+        *,
+        spark_version: str,
+        profile: bool = False,
+        **kwargs,
+    ):
+        assert spark_version is not None, 'missing spark_version'
+        process: dict[str, Any] = {
+            'type': 'jvm',
+            'jar_spec': jar_spec,
+            'command': argv,
+            'profile': profile,
+            'spark_version': spark_version,
+        }
+        return self._batch._create_job(self, process, **kwargs)
 
     def create_job_group(
         self,
@@ -575,6 +591,13 @@ class BatchAlreadyCreatedError(Exception):
     pass
 
 
+class BatchNotAuthenticatedError(Exception):
+    def __init__(self):
+        super().__init__(
+            "Not authenticated with Hail Batch.\n\nPlease run:\n\n    hailctl auth login\n\nto obtain credentials. If problems persist, try logging in to the web UI to check account status."
+        )
+
+
 class BatchDebugInfo(TypedDict):
     status: Dict[str, Any]
     jobs: List[JobListEntryV1Alpha]
@@ -660,9 +683,14 @@ class Batch:
         self._raise_if_not_created()
         await self._root_job_group.cancel()
 
-    def jobs(self, q: Optional[str] = None, version: Optional[int] = None) -> AsyncIterator[JobListEntryV1Alpha]:
+    def jobs(
+        self,
+        q: Optional[str] = None,
+        version: Optional[int] = None,
+        last_job_id: Optional[int] = None,
+    ) -> AsyncIterator[JobListEntryV1Alpha]:
         self._raise_if_not_created()
-        return self._root_job_group.jobs(q, version, recursive=True)
+        return self._root_job_group.jobs(q, version, recursive=True, last_job_id=last_job_id)
 
     def job_groups(self) -> AsyncIterator[JobGroup]:
         self._raise_if_not_created()
@@ -771,13 +799,27 @@ class Batch:
     def create_job(self, image: str, command: List[str], **kwargs) -> Job:
         return self._create_job(self._root_job_group, {'command': command, 'image': image, 'type': 'docker'}, **kwargs)
 
-    def create_jvm_job(self, jar_spec: Dict[str, str], argv: List[str], *, profile: bool = False, **kwargs):
+    def create_jvm_job(
+        self,
+        jar_spec: dict[str, str],
+        argv: List[str],
+        *,
+        spark_version: str,
+        profile: bool = False,
+        **kwargs,
+    ):
         if 'always_copy_output' in kwargs:
             raise ValueError("the 'always_copy_output' option is not allowed for JVM jobs")
         job_group = kwargs.pop('job_group', self._root_job_group)
-        return self._create_job(
-            job_group, {'type': 'jvm', 'jar_spec': jar_spec, 'command': argv, 'profile': profile}, **kwargs
-        )
+        assert spark_version is not None, 'missing spark_version'
+        process: dict[str, Any] = {
+            'type': 'jvm',
+            'jar_spec': jar_spec,
+            'command': argv,
+            'profile': profile,
+            'spark_version': spark_version,
+        }
+        return self._create_job(job_group, process, **kwargs)
 
     def create_job_group(
         self,
@@ -1317,21 +1359,27 @@ class BatchClient:
             warnings.warn(f"DEPRECATED: {deprecation_message}")
         return response
 
+    async def _request(self, method: str, path: str, **kwargs) -> aiohttp.ClientResponse:
+        try:
+            resp = await getattr(self._session, method)(self.url + path, headers=self._headers, **kwargs)
+        except httpx.ClientResponseError as err:
+            if err.status == 401:
+                # Replace the generic 401 error with our custom BatchNotAuthenticatedError to give better feedback:
+                raise BatchNotAuthenticatedError() from None
+            raise
+        return await self._warn_if_deprecated(resp)
+
     async def _get(self, path, params=None) -> aiohttp.ClientResponse:
-        return await self._warn_if_deprecated(
-            await self._session.get(self.url + path, params=params, headers=self._headers)
-        )
+        return await self._request('get', path, params=params)
 
     async def _post(self, path, data=None, json=None) -> aiohttp.ClientResponse:
-        return await self._warn_if_deprecated(
-            await self._session.post(self.url + path, data=data, json=json, headers=self._headers)
-        )
+        return await self._request('post', path, data=data, json=json)
 
     async def _patch(self, path) -> aiohttp.ClientResponse:
-        return await self._warn_if_deprecated(await self._session.patch(self.url + path, headers=self._headers))
+        return await self._request('patch', path)
 
     async def _delete(self, path) -> aiohttp.ClientResponse:
-        return await self._warn_if_deprecated(await self._session.delete(self.url + path, headers=self._headers))
+        return await self._request('delete', path)
 
     def reset_billing_project(self, billing_project):
         self.billing_project = billing_project

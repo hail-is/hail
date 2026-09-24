@@ -1,16 +1,17 @@
 package is.hail.expr.ir
 
-import is.hail.HailSuite
+import is.hail.TestUtils._
+import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
 import is.hail.expr.ir
 import is.hail.expr.ir.defs.{Literal, ToArray, ToStream}
 import is.hail.types.virtual.{TArray, TBoolean, TSet, TString}
 import is.hail.utils._
 
-import org.testng.annotations.Test
+import org.junit.jupiter.api.Test
 
-class MemoryLeakSuite extends HailSuite {
-  @Test def testLiteralSetContains(): Unit = {
+class MemoryLeakSuite {
+  @Test def testLiteralSetContains(implicit ctx: ExecuteContext): Unit = {
 
     val litSize = 32000
 
@@ -19,8 +20,8 @@ class MemoryLeakSuite extends HailSuite {
       val queries = Literal(TArray(TString), (0 until size).map(_.toString))
 
       val (_, memUsed) =
-        measuringHighestTotalMemoryUsage { ctx =>
-          unoptimized(ctx) { ctx =>
+        measuringHighestTotalMemoryUsage { implicit ctx =>
+          unoptimized { implicit ctx =>
             eval(
               ToArray(
                 mapIR(ToStream(queries))(r => ir.invoke("contains", TBoolean, lit, r))
@@ -29,7 +30,6 @@ class MemoryLeakSuite extends HailSuite {
               FastSeq(),
               None,
               None,
-              ctx,
             )
           }
         }

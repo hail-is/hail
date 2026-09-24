@@ -1,12 +1,10 @@
 package is.hail.types.physical
 
-import is.hail.annotations.{Annotation, Region}
+import is.hail.annotations.{Annotation, Region, RowSeq}
 import is.hail.backend.HailStateManager
 import is.hail.types.physical.stypes.concrete.{SIndexablePointer, SIndexablePointerValue}
 import is.hail.types.physical.stypes.interfaces.SIndexableValue
 import is.hail.types.virtual.{TDict, Type}
-
-import org.apache.spark.sql.Row
 
 object PCanonicalDict {
   def coerceArrayCode(contents: SIndexableValue): SIndexableValue =
@@ -48,7 +46,7 @@ final case class PCanonicalDict(keyType: PType, valueType: PType, required: Bool
   override def unstagedStoreJavaObject(sm: HailStateManager, annotation: Annotation, region: Region)
     : Long = {
     val annotMap = annotation.asInstanceOf[Map[Annotation, Annotation]]
-    val sortedArray = annotMap.map { case (k, v) => Row(k, v) }
+    val sortedArray = annotMap.map { case (k, v) => RowSeq(k, v) }
       .toArray
       .sorted(elementType.virtualType.ordering(sm).toOrdering)
       .toIndexedSeq

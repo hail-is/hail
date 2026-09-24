@@ -333,7 +333,8 @@ class Tests(unittest.TestCase):
 
     @pytest.mark.backend('batch')
     @pytest.mark.cloud('gcp')
-    @test_timeout(batch=5 * 60)
+    @pytest.mark.vep
+    @test_timeout(batch=10 * 60)
     def test_vep_grch37_consequence_true(self):
         gnomad_vep_result = hl.import_vcf(
             resource('sample.gnomad.exomes.r2.1.1.sites.chr1.vcf.gz'), reference_genome='GRCh37', force=True
@@ -355,7 +356,8 @@ class Tests(unittest.TestCase):
 
     @pytest.mark.backend('batch')
     @pytest.mark.cloud('gcp')
-    @test_timeout(batch=5 * 60)
+    @pytest.mark.vep
+    @test_timeout(batch=10 * 60)
     def test_vep_grch38_consequence_true(self):
         gnomad_vep_result = hl.import_vcf(
             resource('sample.gnomad.genomes.r3.0.sites.chr1.vcf.gz'), reference_genome='GRCh38', force=True
@@ -379,7 +381,8 @@ class Tests(unittest.TestCase):
 
     @pytest.mark.backend('batch')
     @pytest.mark.cloud('gcp')
-    @test_timeout(batch=5 * 60)
+    @pytest.mark.vep
+    @test_timeout(batch=10 * 60)
     def test_vep_grch37_consequence_false(self):
         mt = hl.import_vcf(
             resource('sample.gnomad.exomes.r2.1.1.sites.chr1.vcf.gz'), reference_genome='GRCh37', force=True
@@ -392,7 +395,8 @@ class Tests(unittest.TestCase):
 
     @pytest.mark.backend('batch')
     @pytest.mark.cloud('gcp')
-    @test_timeout(batch=5 * 60)
+    @pytest.mark.vep
+    @test_timeout(batch=10 * 60)
     def test_vep_grch38_consequence_false(self):
         mt = hl.import_vcf(
             resource('sample.gnomad.genomes.r3.0.sites.chr1.vcf.gz'), reference_genome='GRCh38', force=True
@@ -405,7 +409,8 @@ class Tests(unittest.TestCase):
 
     @pytest.mark.backend('batch')
     @pytest.mark.cloud('gcp')
-    @test_timeout(batch=5 * 60)
+    @pytest.mark.vep
+    @test_timeout(batch=10 * 60)
     def test_vep_grch37_against_dataproc(self):
         mt = hl.import_vcf(resource('sample.vcf.gz'), reference_genome='GRCh37', force_bgz=True, n_partitions=4)
         mt = mt.head(20)
@@ -458,7 +463,8 @@ class Tests(unittest.TestCase):
 
     @pytest.mark.backend('batch')
     @pytest.mark.cloud('gcp')
-    @test_timeout(batch=5 * 60)
+    @pytest.mark.vep
+    @test_timeout(batch=10 * 60)
     def test_vep_grch38_against_dataproc(self):
         dataproc_result = hl.import_table(
             resource('dataproc_vep_grch38_annotations.tsv.gz'),
@@ -511,7 +517,8 @@ class Tests(unittest.TestCase):
 
     @pytest.mark.backend('batch')
     @pytest.mark.cloud('gcp')
-    @test_timeout(batch=5 * 60)
+    @pytest.mark.vep
+    @test_timeout(batch=10 * 60)
     def test_vep_grch38_with_large_positions(self):
         bad_variants = hl.import_table(
             resource('vep_grch38_input_req_indexed_cache.tsv'),

@@ -1,15 +1,17 @@
 package is.hail.io
 
-import is.hail.HailSuite
+import is.hail.TestUtils._
+import is.hail.annotations.UnsafeUtils.roundUpAlignment
+import is.hail.backend.ExecuteContext
 
 import scala.collection.mutable.ArrayBuffer
 
+import org.junit.jupiter.api.Test
 import org.scalacheck.Gen
 import org.scalacheck.Gen._
-import org.scalatestplus.scalacheck.ScalaCheckDrivenPropertyChecks
-import org.testng.annotations.Test
+import org.scalacheck.Prop.forAll
 
-class IndexBTreeSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
+class IndexBTreeSuite {
 
   val genStarts: Gen[(Int, Array[Long])] =
     for {
@@ -27,8 +29,9 @@ class IndexBTreeSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
 
     } yield (depth, starts)
 
-  @Test def queryGivesSameAnswerAsArray(): Unit =
-    forAll(genStarts) { case (depth: Int, arrayRandomStarts: Array[Long]) =>
+  @Test def queryGivesSameAnswerAsArray(implicit ctx: ExecuteContext): Unit =
+    check(forAll(genStarts) { case (depth: Int, arrayRandomStarts: Array[Long]) =>
+      val fs = ctx.fs
       val index = ctx.createTmpPath("testBtree", "idx")
 
       fs.delete(index, true)
@@ -36,10 +39,10 @@ class IndexBTreeSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
       val btree = new IndexBTree(index, fs)
 
       val indexSize = fs.getFileSize(index)
-      val padding = 1024 - (arrayRandomStarts.length % 1024)
-      val numEntries = arrayRandomStarts.length + padding + (1 until depth).map { i =>
-        math.pow(1024, i.toDouble).toInt
-      }.sum
+      val numEntries =
+        roundUpAlignment(arrayRandomStarts.length.toLong, 1024L) + (1 until depth).map { i =>
+          math.pow(1024, i.toDouble).toInt
+        }.sum
 
       // make sure index size is correct
       val indexCorrectSize = if (indexSize == (numEntries * 8)) true else false
@@ -65,9 +68,10 @@ class IndexBTreeSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
 
       btree.close()
       assert(depthCorrect && indexCorrectSize && queryCorrect)
-    }
+    })
 
-  @Test def oneVariant(): Unit = {
+  @Test def oneVariant(implicit ctx: ExecuteContext): Unit = {
+    val fs = ctx.fs
     val index = Array(24.toLong)
     val fileSize = 30 // made-up value greater than index
     val idxFile = ctx.createTmpPath("testBtree_1variant", "idx")
@@ -76,9 +80,9 @@ class IndexBTreeSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     IndexBTree.write(index, idxFile, fs)
     val btree = new IndexBTree(idxFile, fs)
 
-    assertThrows[IllegalArgumentException] {
+    intercept[IllegalArgumentException] {
       btree.queryIndex(-5)
-    }
+    }: Unit
 
     assert(btree.queryIndex(0).contains(24))
     assert(btree.queryIndex(10).contains(24))
@@ -88,13 +92,14 @@ class IndexBTreeSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     assert(btree.queryIndex(fileSize.toLong - 1).isEmpty)
   }
 
-  @Test def zeroVariants(): Unit =
-    assertThrows[IllegalArgumentException] {
+  @Test def zeroVariants(implicit ctx: ExecuteContext): Unit =
+    intercept[IllegalArgumentException] {
+      val fs = ctx.fs
       val index = Array[Long]()
       val idxFile = ctx.createTmpPath("testBtree_0variant", "idx")
       fs.delete(idxFile, recursive = true)
       IndexBTree.write(index, idxFile, fs)
-    }
+    }: Unit
 
   @Test def testMultipleOfBranchingFactorDoesNotAddUnnecessaryElements(): Unit = {
     val in = Array[Long](10, 9, 8, 7, 6, 5, 4, 3)
@@ -111,7 +116,8 @@ class IndexBTreeSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
       sameElements bigEndianBytes)
   }
 
-  @Test def writeReadMultipleOfBranchingFactorDoesNotError(): Unit = {
+  @Test def writeReadMultipleOfBranchingFactorDoesNotError(implicit ctx: ExecuteContext): Unit = {
+    val fs = ctx.fs
     val idxFile = ctx.createTmpPath("btree")
     IndexBTree.write(
       Array.tabulate(1024)(i => i.toLong),
@@ -122,7 +128,9 @@ class IndexBTreeSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     assert(index.queryIndex(33).contains(33L))
   }
 
-  @Test def queryArrayPositionAndFileOffsetIsCorrectSmallArray(): Unit = {
+  @Test def queryArrayPositionAndFileOffsetIsCorrectSmallArray(implicit ctx: ExecuteContext)
+    : Unit = {
+    val fs = ctx.fs
     val f = ctx.createTmpPath("btree")
     val v = Array[Long](1, 2, 3, 40, 50, 60, 70)
     val branchingFactor = 1024
@@ -140,7 +148,9 @@ class IndexBTreeSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     assert(bt.queryArrayPositionAndFileOffset(71).isEmpty)
   }
 
-  @Test def queryArrayPositionAndFileOffsetIsCorrectTwoLevelsArray(): Unit = {
+  @Test def queryArrayPositionAndFileOffsetIsCorrectTwoLevelsArray(implicit ctx: ExecuteContext)
+    : Unit = {
+    val fs = ctx.fs
     def sqr(x: Long) = x * x
     val f = ctx.createTmpPath("btree")
     val v = Array.tabulate(1025)(x => sqr(x.toLong))
@@ -167,7 +177,9 @@ class IndexBTreeSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     assert(bt.queryArrayPositionAndFileOffset(5).contains((3, sqr(3))))
   }
 
-  @Test def queryArrayPositionAndFileOffsetIsCorrectThreeLevelsArray(): Unit = {
+  @Test def queryArrayPositionAndFileOffsetIsCorrectThreeLevelsArray(implicit ctx: ExecuteContext)
+    : Unit = {
+    val fs = ctx.fs
     def sqr(x: Long) = x * x
     val f = ctx.createTmpPath("btree")
     val v = Array.tabulate(1024 * 1024 + 1)(x => sqr(x.toLong))
@@ -214,7 +226,8 @@ class IndexBTreeSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     assert(bt.queryArrayPositionAndFileOffset(sqr(1024 * 1024) + 1).isEmpty)
   }
 
-  @Test def onDiskBTreeIndexToValueSmallCorrect(): Unit = {
+  @Test def onDiskBTreeIndexToValueSmallCorrect(implicit ctx: ExecuteContext): Unit = {
+    val fs = ctx.fs
     val f = ctx.createTmpPath("btree")
     val v = Array[Long](1, 2, 3, 4, 5, 6, 7)
     val branchingFactor = 3
@@ -240,7 +253,7 @@ class IndexBTreeSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     }
   }
 
-  @Test def onDiskBTreeIndexToValueRandomized(): Unit = {
+  @Test def onDiskBTreeIndexToValueRandomized(implicit ctx: ExecuteContext): Unit = {
     val g =
       for {
         longs <- nonEmptyContainerOf[Array, Long](choose(0L, Long.MaxValue))
@@ -248,7 +261,8 @@ class IndexBTreeSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
         branchingFactor <- choose(2, 1024)
       } yield (indices, longs, branchingFactor)
 
-    forAll(g) { case (indices, longs, branchingFactor) =>
+    check(forAll(g) { case (indices: Array[Int], longs: Array[Long], branchingFactor: Int) =>
+      val fs = ctx.fs
       val f = ctx.createTmpPath("test")
       try {
         IndexBTree.write(longs, f, fs, branchingFactor)
@@ -266,10 +280,11 @@ class IndexBTreeSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
             t,
           )
       }
-    }
+    })
   }
 
-  @Test def onDiskBTreeIndexToValueFourLayers(): Unit = {
+  @Test def onDiskBTreeIndexToValueFourLayers(implicit ctx: ExecuteContext): Unit = {
+    val fs = ctx.fs
     val longs = Array.tabulate(3 * 3 * 3 * 3)(x => x.toLong)
     val indices = Array(0, 3, 10, 20, 26, 27, 34, 55, 79, 80)
     val f = ctx.createTmpPath("btree")
@@ -298,20 +313,20 @@ class IndexBTreeSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
 
     def f(x: Long) = IndexBTree.calcDepth(x, 1024)
 
-    assert(f(1) == 1)
-    assert(f(1023) == 1)
-    assert(f(1024) == 1)
-    assert(f(1025) == 2)
+    assertEq(f(1), 1)
+    assertEq(f(1023), 1)
+    assertEq(f(1024), 1)
+    assertEq(f(1025), 2)
 
-    assert(f(sqr(1024) - 1) == 2)
-    assert(f(sqr(1024)) == 2)
-    assert(f(sqr(1024) + 1024) == 2)
-    assert(f(sqr(1024) + 1024 + 1) == 3)
+    assertEq(f(sqr(1024) - 1), 2)
+    assertEq(f(sqr(1024)), 2)
+    assertEq(f(sqr(1024) + 1024), 2)
+    assertEq(f(sqr(1024) + 1024 + 1), 3)
 
-    assert(f(cube(1024) - 1) == 3)
-    assert(f(cube(1024)) == 3)
-    assert(f(cube(1024) + sqr(1024)) == 3)
-    assert(f(cube(1024) + sqr(1024) + 1024) == 3)
-    assert(f(cube(1024) + sqr(1024) + 1024 + 1) == 4)
+    assertEq(f(cube(1024) - 1), 3)
+    assertEq(f(cube(1024)), 3)
+    assertEq(f(cube(1024) + sqr(1024)), 3)
+    assertEq(f(cube(1024) + sqr(1024) + 1024), 3)
+    assertEq(f(cube(1024) + sqr(1024) + 1024 + 1), 4)
   }
 }

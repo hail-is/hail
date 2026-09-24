@@ -26,7 +26,7 @@ COPY gear/gear /gear/gear/
 COPY web_common/pyproject.toml web_common/MANIFEST.in web_common/input.css web_common/tailwind.config.js /web_common/
 COPY web_common/web_common /web_common/web_common/
 
-COPY batch/pyproject.toml /batch/MANIFEST.in /batch/
+COPY batch/pyproject.toml /batch/
 COPY batch/batch /batch/batch/
 
 RUN cd web_common && \

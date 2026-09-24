@@ -24,7 +24,7 @@ COPY gear/gear /gear/gear/
 COPY web_common/pyproject.toml web_common/MANIFEST.in web_common/input.css web_common/tailwind.config.js /web_common/
 COPY web_common/web_common /web_common/web_common/
 
-COPY auth/setup.py auth/MANIFEST.in /auth/
+COPY auth/pyproject.toml /auth/
 COPY auth/auth /auth/auth/
 
 RUN cd web_common && \
