@@ -29,7 +29,7 @@ will usually be provided by a lab project manager and contain for every sample,
 at minimum, the desired final sample ID (more on this in a bit), and the object
 storage URI for that sample.
 
-It is an exercise for the operator to take that data and turn it into two
+It is an exercise for the operator to take that data and turn it into two python
 lists of the same length, one a list of sample IDs and the other the list of
 object URIs.
 
@@ -65,8 +65,8 @@ project prefix.
 ## Ensuring Access
 
 It is _annoyingly_ common to waste time due to cloud permissions errors. Because
-of this, operators should check every input both to ensure they have access to
-all of them.
+of this, operators should check every input—both vcf and tabix—to ensure they
+have access to all of them.
 
 The following python function should suffice to check a list of URIs. When using
 it, remember to include the `.tbi` tabix index file for each input GVCF.
@@ -128,10 +128,12 @@ ensures that intermediates are always available while also ensuring timely
 cleanup to keep storage costs down.
 
 The operator SHOULD set `save_path` to an object storage URI, this can be either
-temporary or durable. It is RECOMMENDED that it be temporary. The combiner will
-produce a path based on `temp_path` and the hash of its parameters however this
-is liable to change without notice so it is best to set a path for easy
-introspection on the plan and ease of use.
+temporary or durable. It is RECOMMENDED that it be temporary. This parameter
+controls wher the combiner object serializes itself as JSON. This can and will
+be loaded to pick up where combining left off in the event of an error like an
+OOM or cloud error. The combiner will produce a path based on `temp_path` and
+the hash of its parameters. However, this is liable to change without notice so it
+is best to set a path for easy introspection on the plan and ease of use.
 
 ### Import VCF parameters
 
@@ -162,7 +164,6 @@ treated as a genomic call, again refer to [`import_vcf`] for more details.
 ```python3
 def new_combiner(
     *,
-    reference_genome: Union[str, ReferenceGenome] = 'default',
     intervals: Optional[List[Interval]] = None,
     import_interval_size: Optional[int] = None,
     use_genome_default_intervals: bool = False,
@@ -175,15 +176,27 @@ otherwise. It is usually sufficient to use one of the `use_*_default_intervals`
 paramters. These give reasonably even coverage over the genome for each sample
 type (exome/genome).
 
-When setting `intervals`, eache interval provided MUST be non-overlapping and
-include both endpoints. The `intervals` SHOULD cover almost all of the canonical
-contigs for the samples' reference genome (excluding some amout of
-telomeres/centromeres is often ok). The operator MUST NOT use "calling
-intervals" to provide `intervals`, exome calling intervals are much finer
-grained and will lead to far too much parallelism.
+The point of the interval parameters is to control parallelism. The default
+exome intervals are rather coarse since exomes are small (around 70). The
+default genome intervals include a few thousand items.
+
+When setting `intervals`, each interval provided MUST be non-overlapping, on
+a single contig, and include both endpoints. For a production run, `intervals`
+SHOULD cover almost all of the canonical contigs for the samples' reference
+genome (excluding some amout of telomeres/centromeres is often ok). The operator
+MUST NOT use "calling intervals" to provide `intervals`, exome calling intervals
+are much finer grained and will lead to far too much parallelism. Use
+`intervals` when large regions are to be excluded, or for testing as the
+explicit `intervals` parameter is the only one that can filter out large
+regions. For example, when testing, only intervals from chr20 can be used to
+avoid reading all of every sample.
 
 Setting `import_interval_size`, causes the library to compute even intervals of
-roughly that size to then use for GVCF import.
+roughly that size to then use for GVCF import. Use this if a default is too
+coarse or fine for the samples involved. (It is difficult to define 'too much'
+or 'too little' parallelism, if tasks are taking too long, more
+intervals/smaller interval size can be used; if there is too much overhead due
+to excess paralleism a smaller interval size can be used.)
 
 ### Controlling Imported Fields
 
@@ -201,20 +214,26 @@ def new_combiner(
 ) -> VariantDatasetCombiner:
 ```
 
-It is RECOMMENDED that the operator set `gvcf_external_header` this saves
-checking every file to make sure the types are homogeneous. This does not cause
-issues since the way that VCF parsing in hail works is that fields that are not
-in the header are silently skipped.
+It is RECOMMENDED that the operator set `gvcf_external_header`. This serves two
+purposes. The first is that it instantly homogonizes the input type of each gvcf
+thus avoiding platform/software differences in gvcf creation. Second, without
+this parameter, every file needs to be checked to ensure homogeneity, so setting
+it save some time. This will not not cause issues, due to the way that VCF
+parsing in hail works, fields that are not in the header, but are present in the
+VCF are silently skipped during parsing.
 
 The operator SHOULD set `gvcf_save_filters` to `True` in order to save any
-filters present in the GVCF, it is default `False` for backwards compatibility.
+filters present in the GVCF; it defaults to `False` for backwards compatibility.
 
 It is not usually necessary to set `gvcf_info_to_keep` or
 `gvcf_reference_entry_fields_to_keep`, the combiner does a good job of
 determining which fields are present in reference/variant data and keeping them.
-There is one notable field that operators may wish to keep in reference data,
+There is one notable field that operators may wish to keep in reference data:
 `PL` is dropped by default for reference data and must be explicitly added to
 `gvcf_reference_entry_fields_to_keep` if it is desired to be retained.
+Unfortunately setting `gvcf_reference_entry_fields_to_keep=['PL']` will drop
+everything _but_ `PL`, so the other fields to be kept must be added manually as
+well.
 
 ### Parallelism Control
 ```python3
@@ -233,9 +252,9 @@ These parameters work to control how many inputs get combined at once
 run in parallel (`gvcf_batch_size`, default 50).
 
 These are the only parameters that do not get taken into account when saving the
-combiner plan to `save_path`. This is so that they can be changed as tuning
-these values is often essential to making sure the combiner finishes—more on
-that later.
+combiner plan to `save_path`. This is so that they can be changed mid-run, as
+tuning these values is often essential to making sure the combiner finishes—more
+on that later.
 
 Operators SHOULD leave `branch_factor` and `gvcf_batch_size` as defaults and
 adjust them as part of troubleshooting. It is RECOMMENDED that operators work
@@ -248,7 +267,7 @@ The combiner is often a long running pipeline. It is resilient but may need to
 be tweaked or restarted.
 
 ### Resources
-Combiner pipelines are very large often using lots of memory for compilation.
+Combiner pipelines are very large, often using lots of memory for compilation.
 The jobs can fail with out of memory errors. Many strange errors of unknown
 cause are resource exhaustion errors in disguise. Increasing `driver_memory` or
 `worker_memory` in `hl.init` may be necessary for the jobs to proceed.
