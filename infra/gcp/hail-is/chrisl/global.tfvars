@@ -37,12 +37,6 @@ gcp_location = "us-central1"
 
 domain = "chrisl.hail.is"
 
-artifact_registry_location = "us"
-
-# If set to true, pull the base ubuntu image from Artifact Registry.
-# Otherwise, assumes GCR.
-use_artifact_registry = true
-
 # Optional: Support email address to display in error pages and user-facing messages
 # If not set, error pages will display "email support" without a link
 # If set, error pages will display a clickable mailto link

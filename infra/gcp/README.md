@@ -108,12 +108,6 @@ export GCP_PROJECT=<gcp project name>
    # The domain name for the deployment (eg "hail.is", "sandbox.hail.is")
    domain = "<domain>"
 
-   artifact_registry_location = "us"
-
-   # If set to true, pull the base ubuntu image from Artifact Registry.
-   # Otherwise, assumes GCR.
-   use_artifact_registry = true
-
    # Optional: Enable master authorized networks for GKE cluster security
    # If not set or set to false, the cluster will be accessible from anywhere
    # If set to true, only the specified networks can access the GKE control plane

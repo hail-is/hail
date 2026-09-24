@@ -42,11 +42,6 @@ variable "gcp_location" {}
 variable "domain" {}
 variable "organization_domain" {}
 variable "github_organization" {}
-variable "use_artifact_registry" {
-  type = bool
-  description = "pull the ubuntu image from Artifact Registry. Otherwise, GCR"
-}
-
 variable "enable_master_authorized_networks" {
   type = bool
   description = "Enable master authorized networks configuration for GKE cluster"
@@ -69,11 +64,7 @@ variable "support_email" {
 }
 
 locals {
-  docker_prefix = (
-    var.use_artifact_registry ?
-    "${var.gcp_region}-docker.pkg.dev/${var.gcp_project}/hail" :
-    "gcr.io/${var.gcp_project}"
-  )
+  docker_prefix     = "${var.gcp_region}-docker.pkg.dev/${var.gcp_project}/hail"
   docker_root_image = "${local.docker_prefix}/ubuntu:24.04"
   dockerhub_prefix  = "${var.gcp_location}-docker.pkg.dev/${var.gcp_project}/dockerhubproxy"
 }
@@ -501,13 +492,6 @@ END
 }
 END
   }
-}
-
-resource "google_container_registry" "registry" {
-  # Note: As of August 8 2024, *new* "container registry" instances get converted into "artifact repository" instances
-  # and the registry cannot be found after 'creation'. GCR is scheduled for a general switch-off in March 2025
-  # so this is only left here for backwards compatibility until then.
-  count = var.use_artifact_registry ? 0 : 1
 }
 
 resource "google_artifact_registry_repository" "repository" {
@@ -1068,8 +1052,7 @@ module "ci" {
   bucket_storage_class = local.ci_config.data["bucket_storage_class"]
 
   ci_email = module.ci_gsa_secret.email
-  # For now, GCP CI via this terraform relies on container registry, which is going away it March 2025
-  # so this might need adapting to be more like the gcp-broad main.tf when that happens
-  container_registry_id = google_container_registry.registry[0].id
+  # Note: GCR has been replaced with Artifact Registry as of March 2025. This needs refactoring to be more like gcp-broad.
+  # container_registry_id = google_container_registry.registry[0].id
   github_context = local.ci_config.data["github_context"]
 }
