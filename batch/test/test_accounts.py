@@ -90,7 +90,7 @@ async def test_get_billing_project(make_client: Callable[[str], Awaitable[BatchC
     c = await make_client('billing-project-not-needed-but-required-by-BatchClient')
     r = await c.get_billing_project('test')
     assert r['billing_project'] == 'test', r
-    assert {'test', 'test-dev'}.issubset(set(r['users'])), r
+    assert {'test', 'test-dev'}.issubset({u['user'] for u in r['users']}), r
     assert r['status'] == 'open', r
 
 
@@ -101,7 +101,7 @@ async def test_list_billing_projects(make_client: Callable[[str], Awaitable[Batc
     assert len(test_bps) == 1, r
     bp = test_bps[0]
     assert bp['billing_project'] == 'test', bp
-    assert {'test', 'test-dev'}.issubset(set(bp['users'])), bp
+    assert {'test', 'test-dev'}.issubset({u['user'] for u in bp['users']}), bp
     assert bp['status'] == 'open', bp
 
 
@@ -265,7 +265,7 @@ async def test_add_and_delete_user(dev_client: BatchClient, new_billing_project:
     assert r['billing_project'] == project
 
     bp = await dev_client.get_billing_project(project)
-    assert r['user'] in bp['users'], bp
+    assert r['user'] in {u['user'] for u in bp['users']}, bp
 
     r = await dev_client.remove_user('test', project)
     # test idempotent
@@ -275,7 +275,7 @@ async def test_add_and_delete_user(dev_client: BatchClient, new_billing_project:
     assert r['billing_project'] == project
 
     bp = await dev_client.get_billing_project(project)
-    assert r['user'] not in bp['users']
+    assert r['user'] not in {u['user'] for u in bp['users']}
 
 
 async def test_error_adding_nonexistent_user(dev_client: BatchClient, new_billing_project: str):
