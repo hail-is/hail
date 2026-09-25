@@ -9,6 +9,8 @@ metadata:
     networking.gke.io/internal-load-balancer-allow-global-access: "true"
     service.beta.kubernetes.io/azure-load-balancer-internal: "true"
     service.beta.kubernetes.io/azure-load-balancer-internal-subnet: "batch-worker-subnet"
+    service.beta.kubernetes.io/aws-load-balancer-type: "internal"
+    service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: "ip"
 spec:
   ports:
   - name: http
