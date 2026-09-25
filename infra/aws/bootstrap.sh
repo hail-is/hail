@@ -86,4 +86,46 @@ EOF
     kubectl -n kube-system rollout status deployments --selector=app.kubernetes.io/instance=aws-load-balancer-controller
 }
 
+function create_database_config() {
+  set +x
+  curl -o server-ca.pem https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem
+
+  DB_NAME=$1
+  DB_INSTANCE_PROPERTIES=$(aws rds describe-db-instances --db-instance-identifier "$DB_NAME")
+  DB_HOST=$(echo "$DB_INSTANCE_PROPERTIES" | jq -r '.DBInstances[0].Endpoint.Address')
+  DB_PASSWORD=$(aws secretsmanager get-secret-value --secret-id $(echo $DB_INSTANCE_PROPERTIES | jq -r '.DBInstances[0].MasterUserSecret.SecretArn') --output text --query SecretString | jq -r '.password')
+
+  cat >sql-config.cnf <<EOF
+[client]
+host=$DB_HOST
+user=root
+port=3306
+password=$DB_PASSWORD
+ssl-ca=/sql-config/server-ca.pem
+ssl-mode=VERIFY_IDENTITY
+EOF
+
+  cat >sql-config.json <<EOF
+{
+    "host": "$DB_HOST",
+    "port": 3306,
+    "user": "root",
+    "password": "$DB_PASSWORD",
+    "ssl-ca": "/sql-config/server-ca.pem",
+    "ssl-mode": "VERIFY_IDENTITY",
+    "instance": "$DB_NAME",
+    "connection_name": "$DB_HOST"
+}
+EOF
+  kubectl create secret generic database-server-config \
+      --namespace=default \
+      --from-file=server-ca.pem \
+      --from-file=sql-config.cnf \
+      --from-file=sql-config.json \
+      --dry-run=client -o yaml | kubectl apply -n default -f -
+
+  shred sql-config.json sql-config.cnf
+  set -x
+}
+
 "$@"
