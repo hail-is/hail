@@ -514,6 +514,18 @@ BEGIN
     SET NEW.reason = OLD.reason;
   END IF;
 
+  # does_not_exist means the VM returned a 404; null start_time so we don't bill for a VM
+  # that never existed, but only if it never activated -- an activated VM is still billed
+  IF NEW.reason = 'does_not_exist'
+     AND EXISTS (
+       SELECT 1 FROM instances
+       WHERE instances.name = NEW.instance_name
+         AND instances.time_activated IS NULL
+     )
+  THEN
+    SET NEW.start_time = NULL;
+  END IF;
+
   # rollup_time should not go backward in time
   # this could happen if MJS happens after the billing update is received
   IF NEW.rollup_time IS NOT NULL AND OLD.rollup_time IS NOT NULL AND NEW.rollup_time < OLD.rollup_time THEN
