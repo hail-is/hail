@@ -416,6 +416,128 @@ class MatrixIRSuite {
     }
   }
 
+  /** Writes `nTargets` column slices of an `nRows` x `nCols` range matrix table and checks each one
+    * against the slice of columns and entries it should have received.
+    */
+  def assertPartitionedColumnsRoundTrip(
+    nRows: Int,
+    nCols: Int,
+    nParts: Int,
+    nTargets: Int,
+    expectedSizes: IndexedSeq[Int],
+  )(implicit ctx: ExecuteContext
+  ): Unit = {
+    val fs = ctx.fs
+    val range = MatrixIR.range(ctx, nRows, nCols, Some(nParts))
+    val withEntries = MatrixMapEntries(
+      range,
+      makestruct(
+        "i" -> GetField(Ref(MatrixIR.rowName, range.typ.rowType), "row_idx"),
+        "j" -> GetField(Ref(MatrixIR.colName, range.typ.colType), "col_idx"),
+      ),
+    )
+    val original = MatrixMapGlobals(withEntries, makestruct("foo" -> I32(0)))
+    val path = ctx.createTmpPath("test-partitioned-columns", "mt")
+
+    assertEvalsTo(
+      MatrixWrite(original, MatrixNativePartitionedColumnsWriter(path, nTargets, overwrite = true)),
+      (),
+    )
+
+    assert(expectedSizes.sum == nCols)
+    assert(fs.listDirectory(path).length == nTargets)
+
+    val uids = for {
+      (partSize, partIndex) <- partition(nRows, nParts).zipWithIndex
+      i <- 0 until partSize
+    } yield RowSeq(partIndex.toLong, i.toLong)
+    val bounds = expectedSizes.scanLeft(0)(_ + _);
+
+    {
+      implicit val execStrats: Set[ExecStrategy] =
+        Set(ExecStrategy.Interpret, ExecStrategy.InterpretUnoptimized)
+
+      MatrixNativePartitionedColumnsWriter.targetPaths(path, nTargets).zipWithIndex.foreach {
+        case (target, t) =>
+          val colIdxs = bounds(t) until bounds(t + 1)
+
+          /* Column UIDs are synthesized by the reader from each table's own column positions, so
+           * they restart at zero in every output; `col_idx` carries the original identity. */
+          val cols = colIdxs.map(j => RowSeq(j, RowSeq(0L, (j - bounds(t)).toLong)))
+          val expectedRows = (0 until nRows).lazyZip(uids).map { (i, uid) =>
+            RowSeq(i, uid, colIdxs.map(j => RowSeq(i, j)))
+          }
+          val read = MatrixIR.read(fs, target, dropCols = false, dropRows = false, None)
+          assertEvalsTo(
+            TableCollect(TableKeyBy(CastMatrixToTable(read, "entries", "cols"), FastSeq())),
+            RowSeq(expectedRows, RowSeq(0, cols)),
+          )
+
+          /* Reading through an interval seeks via this output's own index and its `entries_offset`
+           * annotation, which the sequential scan above never touches. Requesting the type without
+           * UIDs keeps the expected rows independent of how the reader numbers skipped rows. */
+          val skipped = 1
+          val opts = NativeReaderOptions(
+            FastSeq(Interval(RowSeq(skipped), RowSeq(nRows), true, false)),
+            TInt32,
+          )
+          val reader = MatrixNativeReader(fs, target, Some(opts))
+          val indexed = MatrixRead(reader.fullMatrixTypeWithoutUIDs, false, false, reader)
+          assertEvalsTo(
+            TableCollect(TableKeyBy(CastMatrixToTable(indexed, "entries", "cols"), FastSeq())),
+            RowSeq(
+              (skipped until nRows).map(i => RowSeq(i, colIdxs.map(j => RowSeq(i, j)))),
+              RowSeq(0, colIdxs.map(j => RowSeq(j))),
+            ),
+          )
+      }
+    }
+  }
+
+  @Test def testMatrixPartitionedColumnsWriteReadUneven(implicit ctx: ExecuteContext): Unit =
+    // 7 columns into 3 matrix tables: the first gets the remainder.
+    assertPartitionedColumnsRoundTrip(10, 7, 3, 3, FastSeq(3, 2, 2))
+
+  @Test def testMatrixPartitionedColumnsWriteReadEven(implicit ctx: ExecuteContext): Unit =
+    assertPartitionedColumnsRoundTrip(10, 6, 3, 3, FastSeq(2, 2, 2))
+
+  @Test def testMatrixPartitionedColumnsWriteReadOneColumnEach(implicit ctx: ExecuteContext): Unit =
+    assertPartitionedColumnsRoundTrip(4, 2, 1, 2, FastSeq(1, 1))
+
+  @Test def testMatrixPartitionedColumnsTooFewColumns(implicit ctx: ExecuteContext): Unit = {
+    val range = MatrixIR.range(ctx, 5, 2, Some(2))
+    val path = ctx.createTmpPath("test-partitioned-columns-too-few", "mt")
+    interceptException[Throwable]("cannot split fewer than 3 columns") {
+      assertEvalsTo(
+        MatrixWrite(range, MatrixNativePartitionedColumnsWriter(path, 3, overwrite = true)),
+        (),
+      )
+    }
+  }
+
+  @Test def testMatrixPartitionedColumnsOverwrite(implicit ctx: ExecuteContext): Unit = {
+    val fs = ctx.fs
+    val range = MatrixIR.range(ctx, 4, 8, Some(2))
+    val path = ctx.createTmpPath("test-partitioned-columns-overwrite", "mt")
+
+    assertEvalsTo(
+      MatrixWrite(range, MatrixNativePartitionedColumnsWriter(path, 4, overwrite = true)),
+      (),
+    )
+    assert(fs.listDirectory(path).length == 4)
+
+    // Overwriting clears the container, so the two stale targets don't survive.
+    assertEvalsTo(
+      MatrixWrite(range, MatrixNativePartitionedColumnsWriter(path, 2, overwrite = true)),
+      (),
+    )
+    assert(fs.listDirectory(path).length == 2)
+
+    interceptException[Throwable]("already exists") {
+      assertEvalsTo(MatrixWrite(range, MatrixNativePartitionedColumnsWriter(path, 2)), ())
+    }
+  }
+
   @Test def testMatrixMultiWriteDifferentTypesRaisesError(implicit ctx: ExecuteContext): Unit = {
     val vcf = importVCF(getTestResource("sample.vcf"))
     val range = rangeMatrix(10, 2, None)
