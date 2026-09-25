@@ -11,6 +11,7 @@ import is.hail.types.physical.stypes.concrete.SRNGState
 import is.hail.types.virtual._
 import is.hail.utils._
 
+import org.apache.arrow.vector.types.pojo.{FieldType => ArrowFieldType}
 import org.apache.spark.sql.Row
 import org.json4s.CustomSerializer
 import org.json4s.JsonAST.JString
@@ -306,6 +307,9 @@ abstract class PType extends Serializable with Requiredness {
     pretty(sb, 0, true)
     sb.result()
   }
+
+  final def arrowFieldType: ArrowFieldType =
+    new ArrowFieldType(!required, virtualType.arrowType, /*dictionary=*/ null)
 
   def unsafeOrdering(sm: HailStateManager): UnsafeOrdering
 

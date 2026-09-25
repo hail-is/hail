@@ -9,6 +9,8 @@ case object TBoolean extends Type {
   override def pyString(sb: StringBuilder): Unit =
     sb ++= "bool"
 
+  override def arrowType = new org.apache.arrow.vector.types.pojo.ArrowType.Bool()
+
   override def _typeCheck(a: Any): Boolean = a.isInstanceOf[Boolean]
 
   override def _showStr(a: Annotation): String = if (a.asInstanceOf[Boolean]) "True" else "False"

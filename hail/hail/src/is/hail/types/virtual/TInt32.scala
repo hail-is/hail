@@ -4,6 +4,8 @@ import is.hail.annotations._
 import is.hail.backend.HailStateManager
 
 case object TInt32 extends TIntegral {
+  override def bitWidth = 32
+
   override def _toPretty = "Int32"
 
   override def pyString(sb: StringBuilder): Unit =

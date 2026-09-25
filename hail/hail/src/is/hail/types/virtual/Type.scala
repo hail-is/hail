@@ -7,6 +7,7 @@ import is.hail.expr.{JSONAnnotationImpex, SparkAnnotationImpex}
 import is.hail.expr.ir._
 import is.hail.utils
 
+import org.apache.arrow.vector.types.pojo.ArrowType
 import org.apache.spark.sql.types.DataType
 import org.json4s.{CustomSerializer, JValue}
 import org.json4s.JsonAST.JString
@@ -62,6 +63,8 @@ abstract class Type extends VType with Serializable {
     sb ++= _toPretty
 
   def schema: DataType = SparkAnnotationImpex.exportType(this)
+
+  def arrowType: ArrowType
 
   def str(a: Annotation): String = if (a == null) "NA" else a.toString
 

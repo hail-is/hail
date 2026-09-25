@@ -45,6 +45,9 @@ final case class TSet(elementType: Type) extends TContainer {
 
   override def str(a: Annotation): String = JsonMethods.compact(export(a))
 
+  override def arrowType =
+    new org.apache.arrow.vector.types.pojo.ArrowType.Map( /*keysSorted=*/ true)
+
   override def valueSubsetter(subtype: Type): Any => Any = {
     assert(elementType == subtype.asInstanceOf[TSet].elementType)
     identity

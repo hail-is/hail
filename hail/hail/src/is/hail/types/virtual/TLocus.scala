@@ -30,6 +30,8 @@ case class TLocus(rgName: String) extends Type {
 
   override def _typeCheck(a: Any): Boolean = a.isInstanceOf[Locus]
 
+  override def arrowType = is.hail.types.arrowextension.Locus.INSTANCE
+
   override def mkOrdering(sm: HailStateManager, missingEqual: Boolean = true): ExtendedOrdering =
     sm.referenceGenomes(rgName).extendedLocusOrdering
 

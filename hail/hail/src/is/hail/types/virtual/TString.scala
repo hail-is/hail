@@ -11,6 +11,8 @@ case object TString extends Type {
 
   override def _showStr(a: Annotation): String = "\"" + a.asInstanceOf[String] + "\""
 
+  override def arrowType = new org.apache.arrow.vector.types.pojo.ArrowType.Utf8()
+
   override def _typeCheck(a: Any): Boolean = a.isInstanceOf[String]
 
   override def mkOrdering(sm: HailStateManager, missingEqual: Boolean): ExtendedOrdering =

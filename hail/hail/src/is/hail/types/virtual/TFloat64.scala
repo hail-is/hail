@@ -5,7 +5,11 @@ import is.hail.backend.HailStateManager
 import is.hail.expr.orderings.compat.DoubleOrdering
 import is.hail.utils._
 
+import org.apache.arrow.vector.types.pojo.ArrowType
+
 case object TFloat64 extends TNumeric {
+  override def bitWidth = 64
+
   override def _toPretty = "Float64"
 
   override def pyString(sb: StringBuilder): Unit =
@@ -17,6 +21,9 @@ case object TFloat64 extends TNumeric {
 
   override def str(a: Annotation): String =
     if (a == null) "NA" else "%.5e".format(a.asInstanceOf[Double])
+
+  override def arrowType =
+    new ArrowType.FloatingPoint(org.apache.arrow.vector.types.FloatingPointPrecision.DOUBLE)
 
   override def valuesSimilar(a1: Annotation, a2: Annotation, tolerance: Double, absolute: Boolean)
     : Boolean =

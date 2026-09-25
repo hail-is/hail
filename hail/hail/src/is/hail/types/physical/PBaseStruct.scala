@@ -7,6 +7,8 @@ import is.hail.collection.implicits.toRichIterable
 import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.types.physical.stypes.interfaces.SBaseStructValue
 
+import org.apache.arrow.vector.types.pojo.{Field => ArrowField, Schema => ArrowSchema}
+
 object PBaseStruct {
   def alignment(types: IndexedSeq[PType]): Long =
     if (types.isEmpty)
@@ -60,6 +62,22 @@ abstract class PBaseStruct extends PType {
     types.foreachBetween(ty => sb ++= ty.asIdent)(sb ++= "AND")
     sb ++= "END"
     sb.result()
+  }
+
+  private def arrowFields(): IndexedSeq[ArrowField] = fields.map { case PField(name, typ, _) =>
+    import scala.jdk.CollectionConverters._
+    val children: java.util.List[ArrowField] = typ match {
+      case ps: PBaseStruct => ps.arrowFields().asJava
+      case _ => null
+    }
+
+    new ArrowField(name, typ.arrowFieldType, children)
+  }
+
+  def asArrowSchema(): ArrowSchema = {
+    import scala.jdk.CollectionConverters._
+    val fields: Iterable[ArrowField] = arrowFields()
+    new ArrowSchema(fields.asJava)
   }
 
   def isPrefixOf(other: PBaseStruct): Boolean =
