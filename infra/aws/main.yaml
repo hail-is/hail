@@ -654,3 +654,8 @@ Outputs:
     Description: "Name of the role used by the AWS Load Balancer Controller for EKS"
     Export:
       Name: VdcLoadBalancerControllerRoleName
+  VdcNodeRole:
+    Value: !GetAtt VdcClusterNodegroupRole.Arn
+    Description: "ARN of IAM role associated with cluster nodes"
+    Export:
+      Name: VdcNodeRole
