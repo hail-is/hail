@@ -93,7 +93,6 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
   def initialize(node: BaseIR, env: Env[PType]): Unit = {
     initializeState(node)
     usesAndDefs.uses.m.keys.foreach(n => if (supportedType(n.t)) addBindingRelations(n.t))
-
     usesAndDefs.free.foreach(re => lookup(re.t).fromPType(env.lookup(re.t.name)))
   }
 
@@ -106,264 +105,169 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
     }
   }
 
+  // What a bound name refers to. `req` holds the requiredness of each
+  // expression that may define the name. `deps` holds the nodes those values
+  // came from; when one changes, the analysis revisits the name's uses.
+  private case class Sources(
+    req: IndexedSeq[TypeWithRequiredness],
+    deps: IndexedSeq[BaseIR],
+  )
+
+  implicit private object RequirednessBindings extends Algebra[Sources] {
+    class TableValue(val table: TableIR) extends Algebra.Table[Sources] {
+      override def global: Sources = Sources(FastSeq(lookup(table).globalType), FastSeq(table))
+      override def row: Sources = Sources(FastSeq(lookup(table).rowType), FastSeq(table))
+    }
+
+    // matrices are lowered to tables before requiredness analysis runs
+    type MatrixValue = Nothing
+
+    class BlockMatrixValue(val bm: BlockMatrixIR) extends Algebra.BlockMatrix[Sources] {
+      override def element: Sources = Sources(FastSeq(lookup(bm).elementType), FastSeq(bm))
+    }
+
+    private def project(s: Sources)(f: TypeWithRequiredness => TypeWithRequiredness): Sources =
+      s.copy(req = s.req.map(f))
+
+    // shallow copy so that changes to the children's requiredness still reach uses of the binding
+    private def freshCopy(t: TypeWithRequiredness): TypeWithRequiredness =
+      tcoerce[TypeWithRequiredness](t.copy(t.children))
+
+    override def denote(ir: IR): Sources = Sources(FastSeq(lookup(ir)), FastSeq(ir))
+    override def denote(table: TableIR): TableValue = new TableValue(table)
+    override def denote(matrix: MatrixIR): MatrixValue =
+      throw new UnsupportedOperationException(s"MatrixIR is not denotable in ${getClass.getName}")
+
+    override def denote(bm: BlockMatrixIR): BlockMatrixValue = new BlockMatrixValue(bm)
+
+    override def elementOf(s: Sources): Sources =
+      project(s) {
+        case t: RContainer => t.elementType
+        case r: RNDArray => r.elementType
+      }
+
+    override def selectFields(s: Sources, fields: IndexedSeq[String]): Sources =
+      project(s) { t =>
+        val struct = tcoerce[RStruct](t)
+        RStruct.fromNamesAndTypes(fields.map(f => f -> struct.fieldType(f)))
+      }
+
+    override def firstField(s: Sources): Sources =
+      project(s)(t => tcoerce[TypeWithRequiredness](t.children.head))
+
+    override def array(element: Sources): Sources = project(element)(RIterable(_))
+    override def stream(element: Sources): Sources = project(element)(RIterable(_))
+
+    override def tuple(ss: IndexedSeq[Sources]): Sources = {
+      assert(ss.forall(_.req.length == 1))
+      Sources(
+        FastSeq(RTuple.fromNamesAndTypes(ss.zipWithIndex.map { case (t, i) =>
+          i.toString -> t.req.head
+        })),
+        ss.flatMap(_.deps),
+      )
+    }
+
+    override def lift(t: Type): Sources =
+      Sources(FastSeq(TypeWithRequiredness(t)), FastSeq())
+
+    override def meet(ss: IndexedSeq[Sources]): Sources =
+      Sources(ss.flatMap(_.req), ss.flatMap(_.deps))
+
+    override def weakened(s: Sources): Sources =
+      project(s) { t =>
+        val optional = freshCopy(t)
+        optional.union(false)
+        optional
+      }
+
+    override def strengthened(s: Sources): Sources = project(s)(freshCopy)
+  }
+
   def addBindingRelations(node: BaseIR): Unit = {
     val refMap: Map[Name, IndexedSeq[RefEquality[BaseRef]]] =
       usesAndDefs.uses(node).toFastSeq.groupBy(_.t.name)
-    def addElementBinding(
-      name: Name,
-      d: IR,
-      makeOptional: Boolean = false,
-      makeRequired: Boolean = false,
-    ): Unit = {
-      assert(!(makeOptional && makeRequired))
-      if (refMap.contains(name)) {
-        val uses = refMap(name)
-        val eltReq = tcoerce[RContainer](lookup(d)).elementType
-        val req = if (makeOptional) {
-          val optional = eltReq.copy(eltReq.children)
-          optional.union(false)
-          optional
-        } else if (makeRequired) {
-          val req = eltReq.copy(eltReq.children)
-          req.union(true)
-          req
-        } else eltReq
-        uses.foreach(u => defs.bind(u, ArraySeq(req)))
-        dependents.getOrElseUpdate(d, mutable.Set[RefEquality[BaseIR]]()) ++= uses
-      }
-    }
 
-    def addBlockMatrixElementBinding(name: Name, d: BlockMatrixIR, makeOptional: Boolean = false)
-      : Unit =
-      if (refMap.contains(name)) {
-        val uses = refMap(name)
-        val eltReq = tcoerce[RBlockMatrix](lookup(d)).elementType
-        val req = if (makeOptional) {
-          val optional = eltReq.copy(eltReq.children)
-          optional.union(false)
-          optional
-        } else eltReq
-        uses.foreach(u => defs.bind(u, ArraySeq(req)))
-        dependents.getOrElseUpdate(d, mutable.Set[RefEquality[BaseIR]]()) ++= uses
-      }
+    val bound = mutable.Set.empty[Name]
 
-    def addBindings(name: Name, ds: IndexedSeq[IR]): Unit =
-      if (refMap.contains(name)) {
-        val uses = refMap(name)
-        uses.foreach(u => defs.bind(u, ds.map(lookup)))
-        ds.foreach { d =>
-          dependents.getOrElseUpdate(d, mutable.Set[RefEquality[BaseIR]]()) ++= uses
+    // `sources` is by-name so that only names with uses evaluate it. A name
+    // bound to a void expression has no analysis state to project from.
+    def bind(name: Name, sources: => Sources): Unit =
+      if (bound.add(name))
+        refMap.get(name).foreach { uses =>
+          val s = sources
+          uses.foreach(u => defs.bind(u, s.req))
+          s.deps.foreach { d =>
+            dependents.getOrElseUpdate(d, mutable.Set[RefEquality[BaseIR]]()) ++= uses
+          }
+        }
+
+    // Bind every name `Bindings.get` reports for a child of this node. When
+    // several children bind the same name, `Bindings.get` gives it the same
+    // definition in each, so binding it once is enough. `bind` skips names
+    // the special cases below already bound.
+    def bindFromChildBindings(): Unit =
+      node.children.zipWithIndex.foreach { case (_, i) =>
+        Bindings.get(node, i).all.foreach { case (name, sources) =>
+          bind(name, sources)
         }
       }
 
-    def addBinding(name: Name, ds: IR): Unit =
-      addBindings(name, ArraySeq(ds))
+    def defsOf(ds: IndexedSeq[IR]): Sources = Sources(ds.map(d => lookup(d)), ds)
 
-    def addTableBinding(table: TableIR): Unit = {
-      refMap.get(TableIR.rowName).foreach(_.foreach { u =>
-        defs.bind(u, ArraySeq(lookup(table).rowType))
-      })
-      refMap.get(TableIR.globalName).foreach(_.foreach { u =>
-        defs.bind(u, ArraySeq(lookup(table).globalType))
-      })
-      val refs = refMap.getOrElse(TableIR.rowName, FastSeq()) ++
-        refMap.getOrElse(TableIR.globalName, FastSeq())
-      dependents.getOrElseUpdate(table, mutable.Set[RefEquality[BaseIR]]()) ++= refs
-    }
+    def firstUse(name: Name): Option[IR] =
+      refMap.get(name).flatMap(_.headOption.map(_.t.asInstanceOf[IR]))
+
+    // `Bindings.get` knows only the expression that introduces each name.
+    // Requiredness needs every value the name can hold during evaluation,
+    // and loops feed results back into their bindings. In
+    //   StreamFold(xs, zero = 0, acc, x, body = If(c, NA, acc + x))
+    // `acc` starts as `zero`, which is never missing, but later holds `body`
+    // results, which may be NA. Bind such names to all their definitions
+    // here; the rest come from `Bindings.get`.
     node match {
-      case Block(bindings, _) => bindings.foreach(b => addBinding(b.name, b.value))
-      case RelationalLet(name, value, _) => addBinding(name, value)
-      case RelationalLetTable(name, value, _) => addBinding(name, value)
+      // `Bindings.get` on a Block returns every binding before the child, so
+      // walking all children costs time quadratic in the number of bindings.
+      // The lets pipeline makes blocks long enough for that to hurt. A block
+      // binding has one definition, its value, so bind each directly.
+      case Block(bindings, _) =>
+        bindings.foreach(b => bind(b.name, RequirednessBindings.denote(b.value)))
+      // inlined argument definitions are not children of the ApplyIR node
+      case x @ ApplyIR(_, _, args, _, _) =>
+        x.refs.zipWithIndex.foreach { case (r, i) =>
+          bind(r.name, RequirednessBindings.denote(args(i)))
+        }
       case TailLoop(loopName, params, _, body) =>
-        addBinding(loopName, body)
+        bind(loopName, RequirednessBindings.denote(body))
         val argDefs = ArraySeq.fill(params.length)(ArraySeq.newBuilder[IR])
         refMap.getOrElse(loopName, FastSeq()).map(_.t).foreach { case Recur(_, args, _) =>
           argDefs.zip(args).foreach { case (ab, d) => ab += d }
         }
-
         val s = params.lazyZip(argDefs).map { (param, args) =>
           val (name, init) = param
           args += init
-          addBindings(name, args.result())
-          lookup(refMap.get(name).flatMap(refs =>
-            refs.headOption.map(_.t.asInstanceOf[IR])
-          ).getOrElse(init))
+          bind(name, defsOf(args.result()))
+          lookup(firstUse(name).getOrElse(init))
         }
         states.bind(node, s)
-      case x @ ApplyIR(_, _, args, _, _) =>
-        x.refs.zipWithIndex.foreach { case (r, i) => addBinding(r.name, args(i)) }
-      case ArraySort(a, l, r, _) =>
-        addElementBinding(l, a, makeRequired = true)
-        addElementBinding(r, a, makeRequired = true)
-      case ArrayMaximalIndependentSet(a, tiebreaker) =>
-        tiebreaker.foreach { case (left, right, _) =>
-          val eltReq =
-            tcoerce[TypeWithRequiredness](tcoerce[RIterable](lookup(a)).elementType.children.head)
-          val req = RTuple.fromNamesAndTypes(FastSeq("0" -> eltReq))
-          req.union(true)
-          refMap(left).foreach(u => defs.bind(u, ArraySeq(req)))
-          refMap(right).foreach(u => defs.bind(u, ArraySeq(req)))
-        }
-      case StreamMap(a, name, _) =>
-        addElementBinding(name, a)
-      case StreamZip(as, names, _, behavior, _) =>
-        var i = 0
-        while (i < names.length) {
-          addElementBinding(names(i), as(i), makeOptional = behavior == ArrayZipBehavior.ExtendNA)
-          i += 1
-        }
-      case StreamZipJoin(as, key, curKey, curVals, _) =>
-        val aEltTypes = as.map(a => tcoerce[RStruct](tcoerce[RIterable](lookup(a)).elementType))
-        if (refMap.contains(curKey)) {
-          val uses = refMap(curKey)
-          val keyTypes =
-            aEltTypes.map(t => RStruct.fromNamesAndTypes(key.map(k => k -> t.fieldType(k))))
-          uses.foreach(u => defs.bind(u, keyTypes))
-          as.foreach { a =>
-            dependents.getOrElseUpdate(a, mutable.Set[RefEquality[BaseIR]]()) ++= uses
-          }
-        }
-        if (refMap.contains(curVals)) {
-          val uses = refMap(curVals)
-          val valTypes = aEltTypes.map { t =>
-            val optional = t.copy(t.children)
-            optional.union(false)
-            RIterable(optional)
-          }
-          uses.foreach(u => defs.bind(u, valTypes))
-          as.foreach { a =>
-            dependents.getOrElseUpdate(a, mutable.Set[RefEquality[BaseIR]]()) ++= uses
-          }
-        }
-      case StreamZipJoinProducers(contexts, ctxName, makeProducer, key, curKey, curVals, _) =>
-        val ctxType = tcoerce[RIterable](lookup(contexts)).elementType
-        if (refMap.contains(ctxName)) {
-          val uses = refMap(ctxName)
-          uses.foreach(u => defs.bind(u, ArraySeq(ctxType)))
-          dependents.getOrElseUpdate(contexts, mutable.Set[RefEquality[BaseIR]]()) ++= uses
-        }
-
-        val producerElementType =
-          tcoerce[RStruct](tcoerce[RIterable](lookup(makeProducer)).elementType)
-        if (refMap.contains(curKey)) {
-          val uses = refMap(curKey)
-          val keyType =
-            RStruct.fromNamesAndTypes(key.map(k => k -> producerElementType.fieldType(k)))
-          uses.foreach(u => defs.bind(u, ArraySeq(keyType)))
-          dependents.getOrElseUpdate(makeProducer, mutable.Set[RefEquality[BaseIR]]()) ++= uses
-        }
-        if (refMap.contains(curVals)) {
-          val uses = refMap(curVals)
-          val optional = producerElementType.copy(producerElementType.children)
-          optional.union(false)
-          uses.foreach(u => defs.bind(u, ArraySeq(RIterable(optional))))
-          dependents.getOrElseUpdate(makeProducer, mutable.Set[RefEquality[BaseIR]]()) ++= uses
-        }
-
-      case StreamFilter(a, name, _) => addElementBinding(name, a)
-      case StreamTakeWhile(a, name, _) => addElementBinding(name, a)
-      case StreamDropWhile(a, name, _) => addElementBinding(name, a)
-      case StreamFlatMap(a, name, _) => addElementBinding(name, a)
-      case StreamFor(a, name, _) => addElementBinding(name, a)
-      case StreamFold(a, zero, accumName, valueName, body) =>
-        addElementBinding(valueName, a)
-        addBindings(accumName, ArraySeq(zero, body))
-        states.bind(
-          node,
-          ArraySeq(lookup(
-            refMap.get(accumName)
-              .flatMap(refs => refs.headOption.map(_.t.asInstanceOf[IR]))
-              .getOrElse(zero)
-          )),
-        )
-      case StreamScan(a, zero, accumName, valueName, body) =>
-        addElementBinding(valueName, a)
-        addBindings(accumName, ArraySeq(zero, body))
-        states.bind(
-          node,
-          ArraySeq(lookup(
-            refMap.get(accumName)
-              .flatMap(refs => refs.headOption.map(_.t.asInstanceOf[IR]))
-              .getOrElse(zero)
-          )),
-        )
-      case StreamFold2(a, accums, valueName, seqs, _) =>
-        addElementBinding(valueName, a)
-        val s = accums.lazyZip(seqs).map { case ((n, z), seq) =>
-          addBindings(n, ArraySeq(z, seq))
-          lookup(refMap.get(n).flatMap(refs =>
-            refs.headOption.map(_.t.asInstanceOf[IR])
-          ).getOrElse(z))
-        }
-        states.bind(node, s)
-      case StreamJoinRightDistinct(left, right, _, _, l, r, _, joinType) =>
-        addElementBinding(l, left, makeOptional = (joinType == "outer" || joinType == "right"))
-        addElementBinding(r, right, makeOptional = (joinType == "outer" || joinType == "left"))
-      case StreamLeftIntervalJoin(left, right, _, _, lname, rname, _) =>
-        addElementBinding(lname, left)
-        val uses = refMap(rname)
-        uses.foreach(u => defs.bind(u, ArraySeq(lookup(right))))
-        dependents.getOrElseUpdate(right, mutable.Set[RefEquality[BaseIR]]()) ++= uses
-      case StreamAgg(a, name, _) =>
-        addElementBinding(name, a)
-      case StreamAggScan(a, name, _) =>
-        addElementBinding(name, a)
-      case StreamBufferedAggregate(stream, _, _, _, name, _, _) =>
-        addElementBinding(name, stream)
-      case RunAggScan(a, name, _, _, _, _) =>
-        addElementBinding(name, a)
+      case StreamFold(_, zero, accumName, _, body) =>
+        bind(accumName, defsOf(FastSeq(zero, body)))
+        bindFromChildBindings()
+        states.bind(node, ArraySeq(lookup(firstUse(accumName).getOrElse(zero))))
+      case StreamScan(_, zero, accumName, _, body) =>
+        bind(accumName, defsOf(FastSeq(zero, body)))
+        bindFromChildBindings()
+        states.bind(node, ArraySeq(lookup(firstUse(accumName).getOrElse(zero))))
+      case StreamFold2(_, accums, _, seqs, _) =>
+        accums.lazyZip(seqs).foreach { case ((n, z), seq) => bind(n, defsOf(FastSeq(z, seq))) }
+        bindFromChildBindings()
+        states.bind(node, accums.map { case (n, z) => lookup(firstUse(n).getOrElse(z)) })
       case AggFold(zero, seqOp, combOp, accumName, otherAccumName, _) =>
-        addBindings(accumName, ArraySeq(zero, seqOp, combOp))
-        addBindings(otherAccumName, ArraySeq(zero, seqOp, combOp))
-      case AggExplode(a, name, _, _) =>
-        addElementBinding(name, a)
-      case AggArrayPerElement(a, elt, idx, _, _, _) =>
-        addElementBinding(elt, a)
-        // idx is always required Int32
-        if (refMap.contains(idx)) {
-          val prim = ArraySeq(RPrimitive())
-          refMap(idx).foreach(use => defs.bind(use, prim))
-        }
-      case NDArrayMap(nd, name, _) =>
-        addElementBinding(name, nd)
-      case NDArrayMap2(left, right, l, r, _, _) =>
-        addElementBinding(l, left)
-        addElementBinding(r, right)
-      case CollectDistributedArray(ctxs, globs, c, g, _, _, _, _) =>
-        addElementBinding(c, ctxs)
-        addBinding(g, globs)
-      case BlockMatrixMap(child, eltName, _, _) => addBlockMatrixElementBinding(eltName, child)
-      case BlockMatrixMap2(leftChild, rightChild, leftName, rightName, _, _) =>
-        addBlockMatrixElementBinding(leftName, leftChild)
-        addBlockMatrixElementBinding(rightName, rightChild)
-      case TableAggregate(c, _) =>
-        addTableBinding(c)
-      case TableFilter(child, _) =>
-        addTableBinding(child)
-      case TableMapRows(child, _) =>
-        addTableBinding(child)
-      case TableMapGlobals(child, _) =>
-        addTableBinding(child)
-      case TableKeyByAndAggregate(child, _, _, _, _) =>
-        addTableBinding(child)
-      case TableAggregateByKey(child, _) =>
-        addTableBinding(child)
-      case TableMapPartitions(child, globalName, partitionStreamName, _, _, _) =>
-        if (refMap.contains(globalName))
-          refMap(globalName).foreach(u => defs.bind(u, ArraySeq(lookup(child).globalType)))
-        if (refMap.contains(partitionStreamName))
-          refMap(partitionStreamName).foreach { u =>
-            defs.bind(u, ArraySeq(RIterable(lookup(child).rowType)))
-          }
-        val refs = refMap.getOrElse(globalName, FastSeq()) ++ refMap.getOrElse(
-          partitionStreamName,
-          FastSeq(),
-        )
-        dependents.getOrElseUpdate(child, mutable.Set[RefEquality[BaseIR]]()) ++= refs
-      case TableGen(contexts, globals, cname, gname, _, _, _) =>
-        addElementBinding(cname, contexts)
-        addBinding(gname, globals)
-      case _ => fatal(Pretty(ctx, node))
+        bind(accumName, defsOf(FastSeq(zero, seqOp, combOp)))
+        bind(otherAccumName, defsOf(FastSeq(zero, seqOp, combOp)))
+        bindFromChildBindings()
+      case _ =>
+        bindFromChildBindings()
     }
   }
 
