@@ -618,7 +618,19 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, weights=None, pa
             __scaled_y_nds=ht.scaled_y_nds,
             __sqrt_weight_nds=ht.sqrt_weights,
             ns=ht.ns,
-            ds=ht.ns.map(lambda n: n - k - 1),
+            ds=ht.ns.map(
+                lambda n: hl.case()
+                .when(n - k - 1 >= 1, n - k - 1)
+                .or_error(
+                    hl.format(
+                        "_linear_regression_rows_nd: insufficient degrees of freedom: "
+                        "%s samples and %s covariates (including x) implies %s degrees of freedom.",
+                        n,
+                        k + 1,
+                        n - k - 1,
+                    )
+                )
+            ),
             __cov_Qts=ht.cov_Qts,
             __Qtys=ht.Qtys,
             __yyps=hl.range(num_y_lists).map(
