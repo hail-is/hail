@@ -6,13 +6,14 @@ import is.hail.collection.FastSeq
 import is.hail.collection.implicits.{toRichIterable, toRichIterator}
 import is.hail.expr.ir.{MatrixValue, TableValue}
 import is.hail.expr.ir.functions.MatrixToTableFunction
+import is.hail.linalg.DenseMatrix
 import is.hail.rvd.{RVD, RVDType}
 import is.hail.sparkextras.ContextRDD
 import is.hail.types.physical.{PCanonicalStruct, PStruct}
 import is.hail.types.virtual._
 import is.hail.utils._
 
-import breeze.linalg.{*, DenseMatrix, DenseVector}
+import breeze.linalg.{*, DenseVector}
 import org.apache.spark.mllib.linalg.Vectors
 import org.apache.spark.mllib.linalg.distributed.{IndexedRow, IndexedRowMatrix}
 import org.apache.spark.sql.Row
@@ -108,7 +109,7 @@ case class PCA(entryField: String, k: Int, computeLoadings: Boolean)
       else
         svd.V.toArray
 
-    val V = new DenseMatrix[Double](svd.V.numRows, svd.V.numCols, data)
+    val V = DenseMatrix(svd.V.numRows, svd.V.numCols, data)
     val S = DenseVector(svd.s.toArray)
 
     val eigenvalues = svd.s.toArray.map(math.pow(_, 2))

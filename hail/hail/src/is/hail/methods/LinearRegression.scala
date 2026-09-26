@@ -6,13 +6,13 @@ import is.hail.collection.IntArrayBuilder
 import is.hail.collection.implicits.toRichIterator
 import is.hail.expr.ir.{MatrixValue, TableValue}
 import is.hail.expr.ir.functions.MatrixToTableFunction
+import is.hail.linalg.DenseMatrix
 import is.hail.stats._
 import is.hail.types.physical.PStruct
 import is.hail.types.virtual.{MatrixType, TArray, TFloat64, TInt32, TStruct, TableType}
 import is.hail.utils._
 
-import breeze.linalg._
-import breeze.numerics.sqrt
+import breeze.linalg.{DenseMatrix => _, _}
 import net.sourceforge.jdistlib.T
 
 case class LinearRegressionRowsSingle(
@@ -64,9 +64,9 @@ case class LinearRegressionRowsSingle(
 
     val Qt =
       if (k > 0)
-        qr.reduced.justQ(cov).t
+        DenseMatrix.qrReducedJustQ(cov).t
       else
-        DenseMatrix.zeros[Double](0, n)
+        DenseMatrix.zeros(0, n)
 
     val Qty = Qt * y
 
@@ -131,19 +131,19 @@ case class LinearRegressionRowsSingle(
           }
           val blockLength = i
 
-          val X = new DenseMatrix[Double](n, blockLength, data)
+          val X = DenseMatrix(n, blockLength, data)
 
           val AC: DenseVector[Double] = X.t(*, ::).map(r => sum(r))
           assert(AC.length == blockLength)
 
-          val qtx: DenseMatrix[Double] = QtBc.value * X
-          val qty: DenseMatrix[Double] = QtyBc.value
+          val qtx: DenseMatrix = QtBc.value * X
+          val qty: DenseMatrix = QtyBc.value
           val xxpRec: DenseVector[Double] =
             1.0 / (X.t(*, ::).map(r => r dot r) - qtx.t(*, ::).map(r => r dot r))
-          val ytx: DenseMatrix[Double] = yBc.value.t * X
+          val ytx: DenseMatrix = yBc.value.t * X
           assert(ytx.rows == yBc.value.cols && ytx.cols == blockLength)
 
-          val xyp: DenseMatrix[Double] = ytx - (qty.t * qtx)
+          val xyp: DenseMatrix = ytx - (qty.t * qtx)
           val yyp: DenseVector[Double] = yypBc.value
 
           // resuse xyp
@@ -154,7 +154,7 @@ case class LinearRegressionRowsSingle(
             i += 1
           }
 
-          val se = sqrt(dRec * (yyp * xxpRec.t - (b *:* b)))
+          val se = (DenseMatrix.outer(yyp, xxpRec) - (b *:* b)).map(x => math.sqrt(dRec * x))
 
           val t = b /:/ se
           val p = t.map(s => 2 * T.cumulative(-math.abs(s), d.toDouble, true, false))
@@ -168,7 +168,7 @@ case class LinearRegressionRowsSingle(
             rvb.addInt(n)
             rvb.addDouble(AC(i))
 
-            def addSlice(dm: DenseMatrix[Double]): Unit = {
+            def addSlice(dm: DenseMatrix): Unit = {
               rvb.startArray(nDependentVariables)
               var j = 0
               while (j < nDependentVariables) {
@@ -245,9 +245,9 @@ case class LinearRegressionRowsChained(
 
       val Qt =
         if (k > 0)
-          qr.reduced.justQ(cov).t
+          DenseMatrix.qrReducedJustQ(cov).t
         else
-          DenseMatrix.zeros[Double](0, n)
+          DenseMatrix.zeros(0, n)
       val Qty = Qt * y
       val yyp = y.t(*, ::).map(r => r dot r) - Qty.t(*, ::).map(r => r dot r)
 
@@ -317,19 +317,19 @@ case class LinearRegressionRowsChained(
 
           val results = Array.tabulate(nGroups) { j =>
             val cri = inputData(j)
-            val X = new DenseMatrix[Double](cri.n, blockLength, data(j))
+            val X = DenseMatrix(cri.n, blockLength, data(j))
 
             val AC: DenseVector[Double] = X.t(*, ::).map(r => sum(r))
             assert(AC.length == blockLength)
 
-            val qtx: DenseMatrix[Double] = cri.Qt * X
-            val qty: DenseMatrix[Double] = cri.Qty
+            val qtx: DenseMatrix = cri.Qt * X
+            val qty: DenseMatrix = cri.Qty
             val xxpRec: DenseVector[Double] =
               1.0 / (X.t(*, ::).map(r => r dot r) - qtx.t(*, ::).map(r => r dot r))
-            val ytx: DenseMatrix[Double] = cri.y.t * X
+            val ytx: DenseMatrix = cri.y.t * X
             assert(ytx.rows == cri.y.cols && ytx.cols == blockLength)
 
-            val xyp: DenseMatrix[Double] = ytx - (qty.t * qtx)
+            val xyp: DenseMatrix = ytx - (qty.t * qtx)
             val yyp: DenseVector[Double] = cri.yyp
             // resuse xyp
             val b = xyp
@@ -338,7 +338,8 @@ case class LinearRegressionRowsChained(
               xyp(::, i) :*= xxpRec(i): Unit
               i += 1
             }
-            val se = sqrt((1d / cri.d) * (yyp * xxpRec.t - (b *:* b)))
+            val se =
+              (DenseMatrix.outer(yyp, xxpRec) - (b *:* b)).map(x => math.sqrt(x / cri.d))
 
             val t = b /:/ se
             val p = t.map(s => 2 * T.cumulative(-math.abs(s), cri.d.toDouble, true, false))
@@ -364,7 +365,7 @@ case class LinearRegressionRowsChained(
             results.foreach(r => rvb.addDouble(r.AC(i)))
             rvb.endArray()
 
-            def addSlice(dm: DenseMatrix[Double]): Unit = {
+            def addSlice(dm: DenseMatrix): Unit = {
               val size = dm.rows
               rvb.startArray(size)
               var j = 0
@@ -408,10 +409,10 @@ case class LinearRegressionRowsChained(
 
 case class ChainedLinregInput(
   n: Int,
-  y: DenseMatrix[Double],
+  y: DenseMatrix,
   completeColIndex: Array[Int],
-  Qt: DenseMatrix[Double],
-  Qty: DenseMatrix[Double],
+  Qt: DenseMatrix,
+  Qty: DenseMatrix,
   yyp: DenseVector[Double],
   d: Int,
 )
@@ -419,9 +420,9 @@ case class ChainedLinregInput(
 case class ChainedLinregResult(
   n: Int,
   AC: DenseVector[Double],
-  ytx: DenseMatrix[Double],
-  b: DenseMatrix[Double],
-  se: DenseMatrix[Double],
-  t: DenseMatrix[Double],
-  p: DenseMatrix[Double],
+  ytx: DenseMatrix,
+  b: DenseMatrix,
+  se: DenseMatrix,
+  t: DenseMatrix,
+  p: DenseMatrix,
 )

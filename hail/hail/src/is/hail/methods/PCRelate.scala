@@ -4,15 +4,14 @@ import is.hail.annotations.RowSeq
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.TableValue
 import is.hail.expr.ir.functions.BlockMatrixToTableFunction
-import is.hail.linalg.BlockMatrix
+import is.hail.linalg.{BlockMatrix, DenseMatrix}
+import is.hail.linalg.BlockMatrix.fromDenseMatrix
 import is.hail.linalg.BlockMatrix.ops._
-import is.hail.linalg.implicits._
 import is.hail.types.virtual._
 import is.hail.utils._
 
 import scala.collection.immutable.ArraySeq
 
-import breeze.linalg.{DenseMatrix => BDM}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 import org.apache.spark.storage.StorageLevel
@@ -45,7 +44,7 @@ object PCRelate {
 
   private val keys: IndexedSeq[String] = ArraySeq("i", "j")
 
-  private def rowsToBDM(xss: IndexedSeq[IndexedSeq[java.lang.Double]]): BDM[Double] = {
+  private def rowsToDenseMatrix(xss: IndexedSeq[IndexedSeq[java.lang.Double]]): DenseMatrix = {
     val x = xss.toArray
     val nRows = x.length
     assert(nRows > 0)
@@ -68,7 +67,7 @@ object PCRelate {
       }
       i += 1
     }
-    new BDM(nRows, nCols, a)
+    DenseMatrix(nRows, nCols, a)
   }
 
   private def toRowRdd(
@@ -82,10 +81,10 @@ object PCRelate {
     def fuseBlocks(
       i: Int,
       j: Int,
-      lmPhi: BDM[Double],
-      lmK0: BDM[Double],
-      lmK1: BDM[Double],
-      lmK2: BDM[Double],
+      lmPhi: DenseMatrix,
+      lmK0: Option[DenseMatrix],
+      lmK1: Option[DenseMatrix],
+      lmK2: Option[DenseMatrix],
     ) = {
 
       if (i <= j) {
@@ -101,9 +100,9 @@ object PCRelate {
           while (ii < nRowsAboveDiagonal) {
             val kin = lmPhi(ii, jj)
             if (kin >= minKinship) {
-              val k0 = if (lmK0 == null) null else lmK0(ii, jj)
-              val k1 = if (lmK1 == null) null else lmK1(ii, jj)
-              val k2 = if (lmK2 == null) null else lmK2(ii, jj)
+              val k0: Any = lmK0.map(m => Double.box(m(ii, jj))).orNull
+              val k1: Any = lmK1.map(m => Double.box(m(ii, jj))).orNull
+              val k2: Any = lmK2.map(m => Double.box(m(ii, jj))).orNull
               pairs += RowSeq(iOffset + ii, jOffset + jj, kin, k0, k1, k2)
             }
             ii += 1
@@ -122,19 +121,19 @@ object PCRelate {
     statistics match {
       case PhiOnly => phi.blocks
           .flatMap { case ((blocki, blockj), phi) =>
-            fuseBlocks(blocki, blockj, phi, null, null, null)
+            fuseBlocks(blocki, blockj, phi, None, None, None)
           }
       case PhiK2 => (phi.blocks join k2.blocks)
           .flatMap { case ((blocki, blockj), (phi, k2)) =>
-            fuseBlocks(blocki, blockj, phi, null, null, k2)
+            fuseBlocks(blocki, blockj, phi, None, None, Some(k2))
           }
       case PhiK2K0 => (phi.blocks join k0.blocks join k2.blocks)
           .flatMap { case ((blocki, blockj), ((phi, k0), k2)) =>
-            fuseBlocks(blocki, blockj, phi, k0, null, k2)
+            fuseBlocks(blocki, blockj, phi, Some(k0), None, Some(k2))
           }
       case PhiK2K0K1 => (phi.blocks join k0.blocks join k1.blocks join k2.blocks)
           .flatMap { case ((blocki, blockj), (((phi, k0), k1), k2)) =>
-            fuseBlocks(blocki, blockj, phi, k0, k1, k2)
+            fuseBlocks(blocki, blockj, phi, Some(k0), Some(k1), Some(k2))
           }
     }
   }
@@ -160,7 +159,7 @@ case class PCRelate(
     TableType(sig, keys, TStruct.empty)
 
   override def execute(ctx: ExecuteContext, g: M, value: Any): TableValue = {
-    val pcs = rowsToBDM(value.asInstanceOf[IndexedSeq[IndexedSeq[java.lang.Double]]])
+    val pcs = rowsToDenseMatrix(value.asInstanceOf[IndexedSeq[IndexedSeq[java.lang.Double]]])
     assert(pcs.rows == g.nCols)
     val r = computeResult(ctx, g, pcs)
     val rdd = PCRelate.toRowRdd(r, blockSize, minKinship, statistics)
@@ -187,7 +186,7 @@ case class PCRelate(
   private[this] def cacheWhen(statisticsLevel: StatisticSubset)(ctx: ExecuteContext, m: M): M =
     if (statistics >= statisticsLevel) writeRead(ctx, m) else m
 
-  def computeResult(ctx: ExecuteContext, _blockedG: M, pcs: BDM[Double]): Result[M] = {
+  def computeResult(ctx: ExecuteContext, _blockedG: M, pcs: DenseMatrix): Result[M] = {
     val blockedG = _blockedG.cache()
     val preMu = this.mu(ctx, blockedG, pcs)
     val mu = BlockMatrix.map2 { (g, mu) =>
@@ -226,16 +225,13 @@ case class PCRelate(
   }
 
   /** {@code g} is variant by sample {@code pcs} is sample by numPCs */
-  private[methods] def mu(ctx: ExecuteContext, blockedG: M, pcs: BDM[Double]): M = {
-    import breeze.linalg._
-
-    val pcsWithIntercept = BDM.horzcat(BDM.ones[Double](pcs.rows, 1), pcs)
-
-    val qr.QR(q, r) = qr.reduced(pcsWithIntercept)
-
-    val halfBeta = writeRead(ctx, (inv(2.0 * r) * q.t).matrixMultiply(ctx, blockedG.T))
-
-    writeRead(ctx, pcsWithIntercept.matrixMultiply(ctx, halfBeta).T)
+  private[methods] def mu(ctx: ExecuteContext, blockedG: M, pcs: DenseMatrix): M = {
+    val pcsWithIntercept = DenseMatrix.ones(pcs.rows, 1).horzcat(pcs)
+    val DenseMatrix.QR(q, r) = DenseMatrix.qrReduced(pcsWithIntercept)
+    val blockSize = blockedG.blockSize
+    val t = fromDenseMatrix(ctx, (r * 2.0).inv * q.t, blockSize)
+    val halfBeta = writeRead(ctx, t.dot(blockedG.T))
+    writeRead(ctx, fromDenseMatrix(ctx, pcsWithIntercept, blockSize).dot(halfBeta).T)
   }
 
   private[methods] def phi(ctx: ExecuteContext, mu: M, variance: M, g: M): M = {

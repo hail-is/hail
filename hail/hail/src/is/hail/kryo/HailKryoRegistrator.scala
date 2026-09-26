@@ -2,6 +2,7 @@ package is.hail.kryo
 
 import is.hail.annotations.{Region, RegionMemory, RegionPool, RowSeq, UnsafeIndexedSeq, UnsafeRow}
 import is.hail.collection.implicits.toRichArray
+import is.hail.linalg.DenseMatrix
 import is.hail.utils.{Interval, IntervalEndpoint, SerializableHadoopConfiguration}
 import is.hail.variant.Locus
 
@@ -27,6 +28,7 @@ class HailKryoRegistrator extends KryoRegistrator {
     kryo.register(classOf[Region])
     kryo.register(classOf[RegionPool])
     kryo.register(classOf[RegionMemory])
+    kryo.register(classOf[DenseMatrix])
   }
 }
 

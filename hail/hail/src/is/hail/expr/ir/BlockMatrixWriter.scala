@@ -8,8 +8,7 @@ import is.hail.expr.ir.defs.{MetadataWriter, Str, UUID4, WriteMetadata, WriteVal
 import is.hail.expr.ir.lowering.{BlockMatrixStage2, LowererUnsupportedOperation}
 import is.hail.io.TypedCodecSpec
 import is.hail.io.fs.FS
-import is.hail.linalg.{BlockMatrix, BlockMatrixMetadata, MatrixSparsity}
-import is.hail.linalg.implicits.RichDenseMatrixDouble
+import is.hail.linalg.{BlockMatrix, BlockMatrixMetadata, DenseMatrix, MatrixSparsity}
 import is.hail.types.TypeWithRequiredness
 import is.hail.types.encoded.{EBlockMatrixNDArray, EType}
 import is.hail.types.virtual._
@@ -162,10 +161,10 @@ case class BlockMatrixBinaryWriter(path: String) extends BlockMatrixWriter {
   override def pathOpt: Option[String] = Some(path)
 
   override def apply(ctx: ExecuteContext, bm: BlockMatrix): String = {
-    RichDenseMatrixDouble.exportToDoubles(
+    DenseMatrix.exportToDoubles(
       ctx.fs,
       path,
-      bm.toBreezeMatrix(),
+      bm.toDenseMatrix(),
       forceRowMajor = true,
     ): Unit
     path

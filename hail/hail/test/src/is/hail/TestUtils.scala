@@ -14,18 +14,19 @@ import is.hail.expr.ir.defs._
 import is.hail.expr.ir.lowering.{Compilable, LowererUnsupportedOperation}
 import is.hail.expr.ir.lowering.Optimize.Flags.Optimize
 import is.hail.io.vcf.MatrixVCFReader
+import is.hail.linalg.DenseMatrix
 import is.hail.types.physical.{PBaseStruct, PCanonicalArray, PType}
 import is.hail.types.physical.stypes.PTypeReferenceSingleCodeType
 import is.hail.types.virtual._
 import is.hail.utils._
-import is.hail.variant.{BoxedCall, Call2, ReferenceGenome}
+import is.hail.variant.ReferenceGenome
 
 import scala.collection.immutable.ArraySeq
 import scala.reflect.ClassTag
 
 import java.io.PrintWriter
 
-import breeze.linalg.{DenseMatrix, Matrix, Vector}
+import breeze.linalg.{Matrix, Vector}
 import org.apache.spark.SparkException
 import org.apache.spark.sql.Row
 import org.junit.jupiter.api.{Assertions => JAssertions}
@@ -584,23 +585,23 @@ object TestUtils extends Logging {
     )
   }
 
+  def assertMatrixEqualityDouble(A: DenseMatrix, B: DenseMatrix): Unit =
+    assertMatrixEqualityDouble(A, B, defaultTolerance)
+
+  def assertMatrixEqualityDouble(A: DenseMatrix, B: DenseMatrix, tolerance: Double): Unit = {
+    assertTrue(A.rows == B.rows && A.cols == B.cols, s"matrix dimensions differ")
+    assertTrue(
+      (0 until A.rows).forall(i =>
+        (0 until A.cols).forall(j => D_==(A(i, j), B(i, j), tolerance))
+      ),
+      s"matrices differ beyond tolerance $tolerance",
+    )
+  }
+
   def isConstant(A: Vector[Int]): Boolean = {
     (0 until A.length - 1).foreach(i => if (A(i) != A(i + 1)) return false)
     true
   }
-
-  def removeConstantCols(A: DenseMatrix[Int]): DenseMatrix[Int] = {
-    val data = (0 until A.cols).flatMap { j =>
-      val col = A(::, j)
-      if (isConstant(col)) Array[Int]()
-      else col.toArray
-    }.toArray
-    val newCols = data.length / A.rows
-    new DenseMatrix(A.rows, newCols, data)
-  }
-
-  def unphasedDiploidGtIndicesToBoxedCall(m: DenseMatrix[Int]): DenseMatrix[BoxedCall] =
-    m.map(g => if (g == -1) null: BoxedCall else Call2.fromUnphasedDiploidGtIndex(g): BoxedCall)
 
   def assertNDEvals(
     nd: IR,
@@ -689,7 +690,7 @@ object TestUtils extends Logging {
 
   def assertBMEvalsTo(
     bm0: BlockMatrixIR,
-    expected: DenseMatrix[Double],
+    expected: DenseMatrix,
   )(implicit
     ctx: ExecuteContext,
     execStrats: Set[ExecStrategy],
@@ -710,7 +711,7 @@ object TestUtils extends Logging {
             case ExecStrategy.InterpretUnoptimized => Interpret(bm, ctx)
           }
         }
-        assertTrue(res.toBreezeMatrix() == expected, s"block matrix result differed from expected")
+        assertTrue(res.toDenseMatrix() == expected, s"block matrix result differed from expected")
       } catch {
         case e: Exception =>
           logger.error(s"error from strategy $strat", e)
