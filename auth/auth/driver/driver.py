@@ -7,6 +7,7 @@ import random
 from typing import Any, Awaitable, Callable, Dict, List, Optional
 
 import aiohttp
+import botocore.exceptions
 import kubernetes_asyncio.client
 import kubernetes_asyncio.client.rest
 import kubernetes_asyncio.config
@@ -17,6 +18,7 @@ from gear.cloud_config import get_gcp_config, get_global_config
 from gear.system_permissions import SystemPermission
 from hailtop import aiotools, httpx
 from hailtop import batch_client as bc
+from hailtop.aiocloud.aioaws import AwsIamClient
 from hailtop.aiocloud.aioazure import AzureGraphClient
 from hailtop.aiocloud.aiogoogle import GoogleIAmClient
 from hailtop.utils import periodically_call, secret_alnum_string, time_msecs
@@ -288,6 +290,54 @@ class AzureServicePrincipalResource:
         self.app_obj_id = None
 
 
+class AWSIAMUserResource:
+    def __init__(self, iam_client: AwsIamClient, user_arn: Optional[str] = None):
+        self.iam_client = iam_client
+        self.user_arn = user_arn
+
+    async def get_unique_id(self) -> str:
+        user = await self.iam_client.get_user(self.user_arn)
+        return user['Arn']
+
+    async def create(self, username):
+        await self._delete(username)
+
+        user = await self.iam_client.create_user(
+            username,
+            path=f'/hail/{DEFAULT_NAMESPACE}/',
+            tags={'hail-username': username, 'hail-namespace': DEFAULT_NAMESPACE},
+        )
+        self.user_arn = user['Arn']
+
+        key = await self.iam_client.create_access_key(self.user_arn)
+
+        credentials = {
+            'AccessKeyId': key['AccessKeyId'],
+            'SecretAccessKey': key['SecretAccessKey'],
+            'UserName': user['UserName'],
+            'Arn': user['Arn'],
+        }
+
+        return (self.user_arn, credentials)
+
+    async def _delete(self, user_arn):
+        try:
+            for access_key_id in await self.iam_client.list_access_key_ids(user_arn):
+                await self.iam_client.delete_access_key(user_arn, access_key_id)
+            await self.iam_client.delete_user(user_arn)
+        except botocore.exceptions.ClientError as e:
+            if AwsIamClient.is_no_such_entity(e):
+                pass
+            else:
+                raise
+
+    async def delete(self):
+        if self.user_arn is None:
+            return
+        await self._delete(self.user_arn)
+        self.user_arn = None
+
+
 class K8sNamespaceResource:
     def __init__(self, k8s_client, name=None):
         self.k8s_client = k8s_client
@@ -447,6 +497,17 @@ async def _create_user(app, user, skip_trial_bp, cleanup):
             secret_data = base64.b64decode(key['privateKeyData']).decode('utf-8')
             updates['hail_identity'] = gsa_email
             updates['display_name'] = gsa_email
+        elif CLOUD == 'aws':
+            iam_user = AWSIAMUserResource(identity_client)
+            cleanup.append(iam_user.delete)
+
+            # length of iam user name must be <= 64
+            assert len(ident_token) <= 64
+
+            iam_user_name, credentials = await iam_user.create(ident_token)
+            secret_data = json.dumps(credentials)
+            updates['hail_identity'] = iam_user_name
+            updates['display_name'] = credentials['Arn']
         else:
             assert CLOUD == 'azure'
 
@@ -524,6 +585,9 @@ async def delete_user(app, user):
         if CLOUD == 'gcp':
             gsa = GSAResource(identity_client, hail_identity)
             await gsa.delete()
+        elif CLOUD == 'aws':
+            iam_user = AWSIAMUserResource(identity_client, hail_identity)
+            await iam_user.delete()
         else:
             assert CLOUD == 'azure'
             azure_sp = AzureServicePrincipalResource(identity_client, hail_identity)
@@ -568,6 +632,9 @@ async def resolve_identity_uid(app, hail_identity):
     if CLOUD == 'gcp':
         gsa = GSAResource(id_client, hail_identity)
         hail_identity_uid = await gsa.get_unique_id()
+    elif CLOUD == 'aws':
+        iam_user = AWSIAMUserResource(id_client, hail_identity)
+        hail_identity_uid = await iam_user.get_unique_id()
     else:
         assert CLOUD == 'azure'
         sp = AzureServicePrincipalResource(id_client, hail_identity)
