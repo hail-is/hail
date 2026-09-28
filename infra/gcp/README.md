@@ -459,3 +459,17 @@ gcloud compute ssh --zone "us-central1-a" "<VM-NAME>" --project "<PROJECT>"
 ```
 gcloud compute firewall-rules delete allow-ssh-from-internet
 ```
+
+
+
+### Note: to get the python packages installed on the cloud VM:
+
+- `sudo apt install python3.12-venv`
+- `python3.12 -m venv .venv`
+- `source .venv/bin/activate`
+- `pip install -r requirements.txt`
+
+### Note: can we give the k8s system user access to the GAR repo through terraform?
+### Actually, this seems like it's already done (and it's not compute- any more, it's (hopefully) gke-node-pool-...)
+
+### Note: working on the VM, switch to root (or `sudo su`) because root and the standard user don't share config directories.
