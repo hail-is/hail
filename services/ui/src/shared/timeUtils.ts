@@ -24,3 +24,9 @@ export function formatTime(ms: number | null): string {
     timeZoneName: 'short',
   });
 }
+
+// The batch API sends timestamps as ISO 8601 UTC strings (e.g. "2026-09-18T12:34:56.789Z").
+export function formatIsoTime(iso: string | null | undefined): string {
+  if (iso == null) return '';
+  return formatTime(Date.parse(iso));
+}

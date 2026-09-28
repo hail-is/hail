@@ -7,6 +7,7 @@ import { JobSpecPanel } from './JobSpecPanel';
 import { AttemptPanel } from './AttemptPanel';
 import { CodeBlock } from './CodeBlock';
 import { useJobDetails } from '../hooks/useJobDetails';
+import { disableReactUi } from '../../shared/reactUiCookie';
 
 type TopTab = string; // 'job_spec' | 'raw_status' | 'current_attempt' | <attempt_id>
 
@@ -215,7 +216,7 @@ export function JobPage({ basePath, batchId, jobId }: Props): JSX.Element {
       </nav>
       <div className="mt-1 text-sm">
         <button
-          onClick={() => { document.cookie = 'hail_react_ui=; max-age=0; path=/; SameSite=Lax'; location.reload(); }}
+          onClick={disableReactUi}
           className="text-sky-600 hover:underline cursor-pointer"
         >
           Back to classic layout

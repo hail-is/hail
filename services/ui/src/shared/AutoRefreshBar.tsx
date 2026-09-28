@@ -43,7 +43,7 @@ export function AutoRefreshBar({ autoRefresh, onToggle, countdownKey, refreshing
           </span>
         )}
       </label>
-      <div className="mt-1.5 h-0.5 w-64 bg-zinc-300 rounded-full overflow-hidden">
+      <div className="mt-1.5 h-0.5 w-full bg-zinc-300 rounded-full overflow-hidden">
         {autoRefresh && !refreshing && <CountdownFill key={countdownKey} intervalMs={intervalMs} />}
         {autoRefresh && refreshing && <div className="h-full bg-sky-300 w-full animate-pulse" />}
       </div>
