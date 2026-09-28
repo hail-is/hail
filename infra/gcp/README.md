@@ -407,6 +407,9 @@ gcloud compute ssh --zone "us-central1-a" "<VM-NAME>" --project "<PROJECT>"
   ./bootstrap.sh deploy_unmanaged
   ```
 
+  Note: Sometimes the letsencrypt step fails (unable to connect to the services). This might be transient. Comment out the other deploy_unmanaged steps in bootstrap_utils.sh and try again
+  before doing any deeper debugging.
+
 - Create the batch worker VM image. Run:
 
   ```
