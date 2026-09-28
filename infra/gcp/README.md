@@ -257,10 +257,10 @@ rm -rf .terraform terraform.lock.hcl terraform.tfstate terraform.tfstate.backup
 
    Register the predetermined `domain` with a DNS registry.
 
-   The IP address to use will be available in GCP cloud console under `Network Services -> Load balancing`.
-   Click through to the external load balancer and find its IP address.
+   The IP address will be created already in the global-config k8s secret. Use `source devbin/functions.sh` and 
+   `download-secret global-config` to download the secret. Then `cat contents/ip` to see the IP address.
 
-   Add two records with the same IP address:
+   Add two records pointing at the same IP address:
     - `<domain>`
     - `*.<domain>`
 
@@ -322,10 +322,15 @@ gcloud compute instances create bootstrap-vm \
     --provisioning-model=STANDARD \
     --service-account=<TERRAFORM-SERVICE-ACCOUNT> \
     --scopes=https://www.googleapis.com/auth/cloud-platform \
-    --create-disk=auto-delete=yes,boot=yes,device-name=instance-20240716-184710,image=projects/ubuntu-os-cloud/global/images/ubuntu-2404-noble-amd64-v20250606,mode=rw,size=200,type=projects/hail-vdc-dgoldste/zones/us-central1-a/diskTypes/pd-balanced
+    --create-disk=auto-delete=yes,boot=yes,device-name=instance-20240716-184710,image=projects/ubuntu-os-cloud/global/images/ubuntu-2404-noble-amd64-v20260918,mode=rw,size=200,type=projects/<PROJECT>/zones/us-central1-a/diskTypes/pd-balanced
 ```
 
 #### Cloud VM commands
+
+Temporarily allow SSH to the VM from the internet.
+```
+gcloud compute firewall-rules create allow-ssh-from-internet --allow=tcp:22 --source-ranges=<YOUR-IP-ADDRESS>/32
+```
 
 We assume the rest of the commands are run on the VM. You will need to connect to this instance with ssh.
 You can copy a `gcloud compute ssh` command to do this directly from the VM details page in the cloud console,
@@ -449,3 +454,8 @@ gcloud compute ssh --zone "us-central1-a" "<VM-NAME>" --project "<PROJECT>"
 ## Remove the cloud VM
 
 - Once the deployment is complete, you can remove the cloud VM in the Google cloud console.
+- Remove the temporary firewall rule:
+
+```
+gcloud compute firewall-rules delete allow-ssh-from-internet
+```
