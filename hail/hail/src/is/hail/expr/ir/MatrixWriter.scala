@@ -2272,8 +2272,8 @@ case class MatrixBlockMatrixWriter(
 object MatrixNativePartitionedColumnsWriter {
   val maxFanoutTargets: Int = 100
 
-  def targetPaths(path: String, nFanoutTargets: Int): IndexedSeq[String] =
-    ArraySeq.tabulate(nFanoutTargets)(i => f"$path/$i%02d.mt")
+  def targetPaths(prefix: String, nFanoutTargets: Int): IndexedSeq[String] =
+    ArraySeq.tabulate(nFanoutTargets)(i => f"$prefix/$i%02d.mt")
 }
 
 /** Writes `nFanoutTargets` native matrix tables, each holding every row of the input but an evenly
@@ -2284,11 +2284,13 @@ object MatrixNativePartitionedColumnsWriter {
   * `nFanoutTargets` cannot leave stale slices behind.
   */
 case class MatrixNativePartitionedColumnsWriter(
-  path: String,
+  prefix: String,
   nFanoutTargets: Int = 50,
   overwrite: Boolean = false,
   codecSpecJSONStr: String = null,
 ) extends MatrixWriter {
+  override def path = prefix
+
   require(nFanoutTargets > 1, s"must write at least two matrix tables, found $nFanoutTargets")
 
   require(
@@ -2305,7 +2307,7 @@ case class MatrixNativePartitionedColumnsWriter(
     tablestage: TableStage,
     r: RTable,
   ): IR = {
-    val paths = MatrixNativePartitionedColumnsWriter.targetPaths(path, nFanoutTargets)
+    val paths = MatrixNativePartitionedColumnsWriter.targetPaths(prefix, nFanoutTargets)
 
     // FIXME path should be an argument to matrix writer components, until then, we use this hack.
     /* One set of components per output. All of them share the input's rows, key, partitioner and
@@ -2368,9 +2370,7 @@ case class MatrixNativePartitionedColumnsWriter(
       stage.mapCollectWithContextsAndGlobals("matrix_native_partitioned_columns_writer") {
         (rows, ctx) =>
           IRBuilder.scoped { b =>
-            // One part file basename, reused across all outputs -- they differ by directory.
             val partFile = b.memoize(GetField(ctx, "writeCtx") + UUID4())
-            // The cols array is already broadcast, so the slice bounds cost nothing per row.
             val bounds = sliceBounds(b, stage.globals)
 
             val partResult = b.memoize(streamAggIR(rows) { row =>

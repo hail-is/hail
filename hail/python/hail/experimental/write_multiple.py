@@ -7,6 +7,8 @@ from hail.ir import (
     BlockMatrixTextMultiWriter,
     MatrixMultiWrite,
     MatrixNativeMultiWriter,
+    MatrixNativePartitionedColumnsWriter,
+    MatrixWrite,
 )
 from hail.linalg import BlockMatrix
 from hail.matrixtable import MatrixTable
@@ -30,6 +32,21 @@ def write_matrix_tables(
 def block_matrices_tofiles(bms: List[BlockMatrix], prefix: str, overwrite: bool = False):
     writer = BlockMatrixBinaryMultiWriter(prefix, overwrite)
     Env.backend().execute(BlockMatrixMultiWrite([bm._bmir for bm in bms], writer))
+
+
+@typecheck(mt=MatrixTable, prefix=str, n_fanout_targets=int, overwrite=bool, codec_spec=nullable(str))
+def write_mts_split_by_cols(
+    mt: MatrixTable, prefix: str, n_fanout_targets: int = 50, overwrite: bool = False, codec_spec: str | None = None
+):
+    fanout_limit = 100  # magic number from MatrixNativePartitionedColumnsWriter.scala, keep in sync
+    if not 1 < n_fanout_targets <= fanout_limit:
+        raise ValueError(f'fanout limit must be between 2 and {fanout_limit}, got {n_fanout_targets}')
+
+    from hail import current_backend
+
+    current_backend().validate_file(prefix)
+    writer = MatrixNativePartitionedColumnsWriter(prefix, n_fanout_targets, overwrite, codec_spec)
+    Env.backend().execute(MatrixWrite(mt._mir, writer))
 
 
 @typecheck(

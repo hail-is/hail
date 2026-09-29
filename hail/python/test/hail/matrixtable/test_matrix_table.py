@@ -2526,3 +2526,92 @@ def query_matrix_table_rows_interval_key_parameters():
 @pytest.mark.parametrize("query,expected", query_matrix_table_rows_interval_key_parameters())
 def test_query_matrix_table_rows_interval_key(query_mt_interval_key_mt, query, expected):
     assert hl.eval(hl.query_matrix_table_rows(query_mt_interval_key_mt, query, 'e')) == expected
+
+
+def _split_test_mt(n_rows, n_cols, n_partitions=3):
+    mt = hl.utils.range_matrix_table(n_rows, n_cols, n_partitions=n_partitions)
+    mt = mt.annotate_rows(r=hl.str(mt.row_idx))
+    mt = mt.annotate_cols(c=hl.str(mt.col_idx))
+    return mt.annotate_entries(e=mt.row_idx * 1000 + mt.col_idx)
+
+
+def _read_split_outputs(prefix, n):
+    return [hl.read_matrix_table(f'{prefix}/{i:02d}.mt') for i in range(n)]
+
+
+def _check_split_by_cols(mt, prefix, n, n_cols):
+    outs = _read_split_outputs(prefix, n)
+
+    # slices are contiguous, cover every column exactly once, and are evenly sized
+    col_idxs = [[c.col_idx for c in out.cols().collect()] for out in outs]
+    assert [i for idxs in col_idxs for i in idxs] == list(range(n_cols))
+    sizes = [len(idxs) for idxs in col_idxs]
+    assert max(sizes) - min(sizes) <= 1
+
+    for out, idxs in zip(outs, col_idxs):
+        assert out.count_rows() == mt.count_rows()
+        assert out._same(mt.choose_cols(idxs))
+
+    # Interval-filtered reads go through each output's own row index
+    # (including its entries_offset), which a sequential read does not touch.
+    intervals = [hl.interval(hl.struct(row_idx=3), hl.struct(row_idx=8))]
+    for out, idxs in zip(outs, col_idxs):
+        expected = hl.filter_intervals(mt.choose_cols(idxs), intervals)
+        actual = hl.filter_intervals(out, intervals)
+        assert actual._same(expected)
+    return outs
+
+
+@pytest.mark.parametrize(
+    'n_rows, n_cols, n',
+    [
+        (11, 23, 4),  # uneven
+        (12, 24, 4),  # even
+        (11, 5, 5),  # one column per output
+        (11, 100, 2),
+        (11, 103, 100),  # maximum fanout
+    ],
+)
+def test_write_mts_split_by_cols(n_rows, n_cols, n):
+    mt = _split_test_mt(n_rows, n_cols)
+    prefix = new_temp_file()
+    hl.experimental.write_mts_split_by_cols(mt, prefix, n_fanout_targets=n)
+    _check_split_by_cols(mt, prefix, n, n_cols)
+
+
+def test_write_mts_split_by_cols_many_partitions():
+    mt = _split_test_mt(50, 30, n_partitions=10)
+    prefix = new_temp_file()
+    hl.experimental.write_mts_split_by_cols(mt, prefix, n_fanout_targets=7)
+    _check_split_by_cols(mt, prefix, 7, 30)
+
+
+def test_write_mts_split_by_cols_too_few_columns():
+    mt = _split_test_mt(5, 3)
+    prefix = new_temp_file()
+    with pytest.raises(Exception, match='column'):
+        hl.experimental.write_mts_split_by_cols(mt, prefix, n_fanout_targets=4)
+
+
+@pytest.mark.parametrize('n', [-1, 0, 1, 101])
+def test_write_mts_split_by_cols_bad_n(n):
+    mt = _split_test_mt(5, 10)
+    with pytest.raises(ValueError):
+        hl.experimental.write_mts_split_by_cols(mt, new_temp_file(), n_fanout_targets=n)
+
+
+def test_write_mts_split_by_cols_overwrite():
+    prefix = new_temp_file()
+    mt = _split_test_mt(11, 23)
+    hl.experimental.write_mts_split_by_cols(mt, prefix, n_fanout_targets=4)
+
+    with pytest.raises(Exception):
+        hl.experimental.write_mts_split_by_cols(mt, prefix, n_fanout_targets=4)
+
+    # a re-run with smaller n and overwrite=True leaves no stale slices
+    mt2 = _split_test_mt(11, 10)
+    hl.experimental.write_mts_split_by_cols(mt2, prefix, n_fanout_targets=2, overwrite=True)
+    _check_split_by_cols(mt2, prefix, 2, 10)
+    fs = hl.current_backend().fs
+    assert not fs.exists(f'{prefix}/02.mt')
+    assert not fs.exists(f'{prefix}/03.mt')
