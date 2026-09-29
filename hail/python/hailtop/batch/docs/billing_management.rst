@@ -30,25 +30,34 @@ overall ``authorized_amount``.
 The INTERNAL Quote
 ------------------
 
-Every Batch deployment includes a built-in quote named ``INTERNAL``. It is unlimited and acts as
-the default container for billing projects that predate the quotes system, as well as for billing
-projects created without specifying a quote. 
+Every Batch deployment includes a built-in quote named ``INTERNAL``. It is the only quote that
+may be unlimited (that is, have no ``authorized_amount``), and it acts as the default container
+for billing projects that predate the quotes system.
 
-For example, all user-trial billing projects are created under the ``INTERNAL`` quote.
+A quote must be specified explicitly whenever a billing project is created. The only exceptions
+are billing projects created through the legacy (pre-quotes) API by a global billing manager,
+and user-trial billing projects created automatically at sign-up. These are placed under the
+``INTERNAL`` quote.
 
-Deployments that do not wish to bother with quotes may continue unchanged. All billing projects would
-be created, and remain, under ``INTERNAL`` with no overall global spending cap.
+Deployments that do not wish to bother with quotes may continue unchanged. Global billing managers
+can keep creating billing projects through the legacy API, and they will be created, and remain, under
+``INTERNAL`` with no overall global spending cap.
 
 Invariants
 ----------
 
-The system enforces the following invariants:
+The system enforces the following invariants. They are checked in application code, and also by
+database triggers that run before every insert or update of a quote or billing project. A
+logic error in the application therefore cannot leave the database in a state that breaks them:
 
 - **Sum of BP limits ≤ quote authorized_amount.** The sum of all billing project limits
   under a quote can never exceed the quote's ``authorized_amount``. This is checked on every
-  create, limit edit, and move operation.
-- **Unlimited billing projects require an unlimited quote.** A billing project with no spending
-  limit can only exist under a quote that is itself unlimited (no ``authorized_amount`` set). 
+  billing project create, limit edit, and move, and on every change to a quote's ``authorized_amount``.
+- **Only the INTERNAL quote can be unlimited.** Every other quote must have an ``authorized_amount``,
+  so a missing or failed write cannot leave a quote with unlimited spending.
+- **Unlimited billing projects can only exist under INTERNAL.** A billing project with no spending
+  limit can only exist under the ``INTERNAL`` quote. Every billing project under any other quote
+  must have a limit.
 - **Total spend within a quote cannot exceed the quote's authorized_amount.** The total spend
   across all billing projects under a quote can never exceed the quote's ``authorized_amount``.
   This is an outcome of per-billing-project spend not exceeding the billing project's limit,
