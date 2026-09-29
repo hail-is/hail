@@ -93,6 +93,7 @@ from web_common import (
 from ..batch import batch_record_to_dict, cancel_job_group_in_db, job_group_record_to_dict, job_record_to_dict
 from ..batch_configuration import BATCH_STORAGE_URI, CLOUD, DEFAULT_NAMESPACE, DOCKERHUB_PREFIX, SCOPE
 from ..batch_format_version import BatchFormatVersion
+from ..billing_project_management import invariant_violations_as_user_errors
 from ..billing_reporting import query_billing_projects_with_cost, query_billing_projects_without_cost
 from ..cloud.azure.resource_utils import azure_cores_mcpu_to_memory_bytes
 from ..cloud.gcp.resource_utils import GCP_MACHINE_FAMILY, gcp_cores_mcpu_to_memory_bytes
@@ -3223,12 +3224,13 @@ FOR UPDATE;
         if row['status'] == 'closed':
             raise ClosedBillingProjectError(billing_project)
 
-        await tx.execute_update(
-            """
+        with invariant_violations_as_user_errors():
+            await tx.execute_update(
+                """
 UPDATE billing_projects SET `limit` = %s WHERE name_cs = %s;
 """,
-            (limit, billing_project),
-        )
+                (limit, billing_project),
+            )
 
     await insert()
 
@@ -3802,7 +3804,10 @@ async def _reopen_billing_project(db, billing_project):
         if row['status'] == 'open':
             raise BatchOperationAlreadyCompletedError(f'Billing project {billing_project} is already open.', 'info')
 
-        await tx.execute_update("UPDATE billing_projects SET `status` = 'open' WHERE name_cs = %s;", (billing_project,))
+        with invariant_violations_as_user_errors():
+            await tx.execute_update(
+                "UPDATE billing_projects SET `status` = 'open' WHERE name_cs = %s;", (billing_project,)
+            )
 
     await open_project()
 
