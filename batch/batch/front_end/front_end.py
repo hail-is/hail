@@ -49,7 +49,7 @@ from gear import (
 )
 from gear.auth import get_session_id, impersonate_user
 from gear.clients import get_cloud_async_fs
-from gear.cloud_config import get_azure_config, get_gcp_config
+from gear.cloud_config import get_aws_config, get_azure_config, get_gcp_config
 from gear.database import CallError
 from gear.profiling import install_profiler_if_requested
 from gear.time_limited_max_size_cache import TimeLimitedMaxSizeCache
@@ -4013,6 +4013,8 @@ SELECT instance_id, n_tokens, frozen FROM globals;
 
     if CLOUD == 'gcp':
         app['default_region'] = get_gcp_config().region
+    elif CLOUD == 'aws':
+        app['default_region'] = get_aws_config().region
     else:
         assert CLOUD == 'azure'
         app['default_region'] = get_azure_config().region
