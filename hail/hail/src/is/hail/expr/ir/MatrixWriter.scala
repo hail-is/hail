@@ -2307,6 +2307,7 @@ case class MatrixNativePartitionedColumnsWriter(
   ): IR = {
     val paths = MatrixNativePartitionedColumnsWriter.targetPaths(path, nFanoutTargets)
 
+    // FIXME path should be an argument to matrix writer components, until then, we use this hack.
     /* One set of components per output. All of them share the input's rows, key, partitioner and
      * partition count -- only the entries and cols slices differ -- so a single stage drives the
      * one collect, and each component contributes only its own metadata tree. */
@@ -2376,6 +2377,7 @@ case class MatrixNativePartitionedColumnsWriter(
               assert(row.typ.isInstanceOf[TStruct])
               aggBindIR(row.drop(entriesFieldName)) { rowWithoutEntries =>
                 aggBindIR(GetField(row, entriesFieldName)) { entries =>
+                  // FIXME rewrite this to be an agg array per element over some kind of zip or something.
                   val writes = ArraySeq.tabulate(nFanoutTargets) { i =>
                     ApplyAggOp(
                       WriteRows(FastSeq(rowSpec, entrySpec), Some(indexType)),
