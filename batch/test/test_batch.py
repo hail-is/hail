@@ -2418,6 +2418,26 @@ async def test_submitting_more_jobs_than_update_allocated_fails(async_client: Ai
         await b.cancel()
 
 
+def test_finished_nonpreemptible_job_has_no_retried_or_projected_cost(client: BatchClient):
+    b = create_batch(client)
+    j = b.create_job(DOCKER_ROOT_IMAGE, ['true'], resources={'preemptible': False})
+    b.submit()
+    status = j.wait()
+    assert status['state'] == 'Success', str((status, b.debug_info()))
+    assert status['retried_attempts_cost'] is None, str((status, b.debug_info()))
+    assert status['projected_nonpreemptible_cost'] is None, str((status, b.debug_info()))
+
+
+def test_finished_preemptible_job_has_retried_cost(client: BatchClient):
+    b = create_batch(client)
+    j = b.create_job(DOCKER_ROOT_IMAGE, ['true'], resources={'preemptible': True})
+    b.submit()
+    status = j.wait()
+    assert status['state'] == 'Success', str((status, b.debug_info()))
+    retried_attempts_cost = status['retried_attempts_cost']
+    assert isinstance(retried_attempts_cost, float) and retried_attempts_cost >= 0, str((status, b.debug_info()))
+
+
 def test_billing_propogates_upwards(client: BatchClient):
     b = create_batch(client)
     jg = b.create_job_group()

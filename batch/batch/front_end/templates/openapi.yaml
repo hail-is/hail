@@ -2347,6 +2347,14 @@ components:
           description: "Per-resource cost breakdown"
           items:
             $ref: '#/components/schemas/CostBreakdownEntry'
+        retried_attempts_cost:
+          type: number
+          description: "Summed cost in USD of the job's retried attempts: every attempt except its outcome attempt and cancelled attempts. Null unless the job is finished and preemptible. Only returned by the get-job endpoint."
+          nullable: true
+        projected_nonpreemptible_cost:
+          type: number
+          description: "What the job's outcome attempt would have cost in USD at the non-preemptible rates in effect when it started. Null unless the job succeeded on preemptible resources and every non-preemptible rate was found. Only returned by the get-job endpoint."
+          nullable: true
         always_run:
           type: boolean
           description: "Whether the job runs regardless of the batch's success state"
