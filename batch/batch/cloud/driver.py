@@ -5,6 +5,7 @@ from gear.cloud_config import get_global_config
 
 from ..driver.driver import CloudDriver
 from ..inst_coll_config import InstanceCollectionConfigs
+from .aws.driver.driver import AWSDriver
 from .azure.driver.driver import AzureDriver
 from .gcp.driver.driver import GCPDriver
 from .terra.azure.driver.driver import TerraAzureDriver
@@ -24,7 +25,7 @@ async def get_cloud_driver(
             return await TerraAzureDriver.create(app, db, machine_name_prefix, namespace, inst_coll_configs)
         return await AzureDriver.create(app, db, machine_name_prefix, namespace, inst_coll_configs)
     elif cloud == 'aws':
-        return await GCPDriver.create(app, db, machine_name_prefix, namespace, inst_coll_configs)
+        return await AWSDriver.create(app, db, machine_name_prefix, namespace, inst_coll_configs)
     else:
         assert cloud == 'gcp', cloud
         return await GCPDriver.create(app, db, machine_name_prefix, namespace, inst_coll_configs)
