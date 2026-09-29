@@ -2345,7 +2345,7 @@ case class MatrixNativePartitionedColumnsWriter(
     // The column count is only known at run time, but the number of outputs is baked into this
     // IR, so too few columns to go around has to fail rather than write degenerate tables. The
     // check is folded into the count itself: a void `If` cannot be bound in a value-typed block.
-    def sliceBounds(b: IRBuilder, globals: IR): IndexedSeq[Atom] = {
+    def sliceBounds(b: IRBuilder, globals: IR): Atom = {
       val counted = b.memoize(ArrayLen(GetField(globals, colsFieldName)))
       val nCols = b.memoize(If(
         counted < I32(nFanoutTargets),
@@ -2358,7 +2358,7 @@ case class MatrixNativePartitionedColumnsWriter(
       ))
       val base = b.memoize(nCols.floorDiv(I32(nFanoutTargets)))
       val rem = b.memoize(nCols - (base * I32(nFanoutTargets)))
-      ArraySeq.tabulate(nFanoutTargets + 1)(i => b.memoize((I32(i) * base) + minIR(I32(i), rem)))
+      b.memoize(mapIR(rangeIR(nFanoutTargets + 1))(i => (i * base) + minIR(i, rem)).toArray)
     }
 
     Begin(FastSeq(
@@ -2386,7 +2386,7 @@ case class MatrixNativePartitionedColumnsWriter(
                     )(
                       rowWithoutEntries,
                       makestruct(entriesRVFieldName ->
-                        sliceArrayIR(entries, bounds(i), bounds(i + 1))),
+                        sliceArrayIR(entries, bounds.at(i), bounds.at(i + 1))),
                     )
                   }
                   val args = ("filePaths" -> MakeArray(writes: _*)) +:
@@ -2425,7 +2425,7 @@ case class MatrixNativePartitionedColumnsWriter(
             /* Handing `finalizeWrite` the sliced cols is what makes it write this output's cols
              * table and column count, with no changes to it. */
             val targetGlobals = b.memoize(globals.update(colsFieldName) { cols =>
-              sliceArrayIR(cols, bounds(i), bounds(i + 1))
+              sliceArrayIR(cols, bounds.at(i), bounds.at(i + 1))
             })
             b.memoize(component.finalizeWrite(targetParts, targetGlobals))
           }
