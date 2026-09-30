@@ -119,31 +119,32 @@ async def test_unauthorized_billing_project_modification(
     else:
         assert False, 'expected error'
 
+    # These routes are gated by billing roles, and `test` has none on this billing project.
     try:
         await client.add_user('test', project)
     except httpx.ClientResponseError as e:
-        assert e.status == 401, e
+        assert e.status == 403, e
     else:
         assert False, 'expected error'
 
     try:
         await client.remove_user('test', project)
     except httpx.ClientResponseError as e:
-        assert e.status == 401, e
+        assert e.status == 403, e
     else:
         assert False, 'expected error'
 
     try:
         await client.close_billing_project(project)
     except httpx.ClientResponseError as e:
-        assert e.status == 401, e
+        assert e.status == 403, e
     else:
         assert False, 'expected error'
 
     try:
         await client.reopen_billing_project(project)
     except httpx.ClientResponseError as e:
-        assert e.status == 401, e
+        assert e.status == 403, e
     else:
         assert False, 'expected error'
 
