@@ -284,7 +284,7 @@ export function BillingProjectPage({ basePath, bpName, username }: Props) {
         <div className="p-4">
           <table className="w-full text-sm">
             <tbody>
-              {(bp.users ?? []).map((entry) => {
+              {(bp.user_roles ?? []).map((entry) => {
                 const isExplicitMember = entry.roles.includes(`${bpName}:member`);
                 const quoteRoles = entry.roles.filter((r) => !r.endsWith(':member'));
                 return (

@@ -168,8 +168,8 @@ function sortBps(bps: BillingProject[], key: BPSortKey, dir: SortDir): BillingPr
         else cmp = a.limit - b.limit;
         break;
       case 'usage': {
-        const pA = a.limit === null ? 0 : a.accrued_cost / a.limit;
-        const pB = b.limit === null ? 0 : b.accrued_cost / b.limit;
+        const pA = a.limit === null ? 0 : pctOf(a.accrued_cost, a.limit);
+        const pB = b.limit === null ? 0 : pctOf(b.accrued_cost, b.limit);
         cmp = pA - pB;
         if (cmp === 0) {
           if (a.limit === null && b.limit === null) cmp = 0;
