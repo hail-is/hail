@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { BillingProject } from './api';
-import { fetchJson } from './api';
+import { fetchJson, errorMessage } from './api';
 import { ErrorBanner, BillingProjectsTable, CreateBpModal } from './shared';
 
 interface Props {
@@ -23,7 +23,7 @@ export function BillingProjectsPage({ basePath, isGlobalBm, canCreateBp, canCrea
       setBps(data);
       setError(null);
     } catch (e) {
-      setError(String(e));
+      setError(errorMessage(e));
     } finally {
       setLoading(false);
     }
