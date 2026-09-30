@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { Quote } from './api';
-import { fetchJson, apiCall } from './api';
+import { fetchJson, apiCall, errorMessage } from './api';
 import { ErrorBanner, QuotesTable } from './shared';
 
 interface Props {
@@ -30,13 +30,18 @@ function CreateQuoteModal({
   const handleSubmit = async () => {
     if (!name.trim()) { setError('Name is required.'); return; }
     if (!costObject.trim()) { setError('Cost Object is required.'); return; }
+    const amount = parseFloat(authorizedAmount);
+    if (authorizedAmount === '' || !Number.isFinite(amount) || amount < 0) {
+      setError('Authorized Amount is required and must be a non-negative number.');
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
       await apiCall('POST', `${basePath}/api/v1alpha/quotes/${encodeURIComponent(name)}`, {
         quote_number: quoteNumber || null,
         cost_object: costObject,
-        authorized_amount: authorizedAmount === '' ? 'unlimited' : parseFloat(authorizedAmount),
+        authorized_amount: amount,
         pi_name: piName || null,
         pm_designee: pmDesignee || null,
         description: description || null,
@@ -44,7 +49,7 @@ function CreateQuoteModal({
       onCreated();
       onClose();
     } catch (e) {
-      setError(String(e));
+      setError(errorMessage(e));
     } finally {
       setSaving(false);
     }
@@ -77,8 +82,11 @@ function CreateQuoteModal({
             />
           </div>
           <div>
-            <label className="block mb-1 text-slate-600">Authorized Amount (dollars, or leave blank for unlimited)</label>
+            <label htmlFor="create-quote-authorized-amount" className="block mb-1 text-slate-600">
+              Authorized Amount (dollars) <span className="text-red-500">*</span>
+            </label>
             <input
+              id="create-quote-authorized-amount"
               type="number" min="0" step="0.01" value={authorizedAmount}
               onChange={(e) => setAuthorizedAmount(e.target.value)}
               className="border rounded px-2 py-1 w-full" placeholder="e.g. 10000"
@@ -137,7 +145,7 @@ export function QuotesPage({ basePath, canCreate }: Props) {
       setQuotes(details);
       setError(null);
     } catch (e) {
-      setError(String(e));
+      setError(errorMessage(e));
     } finally {
       setLoading(false);
     }

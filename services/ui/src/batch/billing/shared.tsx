@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import type { ReactNode } from 'react';
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer } from 'recharts';
 import type { BillingEvent, BillingProject, Quote } from './api';
-import { fetchJson, apiCall } from './api';
+import { fetchJson, apiCall, errorMessage, INTERNAL_QUOTE_NAME } from './api';
 import { fmtCost, fmtDollars } from './fmt';
 
 interface BudgetBarProps {
@@ -472,7 +472,7 @@ export function EditableRow({ label, value, displayValue, canEdit, inputType = '
       await onSave(draft);
       setEditing(false);
     } catch (e) {
-      setError(String(e));
+      setError(errorMessage(e));
     } finally {
       setSaving(false);
     }
@@ -552,7 +552,7 @@ export function ConfirmModal({ title, message, confirmLabel = 'Confirm', danger 
     try {
       await onConfirm(comment);
     } catch (e) {
-      setError(String(e));
+      setError(errorMessage(e));
       setSubmitting(false);
     }
   };
@@ -606,14 +606,16 @@ export function CreateBpModal({ basePath, fixedQuoteName, onClose, onCreated }: 
   const [quotes, setQuotes] = useState<Quote[] | null>(null);
   const [selectedQuote, setSelectedQuote] = useState<Quote | null>(null);
   const [limit, setLimit] = useState('');
+  const [description, setDescription] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (fixedQuoteName) return;
+    // No default selection: the quote a billing project is funded from must be chosen deliberately.
     fetchJson<Quote[]>(`${basePath}/api/v1alpha/quotes`)
-      .then((qs) => { setQuotes(qs); if (qs.length > 0) setQuoteName(qs[0].name); })
-      .catch(() => setQuotes([]));
+      .then((qs) => { setQuotes(qs.filter((q) => q.state === 'open')); })
+      .catch(() => { setQuotes([]); });
   }, [basePath, fixedQuoteName]);
 
   useEffect(() => {
@@ -628,13 +630,20 @@ export function CreateBpModal({ basePath, fixedQuoteName, onClose, onCreated }: 
   const maxAvailable = selectedQuote?.authorized_amount !== null && selectedQuote?.authorized_amount !== undefined
     ? selectedQuote.authorized_amount - allocated
     : null;
-  const limitRequired = maxAvailable !== null;
+  const canBeUnlimited =
+    selectedQuote !== null && selectedQuote.name === INTERNAL_QUOTE_NAME && selectedQuote.authorized_amount === null
+    && selectedQuote.billing_role === 'global_bm';
+  const limitRequired = !canBeUnlimited;
 
   const handleSubmit = async () => {
     if (!name.trim()) { setError('Name is required.'); return; }
     if (!quoteName) { setError('Quote is required.'); return; }
     if (limitRequired && limit === '') { setError('A limit is required for this quote.'); return; }
     const limitVal = limit === '' ? null : parseFloat(limit);
+    if (limitVal !== null && (!Number.isFinite(limitVal) || limitVal < 0)) {
+      setError('Limit must be a non-negative number.');
+      return;
+    }
     if (maxAvailable !== null && limitVal !== null && limitVal > maxAvailable) {
       setError(`Limit cannot exceed ${fmtDollars(maxAvailable)} (remaining on this quote).`);
       return;
@@ -645,11 +654,12 @@ export function CreateBpModal({ basePath, fixedQuoteName, onClose, onCreated }: 
       await apiCall('POST', `${basePath}/api/v1alpha/billing_projects/${encodeURIComponent(name)}/create`, {
         quote_name: quoteName,
         limit: limitVal,
+        description: description || null,
       });
       onCreated();
       onClose();
     } catch (e) {
-      setError(String(e));
+      setError(errorMessage(e));
     } finally {
       setSaving(false);
     }
@@ -668,28 +678,33 @@ export function CreateBpModal({ basePath, fixedQuoteName, onClose, onCreated }: 
             />
           </div>
           <div>
-            <label className="block mb-1 text-slate-600">Quote <span className="text-red-500">*</span></label>
+            <label htmlFor="create-bp-quote" className="block mb-1 text-slate-600">
+              Quote <span className="text-red-500">*</span>
+            </label>
             {fixedQuoteName ? (
               <span className="text-slate-700">{fixedQuoteName}</span>
             ) : quotes === null ? (
               <span className="text-slate-400 text-xs">Loading…</span>
             ) : (
               <select
+                id="create-bp-quote"
                 value={quoteName}
-                onChange={(e) => setQuoteName(e.target.value)}
+                onChange={(e) => { setQuoteName(e.target.value); }}
                 className="border rounded px-2 py-1 w-full"
               >
+                <option value="" disabled>Select a quote…</option>
                 {quotes.map((q) => <option key={q.id} value={q.name}>{q.name}</option>)}
               </select>
             )}
           </div>
           <div>
-            <label className="block mb-1 text-slate-600">
+            <label htmlFor="create-bp-limit" className="block mb-1 text-slate-600">
               Limit{limitRequired && <span className="text-red-500"> *</span>}
             </label>
             <div className="flex items-center gap-1">
               <span className="text-slate-500">$</span>
               <input
+                id="create-bp-limit"
                 type="number" min="0" step="0.01" value={limit}
                 onChange={(e) => setLimit(e.target.value)}
                 className="border rounded px-2 py-1 w-full" placeholder="1.00"
@@ -699,17 +714,26 @@ export function CreateBpModal({ basePath, fixedQuoteName, onClose, onCreated }: 
               <p className="text-slate-500 text-xs mt-1">
                 {maxAvailable !== null
                   ? `${fmtDollars(maxAvailable)} remains unallocated in this quote`
-                  : 'leave empty for unlimited'}
+                  : canBeUnlimited ? 'leave empty for unlimited' : ''}
               </p>
             )}
+          </div>
+          <div>
+            <label htmlFor="create-bp-description" className="block mb-1 text-slate-600">Description</label>
+            <input
+              id="create-bp-description"
+              type="text" value={description} onChange={(e) => { setDescription(e.target.value); }}
+              className="border rounded px-2 py-1 w-full"
+            />
           </div>
         </div>
         {error && <div className="text-red-600 text-xs mt-2">{error}</div>}
         <div className="flex justify-end gap-2 mt-4">
-          <button onClick={onClose} className="border border-gray-300 px-3 py-1.5 rounded text-sm hover:bg-slate-50">
+          <button type="button" onClick={onClose} className="border border-gray-300 px-3 py-1.5 rounded text-sm hover:bg-slate-50">
             Cancel
           </button>
           <button
+            type="button"
             onClick={() => void handleSubmit()} disabled={saving}
             className="bg-blue-600 text-white px-4 py-1.5 rounded text-sm hover:bg-blue-700 disabled:opacity-50"
           >
