@@ -12,6 +12,7 @@ from . import billing_project_management as billing_dao
 class BillingPermission(str, Enum):
     VIEW_QUOTE = 'view_quote'
     EDIT_QUOTE = 'edit_quote'
+    EDIT_QUOTE_AMOUNT = 'edit_quote_amount'
     CLOSE_QUOTE = 'close_quote'
     ADD_MANAGER = 'add_manager'
     MANAGE_MANAGERS = 'manage_managers'
@@ -29,17 +30,19 @@ class BillingPermission(str, Enum):
 _ALL_BILLING_PERMISSIONS: set['BillingPermission'] = set(BillingPermission)
 
 BILLING_ROLE_PERMISSIONS: dict[str, set[BillingPermission]] = {
+    # Removing other users from a billing project (MANAGE_BP_MEMBERS) is global-billing-manager only; any member can
+    # still remove themselves.
     'global_bm': _ALL_BILLING_PERMISSIONS,
     'quote_owner': {
         BillingPermission.VIEW_QUOTE,
         BillingPermission.EDIT_QUOTE,
+        BillingPermission.EDIT_QUOTE_AMOUNT,
         BillingPermission.CLOSE_QUOTE,
         BillingPermission.MANAGE_MANAGERS,
         BillingPermission.VIEW_BP,
         BillingPermission.CREATE_BP,
         BillingPermission.EDIT_BP_LIMIT,
         BillingPermission.EDIT_BP_METADATA,
-        BillingPermission.MANAGE_BP_MEMBERS,
         BillingPermission.CLOSE_REOPEN_BP,
         BillingPermission.CHANGE_BP_QUOTE,
         BillingPermission.VIEW_EVENTS,
@@ -51,7 +54,6 @@ BILLING_ROLE_PERMISSIONS: dict[str, set[BillingPermission]] = {
         BillingPermission.CREATE_BP,
         BillingPermission.EDIT_BP_LIMIT,
         BillingPermission.EDIT_BP_METADATA,
-        BillingPermission.MANAGE_BP_MEMBERS,
         BillingPermission.CLOSE_REOPEN_BP,
         BillingPermission.CHANGE_BP_QUOTE,
         BillingPermission.VIEW_EVENTS,
@@ -59,7 +61,6 @@ BILLING_ROLE_PERMISSIONS: dict[str, set[BillingPermission]] = {
     'bp_member': {
         BillingPermission.VIEW_BP,
         BillingPermission.EDIT_BP_METADATA,
-        BillingPermission.MANAGE_BP_MEMBERS,
         BillingPermission.VIEW_EVENTS,
     },
 }
