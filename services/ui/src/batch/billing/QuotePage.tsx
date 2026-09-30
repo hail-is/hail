@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { Quote, BillingEvent } from './api';
-import { fetchJson, apiCall } from './api';
+import { fetchJson, apiCall, errorMessage, INTERNAL_QUOTE_NAME } from './api';
 import { fmtDollars, fmtTimestamp } from './fmt';
 import { can } from './permissions';
 import { SectionHeader, ErrorBanner, EditableRow, EventLog, BillingProjectsTable, QuoteBudgetBar, CreateBpModal, ConfirmModal } from './shared';
@@ -44,7 +44,7 @@ export function QuotePage({ basePath, quoteName }: Props) {
       setEvents(ev);
       setError(null);
     } catch (e) {
-      setError(String(e));
+      setError(errorMessage(e));
     } finally {
       setLoading(false);
     }
@@ -63,7 +63,7 @@ export function QuotePage({ basePath, quoteName }: Props) {
       await apiCall('DELETE', `${basePath}/api/v1alpha/quotes/${encodeURIComponent(quoteName)}/managers/${encodeURIComponent(user)}`);
       await fetchData();
     } catch (e) {
-      setMgrError(String(e));
+      setMgrError(errorMessage(e));
     }
   };
 
@@ -78,7 +78,7 @@ export function QuotePage({ basePath, quoteName }: Props) {
       setAddMgrUser('');
       await fetchData();
     } catch (e) {
-      setMgrError(String(e));
+      setMgrError(errorMessage(e));
     }
   };
 
@@ -95,6 +95,7 @@ export function QuotePage({ basePath, quoteName }: Props) {
 
   const billingRole = quote.billing_role;
   const canEdit = can(billingRole, 'edit_quote');
+  const canBeUnlimited = quote.name === INTERNAL_QUOTE_NAME && billingRole === 'global_bm';
   const canAddManagers = can(billingRole, 'add_manager');
   const canManageManagers = can(billingRole, 'manage_managers');
   const canCreateBp = can(billingRole, 'create_bp');
@@ -169,8 +170,13 @@ export function QuotePage({ basePath, quoteName }: Props) {
               canEdit={canEdit}
               inputType="number"
               prefix="$"
-              placeholder="blank = unlimited"
-              onSave={(val) => patch({ authorized_amount: val === '' ? 'unlimited' : parseFloat(val) })}
+              placeholder={canBeUnlimited ? 'blank = unlimited' : undefined}
+              onSave={async (val) => {
+                if (val === '' && !canBeUnlimited) {
+                  throw new Error('An authorized amount is required. Only the INTERNAL quote can be unlimited.');
+                }
+                await patch({ authorized_amount: val === '' ? 'unlimited' : parseFloat(val) });
+              }}
             />
             <tr className="border-b border-slate-100">
               <td className="py-2 pl-4 pr-8 text-slate-500 w-40 align-middle">Usage</td>

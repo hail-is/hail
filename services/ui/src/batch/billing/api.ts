@@ -44,11 +44,24 @@ export interface BillingEvent {
   comment: string | null;
 }
 
+// The built-in quote that, alone, may have an unlimited authorized amount and unlimited billing projects.
+export const INTERNAL_QUOTE_NAME = 'INTERNAL';
+
+async function responseError(resp: Response): Promise<Error> {
+  const text = (await resp.text().catch(() => '')).trim();
+  // aiohttp error bodies look like "400: <reason>"; the reason is the useful part to show.
+  const reason = text.replace(/^\d{3}: /, '');
+  return new Error(reason || `HTTP ${resp.status}`);
+}
+
+export function errorMessage(e: unknown): string {
+  return e instanceof Error ? e.message : String(e);
+}
+
 export async function fetchJson<T>(url: string): Promise<T> {
   const resp = await fetch(url, { credentials: 'same-origin' });
   if (!resp.ok) {
-    const text = await resp.text().catch(() => '');
-    throw new Error(`HTTP ${resp.status}${text ? ': ' + text : ''}`);
+    throw await responseError(resp);
   }
   return resp.json() as Promise<T>;
 }
@@ -67,7 +80,6 @@ export async function apiCall(method: string, url: string, body?: object): Promi
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
   if (!resp.ok) {
-    const text = await resp.text().catch(() => '');
-    throw new Error(`HTTP ${resp.status}${text ? ': ' + text : ''}`);
+    throw await responseError(resp);
   }
 }
