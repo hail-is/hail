@@ -4,28 +4,35 @@
 Billing Management
 ==================
 
+.. note::
+
+    **Coming soon.** Quotes and the billing management features described on this page are being
+    rolled out and are not yet available.
+
 Overview
 --------
 
-Every job submitted to the Batch Service is associated with (and makes charges against) a **billing project**. 
+Every job submitted to the Batch Service is associated with (and makes charges against) a **billing project**.
 Billing projects group users and spending together, and have a spending limit to prevent runaway costs.
 
 **Quotes** sit above billing projects:
-- Every billing project belongs to exactly one quote. 
+
+- Every billing project belongs to exactly one quote.
 - Every quote may contain many billing projects.
 
-A quote has an ``authorized_amount``: the total that may be allocated between its billing projects. 
+A quote has an ``authorized_amount``: the total that may be allocated between its billing projects.
 A quote also has an assigned set of **owners** and **managers** who administer it as well as global billing managers.
 
-A billing project can be administered by quote owners and managers of the containing quote. 
-When users are added to a billing project, they gain the ability to read the project's details and billing history, 
-add users to the project, and submit jobs within the project.
+A billing project can be administered by quote owners and managers of the containing quote.
+When users are added to a billing project, they gain the ability to submit jobs within the project,
+view the project's details, event history, and accrued cost, view their own billing history in the
+project, edit the project's description, and leave the project.
 
 As an example, a PI may hold a quote representing an overall grant or cost object. They
 delegate to trusted quote managers to create billing projects under that quote for different subgroups
 or purposes (e.g., one per collaborator team, one for production pipelines, one for exploratory analysis).
-Each billing project will have its own spending limit, and the total is guaranteed never to exceed the quote's
-overall ``authorized_amount``.
+Each billing project will have its own spending limit, and the sum of those limits is guaranteed never
+to exceed the quote's overall ``authorized_amount``.
 
 The INTERNAL Quote
 ------------------
@@ -34,14 +41,14 @@ Every Batch deployment includes a built-in quote named ``INTERNAL``. It is the o
 may be unlimited (that is, have no ``authorized_amount``), and it acts as the default container
 for billing projects that predate the quotes system.
 
-A quote must be specified explicitly whenever a billing project is created. The only exceptions
-are billing projects created through the legacy (pre-quotes) API by a global billing manager,
-and user-trial billing projects created automatically at sign-up. These are placed under the
-``INTERNAL`` quote.
+A quote must be specified explicitly whenever a billing project is created. The only exception is
+the legacy (pre-quotes) billing project creation API, which is deprecated. When it is called without
+a quote by a caller holding the ``create_billing_projects`` system permission (global billing managers
+and the ``auth`` service, which creates user-trial billing projects at sign-up), the billing project is
+placed under the ``INTERNAL`` quote.
 
-Deployments that do not wish to bother with quotes may continue unchanged. Global billing managers
-can keep creating billing projects through the legacy API, and they will be created, and remain, under
-``INTERNAL`` with no overall global spending cap.
+Deployments that do not wish to bother with quotes can create all of their billing projects under
+``INTERNAL``, which has no overall spending cap.
 
 Invariants
 ----------
@@ -58,13 +65,15 @@ logic error in the application therefore cannot leave the database in a state th
 - **Unlimited billing projects can only exist under INTERNAL.** A billing project with no spending
   limit can only exist under the ``INTERNAL`` quote. Every billing project under any other quote
   must have a limit.
-- **Total spend within a quote cannot exceed the quote's authorized_amount.** The total spend
-  across all billing projects under a quote can never exceed the quote's ``authorized_amount``.
-  This is an outcome of per-billing-project spend not exceeding the billing project's limit,
-  and the sum of all billing project limits being less than or equal to the quote's ``authorized_amount``.
 - **Open billing projects cannot exist under a closed quote.** A quote cannot be closed while it
   has open billing projects; they must be closed or moved first. Likewise, a billing project cannot
   be created under, reopened under, or moved into a closed quote.
+
+Total spend within a quote is bounded by the quote's ``authorized_amount`` on a best-effort basis:
+each billing project's spend is limited by its own limit, and those limits sum to at most the quote's
+``authorized_amount``. Billing project limits are enforced asynchronously, however. New batches are
+rejected once a billing project's accrued cost reaches its limit, and running batches are cancelled
+shortly afterwards, but jobs that are already running may push spend somewhat past the limit.
 
 Roles and Permissions
 ---------------------
@@ -73,7 +82,7 @@ Global billing managers (``global_bm``) are a small group of designated administ
 ``billing_manager`` system role. They have full access to all quotes and billing projects across the
 deployment, and are the only users who can create new quotes.
 
-Below ``global_bm``, roles are scoped to specific quotes and billing projects. 
+Below ``global_bm``, roles are scoped to specific quotes and billing projects.
 
 - ``quote_owner`` and ``quote_manager`` are assigned per-quote.
 - ``bp_member`` is the role of anyone in a billing project's user list.
@@ -110,7 +119,7 @@ The table below lays out the permissions for each role type:
      - ✅
      - ✅
      - ✅
-     - ✅
+     - ✅ §
    * - View quote details, quote-level event history, and billing project list
      - ✅
      - ✅
@@ -125,6 +134,11 @@ The table below lays out the permissions for each role type:
      - ✅
      - ✅
      - ✅
+     - ❌
+   * - Change a quote's ``authorized_amount``
+     - ✅
+     - ✅
+     - ❌
      - ❌
    * - Create a billing project under a quote
      - ✅
@@ -146,7 +160,12 @@ The table below lays out the permissions for each role type:
      - 🔜
      - 🔜
      - 🔜
-   * - Remove billing project users
+   * - Remove other users from a billing project
+     - ✅
+     - ❌
+     - ❌
+     - ❌
+   * - Leave a billing project you are a member of
      - ✅
      - ✅
      - ✅
@@ -176,7 +195,7 @@ The table below lays out the permissions for each role type:
      - 🔜
      - ❌
      - ❌
-   * - Remove / change quote managers
+   * - Remove quote owners / managers
      - ✅
      - ✅
      - ❌
@@ -198,8 +217,14 @@ The table below lays out the permissions for each role type:
 
     **‡ Coming soon.**
     Adding users to billing projects, adding quote managers, and requesting billing project limit
-    increases will be handled via an invitation system in a future release. For now, these actions
-    are performed by global billing managers on behalf of users.
+    increases will be handled through requests and invitations in a future release. For now, these
+    actions are performed by global billing managers on behalf of users.
+
+.. note::
+
+    **§ Billing history for billing project members.**
+    Billing project members see only their own spend in a billing project's billing history. The
+    project's total accrued cost is shown on the billing project page.
 
 Lifecycle
 ---------
@@ -209,11 +234,10 @@ Billing projects and quotes each have a state that controls what operations are 
 **Billing project states:**
 
 - **open** — the normal operating state. Users can submit jobs.
-- **closed** — no new job submissions are accepted. Running jobs continue to completion and
-  continue to accrue cost. A closed billing project can be reopened, unless its quote is closed. A billing project cannot
-  be closed while it has running batches. Note that allocated but unspent money in a closed 
-  billing project is still associated with the billing project and will continue to use up 
-  headroom in the quote unless reduced and reallocated.
+- **closed** — no new batches can be created. A billing project cannot be closed while it has
+  running batches. A closed billing project can be reopened, unless its quote is closed. A closed
+  billing project's limit still counts against its quote's headroom, and cannot be edited while the
+  project is closed; to release that allocation, reopen the project, lower its limit, and close it again.
 
 **Quote states:**
 
