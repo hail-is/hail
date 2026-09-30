@@ -74,7 +74,7 @@ _JAN15 = datetime.date(2026, 1, 15)
 
 
 # ---------------------------------------------------------------------------
-# query_billing_projects_with_cost — users field shape
+# query_billing_projects_with_cost — users and user_roles fields
 # ---------------------------------------------------------------------------
 
 
@@ -83,7 +83,7 @@ async def test_query_bp_users_bp_member(db):
     await add_billing_project_user(db, 'bp-users-bpm', 'luna', 'admin')
     results = await query_billing_projects_with_cost(db, billing_project='bp-users-bpm')
     assert len(results) == 1
-    users = results[0]['users']
+    users = results[0]['user_roles']
     luna = next((u for u in users if u['user'] == 'luna'), None)
     assert luna is not None
     assert 'bp-users-bpm:member' in luna['roles']
@@ -94,7 +94,7 @@ async def test_query_bp_users_quote_manager_appears_without_direct_membership(db
     await add_quote_manager(db, 'q-users-qm', 'mars', 'owner', actor='admin')
     results = await query_billing_projects_with_cost(db, billing_project='bp-users-qm')
     assert len(results) == 1
-    users = results[0]['users']
+    users = results[0]['user_roles']
     mars = next((u for u in users if u['user'] == 'mars'), None)
     assert mars is not None
     assert 'q-users-qm:owner' in mars['roles']
@@ -106,18 +106,27 @@ async def test_query_bp_users_dual_role(db):
     await add_billing_project_user(db, 'bp-users-dual', 'nova', 'admin')
     results = await query_billing_projects_with_cost(db, billing_project='bp-users-dual')
     assert len(results) == 1
-    users = results[0]['users']
+    users = results[0]['user_roles']
     nova = next((u for u in users if u['user'] == 'nova'), None)
     assert nova is not None
     assert 'bp-users-dual:member' in nova['roles']
     assert 'q-users-dual:manager' in nova['roles']
 
 
+async def test_query_bp_users_is_member_names_only(db):
+    # `users` keeps its pre-quotes shape: plain member usernames, without quote managers.
+    await _make_bp(db, 'q-users-names', 'bp-users-names')
+    await add_billing_project_user(db, 'bp-users-names', 'orion', 'admin')
+    await add_quote_manager(db, 'q-users-names', 'pax', 'owner', actor='admin')
+    results = await query_billing_projects_with_cost(db, billing_project='bp-users-names')
+    assert results[0]['users'] == ['orion']
+
+
 async def test_query_bp_users_outsider_absent(db):
     await _make_bp(db, 'q-users-out', 'bp-users-out')
     results = await query_billing_projects_with_cost(db, billing_project='bp-users-out')
     assert len(results) == 1
-    users = results[0]['users']
+    users = results[0]['user_roles']
     assert not any(u['user'] == 'outsider' for u in users)
 
 
