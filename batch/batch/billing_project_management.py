@@ -573,17 +573,18 @@ WHERE quote_id = %s AND `status` != 'deleted' AND `limit` IS NOT NULL;
             (name, name, quote_id, limit, description),
         )
 
-        for user in initial_users:
-            await tx.execute_insertone(
-                'INSERT INTO billing_project_users(billing_project, user, user_cs) VALUES (%s, %s, %s);',
-                (name, user, user),
-            )
-
         bp_created_detail = json.dumps({'limit': limit})
         await _log_bp_event(tx, name, actor, 'bp_created', detail=bp_created_detail, comment=comment)
         await _log_quote_event(
             tx, quote_id, actor, 'bp_created', target_project=name, detail=bp_created_detail, comment=comment
         )
+
+        for user in initial_users:
+            await tx.execute_insertone(
+                'INSERT INTO billing_project_users(billing_project, user, user_cs) VALUES (%s, %s, %s);',
+                (name, user, user),
+            )
+            await _log_bp_event(tx, name, actor, 'user_added', target_user=user, comment=comment)
 
 
 async def patch_billing_project(
@@ -603,7 +604,7 @@ async def patch_billing_project(
         row = await tx.execute_and_fetchone(
             """
 SELECT billing_projects.name_cs, billing_projects.`status`, billing_projects.quote_id,
-  billing_projects.`limit`,
+  billing_projects.`limit`, billing_projects.description,
   q.authorized_amount,
   COALESCE((SELECT SUM(other_bp.`limit`) FROM billing_projects other_bp
     WHERE other_bp.quote_id = billing_projects.quote_id
@@ -655,6 +656,8 @@ FOR UPDATE;
 
         if 'description' in updates:
             db_updates['description'] = updates['description']
+            description_detail = json.dumps({'old': row['description'], 'new': updates['description']})
+            await _log_bp_event(tx, bp_name, actor, 'description_changed', detail=description_detail, comment=comment)
 
         if db_updates:
             set_clause = ', '.join(f'`{k}` = %s' for k in db_updates)
