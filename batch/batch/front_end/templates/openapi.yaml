@@ -3045,6 +3045,11 @@ components:
         users:
           type: array
           items:
+            type: string
+          description: "Usernames of the billing project's members"
+        user_roles:
+          type: array
+          items:
             type: object
             properties:
               user:
@@ -3056,7 +3061,7 @@ components:
                 description: >
                   The user's roles relevant to this billing project, as "<billing_project>:member" or
                   "<quote>:owner" / "<quote>:manager"
-          description: "Billing project members and the managers of its quote"
+          description: "Billing project members and the managers of its quote, with their roles"
         limit:
           type: number
           description: "Billing limit in dollars"
