@@ -113,7 +113,9 @@ async def test_unauthorized_billing_project_modification(
     try:
         await client.create_billing_project(project)
     except httpx.ClientResponseError as e:
-        assert e.status == 401, e
+        # Without the create_billing_projects system permission, a quote must be chosen explicitly
+        # rather than falling back to INTERNAL.
+        assert e.status == 400, e
     else:
         assert False, 'expected error'
 
