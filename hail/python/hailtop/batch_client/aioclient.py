@@ -1453,14 +1453,17 @@ class BatchClient:
         bp_resp = await self._get('/api/v1alpha/billing_projects')
         return await bp_resp.json()
 
-    async def create_billing_project(self, project):
-        bp_resp = await self._post(f'/api/v1alpha/billing_projects/{project}/create')
-        return await bp_resp.json()
-
-    async def create_billing_project_v2(
-        self, project, quote_name, limit=None, initial_users=None, comment=None, description=None
+    async def create_billing_project(
+        self, project, quote_name=None, *, limit=None, initial_users=None, description=None, comment=None
     ):
-        body = {'quote_name': quote_name}
+        """Create a billing project under the quote named quote_name.
+
+        Omitting quote_name uses the deprecated legacy behavior: the billing project is created under the
+        INTERNAL quote, which is only permitted for callers with the create_billing_projects system permission.
+        """
+        body: Dict[str, Any] = {}
+        if quote_name is not None:
+            body['quote_name'] = quote_name
         if limit is not None:
             body['limit'] = limit
         if initial_users:
@@ -1469,7 +1472,7 @@ class BatchClient:
             body['description'] = description
         if comment is not None:
             body['comment'] = comment
-        bp_resp = await self._post(f'/api/v1alpha/billing_projects/{project}/create', json=body)
+        bp_resp = await self._post(f'/api/v1alpha/billing_projects/{project}/create', json=body or None)
         return await bp_resp.json()
 
     async def add_user(self, user, project, comment=None):
