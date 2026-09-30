@@ -1138,13 +1138,15 @@ paths:
                 type: string
                 description: Created billing project identifier
         '400':
-          description: Bad request (missing quote_name, unknown quote, invalid limit, duplicate initial_users, etc.)
+          description: >
+            Bad request (missing quote_name, unknown quote, invalid limit, duplicate initial_users, closed quote,
+            limit would exceed the quote's authorized_amount, unlimited limit outside the INTERNAL quote, etc.)
         '401':
           description: Unauthorized
         '403':
           description: >
             Forbidden - insufficient billing permissions (including ADD_BP_MEMBER when initial_users is given),
-            an initial user does not exist, or the billing project would break a quote invariant
+            or an initial user does not exist
         '409':
           description: Billing project already exists
   '/api/v1alpha/billing_projects/{billing_project}/users/{user}/add':
