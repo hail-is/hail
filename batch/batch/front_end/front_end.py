@@ -3444,24 +3444,6 @@ async def get_billing_project(request, userdata):
     return json_response(bp)
 
 
-@routes.post('/billing_projects/{billing_project}/users/{user}/remove')
-@web_security_headers
-@auth.authenticated_users_with_permission(SystemPermission.ASSIGN_USERS_TO_ALL_BILLING_PROJECTS, redirect=False)
-@catch_ui_error_in_dev
-async def post_billing_projects_remove_user(request: web.Request, userdata: UserData) -> NoReturn:
-    db: Database = request.app['db']
-    billing_project = request.match_info['billing_project']
-    user = request.match_info['user']
-    actor = userdata['username']
-
-    session = await aiohttp_session.get_session(request)
-    try:
-        await _handle_ui_error(session, billing_dao.remove_billing_project_user, db, billing_project, user, actor)
-        set_message(session, f'Removed user {user} from billing project {billing_project}.', 'info')
-    finally:
-        raise web.HTTPFound(deploy_config.external_url('batch', '/billing_projects'))  # pylint: disable=lost-exception
-
-
 @routes.post('/api/v1alpha/billing_projects/{billing_project}/users/{user}/remove')
 @auth.authenticated_users_only()
 @billing_permission_required(BillingPermission.VIEW_BP)
@@ -3501,25 +3483,6 @@ async def _add_user_to_billing_project(
     await billing_dao.add_billing_project_user(db, billing_project, user, actor, comment)
 
 
-@routes.post('/billing_projects/{billing_project}/users/add')
-@web_security_headers
-@auth.authenticated_users_with_permission(SystemPermission.ASSIGN_USERS_TO_ALL_BILLING_PROJECTS, redirect=False)
-@catch_ui_error_in_dev
-async def post_billing_projects_add_user(request: web.Request, userdata: UserData) -> NoReturn:
-    db: Database = request.app['db']
-    post = await request.post()
-    user = str(post['user'])
-    billing_project = request.match_info['billing_project']
-    actor = userdata['username']
-
-    session = await aiohttp_session.get_session(request)
-    try:
-        await _handle_ui_error(session, _add_user_to_billing_project, request, db, billing_project, user, actor)
-        set_message(session, f'Added user {user} to billing project {billing_project}.', 'info')  # type: ignore
-    finally:
-        raise web.HTTPFound(deploy_config.external_url('batch', '/billing_projects'))  # pylint: disable=lost-exception
-
-
 @routes.post('/api/v1alpha/billing_projects/{billing_project}/users/{user}/add')
 @auth.authenticated_users_only()
 @billing_permission_required(BillingPermission.ADD_BP_MEMBER)
@@ -3531,27 +3494,6 @@ async def api_billing_projects_add_user(request: web.Request, userdata: UserData
     comment = _optional_str(await _json_body(request, required=False), 'comment')
     await _handle_api_error(_add_user_to_billing_project, request, db, billing_project, user, actor, comment)
     return json_response({'billing_project': billing_project, 'user': user})
-
-
-@routes.post('/billing_projects/create')
-@web_security_headers
-@auth.authenticated_users_with_permission(SystemPermission.CREATE_BILLING_PROJECTS, redirect=False)
-@catch_ui_error_in_dev
-async def post_create_billing_projects(request: web.Request, userdata: UserData) -> NoReturn:
-    db: Database = request.app['db']
-    post = await request.post()
-    billing_project = str(post['billing_project'])
-    actor = userdata['username']
-
-    session = await aiohttp_session.get_session(request)
-    try:
-        # Legacy UI path: always uses INTERNAL quote (id=1), no limit
-        await _handle_ui_error(
-            session, billing_dao.create_billing_project, db, billing_project, 1, None, actor, 'global_bm'
-        )
-        set_message(session, f'Added billing project {billing_project}.', 'info')  # type: ignore
-    finally:
-        raise web.HTTPFound(deploy_config.external_url('batch', '/billing_projects'))  # pylint: disable=lost-exception
 
 
 @routes.post('/api/v1alpha/billing_projects/{billing_project}/create')
@@ -3614,23 +3556,6 @@ async def api_get_create_billing_projects(request: web.Request, userdata: UserDa
     return json_response(billing_project)
 
 
-@routes.post('/billing_projects/{billing_project}/close')
-@web_security_headers
-@auth.authenticated_users_with_permission(SystemPermission.DELETE_ALL_BILLING_PROJECTS, redirect=False)
-@catch_ui_error_in_dev
-async def post_close_billing_projects(request: web.Request, userdata: UserData) -> NoReturn:
-    db: Database = request.app['db']
-    billing_project = request.match_info['billing_project']
-    actor = userdata['username']
-
-    session = await aiohttp_session.get_session(request)
-    try:
-        await _handle_ui_error(session, billing_dao.close_billing_project, db, billing_project, actor)
-        set_message(session, f'Closed billing project {billing_project}.', 'info')
-    finally:
-        raise web.HTTPFound(deploy_config.external_url('batch', '/billing_projects'))  # pylint: disable=lost-exception
-
-
 @routes.post('/api/v1alpha/billing_projects/{billing_project}/close')
 @auth.authenticated_users_only()
 @billing_permission_required(BillingPermission.CLOSE_REOPEN_BP)
@@ -3641,23 +3566,6 @@ async def api_close_billing_projects(request: web.Request, userdata: UserData) -
     comment = _optional_str(await _json_body(request, required=False), 'comment')
     await _handle_api_error(billing_dao.close_billing_project, db, billing_project, actor, comment)
     return json_response(billing_project)
-
-
-@routes.post('/billing_projects/{billing_project}/reopen')
-@web_security_headers
-@auth.authenticated_users_with_permission(SystemPermission.UPDATE_ALL_BILLING_PROJECTS, redirect=False)
-@catch_ui_error_in_dev
-async def post_reopen_billing_projects(request: web.Request, userdata: UserData) -> NoReturn:
-    db: Database = request.app['db']
-    billing_project = request.match_info['billing_project']
-    actor = userdata['username']
-
-    session = await aiohttp_session.get_session(request)
-    try:
-        await _handle_ui_error(session, billing_dao.reopen_billing_project, db, billing_project, actor)
-        set_message(session, f'Re-opened billing project {billing_project}.', 'info')
-    finally:
-        raise web.HTTPFound(deploy_config.external_url('batch', '/billing_projects'))  # pylint: disable=lost-exception
 
 
 @routes.post('/api/v1alpha/billing_projects/{billing_project}/reopen')
