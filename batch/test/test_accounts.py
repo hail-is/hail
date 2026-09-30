@@ -234,7 +234,7 @@ async def test_delete_billing_project_only_when_closed(dev_client: BatchClient, 
     try:
         await dev_client.delete_billing_project(project)
     except httpx.ClientResponseError as e:
-        assert e.status == 403, e
+        assert e.status == 400, e
     else:
         assert False, 'expected error'
 
@@ -253,7 +253,7 @@ async def test_delete_billing_project_only_when_closed(dev_client: BatchClient, 
     try:
         await dev_client.reopen_billing_project(project)
     except httpx.ClientResponseError as e:
-        assert e.status == 403, e
+        assert e.status == 400, e
     else:
         assert False, 'expected error'
 
