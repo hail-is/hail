@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { BillingProject, BillingEvent, Quote } from './api';
-import { fetchJson, apiCall } from './api';
+import { fetchJson, apiCall, errorMessage, INTERNAL_QUOTE_NAME } from './api';
 import { fmtDollars, fmtTimestamp } from './fmt';
 import { can } from './permissions';
 import { SectionHeader, ErrorBanner, EditableRow, EventLog, ConfirmModal, BudgetBar } from './shared';
@@ -40,7 +40,7 @@ function MoveQuoteModal({ basePath, bpName, currentQuoteName, onClose, onMoved }
       onMoved();
       onClose();
     } catch (e) {
-      setError(String(e));
+      setError(errorMessage(e));
     } finally {
       setSaving(false);
     }
@@ -127,7 +127,7 @@ export function BillingProjectPage({ basePath, bpName }: Props) {
       setEvents(evData);
       setError(null);
     } catch (e) {
-      setError(String(e));
+      setError(errorMessage(e));
     } finally {
       setLoading(false);
     }
@@ -156,7 +156,7 @@ export function BillingProjectPage({ basePath, bpName }: Props) {
       await apiCall('POST', `${basePath}/api/v1alpha/billing_projects/${encodeURIComponent(bpName)}/users/${encodeURIComponent(user)}/remove`);
       await fetchData();
     } catch (e) {
-      setMemberError(String(e));
+      setMemberError(errorMessage(e));
     }
   };
 
@@ -169,7 +169,7 @@ export function BillingProjectPage({ basePath, bpName }: Props) {
       setAddUser('');
       await fetchData();
     } catch (e) {
-      setMemberError(String(e));
+      setMemberError(errorMessage(e));
     }
   };
 
@@ -186,6 +186,7 @@ export function BillingProjectPage({ basePath, bpName }: Props) {
 
   const billingRole = bp?.billing_role ?? null;
   const canEditLimit = can(billingRole, 'edit_bp_limit');
+  const canBeUnlimited = bp.quote_name === INTERNAL_QUOTE_NAME && billingRole === 'global_bm';
   const canAddMembers = can(billingRole, 'add_bp_member');
   const canManageMembers = can(billingRole, 'manage_bp_members');
   const canCloseReopen = can(billingRole, 'close_reopen_bp');
@@ -247,8 +248,13 @@ export function BillingProjectPage({ basePath, bpName }: Props) {
               canEdit={canEditLimit && bp.status === 'open'}
               inputType="number"
               prefix="$"
-              placeholder="blank = unlimited"
-              onSave={(val) => patch({ limit: val === '' ? null : parseFloat(val) })}
+              placeholder={canBeUnlimited ? 'blank = unlimited' : undefined}
+              onSave={async (val) => {
+                if (val === '' && !canBeUnlimited) {
+                  throw new Error('A limit is required. Only billing projects under the INTERNAL quote can be unlimited.');
+                }
+                await patch({ limit: val === '' ? null : parseFloat(val) });
+              }}
             />
             <tr className="border-b border-slate-100">
               <td className="py-2 pl-4 pr-8 text-slate-500 w-40 align-middle">Spent</td>
