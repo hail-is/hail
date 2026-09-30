@@ -62,8 +62,9 @@ logic error in the application therefore cannot leave the database in a state th
   across all billing projects under a quote can never exceed the quote's ``authorized_amount``.
   This is an outcome of per-billing-project spend not exceeding the billing project's limit,
   and the sum of all billing project limits being less than or equal to the quote's ``authorized_amount``.
-- **A quote cannot be closed while it has open billing projects.** Billing projects must be closed
-  or moved before the quote can be closed.
+- **Open billing projects cannot exist under a closed quote.** A quote cannot be closed while it
+  has open billing projects; they must be closed or moved first. Likewise, a billing project cannot
+  be created under, reopened under, or moved into a closed quote.
 
 Roles and Permissions
 ---------------------
@@ -209,7 +210,7 @@ Billing projects and quotes each have a state that controls what operations are 
 
 - **open** — the normal operating state. Users can submit jobs.
 - **closed** — no new job submissions are accepted. Running jobs continue to completion and
-  continue to accrue cost. A closed billing project can be reopened. A billing project cannot
+  continue to accrue cost. A closed billing project can be reopened, unless its quote is closed. A billing project cannot
   be closed while it has running batches. Note that allocated but unspent money in a closed 
   billing project is still associated with the billing project and will continue to use up 
   headroom in the quote unless reduced and reallocated.
