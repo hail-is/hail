@@ -29,7 +29,9 @@ def create(
     limit: Optional[float] = typer.Option(
         None, help='Spending limit in dollars. Required unless the quote is INTERNAL.'
     ),
-    users: Optional[List[str]] = typer.Option(None, '--user', help='Initial users to add (repeatable).'),
+    users: Optional[List[str]] = typer.Option(
+        None, '--user', help='Initial users to add (repeatable). Currently requires a global billing manager.'
+    ),
     description: Optional[str] = typer.Option(None, help='Description of the billing project.'),
     comment: Optional[str] = typer.Option(None, help='Short comment to record with this event.'),
     output: StructuredFormatOption = StructuredFormat.YAML,
