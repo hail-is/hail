@@ -161,6 +161,25 @@ async def test_create_billing_project_logs_event(db):
     assert any(e['action'] == 'bp_created' and e['target_project'] == 'bp-log' for e in quote_events)
 
 
+async def test_create_billing_project_logs_initial_users(db):
+    await create_quote(db, 'q-log-init-users', cost_object='CO', actor='admin', authorized_amount=1000.0)
+    q_row = await db.select_and_fetchone('SELECT id FROM quotes WHERE name = %s', ('q-log-init-users',))
+    await create_billing_project(
+        db, 'bp-log-init-users', q_row['id'], 50.0, 'admin', 'global_bm', initial_users=['ursa', 'vega'], comment='init'
+    )
+    bp_events = await get_billing_project_events(db, 'bp-log-init-users')
+    user_added = [e for e in bp_events if e['action'] == 'user_added']
+    assert {e['target_user'] for e in user_added} == {'ursa', 'vega'}
+    assert all(e['actor'] == 'admin' and e['comment'] == 'init' for e in user_added)
+    rows = [
+        r
+        async for r in db.select_and_fetchall(
+            'SELECT user FROM billing_project_users WHERE billing_project = %s', ('bp-log-init-users',)
+        )
+    ]
+    assert {r['user'] for r in rows} == {'ursa', 'vega'}
+
+
 async def test_create_billing_project_persists_description(db):
     await create_quote(db, 'q-bp-desc', cost_object='CO', actor='admin', authorized_amount=1000.0)
     q_row = await db.select_and_fetchone('SELECT id FROM quotes WHERE name = %s', ('q-bp-desc',))
@@ -241,6 +260,21 @@ async def test_patch_billing_project_description(db):
     )
     row = await db.select_and_fetchone('SELECT description FROM billing_projects WHERE name = %s', ('bp-patch-desc',))
     assert row['description'] == 'updated'
+
+
+async def test_patch_billing_project_description_logs_event(db):
+    await create_quote(db, 'q-patch-desc-log', cost_object='CO', actor='admin', authorized_amount=500.0)
+    q_row = await db.select_and_fetchone('SELECT id FROM quotes WHERE name = %s', ('q-patch-desc-log',))
+    await create_billing_project(
+        db, 'bp-patch-desc-log', q_row['id'], 100.0, 'admin', 'global_bm', description='original'
+    )
+    await patch_billing_project(
+        db, 'bp-patch-desc-log', {'description': 'updated'}, actor='admin', billing_role='global_bm', comment='why'
+    )
+    bp_events = await get_billing_project_events(db, 'bp-patch-desc-log')
+    event = next(e for e in bp_events if e['action'] == 'description_changed')
+    assert json.loads(event['detail']) == {'old': 'original', 'new': 'updated'}
+    assert event['comment'] == 'why'
 
 
 # ---------------------------------------------------------------------------
