@@ -1,7 +1,11 @@
 export interface BillingProject {
   billing_project: string;
   status: string;
-  users: { user: string; roles: string[] }[];
+  // Usernames of the billing project's members.
+  users: string[];
+  // Members plus the managers of the billing project's quote, with their roles
+  // ("<billing_project>:member", "<quote>:owner", "<quote>:manager").
+  user_roles: { user: string; roles: string[] }[];
   limit: number | null;
   quote_id: number;
   quote_name: string;
