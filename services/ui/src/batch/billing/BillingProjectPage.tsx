@@ -97,6 +97,7 @@ function MoveQuoteModal({ basePath, bpName, currentQuoteName, onClose, onMoved }
 interface Props {
   basePath: string;
   bpName: string;
+  username: string;
 }
 
 const BP_EVENT_COLUMNS = [
@@ -108,7 +109,7 @@ const BP_EVENT_COLUMNS = [
   { key: 'comment' as const, label: 'Comment', render: (v: unknown) => <span className="text-slate-500 italic">{String(v ?? '')}</span> },
 ];
 
-export function BillingProjectPage({ basePath, bpName }: Props) {
+export function BillingProjectPage({ basePath, bpName, username }: Props) {
   const [bp, setBp] = useState<BillingProject | null>(null);
   const [events, setEvents] = useState<BillingEvent[]>([]);
   const [loading, setLoading] = useState(true);
@@ -155,6 +156,17 @@ export function BillingProjectPage({ basePath, bpName }: Props) {
     try {
       await apiCall('POST', `${basePath}/api/v1alpha/billing_projects/${encodeURIComponent(bpName)}/users/${encodeURIComponent(user)}/remove`);
       await fetchData();
+    } catch (e) {
+      setMemberError(errorMessage(e));
+    }
+  };
+
+  const leaveProject = async () => {
+    if (!window.confirm(`Leave billing project ${bpName}? You will no longer be able to submit jobs to it.`)) return;
+    setMemberError(null);
+    try {
+      await apiCall('POST', `${basePath}/api/v1alpha/billing_projects/${encodeURIComponent(bpName)}/users/${encodeURIComponent(username)}/remove`);
+      window.location.href = `${basePath}/billing_projects`;
     } catch (e) {
       setMemberError(errorMessage(e));
     }
@@ -289,12 +301,22 @@ export function BillingProjectPage({ basePath, bpName }: Props) {
                       })}
                     </td>
                     <td className="py-1 text-right">
-                      {canManageMembers && bp.status === 'open' && isExplicitMember && (
+                      {bp.status === 'open' && isExplicitMember && entry.user === username ? (
                         <button
-                          onClick={() => void removeMember(entry.user)}
-                          className="text-red-400 hover:text-red-600"
+                          type="button"
+                          onClick={() => { void leaveProject(); }}
+                          className="text-red-500 hover:text-red-700 text-xs"
                         >
-                          <span className="material-symbols-outlined text-base">close</span>
+                          Leave
+                        </button>
+                      ) : canManageMembers && bp.status === 'open' && isExplicitMember && (
+                        <button
+                          type="button"
+                          onClick={() => { void removeMember(entry.user); }}
+                          className="text-red-400 hover:text-red-600"
+                          aria-label={`Remove ${entry.user}`}
+                        >
+                          <span className="material-symbols-outlined text-base" aria-hidden="true">close</span>
                         </button>
                       )}
                     </td>
