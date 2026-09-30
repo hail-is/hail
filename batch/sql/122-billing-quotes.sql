@@ -33,7 +33,7 @@ CREATE TABLE IF NOT EXISTS `quote_events` (
   `target_user` VARCHAR(100) DEFAULT NULL,
   `target_project` VARCHAR(100) DEFAULT NULL,
   `detail` JSON DEFAULT NULL,
-  `comment` VARCHAR(255) DEFAULT NULL,
+  `comment` VARCHAR(1000) DEFAULT NULL,
   PRIMARY KEY (`id`),
   FOREIGN KEY (`quote_id`) REFERENCES `quotes`(`id`) ON DELETE CASCADE
 ) ENGINE = InnoDB;
@@ -47,7 +47,7 @@ CREATE TABLE IF NOT EXISTS `billing_project_events` (
   `action` VARCHAR(100) NOT NULL,
   `target_user` VARCHAR(100) DEFAULT NULL,
   `detail` JSON DEFAULT NULL,
-  `comment` VARCHAR(255) DEFAULT NULL,
+  `comment` VARCHAR(1000) DEFAULT NULL,
   PRIMARY KEY (`id`),
   FOREIGN KEY (`billing_project`) REFERENCES `billing_projects`(`name`) ON DELETE CASCADE
 ) ENGINE = InnoDB;

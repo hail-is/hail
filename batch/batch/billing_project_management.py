@@ -5,6 +5,7 @@ from typing import Iterator, Optional, Union
 import pymysql
 
 from gear import Database
+from gear.database import retry_transient_mysql_errors
 from hailtop.utils import time_msecs
 
 from .exceptions import (
@@ -251,6 +252,7 @@ async def get_billing_role_for_quote_id(
 # ---------------------------------------------------------------------------
 
 
+@retry_transient_mysql_errors
 async def create_quote(
     db: Database,
     name: str,
@@ -289,6 +291,7 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s);
         return quote_id
 
 
+@retry_transient_mysql_errors
 async def edit_quote(
     db: Database,
     name: str,
@@ -367,6 +370,7 @@ WHERE quote_id = %s AND `status` != 'deleted' AND `limit` IS NOT NULL;
             await _log_quote_event(tx, quote_id, actor, 'quote_edited', detail=json.dumps(changes), comment=comment)
 
 
+@retry_transient_mysql_errors
 async def close_quote(
     db: Database,
     name: str,
@@ -402,6 +406,7 @@ async def close_quote(
         await _log_quote_event(tx, row['id'], actor, 'quote_closed', comment=comment)
 
 
+@retry_transient_mysql_errors
 async def reopen_quote(
     db: Database,
     name: str,
@@ -426,6 +431,7 @@ async def reopen_quote(
         await _log_quote_event(tx, row['id'], actor, 'quote_reopened', comment=comment)
 
 
+@retry_transient_mysql_errors
 async def add_quote_manager(
     db: Database,
     quote_name: str,
@@ -462,6 +468,7 @@ async def add_quote_manager(
         )
 
 
+@retry_transient_mysql_errors
 async def remove_quote_manager(
     db: Database,
     quote_name: str,
@@ -508,6 +515,7 @@ async def remove_quote_manager(
 # ---------------------------------------------------------------------------
 
 
+@retry_transient_mysql_errors
 async def create_billing_project(
     db: Database,
     name: str,
@@ -583,6 +591,7 @@ WHERE quote_id = %s AND `status` != 'deleted' AND `limit` IS NOT NULL;
             await _log_bp_event(tx, name, actor, 'user_added', target_user=user, comment=comment)
 
 
+@retry_transient_mysql_errors
 async def patch_billing_project(
     db: Database,
     bp_name: str,
@@ -662,6 +671,7 @@ FOR UPDATE;
             )
 
 
+@retry_transient_mysql_errors
 async def change_billing_project_quote(
     db: Database,
     bp_name: str,
@@ -736,6 +746,7 @@ FOR UPDATE;
 # ---------------------------------------------------------------------------
 
 
+@retry_transient_mysql_errors
 async def add_billing_project_user(
     db: Database,
     bp_name: str,
@@ -783,6 +794,7 @@ WHERE billing_projects.name_cs = %s AND billing_projects.`status` != 'deleted' L
         await _log_bp_event(tx, bp_name, actor, 'user_added', target_user=user, comment=comment)
 
 
+@retry_transient_mysql_errors
 async def remove_billing_project_user(
     db: Database,
     bp_name: str,
@@ -837,6 +849,7 @@ WHERE billing_projects.name_cs = %s AND user_cs = %s;
 # ---------------------------------------------------------------------------
 
 
+@retry_transient_mysql_errors
 async def close_billing_project(
     db: Database,
     bp_name: str,
@@ -879,6 +892,7 @@ FOR UPDATE;
         await _log_quote_event(tx, row['quote_id'], actor, 'bp_closed', target_project=bp_name, comment=comment)
 
 
+@retry_transient_mysql_errors
 async def reopen_billing_project(
     db: Database,
     bp_name: str,
@@ -918,6 +932,7 @@ FOR UPDATE;
         await _log_quote_event(tx, row['quote_id'], actor, 'bp_reopened', target_project=bp_name, comment=comment)
 
 
+@retry_transient_mysql_errors
 async def delete_billing_project(
     db: Database,
     bp_name: str,
