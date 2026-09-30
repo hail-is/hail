@@ -29,7 +29,12 @@ from batch.billing_project_management import (
     remove_billing_project_user,
     reopen_billing_project,
 )
-from batch.exceptions import BatchOperationAlreadyCompletedError, BatchUserError
+from batch.exceptions import (
+    BatchOperationAlreadyCompletedError,
+    BatchUserError,
+    BillingValidationError,
+    NonExistentQuoteError,
+)
 
 
 @pytest_asyncio.fixture(autouse=True)
@@ -137,6 +142,27 @@ async def test_create_billing_project_under_closed_quote_raises(db):
     await close_quote(db, 'q-closed-create', actor='admin')
     with pytest.raises(BatchUserError, match='closed quote'):
         await create_billing_project(db, 'bp-closed-create', q_id, 100.0, 'admin', 'global_bm')
+
+
+async def test_rule_violation_is_bad_request(db):
+    await create_quote(db, 'q-400', cost_object='CO', actor='admin', authorized_amount=100.0)
+    q_row = await db.select_and_fetchone('SELECT id FROM quotes WHERE name = %s', ('q-400',))
+    with pytest.raises(BillingValidationError) as exc_info:
+        await create_billing_project(db, 'bp-400', q_row['id'], 200.0, 'admin', 'global_bm')
+    assert exc_info.value.http_response().status == 400
+
+
+async def test_unknown_quote_is_not_found(db):
+    with pytest.raises(NonExistentQuoteError) as exc_info:
+        await create_billing_project(db, 'bp-404', 999999, 100.0, 'admin', 'global_bm')
+    assert exc_info.value.http_response().status == 404
+
+
+async def test_permission_failure_is_forbidden(db):
+    with pytest.raises(BatchUserError) as exc_info:
+        await create_billing_project(db, 'bp-403', INTERNAL_QUOTE_ID, None, 'admin', 'quote_owner')
+    assert not isinstance(exc_info.value, (BillingValidationError, NonExistentQuoteError))
+    assert exc_info.value.http_response().status == 403
 
 
 async def test_create_billing_project_duplicate_raises(db):
