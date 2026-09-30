@@ -26,7 +26,7 @@ def list(output: StructuredFormatOption = StructuredFormat.YAML):
 def create(
     name: str,
     cost_object: str = typer.Option(..., help='Cost object identifier.'),
-    authorized_amount: Optional[str] = typer.Option(None, help='Authorized spending amount, or "unlimited".'),
+    authorized_amount: float = typer.Option(..., help='Authorized spending amount in dollars.'),
     pi_name: Optional[str] = typer.Option(None, help='Principal investigator name.'),
     pm_designee: Optional[str] = typer.Option(None, help='Program manager designee.'),
     comment: Optional[str] = typer.Option(None, help='Short comment to record with this event.'),
@@ -54,7 +54,9 @@ def describe(name: str, output: StructuredFormatOption = StructuredFormat.YAML):
 def edit(
     name: str,
     cost_object: Optional[str] = typer.Option(None),
-    authorized_amount: Optional[str] = typer.Option(None, help='New authorized amount, or "unlimited".'),
+    authorized_amount: Optional[str] = typer.Option(
+        None, help='New authorized amount in dollars. Only the INTERNAL quote may be set to "unlimited".'
+    ),
     pi_name: Optional[str] = typer.Option(None),
     pm_designee: Optional[str] = typer.Option(None),
     comment: Optional[str] = typer.Option(None, help='Short comment to record with this event.'),
