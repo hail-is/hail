@@ -112,8 +112,10 @@ async def test_unauthorized_billing_project_modification(
     client = await make_client('billing-project-not-needed-but-required-by-BatchClient')
     try:
         await client.create_billing_project(project)
-    except BatchNotAuthenticatedError:
-        pass
+    except httpx.ClientResponseError as e:
+        # Without the create_billing_projects system permission, a quote must be chosen explicitly
+        # rather than falling back to INTERNAL.
+        assert e.status == 400, e
     else:
         assert False, 'expected error'
 
