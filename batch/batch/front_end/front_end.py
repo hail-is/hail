@@ -4,6 +4,7 @@ import collections
 import datetime
 import json
 import logging
+import math
 import os
 import random
 import re
@@ -117,6 +118,7 @@ from ..exceptions import (
     BatchOperationAlreadyCompletedError,
     BatchUserError,
     ClosedBillingProjectError,
+    InvalidBillingLimitError,
     NonExistentBillingProjectError,
     NonExistentJobGroupError,
     NonExistentUserError,
@@ -312,6 +314,48 @@ async def _handle_api_error(f: Callable[P, Awaitable[T]], *args: P.args, **kwarg
         return None
     except BatchUserError as e:
         raise e.http_response()
+
+
+async def _json_body(request: web.Request, *, required: bool = True) -> Dict[str, Any]:
+    """Read a JSON object request body, rejecting malformed input with a 400 rather than a 500.
+
+    If not required, a request without a JSON content type is treated as an empty body.
+    """
+    if not required and request.content_type != 'application/json':
+        return {}
+    try:
+        body = await request.json()
+    except json.JSONDecodeError as e:
+        raise web.HTTPBadRequest(reason='Request body must be valid JSON.') from e
+    if not isinstance(body, dict):
+        raise web.HTTPBadRequest(reason='Request body must be a JSON object.')
+    return body
+
+
+def _optional_str(body: Dict[str, Any], key: str) -> Optional[str]:
+    value = body.get(key)
+    if value is not None and not isinstance(value, str):
+        raise web.HTTPBadRequest(reason=f"'{key}' must be a string.")
+    return value
+
+
+def _parse_authorized_amount(value: Any) -> float:
+    if isinstance(value, bool) or not isinstance(value, (int, float, str)):
+        raise web.HTTPBadRequest(reason=f'Invalid authorized_amount: {value!r}.')
+    try:
+        amount = float(value)
+    except ValueError as exc:
+        raise web.HTTPBadRequest(reason=f'Invalid authorized_amount: {value!r}.') from exc
+    if not math.isfinite(amount) or amount < 0:
+        raise web.HTTPBadRequest(reason=f'Invalid authorized_amount: {value!r}.')
+    return amount
+
+
+def _parse_billing_limit_or_400(value: Any) -> Optional[float]:
+    try:
+        return _parse_billing_limit(value)
+    except InvalidBillingLimitError as e:
+        raise e.http_response() from e
 
 
 async def _query_job_group_jobs(
@@ -3512,10 +3556,7 @@ async def api_get_billing_projects_remove_user(request: web.Request, userdata: U
     billing_project = request.match_info['billing_project']
     user = request.match_info['user']
     actor = userdata['username']
-    comment = None
-    if request.content_type == 'application/json':
-        body = await request.json()
-        comment = body.get('comment')
+    comment = _optional_str(await _json_body(request, required=False), 'comment')
     await _handle_api_error(billing_dao.remove_billing_project_user, db, billing_project, user, actor, comment)
     return json_response({'billing_project': billing_project, 'user': user})
 
@@ -3564,10 +3605,7 @@ async def api_billing_projects_add_user(request: web.Request, userdata: UserData
     user = request.match_info['user']
     billing_project = request.match_info['billing_project']
     actor = userdata['username']
-    comment = None
-    if request.content_type == 'application/json':
-        body = await request.json()
-        comment = body.get('comment')
+    comment = _optional_str(await _json_body(request, required=False), 'comment')
     await _handle_api_error(_add_user_to_billing_project, request, db, billing_project, user, actor, comment)
     return json_response({'billing_project': billing_project, 'user': user})
 
@@ -3600,21 +3638,21 @@ async def api_get_create_billing_projects(request: web.Request, userdata: UserDa
     billing_project = request.match_info['billing_project']
     username = userdata['username']
 
-    body: dict = {}
-    if request.content_type == 'application/json':
-        body = await request.json()
+    body = await _json_body(request, required=False)
 
-    quote_name = body.get('quote_name')
+    quote_name = _optional_str(body, 'quote_name')
     if quote_name is None:
         # Legacy (pre-quotes) callers, such as global billing managers and auth creating trial billing
         # projects, may omit the quote and fall back to INTERNAL. Everyone else must choose one explicitly.
         if not userdata['system_permissions'].get(SystemPermission.CREATE_BILLING_PROJECTS, False):
             raise web.HTTPBadRequest(reason="'quote_name' is required.")
         quote_name = 'INTERNAL'
-    limit = body.get('limit')
-    description = body.get('description')
-    initial_users: List[str] = body.get('initial_users', [])
-    comment = body.get('comment')
+    limit = _parse_billing_limit_or_400(body.get('limit'))
+    description = _optional_str(body, 'description')
+    initial_users = body.get('initial_users', [])
+    if not isinstance(initial_users, list) or not all(isinstance(u, str) for u in initial_users):
+        raise web.HTTPBadRequest(reason="'initial_users' must be a list of strings.")
+    comment = _optional_str(body, 'comment')
 
     quote_row = await db.select_and_fetchone('SELECT id FROM quotes WHERE name_cs = %s', (quote_name,))
     if quote_row is None:
@@ -3664,10 +3702,7 @@ async def api_close_billing_projects(request: web.Request, userdata: UserData) -
     db: Database = request.app['db']
     billing_project = request.match_info['billing_project']
     actor = userdata['username']
-    comment = None
-    if request.content_type == 'application/json':
-        body = await request.json()
-        comment = body.get('comment')
+    comment = _optional_str(await _json_body(request, required=False), 'comment')
     await _handle_api_error(billing_dao.close_billing_project, db, billing_project, actor, comment)
     return json_response(billing_project)
 
@@ -3696,10 +3731,7 @@ async def api_reopen_billing_projects(request: web.Request, userdata: UserData) 
     db: Database = request.app['db']
     billing_project = request.match_info['billing_project']
     actor = userdata['username']
-    comment = None
-    if request.content_type == 'application/json':
-        body = await request.json()
-        comment = body.get('comment')
+    comment = _optional_str(await _json_body(request, required=False), 'comment')
     await _handle_api_error(billing_dao.reopen_billing_project, db, billing_project, actor, comment)
     return json_response(billing_project)
 
@@ -3723,16 +3755,16 @@ async def api_patch_billing_project(request: web.Request, userdata: UserData) ->
     actor = userdata['username']
     billing_role: str = request['billing_role']
 
-    body = await request.json()
-    comment = body.get('comment')
+    body = await _json_body(request)
+    comment = _optional_str(body, 'comment')
 
     updates: dict = {}
     if 'limit' in body:
         if BillingPermission.EDIT_BP_LIMIT not in BILLING_ROLE_PERMISSIONS.get(billing_role, set()):
             raise web.HTTPForbidden(reason='Insufficient billing permissions to edit billing project limit.')
-        updates['limit'] = body['limit']
+        updates['limit'] = _parse_billing_limit_or_400(body['limit'])
     if 'description' in body:
-        updates['description'] = body['description']
+        updates['description'] = _optional_str(body, 'description')
 
     await _handle_api_error(
         billing_dao.patch_billing_project, db, billing_project, updates, actor, billing_role, comment
@@ -3747,9 +3779,9 @@ async def api_change_billing_project_quote(request: web.Request, userdata: UserD
     db: Database = request.app['db']
     billing_project = request.match_info['billing_project']
     actor = userdata['username']
-    body = await request.json()
-    dest_quote_name = body.get('quote_name')
-    comment = body.get('comment')
+    body = await _json_body(request)
+    dest_quote_name = _optional_str(body, 'quote_name')
+    comment = _optional_str(body, 'comment')
     if not dest_quote_name:
         raise web.HTTPBadRequest(reason="'quote_name' is required.")
 
@@ -3801,25 +3833,22 @@ async def create_quote(request: web.Request, userdata: UserData) -> web.Response
     db: Database = request.app['db']
     quote_name = request.match_info['name']
     actor = userdata['username']
-    body = await request.json()
+    body = await _json_body(request)
 
-    cost_object = body.get('cost_object')
+    cost_object = _optional_str(body, 'cost_object')
     if not cost_object:
         raise web.HTTPBadRequest(reason="'cost_object' is required.")
 
     authorized_amount_raw = body.get('authorized_amount')
     if authorized_amount_raw is None or authorized_amount_raw == 'unlimited':
         raise web.HTTPBadRequest(reason="'authorized_amount' is required. Only the INTERNAL quote is unlimited.")
-    try:
-        authorized_amount = float(authorized_amount_raw)
-    except (TypeError, ValueError) as exc:
-        raise web.HTTPBadRequest(reason=f"Invalid authorized_amount: {authorized_amount_raw!r}.") from exc
+    authorized_amount = _parse_authorized_amount(authorized_amount_raw)
 
-    pi_name = body.get('pi_name')
-    pm_designee = body.get('pm_designee')
-    description = body.get('description')
-    quote_number = body.get('quote_number')
-    comment = body.get('comment')
+    pi_name = _optional_str(body, 'pi_name')
+    pm_designee = _optional_str(body, 'pm_designee')
+    description = _optional_str(body, 'description')
+    quote_number = _optional_str(body, 'quote_number')
+    comment = _optional_str(body, 'comment')
 
     await _handle_api_error(
         billing_dao.create_quote,
@@ -3858,29 +3887,24 @@ async def edit_quote(request: web.Request, userdata: UserData) -> web.Response:
     quote_name = request.match_info['name']
     actor = userdata['username']
     billing_role: str = request['billing_role']
-    body = await request.json()
-    comment = body.get('comment')
+    body = await _json_body(request)
+    comment = _optional_str(body, 'comment')
 
     updates: dict = {}
     if 'cost_object' in body:
-        updates['cost_object'] = body['cost_object']
-    if 'pi_name' in body:
-        updates['pi_name'] = body['pi_name']
-    if 'pm_designee' in body:
-        updates['pm_designee'] = body['pm_designee']
-    if 'description' in body:
-        updates['description'] = body['description']
-    if 'quote_number' in body:
-        updates['quote_number'] = body['quote_number']
+        cost_object = _optional_str(body, 'cost_object')
+        if not cost_object:
+            raise web.HTTPBadRequest(reason="'cost_object' cannot be empty.")
+        updates['cost_object'] = cost_object
+    for field in ('pi_name', 'pm_designee', 'description', 'quote_number'):
+        if field in body:
+            updates[field] = _optional_str(body, field)
     if 'authorized_amount' in body:
         aa = body['authorized_amount']
         if aa == 'unlimited' or aa is None:
             updates['authorized_amount'] = None
         else:
-            try:
-                updates['authorized_amount'] = float(aa)
-            except (TypeError, ValueError) as exc:
-                raise web.HTTPBadRequest(reason=f"Invalid authorized_amount: {aa!r}.") from exc
+            updates['authorized_amount'] = _parse_authorized_amount(aa)
 
     await _handle_api_error(billing_dao.edit_quote, db, quote_name, updates, actor, billing_role, comment)
     return json_response({'name': quote_name})
@@ -3893,10 +3917,7 @@ async def close_quote(request: web.Request, userdata: UserData) -> web.Response:
     db: Database = request.app['db']
     quote_name = request.match_info['name']
     actor = userdata['username']
-    comment = None
-    if request.content_type == 'application/json':
-        body = await request.json()
-        comment = body.get('comment')
+    comment = _optional_str(await _json_body(request, required=False), 'comment')
 
     await _handle_api_error(billing_dao.close_quote, db, quote_name, actor, comment)
     return json_response({'name': quote_name})
@@ -3909,10 +3930,7 @@ async def reopen_quote(request: web.Request, userdata: UserData) -> web.Response
     db: Database = request.app['db']
     quote_name = request.match_info['name']
     actor = userdata['username']
-    comment = None
-    if request.content_type == 'application/json':
-        body = await request.json()
-        comment = body.get('comment')
+    comment = _optional_str(await _json_body(request, required=False), 'comment')
 
     await _handle_api_error(billing_dao.reopen_quote, db, quote_name, actor, comment)
     return json_response({'name': quote_name})
@@ -3925,10 +3943,10 @@ async def add_quote_manager(request: web.Request, userdata: UserData) -> web.Res
     db: Database = request.app['db']
     quote_name = request.match_info['name']
     actor = userdata['username']
-    body = await request.json()
-    target_user = body.get('user')
+    body = await _json_body(request)
+    target_user = _optional_str(body, 'user')
     role = body.get('role', 'manager')
-    comment = body.get('comment')
+    comment = _optional_str(body, 'comment')
     if not target_user:
         raise web.HTTPBadRequest(reason="'user' is required.")
     if role not in ('owner', 'manager'):
@@ -3946,10 +3964,7 @@ async def remove_quote_manager(request: web.Request, userdata: UserData) -> web.
     quote_name = request.match_info['name']
     target_user = request.match_info['user']
     actor = userdata['username']
-    comment = None
-    if request.content_type == 'application/json':
-        body = await request.json()
-        comment = body.get('comment')
+    comment = _optional_str(await _json_body(request, required=False), 'comment')
 
     await _handle_api_error(billing_dao.remove_quote_manager, db, quote_name, target_user, actor, comment)
     return json_response({'quote': quote_name, 'user': target_user})
