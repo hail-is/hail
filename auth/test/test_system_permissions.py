@@ -81,15 +81,17 @@ PERMISSION_ENDPOINTS: dict[str, list[tuple[str, str, str]]] = {
     'read_system_roles': [
         ('auth', 'GET', '/api/v1alpha/system_roles/all'),
     ],
-    # Batch service — AuthServiceAuthenticator, 10s TTL cache
-    'create_billing_projects': [
-        ('batch', 'POST', '/api/v1alpha/billing_projects/nonexistent-perm-test-project/create'),
-    ],
+    # Batch service — AuthServiceAuthenticator, 10s TTL cache. Most billing project routes are gated by billing
+    # roles (403) rather than system permissions (401); these are the ones still gated by system permissions.
     'delete_all_billing_projects': [
-        ('batch', 'POST', '/api/v1alpha/billing_projects/nonexistent-perm-test-project/close'),
+        ('batch', 'POST', '/api/v1alpha/billing_projects/nonexistent-perm-test-project/delete'),
     ],
-    'assign_users_to_all_billing_projects': [
-        ('batch', 'POST', '/api/v1alpha/billing_projects/nonexistent-perm-test-project/users/test/add'),
+    'update_all_billing_projects': [
+        ('batch', 'POST', '/api/v1alpha/billing_limits/nonexistent-perm-test-project/edit'),
+    ],
+    'create_quotes': [
+        # No body, so a permitted caller gets a 400 rather than creating a quote.
+        ('batch', 'POST', '/api/v1alpha/quotes/nonexistent-perm-test-quote'),
     ],
     # CI service — AuthServiceAuthenticator, 10s TTL cache
     'read_ci': [
@@ -107,9 +109,9 @@ PERMISSION_ENDPOINTS: dict[str, list[tuple[str, str, str]]] = {
 
 # Permissions whose endpoints live on services that cache userinfo (need sleep after role change)
 _CROSS_SERVICE_PERMS = {
-    'create_billing_projects',
     'delete_all_billing_projects',
-    'assign_users_to_all_billing_projects',
+    'update_all_billing_projects',
+    'create_quotes',
     'read_ci',
     'manage_ci',
     'view_monitoring_dashboards',
@@ -120,9 +122,9 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
     'sysadmin-readonly': {'read_users', 'read_system_roles', 'read_ci', 'view_monitoring_dashboards'},
     'billing_manager': {
         'read_users',
-        'create_billing_projects',
         'delete_all_billing_projects',
-        'assign_users_to_all_billing_projects',
+        'update_all_billing_projects',
+        'create_quotes',
     },
     'developer': {'read_ci', 'manage_ci'},
     'sysadmin': {
@@ -154,6 +156,7 @@ _ENDPOINT_KWARGS: dict[tuple[str, str, str], dict] = {
     ('auth', 'PATCH', '/api/v1alpha/system_roles/nonexistent-permission-test-user'): {
         'json': {'role_addition': 'developer'}
     },
+    ('batch', 'POST', '/api/v1alpha/billing_limits/nonexistent-perm-test-project/edit'): {'json': {'limit': 10}},
 }
 
 
