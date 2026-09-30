@@ -3,16 +3,18 @@ import logging
 import os
 import sys
 
-import aiomysql
 import pytest
 import pytest_asyncio
 
-from gear import Database
 from hailtop.batch_client import aioclient
 from hailtop.batch_client.client import BatchClient
 from hailtop.config import get_remote_tmpdir
 
-_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# The root that build.yaml, ci/ and batch/sql are read from when applying migrations. In CI the tests are
+# mounted away from the rest of the repo, so the test step sets this explicitly.
+_REPO_ROOT = os.environ.get(
+    'HAIL_TEST_REPO_ROOT', os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+)
 _TEST_DB_NAME = 'test_billing'
 
 log = logging.getLogger(__name__)
@@ -21,9 +23,15 @@ log = logging.getLogger(__name__)
 @pytest_asyncio.fixture(scope='session')
 async def db():
     """Spin up a real migrated batch DB and yield it; drop it on teardown."""
-    sys.path.insert(0, os.path.join(_REPO_ROOT, 'ci'))
+    # Imported here rather than at module level: other test steps share this conftest but run in images
+    # without these packages.
     import warnings as _warnings  # pylint: disable=import-outside-toplevel
 
+    import aiomysql  # pylint: disable=import-outside-toplevel
+
+    from gear import Database  # pylint: disable=import-outside-toplevel
+
+    sys.path.insert(0, os.path.join(_REPO_ROOT, 'ci'))
     from create_local_database import async_main  # pylint: disable=import-outside-toplevel
 
     conn = await aiomysql.connect(host='localhost', port=3306, user='root', password='pw')
