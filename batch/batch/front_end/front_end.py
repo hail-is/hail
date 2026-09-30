@@ -87,6 +87,7 @@ from web_common import (
     setup_aiohttp_jinja2,
     setup_common_static_routes,
     web_security_headers,
+    web_security_headers_inline_styles,
     web_security_headers_swagger,
 )
 
@@ -333,10 +334,17 @@ async def _json_body(request: web.Request, *, required: bool = True) -> Dict[str
     return body
 
 
+# Column widths for the free-text fields accepted by the billing API (see batch/sql/122-billing-quotes.sql).
+_MAX_TEXT_FIELD_LENGTHS = {'comment': 1000, 'description': 1000}
+
+
 def _optional_str(body: Dict[str, Any], key: str) -> Optional[str]:
     value = body.get(key)
     if value is not None and not isinstance(value, str):
         raise web.HTTPBadRequest(reason=f"'{key}' must be a string.")
+    max_length = _MAX_TEXT_FIELD_LENGTHS.get(key)
+    if value is not None and max_length is not None and len(value) > max_length:
+        raise web.HTTPBadRequest(reason=f"'{key}' must be at most {max_length} characters.")
     return value
 
 
@@ -3073,7 +3081,7 @@ async def ui_get_jvm_profile(request: web.Request, _, batch_id: int) -> web.Resp
 
 
 @routes.get('/batches/{batch_id}/jobs/{job_id}')
-@web_security_headers
+@web_security_headers_inline_styles
 @billing_project_users_only()
 @catch_ui_error_in_dev
 async def ui_get_job(request, userdata, batch_id):
@@ -3539,12 +3547,17 @@ async def post_billing_projects_remove_user(request: web.Request, userdata: User
 
 @routes.post('/api/v1alpha/billing_projects/{billing_project}/users/{user}/remove')
 @auth.authenticated_users_only()
-@billing_permission_required(BillingPermission.MANAGE_BP_MEMBERS)
+@billing_permission_required(BillingPermission.VIEW_BP)
 async def api_get_billing_projects_remove_user(request: web.Request, userdata: UserData) -> web.Response:
     db: Database = request.app['db']
     billing_project = request.match_info['billing_project']
     user = request.match_info['user']
     actor = userdata['username']
+    # Anyone can leave a billing project; removing someone else needs MANAGE_BP_MEMBERS.
+    if user != actor and BillingPermission.MANAGE_BP_MEMBERS not in BILLING_ROLE_PERMISSIONS.get(
+        request['billing_role'], set()
+    ):
+        raise web.HTTPForbidden(reason='Insufficient billing permissions to remove other users from billing projects.')
     comment = _optional_str(await _json_body(request, required=False), 'comment')
     await _handle_api_error(billing_dao.remove_billing_project_user, db, billing_project, user, actor, comment)
     return json_response({'billing_project': billing_project, 'user': user})
@@ -3906,6 +3919,8 @@ async def edit_quote(request: web.Request, userdata: UserData) -> web.Response:
         if field in body:
             updates[field] = _optional_str(body, field)
     if 'authorized_amount' in body:
+        if BillingPermission.EDIT_QUOTE_AMOUNT not in BILLING_ROLE_PERMISSIONS.get(billing_role, set()):
+            raise web.HTTPForbidden(reason="Insufficient billing permissions to change a quote's authorized_amount.")
         aa = body['authorized_amount']
         if aa == 'unlimited' or aa is None:
             updates['authorized_amount'] = None
