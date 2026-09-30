@@ -107,7 +107,9 @@ GROUP BY billing_projects.name, billing_projects.`status`, billing_projects.`lim
         qms_for_bp = qms_by_quote_id.get(bp['quote_id'], [])
         for qm in qms_for_bp:
             merged.setdefault(qm['user'], []).append(f'{qm["quote_name"]}:{qm["role"]}')
-        bp['users'] = [{'user': u, 'roles': roles} for u, roles in merged.items()]
+        # `users` stays the plain list of member usernames (as returned before quotes existed); the richer view,
+        # which also includes the managers of the billing project's quote, is `user_roles`.
+        bp['user_roles'] = [{'user': u, 'roles': roles} for u, roles in merged.items()]
         if quote_manager_user is None:
             bp['can_view_quote'] = True
         else:
