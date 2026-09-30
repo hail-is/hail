@@ -3481,11 +3481,6 @@ async def ui_get_billing_projects(request, userdata):
         quote_manager_user = None
 
     billing_projects = await query_billing_projects_with_cost(db, user=user, quote_manager_user=quote_manager_user)
-    # This page lists and removes billing project members by name, so pass plain member usernames rather than
-    # the {user, roles} entries (which also include quote managers) that the API returns.
-    for p in billing_projects:
-        member_role = f'{p["billing_project"]}:member'
-        p['users'] = [u['user'] for u in p['users'] if member_role in u['roles']]
     page_context = {
         'billing_projects': [{**p, 'size': len(p['users'])} for p in billing_projects if p['status'] == 'open'],
         'closed_projects': [p for p in billing_projects if p['status'] == 'closed'],
