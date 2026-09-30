@@ -440,7 +440,7 @@ class BatchClient:
     def create_billing_project(self, project):
         return async_to_blocking(self._async_client.create_billing_project(project))
 
-    def create_billing_project_v2(self, project, quote_name='INTERNAL', limit=None, initial_users=None, comment=None):
+    def create_billing_project_v2(self, project, quote_name, limit=None, initial_users=None, comment=None):
         return async_to_blocking(
             self._async_client.create_billing_project_v2(project, quote_name, limit, initial_users, comment)
         )
@@ -475,7 +475,7 @@ class BatchClient:
     def list_quotes(self):
         return async_to_blocking(self._async_client.list_quotes())
 
-    def create_quote(self, name, cost_object, authorized_amount=None, pi_name=None, pm_designee=None, comment=None):
+    def create_quote(self, name, cost_object, authorized_amount, pi_name=None, pm_designee=None, comment=None):
         return async_to_blocking(
             self._async_client.create_quote(name, cost_object, authorized_amount, pi_name, pm_designee, comment)
         )
