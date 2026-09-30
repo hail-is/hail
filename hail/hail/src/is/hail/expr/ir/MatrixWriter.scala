@@ -2377,7 +2377,8 @@ case class MatrixNativePartitionedColumnsWriter(
               assert(row.typ.isInstanceOf[TStruct])
               aggBindIR(row.drop(entriesFieldName)) { rowWithoutEntries =>
                 aggBindIR(GetField(row, entriesFieldName)) { entries =>
-                  // FIXME rewrite this to be an agg array per element over some kind of zip or something.
+                  /* FIXME rewrite this to be an agg array per element over some kind of zip or
+                   * something. */
                   val writes = ArraySeq.tabulate(nFanoutTargets) { i =>
                     ApplyAggOp(
                       WriteRows(FastSeq(rowSpec, entrySpec), Some(indexType)),
