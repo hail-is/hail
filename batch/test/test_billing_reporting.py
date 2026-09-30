@@ -42,8 +42,8 @@ async def clean_tables(db):
 # ---------------------------------------------------------------------------
 
 
-async def _make_bp(db, quote_name, bp_name, limit=None):
-    await create_quote(db, quote_name, cost_object='CO', actor='admin')
+async def _make_bp(db, quote_name, bp_name, limit=100.0):
+    await create_quote(db, quote_name, cost_object='CO', actor='admin', authorized_amount=1000.0)
     q_row = await db.select_and_fetchone('SELECT id FROM quotes WHERE name = %s', (quote_name,))
     await create_billing_project(db, bp_name, q_row['id'], limit, 'admin', 'global_bm')
     return q_row['id']
@@ -137,7 +137,9 @@ async def test_can_view_quote_quote_manager(db):
 async def test_can_view_quote_bp_member_only(db):
     await _make_bp(db, 'q-cvq-bpm', 'bp-cvq-bpm')
     await add_billing_project_user(db, 'bp-cvq-bpm', 'regular', 'admin')
-    results = await query_billing_projects_with_cost(db, billing_project='bp-cvq-bpm', quote_manager_user='regular')
+    results = await query_billing_projects_with_cost(
+        db, user='regular', billing_project='bp-cvq-bpm', quote_manager_user='regular'
+    )
     assert results[0]['can_view_quote'] is False
 
 
