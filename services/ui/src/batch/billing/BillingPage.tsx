@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { fetchJson } from './api';
+import { fetchJson, errorMessage } from './api';
 import { fmtCost } from './fmt';
 import { ErrorBanner } from './shared';
 
@@ -257,7 +257,7 @@ export function BillingPage({ basePath, isGlobalBm, username, initialStart, init
       setAppliedStart(startVal);
       setAppliedEnd(endVal);
     } catch (e) {
-      setError(String(e));
+      setError(errorMessage(e));
     } finally {
       setLoading(false);
     }
