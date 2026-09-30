@@ -1457,12 +1457,16 @@ class BatchClient:
         bp_resp = await self._post(f'/api/v1alpha/billing_projects/{project}/create')
         return await bp_resp.json()
 
-    async def create_billing_project_v2(self, project, quote_name, limit=None, initial_users=None, comment=None):
+    async def create_billing_project_v2(
+        self, project, quote_name, limit=None, initial_users=None, comment=None, description=None
+    ):
         body = {'quote_name': quote_name}
         if limit is not None:
             body['limit'] = limit
         if initial_users:
             body['initial_users'] = initial_users
+        if description is not None:
+            body['description'] = description
         if comment is not None:
             body['comment'] = comment
         bp_resp = await self._post(f'/api/v1alpha/billing_projects/{project}/create', json=body)
