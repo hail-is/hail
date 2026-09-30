@@ -1083,6 +1083,61 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/BillingProjectResponse'
+    patch:
+      summary: Edit a billing project
+      description: >
+        Update a billing project's limit and/or description. Requires EDIT_BP_METADATA billing permission,
+        plus EDIT_BP_LIMIT to change the limit. The billing project must be open.
+      tags: [Billing]
+      parameters:
+        - name: billing_project
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Billing project identifier
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                limit:
+                  type: number
+                  nullable: true
+                  description: >
+                    New spending limit in USD. Null (unlimited) is only allowed under the INTERNAL quote,
+                    and only for global billing managers.
+                description:
+                  type: string
+                  nullable: true
+                  maxLength: 1000
+                comment:
+                  type: string
+                  nullable: true
+                  maxLength: 1000
+                  description: Optional audit comment
+      responses:
+        '200':
+          description: Billing project updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  billing_project:
+                    type: string
+        '400':
+          description: >
+            Bad request (invalid limit, limit would exceed the quote's authorized_amount, unlimited limit outside
+            the INTERNAL quote, text too long, etc.)
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden - insufficient billing permissions, or the billing project is closed
+        '404':
+          description: Billing project not found
   '/api/v1alpha/billing_projects/{billing_project}/create':
     post:
       summary: Create billing project
@@ -1179,7 +1234,9 @@ paths:
   '/api/v1alpha/billing_projects/{billing_project}/users/{user}/remove':
     post:
       summary: "Remove a user from a billing project"
-      description: "Remove a user from a billing project."
+      description: >
+        Remove a user from a billing project. Any member can remove themselves (leave the billing project);
+        removing another user requires MANAGE_BP_MEMBERS (global billing managers). The billing project must be open.
       operationId: removeUserFromBillingProject
       tags:
         - Billing Projects
@@ -2978,7 +3035,7 @@ components:
     BillingProjectResponse:
       type: object
       properties:
-        name:
+        billing_project:
           type: string
           description: "Name of the billing project"
         status:
@@ -2988,12 +3045,39 @@ components:
         users:
           type: array
           items:
-            type: string
-          description: "List of users with access to this billing project"
+            type: object
+            properties:
+              user:
+                type: string
+              roles:
+                type: array
+                items:
+                  type: string
+                description: >
+                  The user's roles relevant to this billing project, as "<billing_project>:member" or
+                  "<quote>:owner" / "<quote>:manager"
+          description: "Billing project members and the managers of its quote"
         limit:
           type: number
           description: "Billing limit in dollars"
           nullable: true
+        quote_id:
+          type: integer
+        quote_name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        accrued_cost:
+          type: number
+          description: "Total cost accrued by the billing project, in dollars"
+        remaining:
+          type: number
+          nullable: true
+          description: "Limit minus accrued cost, or null if unlimited"
+        can_view_quote:
+          type: boolean
+          description: "Whether the caller can view the billing project's quote"
         billing_role:
           type: string
           enum: ["global_bm", "quote_owner", "quote_manager", "bp_member"]
