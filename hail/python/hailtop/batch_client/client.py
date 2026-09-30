@@ -437,15 +437,17 @@ class BatchClient:
     def list_billing_projects(self):
         return async_to_blocking(self._async_client.list_billing_projects())
 
-    def create_billing_project(self, project):
-        return async_to_blocking(self._async_client.create_billing_project(project))
-
-    def create_billing_project_v2(
-        self, project, quote_name, limit=None, initial_users=None, comment=None, description=None
+    def create_billing_project(
+        self, project, quote_name=None, *, limit=None, initial_users=None, description=None, comment=None
     ):
         return async_to_blocking(
-            self._async_client.create_billing_project_v2(
-                project, quote_name, limit, initial_users, comment, description
+            self._async_client.create_billing_project(
+                project,
+                quote_name,
+                limit=limit,
+                initial_users=initial_users,
+                description=description,
+                comment=comment,
             )
         )
 
