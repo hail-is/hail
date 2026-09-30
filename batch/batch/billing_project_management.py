@@ -1,6 +1,7 @@
 import json
+import math
 from contextlib import contextmanager
-from typing import Iterator, Optional, Union
+from typing import Any, Iterator, Optional
 
 import pymysql
 
@@ -35,17 +36,19 @@ def invariant_violations_as_user_errors() -> Iterator[None]:
         raise
 
 
-def _parse_billing_limit(limit: Optional[Union[str, float, int]]) -> Optional[float]:
-    assert isinstance(limit, (str, float, int)) or limit is None, (limit, type(limit))
-
+def _parse_billing_limit(limit: Any) -> Optional[float]:
+    # limit may come straight from a JSON request body, so reject unexpected types as user errors
     if limit == 'None' or limit is None:
         return None
+    if isinstance(limit, bool) or not isinstance(limit, (str, float, int)):
+        raise InvalidBillingLimitError(limit)
     try:
         parsed_limit = float(limit)
-        assert parsed_limit >= 0
-        return parsed_limit
-    except (AssertionError, ValueError) as e:
+    except ValueError as e:
         raise InvalidBillingLimitError(limit) from e
+    if not math.isfinite(parsed_limit) or parsed_limit < 0:
+        raise InvalidBillingLimitError(limit)
+    return parsed_limit
 
 
 async def _log_quote_event(
