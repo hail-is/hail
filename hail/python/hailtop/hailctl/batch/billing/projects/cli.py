@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 import typer
 
@@ -90,34 +90,38 @@ def remove_user(
 
 
 @app.command()
-def set_limit(
+def edit(
     name: str,
-    limit: Optional[float] = typer.Argument(
-        None, help='Spending limit in dollars. Omit to clear (only allowed under the INTERNAL quote).'
+    limit: Optional[str] = typer.Option(
+        None, help='New spending limit in dollars. Only billing projects under the INTERNAL quote may be "unlimited".'
     ),
+    description: Optional[str] = typer.Option(None, help='New description. Pass "" to clear.'),
     comment: Optional[str] = typer.Option(None, help='Short comment to record with this event.'),
     output: StructuredFormatOption = StructuredFormat.YAML,
 ):
-    """Set or clear the spending limit for billing project NAME."""
+    """Edit fields on billing project NAME."""
     from hailtop.batch_client.client import BatchClient  # pylint: disable=import-outside-toplevel
 
+    updates: Dict[str, Any] = {}
+    if limit is not None:
+        if limit == 'unlimited':
+            updates['limit'] = None
+        else:
+            try:
+                updates['limit'] = float(limit)
+            except ValueError as e:
+                raise typer.BadParameter(
+                    f'expected a number or "unlimited", got {limit!r}', param_hint='--limit'
+                ) from e
+    if description is not None:
+        updates['description'] = description or None
+
+    if not updates:
+        typer.echo('No fields to update.', err=True)
+        raise typer.Exit(1)
+
     with BatchClient('') as client:
-        result = client.patch_billing_project(name, limit=limit, comment=comment)
-        print(make_formatter(output.value)(result))
-
-
-@app.command()
-def set_description(
-    name: str,
-    description: Optional[str] = typer.Argument(None, help='New description, or omit to clear.'),
-    comment: Optional[str] = typer.Option(None, help='Short comment to record with this event.'),
-    output: StructuredFormatOption = StructuredFormat.YAML,
-):
-    """Set or clear the description for billing project NAME."""
-    from hailtop.batch_client.client import BatchClient  # pylint: disable=import-outside-toplevel
-
-    with BatchClient('') as client:
-        result = client.patch_billing_project(name, description=description, comment=comment)
+        result = client.patch_billing_project(name, comment=comment, **updates)
         print(make_formatter(output.value)(result))
 
 
