@@ -3185,17 +3185,18 @@ steps:
     script: |
       set -ex
 
-      export HAIL_DEFAULT_NAMESPACE={{ default_ns.name }}
-      export HAIL_CLOUD="{{ global.cloud }}"
-
       hail-pip-install -r /io/dev-requirements.txt
 
       # Install and start MySQL ad-hoc — not baked into the batch image.
-      DEBIAN_FRONTEND=noninteractive apt-get install -y -qq mysql-server
+      hail-apt-get-install mysql-server
       mysqld --user=root --daemonize --log-error=/tmp/mysqld.log
-      until mysqladmin --user=root ping --silent 2>/dev/null; do sleep 1; done
+      until mysqladmin --user=root ping --silent; do sleep 1; done
       mysql --user=root -e "ALTER USER 'root'@'localhost' IDENTIFIED BY 'pw'; FLUSH PRIVILEGES;"
 
+      # The db fixture applies the batch migrations listed in build.yaml, relative to this root.
+      export HAIL_TEST_REPO_ROOT=/io/repo
+
+      cd /io
       python3 -m pytest \
               --log-cli-level=INFO \
               -s \
@@ -3210,8 +3211,21 @@ steps:
         to: /io/test
       - from: /repo/hail/python/dev/pinned-requirements.txt
         to: /io/dev-requirements.txt
+      - from: /repo/build.yaml
+        to: /io/repo/build.yaml
+      - from: /repo/ci/create_local_database.py
+        to: /io/repo/ci/create_local_database.py
+      - from: /repo/ci/create_database.py
+        to: /io/repo/ci/create_database.py
+      - from: /repo/batch/sql
+        to: /io/repo/batch/sql
     port: 5000
-    timeout: 300
+    timeout: 900
+    scopes:
+      - test
+      - dev
+    clouds:
+      - gcp
     dependsOn:
       - merge_code
       - batch_image
