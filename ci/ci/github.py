@@ -532,6 +532,7 @@ class PR(Code):
         self.set_build_state(None)
 
         batch = None
+        submitted = False
         try:
             log.info(f'merging for {self.number}')
             repo_dir = self.repo_dir()
@@ -660,6 +661,7 @@ mkdir -p {shq(repo_dir)}
                 )
             config.build(batch, self, scope='test')
             await batch.submit()
+            submitted = True
             self.tactical = False
             self.batch = batch
         except concurrent.futures.CancelledError:
@@ -681,9 +683,12 @@ mkdir -p {shq(repo_dir)}
             self.source_sha_failed = True
             self.target_branch.state_changed = True
         finally:
-            if batch and not self.batch:
-                log.info(f'cancelling partial test batch {batch.id}')
-                await batch.cancel()
+            if batch is not None and not submitted:
+                if batch.is_created:
+                    log.info(f'cancelling partial test batch {batch.id} for PR #{self.number}: build failed')
+                    await batch.cancel()
+                else:
+                    log.info(f'test batch for PR #{self.number} was never created because build failed')
 
     @staticmethod
     async def is_invalidated_batch(batch, db: Database):
