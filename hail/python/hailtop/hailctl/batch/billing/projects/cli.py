@@ -30,6 +30,7 @@ def create(
         None, help='Spending limit in dollars. Required unless the quote is INTERNAL.'
     ),
     users: Optional[List[str]] = typer.Option(None, '--user', help='Initial users to add (repeatable).'),
+    description: Optional[str] = typer.Option(None, help='Description of the billing project.'),
     comment: Optional[str] = typer.Option(None, help='Short comment to record with this event.'),
     output: StructuredFormatOption = StructuredFormat.YAML,
 ):
@@ -43,6 +44,7 @@ def create(
             limit=limit,
             initial_users=[*users] if users else None,
             comment=comment,
+            description=description,
         )
         print(make_formatter(output.value)(result))
 
@@ -101,6 +103,21 @@ def set_limit(
 
     with BatchClient('') as client:
         result = client.patch_billing_project(name, limit=limit, comment=comment)
+        print(make_formatter(output.value)(result))
+
+
+@app.command()
+def set_description(
+    name: str,
+    description: Optional[str] = typer.Argument(None, help='New description, or omit to clear.'),
+    comment: Optional[str] = typer.Option(None, help='Short comment to record with this event.'),
+    output: StructuredFormatOption = StructuredFormat.YAML,
+):
+    """Set or clear the description for billing project NAME."""
+    from hailtop.batch_client.client import BatchClient  # pylint: disable=import-outside-toplevel
+
+    with BatchClient('') as client:
+        result = client.patch_billing_project(name, description=description, comment=comment)
         print(make_formatter(output.value)(result))
 
 
