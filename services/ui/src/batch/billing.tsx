@@ -37,8 +37,9 @@ const handlers: Record<string, () => void> = {
     const el = document.getElementById('billing-project-root')!;
     const basePath = el.dataset.basePath ?? '';
     const bpName = el.dataset.bpName ?? '';
+    const username = el.dataset.username ?? '';
     createRoot(el).render(
-      <BillingProjectPage basePath={basePath} bpName={bpName} />
+      <BillingProjectPage basePath={basePath} bpName={bpName} username={username} />
     );
   },
   'quotes-root': () => {
