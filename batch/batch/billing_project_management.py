@@ -10,9 +10,11 @@ from hailtop.utils import time_msecs
 from .exceptions import (
     BatchOperationAlreadyCompletedError,
     BatchUserError,
+    BillingValidationError,
     ClosedBillingProjectError,
     InvalidBillingLimitError,
     NonExistentBillingProjectError,
+    NonExistentQuoteError,
 )
 
 # The built-in INTERNAL quote. It is the only quote that may be unlimited (NULL authorized_amount), and
@@ -28,7 +30,7 @@ def invariant_violations_as_user_errors() -> Iterator[None]:
     except pymysql.err.OperationalError as err:
         # 1644 ER_SIGNAL_EXCEPTION: raised by SIGNAL SQLSTATE '45000' in the billing triggers
         if err.args[0] == 1644:
-            raise BatchUserError(f'Billing invariant violated: {err.args[1]}.', 'error') from err
+            raise BillingValidationError(f'Billing invariant violated: {err.args[1]}.') from err
         raise
 
 
@@ -267,7 +269,7 @@ async def create_quote(
     Raises BatchUserError if authorized_amount is missing: only the INTERNAL quote may be unlimited.
     """
     if authorized_amount is None:
-        raise BatchUserError('Quotes must have an authorized_amount. Only the INTERNAL quote is unlimited.', 'error')
+        raise BillingValidationError('Quotes must have an authorized_amount. Only the INTERNAL quote is unlimited.')
 
     async with db.start() as tx:
         row = await tx.execute_and_fetchone('SELECT id FROM quotes WHERE name = %s FOR UPDATE;', (name,))
@@ -305,7 +307,7 @@ async def edit_quote(
             (name,),
         )
         if not row:
-            raise BatchUserError(f'Unknown quote {name}.', 'error')
+            raise NonExistentQuoteError(name)
 
         quote_id = row['id']
         db_updates: dict = {}
@@ -323,7 +325,7 @@ async def edit_quote(
         if 'authorized_amount' in updates:
             new_amount = updates['authorized_amount']
             if new_amount is None and quote_id != INTERNAL_QUOTE_ID:
-                raise BatchUserError('Only the INTERNAL quote can have unlimited funding.', 'error')
+                raise BillingValidationError('Only the INTERNAL quote can have unlimited funding.')
             if new_amount is None and billing_role != 'global_bm':
                 raise BatchUserError('Only global billing managers can set a quote to unlimited funding.', 'error')
             if new_amount is not None:
@@ -336,10 +338,9 @@ LIMIT 1;
                     (quote_id,),
                 )
                 if unlimited_bp_row:
-                    raise BatchUserError(
+                    raise BillingValidationError(
                         f'Cannot set a finite authorized_amount on a quote that contains unlimited billing project '
-                        f'"{unlimited_bp_row["name"]}". Set a limit on the billing project first.',
-                        'error',
+                        f'"{unlimited_bp_row["name"]}". Set a limit on the billing project first.'
                     )
                 limits_sum_row = await tx.execute_and_fetchone(
                     """
@@ -351,9 +352,8 @@ WHERE quote_id = %s AND `status` != 'deleted' AND `limit` IS NOT NULL;
                 )
                 total = limits_sum_row['total_limit'] if limits_sum_row else 0
                 if total > new_amount:
-                    raise BatchUserError(
-                        f'New authorized_amount {new_amount} is less than sum of BP limits {total}.',
-                        'error',
+                    raise BillingValidationError(
+                        f'New authorized_amount {new_amount} is less than sum of BP limits {total}.'
                     )
             db_updates['authorized_amount'] = new_amount
 
@@ -384,7 +384,7 @@ async def close_quote(
             (name,),
         )
         if not row:
-            raise BatchUserError(f'Unknown quote {name}.', 'error')
+            raise NonExistentQuoteError(name)
         if row['state'] == 'closed':
             raise BatchOperationAlreadyCompletedError(f'Quote {name} is already closed.', 'info')
 
@@ -393,10 +393,9 @@ async def close_quote(
             (row['id'],),
         )
         if open_bp:
-            raise BatchUserError(
+            raise BillingValidationError(
                 f'Cannot close quote {name}: billing project "{open_bp["name"]}" is still open. '
-                'Close or migrate all billing projects first.',
-                'error',
+                'Close or migrate all billing projects first.'
             )
 
         await tx.execute_update("UPDATE quotes SET state = 'closed' WHERE id = %s;", (row['id'],))
@@ -419,7 +418,7 @@ async def reopen_quote(
             (name,),
         )
         if not row:
-            raise BatchUserError(f'Unknown quote {name}.', 'error')
+            raise NonExistentQuoteError(name)
         if row['state'] == 'open':
             raise BatchOperationAlreadyCompletedError(f'Quote {name} is already open.', 'info')
 
@@ -442,7 +441,7 @@ async def add_quote_manager(
     async with db.start() as tx:
         quote_row = await tx.execute_and_fetchone('SELECT id FROM quotes WHERE name_cs = %s FOR UPDATE;', (quote_name,))
         if not quote_row:
-            raise BatchUserError(f'Unknown quote {quote_name}.', 'error')
+            raise NonExistentQuoteError(quote_name)
         quote_id = quote_row['id']
 
         existing = await tx.execute_and_fetchone(
@@ -477,7 +476,7 @@ async def remove_quote_manager(
     async with db.start() as tx:
         quote_row = await tx.execute_and_fetchone('SELECT id FROM quotes WHERE name_cs = %s FOR UPDATE;', (quote_name,))
         if not quote_row:
-            raise BatchUserError(f'Unknown quote {quote_name}.', 'error')
+            raise NonExistentQuoteError(quote_name)
         quote_id = quote_row['id']
 
         existing = await tx.execute_and_fetchone(
@@ -533,9 +532,9 @@ async def create_billing_project(
             'SELECT authorized_amount, state FROM quotes WHERE id = %s FOR UPDATE;', (quote_id,)
         )
         if quote_row is None:
-            raise BatchUserError(f'Quote with id {quote_id} does not exist.', 'error')
+            raise NonExistentQuoteError(quote_id)
         if quote_row['state'] != 'open':
-            raise BatchUserError('Billing projects cannot be created under a closed quote.', 'error')
+            raise BillingValidationError('Billing projects cannot be created under a closed quote.')
 
         quote_authorized = quote_row['authorized_amount']
 
@@ -543,9 +542,7 @@ async def create_billing_project(
             if billing_role != 'global_bm':
                 raise BatchUserError('Only global billing managers can create unlimited billing projects.', 'error')
             if quote_id != INTERNAL_QUOTE_ID or quote_authorized is not None:
-                raise BatchUserError(
-                    'Unlimited billing projects can only be created under the INTERNAL quote.', 'error'
-                )
+                raise BillingValidationError('Unlimited billing projects can only be created under the INTERNAL quote.')
 
         if limit is not None and quote_authorized is not None:
             existing_sum_row = await tx.execute_and_fetchone(
@@ -558,10 +555,9 @@ WHERE quote_id = %s AND `status` != 'deleted' AND `limit` IS NOT NULL;
             )
             existing_sum = existing_sum_row['total_limit'] if existing_sum_row else 0
             if existing_sum + limit > quote_authorized:
-                raise BatchUserError(
+                raise BillingValidationError(
                     f'Creating billing project with limit {limit} would exceed quote authorized amount {quote_authorized} '
-                    f'(existing BPs use {existing_sum}).',
-                    'error',
+                    f'(existing BPs use {existing_sum}).'
                 )
 
         row = await tx.execute_and_fetchone('SELECT name_cs FROM billing_projects WHERE name = %s FOR UPDATE;', (name,))
@@ -632,14 +628,13 @@ FOR UPDATE;
                         'Only global billing managers can set a billing project to unlimited.', 'error'
                     )
                 if row['quote_id'] != INTERNAL_QUOTE_ID or row['authorized_amount'] is not None:
-                    raise BatchUserError('Unlimited billing projects can only exist under the INTERNAL quote.', 'error')
+                    raise BillingValidationError('Unlimited billing projects can only exist under the INTERNAL quote.')
             elif row['authorized_amount'] is not None:
                 proposed_sum = row['other_bp_limits_sum'] + new_limit
                 if proposed_sum > row['authorized_amount']:
-                    raise BatchUserError(
+                    raise BillingValidationError(
                         f'Setting limit to {new_limit} would exceed quote authorized amount {row["authorized_amount"]} '
-                        f'(other BPs use {row["other_bp_limits_sum"]}).',
-                        'error',
+                        f'(other BPs use {row["other_bp_limits_sum"]}).'
                     )
             db_updates['limit'] = new_limit
             limit_detail = json.dumps({'old': row['limit'], 'new': new_limit})
@@ -702,24 +697,21 @@ FOR UPDATE;
         if not row:
             raise NonExistentBillingProjectError(bp_name)
         if row['dest_quote_name'] is None:
-            raise BatchUserError(f'Unknown quote {dest_quote_id}.', 'error')
+            raise NonExistentQuoteError(dest_quote_id)
         if row['status'] == 'closed':
             raise ClosedBillingProjectError(bp_name)
         if row['dest_quote_state'] != 'open':
-            raise BatchUserError('An open billing project cannot be moved to a closed quote.', 'error')
+            raise BillingValidationError('An open billing project cannot be moved to a closed quote.')
 
         if row['limit'] is None and (dest_quote_id != INTERNAL_QUOTE_ID or row['dest_authorized_amount'] is not None):
-            raise BatchUserError(
-                'An unlimited billing project cannot be moved to a quote with finite funding.', 'error'
-            )
+            raise BillingValidationError('An unlimited billing project cannot be moved to a quote with finite funding.')
 
         if row['limit'] is not None and row['dest_authorized_amount'] is not None:
             new_sum = row['dest_bp_limits_sum'] + row['limit']
             if new_sum > row['dest_authorized_amount']:
-                raise BatchUserError(
+                raise BillingValidationError(
                     f'Moving billing project would exceed destination quote authorized amount '
-                    f'{row["dest_authorized_amount"]} (existing BPs use {row["dest_bp_limits_sum"]}).',
-                    'error',
+                    f'{row["dest_authorized_amount"]} (existing BPs use {row["dest_bp_limits_sum"]}).'
                 )
 
         src_quote_id = row['src_quote_id']
@@ -823,8 +815,8 @@ WHERE billing_projects.name_cs = %s;
         if not row:
             raise NonExistentBillingProjectError(bp_name)
         if row['status'] in {'closed', 'deleted'}:
-            raise BatchUserError(
-                f'Billing project {bp_name} has been closed or deleted and cannot be modified.', 'error'
+            raise BillingValidationError(
+                f'Billing project {bp_name} has been closed or deleted and cannot be modified.'
             )
         if row['user'] is None:
             raise BatchOperationAlreadyCompletedError(f'User {user} is not in billing project {bp_name}.', 'info')
@@ -880,7 +872,7 @@ FOR UPDATE;
                 f'Billing project {bp_name} is already closed or deleted.', 'info'
             )
         if row['batch_id'] is not None:
-            raise BatchUserError(f'Billing project {bp_name} has running batches.', 'error')
+            raise BillingValidationError(f'Billing project {bp_name} has running batches.')
 
         await tx.execute_update("UPDATE billing_projects SET `status` = 'closed' WHERE name_cs = %s;", (bp_name,))
         await _log_bp_event(tx, bp_name, actor, 'bp_closed', comment=comment)
@@ -913,13 +905,12 @@ FOR UPDATE;
             raise NonExistentBillingProjectError(bp_name)
         assert row['name_cs'] == bp_name
         if row['status'] == 'deleted':
-            raise BatchUserError(f'Billing project {bp_name} has been deleted and cannot be reopened.', 'error')
+            raise BillingValidationError(f'Billing project {bp_name} has been deleted and cannot be reopened.')
         if row['status'] == 'open':
             raise BatchOperationAlreadyCompletedError(f'Billing project {bp_name} is already open.', 'info')
         if row['quote_state'] != 'open':
-            raise BatchUserError(
-                f'Billing project {bp_name} is under a closed quote. Reopen the quote or move the billing project first.',
-                'error',
+            raise BillingValidationError(
+                f'Billing project {bp_name} is under a closed quote. Reopen the quote or move the billing project first.'
             )
 
         await tx.execute_update("UPDATE billing_projects SET `status` = 'open' WHERE name_cs = %s;", (bp_name,))
@@ -946,6 +937,6 @@ async def delete_billing_project(
         if row['status'] == 'deleted':
             raise BatchOperationAlreadyCompletedError(f'Billing project {bp_name} is already deleted.', 'info')
         if row['status'] == 'open':
-            raise BatchUserError(f'Billing project {bp_name} is open and cannot be deleted.', 'error')
+            raise BillingValidationError(f'Billing project {bp_name} is open and cannot be deleted.')
 
         await tx.execute_update("UPDATE billing_projects SET `status` = 'deleted' WHERE name_cs = %s;", (bp_name,))
