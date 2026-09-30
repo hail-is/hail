@@ -15,7 +15,7 @@ from hailtop.config import get_remote_tmpdir
 _REPO_ROOT = os.environ.get(
     'HAIL_TEST_REPO_ROOT', os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 )
-_TEST_DB_NAME = 'test_billing'
+_TEST_DB_NAME = 'test_batch_db'
 
 log = logging.getLogger(__name__)
 
@@ -64,6 +64,48 @@ async def db():
         await conn.commit()
     finally:
         conn.close()
+
+
+NOISE_BATCH_N_JOBS = 2000
+
+
+@pytest_asyncio.fixture(scope='session')
+async def noise_batch(db):
+    """A large batch seeded once per session, so an unscoped read or full scan in a query under test shows up
+    in its row-read count and makes MySQL's plans realistic. Tables are analyzed after seeding."""
+    from .db_seed import (  # pylint: disable=import-outside-toplevel
+        Attempt,
+        Job,
+        JobGroup,
+        Update,
+        analyze_tables,
+        seed_batch,
+    )
+
+    states = ('Success', 'Failed', 'Error', 'Cancelled', 'Running', 'Ready', 'Pending')
+    groups = [JobGroup(), JobGroup(parent_id=1), JobGroup()]
+    jobs = []
+    for i in range(NOISE_BATCH_N_JOBS):
+        job_id = i + 1
+        state = states[i % len(states)]
+        attempts = None
+        if state == 'Success' and i % 3 == 0:
+            attempts = [
+                Attempt('pre-1', start_time=1_000 * job_id, end_time=1_000 * job_id + 500, reason='preempted'),
+                Attempt('att-2', start_time=1_000 * job_id + 600, end_time=1_000 * job_id + 900, reason='completed'),
+            ]
+        jobs.append(
+            Job(
+                state=state,
+                job_group_id=i % 4,
+                attributes={'shard': str(i % 10)},
+                parent_ids=[job_id - 1] if i % 5 == 0 and job_id > 1 else (),
+                attempts=attempts,
+            )
+        )
+    seeded = await seed_batch(db, [Update(jobs=jobs, job_groups=groups)])
+    await analyze_tables(db)
+    return seeded
 
 
 @pytest.fixture(autouse=True)

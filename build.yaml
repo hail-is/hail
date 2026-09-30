@@ -3178,7 +3178,7 @@ steps:
       - hail_ubuntu_image
       - gpu_image
   - kind: runImage
-    name: test_billing
+    name: test_batch_db
     numSplits: 1
     image:
       valueFrom: batch_image.image

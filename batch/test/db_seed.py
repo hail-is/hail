@@ -1,0 +1,485 @@
+"""Seed consistent batch rows directly into a real-migration batch database, for DB-layer tests.
+
+Rows are written the way the front end and driver would leave them, without going through
+``commit_batch_update`` or the scheduling procedures, so a test can put jobs in any final state. The
+tables the read paths use are kept consistent with each other (``batches``, ``batch_updates``,
+``job_groups``, ``job_group_self_and_ancestors``, ``job_groups_n_jobs_in_complete_states``,
+``job_groups_inst_coll_staging``, ``jobs``, ``job_attributes``, ``job_parents``, ``attempts``,
+``attempt_resources``, and, through the ``attempt_resources`` trigger, the aggregated resource tables).
+Scheduler bookkeeping (``user_inst_coll_resources``, ``job_group_inst_coll_cancellable_resources``,
+``jobs_telemetry``) is not written, so seeded batches must never be handed to a driver.
+
+Each call to :func:`seed_batch` creates a new batch with its own auto-increment id; the database is shared
+across the test session, so tests must only look at their own batch ids.
+"""
+
+import json
+from dataclasses import dataclass, field
+from typing import Any, Dict, List, Optional, Sequence
+
+from gear import Database
+
+ROOT_JOB_GROUP_ID = 0
+BILLING_PROJECT = 'test'
+USER = 'test'
+LATEST_FORMAT_VERSION = 7
+
+COMPLETE_STATES = ('Success', 'Failed', 'Error', 'Cancelled')
+ALL_STATES = ('Pending', 'Ready', 'Creating', 'Running', *COMPLETE_STATES)
+
+# Resources the seeder bills against. Real rows exist too, but these keep seeded costs independent of them.
+SEED_RESOURCES = {'seed/compute/1': 0.001, 'seed/memory/1': 0.0001, 'seed/disk/1': 0.00001}
+
+_UNSET: Any = object()
+
+T0 = 1_700_000_000_000
+
+# Jobs are written in transactions of at most this many, like the client's job bunches (MAX_BUNCH_SIZE).
+JOB_CHUNK_SIZE = 1024
+
+_RAN_STATES = ('Running', 'Success', 'Failed', 'Error')
+
+
+@dataclass
+class Attempt:
+    attempt_id: str
+    start_time: Optional[int]
+    end_time: Optional[int] = None
+    # Defaults to end_time, or start_time + 1s for an attempt that's still running.
+    rollup_time: Optional[int] = _UNSET
+    reason: Optional[str] = None
+    # resource name -> quantity; usage is quantity * (rollup_time - start_time).
+    resources: Dict[str, int] = field(default_factory=lambda: {'seed/compute/1': 1000, 'seed/memory/1': 3840})
+
+
+@dataclass
+class Job:
+    """One job. ``job_group_id`` is absolute (0 is the root, sub-groups are numbered in creation order)."""
+
+    state: str = 'Success'
+    job_group_id: int = ROOT_JOB_GROUP_ID
+    name: Optional[str] = _UNSET  # defaults to 'job-{job_id}'; None means no name attribute
+    attributes: Dict[str, str] = field(default_factory=dict)
+    parent_ids: Sequence[int] = ()
+    # Defaults: 0 for Success, 1 for Failed, None (stored as [null, …]) for Error, no status otherwise.
+    exit_code: Optional[int] = _UNSET
+    # How many attempts to generate: all but the last were preempted. The last is running for a Running job,
+    # finished for Success/Failed/Error, and preempted for any other state. Defaults to 1 for Running, Success,
+    # Failed and Error, 0 otherwise.
+    n_attempts: Optional[int] = None
+    # Explicit attempts instead of generated ones (not with n_attempts).
+    attempts: Optional[List[Attempt]] = None
+    # jobs.attempt_id. Defaults to the last attempt's id for Running, Success, Failed and Error, otherwise None
+    # (the driver clears it when an attempt is preempted).
+    current_attempt_id: Optional[str] = _UNSET
+    cancelled: bool = False
+    always_run: bool = False
+    inst_coll: str = 'standard'
+    cores_mcpu: int = 1000
+
+
+@dataclass
+class JobGroup:
+    parent_id: int = ROOT_JOB_GROUP_ID
+    attributes: Dict[str, str] = field(default_factory=dict)
+
+
+@dataclass
+class Update:
+    """A batch update. ``committed=False`` leaves it pending; one followed by later updates is abandoned.
+
+    ``n_reserved_jobs`` (default ``len(jobs)``) is the id range the update claims. Reserving more than
+    the jobs written leaves an id gap, as a partly uploaded update does.
+    """
+
+    jobs: List[Job] = field(default_factory=list)
+    job_groups: List[JobGroup] = field(default_factory=list)
+    committed: bool = True
+    n_reserved_jobs: Optional[int] = None
+
+
+@dataclass
+class SeededUpdate:
+    update_id: int
+    start_job_id: int
+    n_reserved_jobs: int
+    job_ids: List[int]
+    start_job_group_id: int
+    job_group_ids: List[int]
+    committed: bool
+
+
+@dataclass
+class SeededBatch:
+    batch_id: int
+    format_version: int
+    updates: List[SeededUpdate]
+    jobs: Dict[int, Job]  # job_id -> spec
+    job_group_parents: Dict[int, Optional[int]]  # job_group_id -> parent (None for the root)
+
+    @property
+    def committed_job_ids(self) -> List[int]:
+        return sorted(j for u in self.updates if u.committed for j in u.job_ids)
+
+    def ancestors(self, job_group_id: int) -> List[int]:
+        """Self and ancestors, self first."""
+        result = []
+        g: Optional[int] = job_group_id
+        while g is not None:
+            result.append(g)
+            g = self.job_group_parents[g]
+        return result
+
+
+def preempted_job(state: str = 'Ready', n_attempts: int = 1, **kwargs) -> Job:
+    """A job whose attempts were all preempted, now back in ``state`` with ``jobs.attempt_id = NULL``.
+
+    ``state='Cancelled'`` gives a job that was preempted and then cancelled: it has a start time from
+    the preempted attempt but no end time.
+    """
+    assert state not in _RAN_STATES, state
+    return Job(state=state, n_attempts=n_attempts, **kwargs)
+
+
+async def ensure_seed_resources(db: Database) -> Dict[str, int]:
+    """Insert SEED_RESOURCES if missing and return their ids."""
+    await db.execute_many(
+        'INSERT INTO resources (resource, rate) VALUES (%s, %s) ON DUPLICATE KEY UPDATE rate = rate',
+        list(SEED_RESOURCES.items()),
+    )
+    await db.execute_update(
+        'UPDATE resources SET deduped_resource_id = resource_id WHERE resource LIKE %s AND deduped_resource_id IS NULL',
+        ('seed/%',),
+    )
+    return {
+        r['resource']: r['resource_id']
+        async for r in db.execute_and_fetchall(
+            'SELECT resource, resource_id FROM resources WHERE resource LIKE %s', ('seed/%',)
+        )
+    }
+
+
+def _attempts(job_id: int, job: Job) -> List[Attempt]:
+    if job.attempts is not None:
+        assert job.n_attempts is None, 'give attempts or n_attempts, not both'
+        return job.attempts
+    n = job.n_attempts if job.n_attempts is not None else int(job.state in _RAN_STATES)
+    base = T0 + job_id * 100_000
+    attempts = []
+    for k in range(n):
+        start = base + k * 10_000
+        attempt_id = f'att-{k + 1}'
+        if k < n - 1 or job.state not in _RAN_STATES:
+            attempts.append(Attempt(attempt_id, start_time=start, end_time=start + 5_000, reason='preempted'))
+        elif job.state == 'Running':
+            attempts.append(Attempt(attempt_id, start_time=start))
+        else:
+            reason = 'error' if job.state == 'Error' else 'completed'
+            attempts.append(Attempt(attempt_id, start_time=start, end_time=start + 5_000, reason=reason))
+    return attempts
+
+
+def _rollup_time(a: Attempt) -> Optional[int]:
+    if a.rollup_time is not _UNSET:
+        return a.rollup_time
+    if a.end_time is not None:
+        return a.end_time
+    return a.start_time + 1_000 if a.start_time is not None else None
+
+
+def _default_exit_code(state: str) -> Optional[int]:
+    return {'Success': 0, 'Failed': 1}.get(state)
+
+
+def _db_status(format_version: int, job: Job, attempts: List[Attempt]) -> Optional[str]:
+    if job.state not in ('Success', 'Failed', 'Error'):
+        return None
+    ec = _default_exit_code(job.state) if job.exit_code is _UNSET else job.exit_code
+    main = {'error': 'seeded error'} if ec is None else {'container_status': {'exit_code': ec}}
+    last = attempts[-1] if attempts else None
+    start_time = last.start_time if last else None
+    end_time = last.end_time if last else None
+    if format_version == 1:
+        return json.dumps({
+            'version': 2,
+            'state': job.state.lower(),
+            'start_time': start_time,
+            'end_time': end_time,
+            'container_statuses': {'input': None, 'main': main, 'output': None},
+        })
+    # The same encoding as BatchFormatVersion.db_status: [exit_code, duration].
+    duration = end_time - start_time if start_time is not None and end_time is not None else None
+    return json.dumps([ec, duration])
+
+
+def _db_spec(format_version: int) -> str:
+    if format_version == 1:
+        return json.dumps({'image': 'ubuntu:24.04', 'command': ['true'], 'resources': {}})
+    if format_version < 5:
+        return json.dumps([None, None, 0, 0])
+    return json.dumps([None, None, 0, 0, None])
+
+
+# Every VALUES tuple below is all placeholders: PyMySQL only batches executemany into multi-row INSERTs then,
+# and otherwise sends one statement per row.
+_INSERT_BATCH_UPDATE = """
+INSERT INTO batch_updates (batch_id, update_id, token, start_job_group_id, n_job_groups, start_job_id, n_jobs,
+  committed, time_created, time_committed)
+VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
+"""
+_INSERT_JOB_GROUP = """
+INSERT INTO job_groups (batch_id, job_group_id, `user`, attributes, state, n_jobs, time_created, time_completed,
+  update_id)
+VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s);
+"""
+_INSERT_JOB_GROUP_ANCESTOR = """
+INSERT INTO job_group_self_and_ancestors (batch_id, job_group_id, ancestor_id, level) VALUES (%s, %s, %s, %s);
+"""
+_INSERT_JOB_GROUP_COMPLETE_STATES = """
+INSERT INTO job_groups_n_jobs_in_complete_states (id, job_group_id, n_completed, n_succeeded, n_failed, n_cancelled)
+VALUES (%s, %s, %s, %s, %s, %s);
+"""
+_INSERT_JOB_GROUP_ATTRIBUTE = """
+INSERT INTO job_group_attributes (batch_id, job_group_id, `key`, `value`) VALUES (%s, %s, %s, %s);
+"""
+_INSERT_JOB = """
+INSERT INTO jobs (batch_id, job_id, update_id, job_group_id, state, spec, status, always_run, cores_mcpu,
+  n_pending_parents, cancelled, attempt_id, inst_coll)
+VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
+"""
+_INSERT_JOB_ATTRIBUTE = 'INSERT INTO job_attributes (batch_id, job_id, `key`, `value`) VALUES (%s, %s, %s, %s);'
+_INSERT_JOB_PARENT = 'INSERT INTO job_parents (batch_id, job_id, parent_id) VALUES (%s, %s, %s);'
+_INSERT_ATTEMPT = """
+INSERT INTO attempts (batch_id, job_id, attempt_id, start_time, rollup_time, end_time, reason)
+VALUES (%s, %s, %s, %s, %s, %s, %s);
+"""
+# The attempt_resources_after_insert trigger fills the aggregated_*_resources_v3 tables, once per row.
+_INSERT_ATTEMPT_RESOURCE = """
+INSERT INTO attempt_resources (batch_id, job_id, attempt_id, quantity, resource_id, deduped_resource_id)
+VALUES (%s, %s, %s, %s, %s, %s);
+"""
+_INSERT_STAGING = """
+INSERT INTO job_groups_inst_coll_staging (batch_id, update_id, job_group_id, inst_coll, token, n_jobs,
+  n_ready_jobs, ready_cores_mcpu)
+VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
+"""
+
+
+async def seed_batch(
+    db: Database,
+    updates: Sequence[Update],
+    *,
+    format_version: int = LATEST_FORMAT_VERSION,
+    user: str = USER,
+    billing_project: str = BILLING_PROJECT,
+    with_costs: bool = True,
+) -> SeededBatch:
+    """Create a batch with the given updates, in order, and return what was written.
+
+    ``with_costs=False`` skips ``attempt_resources`` (so the jobs have no cost), which is most of the seeding
+    time: its trigger runs several statements per row. Attempts and their times are still written. Use it for
+    large batches that aren't testing cost; the noise batch keeps the cost tables populated for EXPLAIN.
+
+    Rows are planned in memory first, then written: the batch, updates and groups in one transaction, then
+    jobs in transactions of JOB_CHUNK_SIZE. A failure part way leaves a partial batch; tests don't reuse ids.
+    """
+    resource_ids = await ensure_seed_resources(db) if with_costs else {}
+
+    batch_id = await db.execute_insertone(
+        """
+INSERT INTO batches (userdata, user, billing_project, attributes, n_jobs, time_created, token, state,
+  format_version, migrated_batch)
+VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
+""",
+        ('{}', user, billing_project, '{}', 0, T0, None, 'running', format_version, True),
+    )
+    assert batch_id is not None
+    seeded = SeededBatch(batch_id, format_version, [], {}, {ROOT_JOB_GROUP_ID: None})
+
+    update_rows = []
+    job_group_rows: List[tuple] = [(ROOT_JOB_GROUP_ID, None, {})]  # (job_group_id, update_id, attributes)
+    job_chunks: List[Dict[str, list]] = []
+    staging_rows = []
+
+    next_job_id = 1
+    next_job_group_id = 1
+    for update_id, update in enumerate(updates, start=1):
+        n_reserved = len(update.jobs) if update.n_reserved_jobs is None else update.n_reserved_jobs
+        assert n_reserved >= len(update.jobs)
+        assert not update.committed or n_reserved == len(update.jobs), 'a committed update writes all its jobs'
+        update_rows.append((
+            batch_id,
+            update_id,
+            f'seed-{update_id}',
+            next_job_group_id,
+            len(update.job_groups),
+            next_job_id,
+            n_reserved,
+            update.committed,
+            T0,
+            T0 if update.committed else None,
+        ))
+
+        job_group_ids = []
+        for jg in update.job_groups:
+            assert jg.parent_id in seeded.job_group_parents, f'job group parent {jg.parent_id} does not exist'
+            seeded.job_group_parents[next_job_group_id] = jg.parent_id
+            job_group_rows.append((next_job_group_id, update_id, jg.attributes))
+            job_group_ids.append(next_job_group_id)
+            next_job_group_id += 1
+
+        job_ids = list(range(next_job_id, next_job_id + len(update.jobs)))
+        staging: Dict[tuple, List[Optional[int]]] = {}
+        for i, (job_id, job) in enumerate(zip(job_ids, update.jobs)):
+            if i % JOB_CHUNK_SIZE == 0:
+                job_chunks.append({'jobs': [], 'attributes': [], 'parents': [], 'attempts': [], 'resources': []})
+            chunk = job_chunks[-1]
+            assert job.state in ALL_STATES, job.state
+            assert job.job_group_id in seeded.job_group_parents, f'job group {job.job_group_id} does not exist'
+            seeded.jobs[job_id] = job
+
+            attempts = _attempts(job_id, job)
+            if job.current_attempt_id is not _UNSET:
+                current_attempt_id = job.current_attempt_id
+            elif attempts and job.state in _RAN_STATES:
+                current_attempt_id = attempts[-1].attempt_id
+            else:
+                current_attempt_id = None
+            chunk['jobs'].append((
+                batch_id,
+                job_id,
+                update_id,
+                job.job_group_id,
+                job.state,
+                _db_spec(format_version),
+                _db_status(format_version, job, attempts),
+                job.always_run,
+                job.cores_mcpu,
+                len(job.parent_ids) if job.state == 'Pending' else 0,
+                job.cancelled,
+                current_attempt_id,
+                job.inst_coll,
+            ))
+            name = f'job-{job_id}' if job.name is _UNSET else job.name
+            attributes = {**({'name': name} if name is not None else {}), **job.attributes}
+            chunk['attributes'].extend((batch_id, job_id, k, v) for k, v in attributes.items())
+            chunk['parents'].extend((batch_id, job_id, p) for p in job.parent_ids)
+            for a in attempts:
+                chunk['attempts'].append((
+                    batch_id,
+                    job_id,
+                    a.attempt_id,
+                    a.start_time,
+                    _rollup_time(a),
+                    a.end_time,
+                    a.reason,
+                ))
+                if with_costs:
+                    chunk['resources'].extend(
+                        (batch_id, job_id, a.attempt_id, q, resource_ids[r], resource_ids[r])
+                        for r, q in a.resources.items()
+                    )
+            for ancestor in seeded.ancestors(job.job_group_id):
+                staging.setdefault((ancestor, job.inst_coll), []).append(None if job.parent_ids else job.cores_mcpu)
+
+        # Written with the job rows, recursively (one row per ancestor), as the front end does.
+        staging_rows.extend(
+            (batch_id, update_id, g, ic, 0, len(cores), sum(c is not None for c in cores), sum(c or 0 for c in cores))
+            for (g, ic), cores in staging.items()
+        )
+        seeded.updates.append(
+            SeededUpdate(
+                update_id,
+                next_job_id,
+                n_reserved,
+                job_ids,
+                update_rows[-1][3],
+                job_group_ids,
+                update.committed,
+            )
+        )
+        next_job_id += n_reserved
+
+    n_jobs, n_complete = _counts(seeded)
+
+    def group_state(g):
+        return 'complete' if sum(n_complete[g].values()) == n_jobs[g] else 'running'
+
+    async with db.start() as tx:
+        await tx.execute_many(_INSERT_BATCH_UPDATE, update_rows)
+        await tx.execute_many(
+            _INSERT_JOB_GROUP,
+            [
+                (
+                    batch_id,
+                    g,
+                    user,
+                    json.dumps(attrs),
+                    group_state(g),
+                    n_jobs[g],
+                    T0,
+                    T0 if group_state(g) == 'complete' else None,
+                    update_id,
+                )
+                for g, update_id, attrs in job_group_rows
+            ],
+        )
+        await tx.execute_many(
+            _INSERT_JOB_GROUP_ANCESTOR,
+            [(batch_id, g, a, level) for g, _, _ in job_group_rows for level, a in enumerate(seeded.ancestors(g))],
+        )
+        await tx.execute_many(
+            _INSERT_JOB_GROUP_COMPLETE_STATES,
+            [
+                (batch_id, g, sum(c.values()), c['Success'], c['Failed'] + c['Error'], c['Cancelled'])
+                for g, c in n_complete.items()
+            ],
+        )
+        group_attribute_rows = [(batch_id, g, k, v) for g, _, attrs in job_group_rows for k, v in attrs.items()]
+        if group_attribute_rows:
+            await tx.execute_many(_INSERT_JOB_GROUP_ATTRIBUTE, group_attribute_rows)
+
+    for chunk in job_chunks:
+        async with db.start() as tx:
+            for sql, key in (
+                (_INSERT_JOB, 'jobs'),
+                (_INSERT_JOB_ATTRIBUTE, 'attributes'),
+                (_INSERT_JOB_PARENT, 'parents'),
+                (_INSERT_ATTEMPT, 'attempts'),
+                (_INSERT_ATTEMPT_RESOURCE, 'resources'),
+            ):
+                if chunk[key]:
+                    await tx.execute_many(sql, chunk[key])
+
+    root_state = group_state(ROOT_JOB_GROUP_ID)
+    async with db.start() as tx:
+        if staging_rows:
+            await tx.execute_many(_INSERT_STAGING, staging_rows)
+        await tx.execute_update(
+            'UPDATE batches SET n_jobs = %s, state = %s, time_completed = %s WHERE id = %s',
+            (n_jobs[ROOT_JOB_GROUP_ID], root_state, T0 if root_state == 'complete' else None, batch_id),
+        )
+
+    return seeded
+
+
+def _counts(seeded: SeededBatch):
+    """The counters commit_batch_update and mark_job_complete would have maintained (committed jobs only)."""
+    n_jobs: Dict[int, int] = dict.fromkeys(seeded.job_group_parents, 0)
+    n_complete: Dict[int, Dict[str, int]] = {g: dict.fromkeys(COMPLETE_STATES, 0) for g in seeded.job_group_parents}
+    for job_id in seeded.committed_job_ids:
+        job = seeded.jobs[job_id]
+        for g in seeded.ancestors(job.job_group_id):
+            n_jobs[g] += 1
+            if job.state in COMPLETE_STATES:
+                n_complete[g][job.state] += 1
+    return n_jobs, n_complete
+
+
+async def analyze_tables(db: Database):
+    """Refresh index statistics after seeding, so EXPLAIN reflects the seeded row counts."""
+    await db.just_execute(
+        'ANALYZE TABLE batches, batch_updates, job_groups, job_group_self_and_ancestors, '
+        'job_groups_inst_coll_staging, jobs, job_attributes, job_parents, attempts, attempt_resources, '
+        'aggregated_job_resources_v3, aggregated_job_group_resources_v3'
+    )
