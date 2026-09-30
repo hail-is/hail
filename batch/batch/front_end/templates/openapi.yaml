@@ -1086,7 +1086,11 @@ paths:
   '/api/v1alpha/billing_projects/{billing_project}/create':
     post:
       summary: Create billing project
-      description: Create a new billing project
+      description: >
+        Create a new billing project under a quote. Requires CREATE_BP billing permission on the quote.
+        quote_name is required, except for legacy callers with the create_billing_projects system
+        permission (global billing managers and trial project creation), whose billing projects are
+        created under the INTERNAL quote when quote_name is omitted.
       tags: [Billing]
       parameters:
         - name: billing_project
@@ -1095,6 +1099,33 @@ paths:
           schema:
             type: string
           description: Billing project identifier
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                quote_name:
+                  type: string
+                  description: Name of the quote to create the billing project under
+                limit:
+                  type: number
+                  nullable: true
+                  description: >
+                    Spending limit in USD. Null (unlimited) is only allowed under the INTERNAL quote,
+                    and only for global billing managers.
+                description:
+                  type: string
+                  nullable: true
+                initial_users:
+                  type: array
+                  items:
+                    type: string
+                comment:
+                  type: string
+                  nullable: true
+                  description: Optional audit comment
       responses:
         '200':
           description: Billing project created successfully
@@ -1103,10 +1134,12 @@ paths:
               schema:
                 type: string
                 description: Created billing project identifier
+        '400':
+          description: Bad request (missing quote_name, unknown quote, limit would exceed quote, closed quote, etc.)
         '401':
           description: Unauthorized
         '403':
-          description: Forbidden - requires developer privileges
+          description: Forbidden - insufficient billing permissions
         '409':
           description: Billing project already exists
   '/api/v1alpha/billing_projects/{billing_project}/users/{user}/add':
@@ -1362,20 +1395,16 @@ paths:
           application/json:
             schema:
               type: object
-              required: [cost_object]
+              required: [cost_object, authorized_amount]
               properties:
                 cost_object:
                   type: string
                   description: Cost object / account code for this quote
                 authorized_amount:
-                  oneOf:
-                    - type: number
-                    - type: string
-                      enum: [unlimited]
-                  nullable: true
+                  type: number
                   description: >
-                    Authorized spending amount in USD. Pass "unlimited" or omit for
-                    unlimited funding.
+                    Authorized spending amount in USD. Required: only the built-in INTERNAL
+                    quote may be unlimited.
                 pi_name:
                   type: string
                   nullable: true
@@ -1397,7 +1426,7 @@ paths:
                   name:
                     type: string
         '400':
-          description: Bad request (missing cost_object, invalid authorized_amount)
+          description: Bad request (missing cost_object, missing or invalid authorized_amount)
         '401':
           description: Unauthorized
         '403':
@@ -1434,8 +1463,9 @@ paths:
       summary: Edit a quote
       description: >
         Update mutable fields on a quote (cost_object, pi_name, pm_designee,
-        authorized_amount). Requires EDIT_QUOTE billing permission. Only global
-        billing managers may set authorized_amount to unlimited.
+        authorized_amount). Requires EDIT_QUOTE billing permission. Only the INTERNAL
+        quote may have an unlimited authorized_amount, and only global billing managers
+        may set it.
       tags: [Billing]
       parameters:
         - name: name
@@ -3401,7 +3431,7 @@ components:
         authorized_amount:
           type: number
           nullable: true
-          description: "Authorized spending in USD, or null for unlimited"
+          description: "Authorized spending in USD. Null (unlimited) only for the INTERNAL quote"
         pi_name:
           type: string
           nullable: true
@@ -3428,7 +3458,7 @@ components:
         authorized_amount:
           type: number
           nullable: true
-          description: "Authorized spending in USD, or null for unlimited"
+          description: "Authorized spending in USD. Null (unlimited) only for the INTERNAL quote"
         pi_name:
           type: string
           nullable: true

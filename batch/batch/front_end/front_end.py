@@ -287,7 +287,8 @@ async def _handle_ui_error(
     session: aiohttp_session.Session, f: Callable[P, Awaitable[T]], *args: P.args, **kwargs: P.kwargs
 ) -> T:
     try:
-        return await f(*args, **kwargs)
+        with invariant_violations_as_user_errors():
+            return await f(*args, **kwargs)
     except KeyError as e:
         set_message(session, str(e), 'error')
         log.info(f'ui error: KeyError {e}')
@@ -304,7 +305,8 @@ async def _handle_ui_error(
 
 async def _handle_api_error(f: Callable[P, Awaitable[T]], *args: P.args, **kwargs: P.kwargs) -> Optional[T]:
     try:
-        return await f(*args, **kwargs)
+        with invariant_violations_as_user_errors():
+            return await f(*args, **kwargs)
     except BatchOperationAlreadyCompletedError as e:
         log.info(e.message)
         return None
@@ -3602,7 +3604,13 @@ async def api_get_create_billing_projects(request: web.Request, userdata: UserDa
     if request.content_type == 'application/json':
         body = await request.json()
 
-    quote_name = body.get('quote_name', 'INTERNAL')
+    quote_name = body.get('quote_name')
+    if quote_name is None:
+        # Legacy (pre-quotes) callers, such as global billing managers and auth creating trial billing
+        # projects, may omit the quote and fall back to INTERNAL. Everyone else must choose one explicitly.
+        if not userdata['system_permissions'].get(SystemPermission.CREATE_BILLING_PROJECTS, False):
+            raise web.HTTPBadRequest(reason="'quote_name' is required.")
+        quote_name = 'INTERNAL'
     limit = body.get('limit')
     description = body.get('description')
     initial_users: List[str] = body.get('initial_users', [])
@@ -3800,13 +3808,12 @@ async def create_quote(request: web.Request, userdata: UserData) -> web.Response
         raise web.HTTPBadRequest(reason="'cost_object' is required.")
 
     authorized_amount_raw = body.get('authorized_amount')
-    if authorized_amount_raw == 'unlimited' or authorized_amount_raw is None:
-        authorized_amount = None
-    else:
-        try:
-            authorized_amount = float(authorized_amount_raw)
-        except (TypeError, ValueError) as exc:
-            raise web.HTTPBadRequest(reason=f"Invalid authorized_amount: {authorized_amount_raw!r}.") from exc
+    if authorized_amount_raw is None or authorized_amount_raw == 'unlimited':
+        raise web.HTTPBadRequest(reason="'authorized_amount' is required. Only the INTERNAL quote is unlimited.")
+    try:
+        authorized_amount = float(authorized_amount_raw)
+    except (TypeError, ValueError) as exc:
+        raise web.HTTPBadRequest(reason=f"Invalid authorized_amount: {authorized_amount_raw!r}.") from exc
 
     pi_name = body.get('pi_name')
     pm_designee = body.get('pm_designee')
