@@ -1,14 +1,69 @@
 import hashlib
 import logging
 import os
+import sys
 
 import pytest
+import pytest_asyncio
 
 from hailtop.batch_client import aioclient
 from hailtop.batch_client.client import BatchClient
 from hailtop.config import get_remote_tmpdir
 
+# The root that build.yaml, ci/ and batch/sql are read from when applying migrations. In CI the tests are
+# mounted away from the rest of the repo, so the test step sets this explicitly.
+_REPO_ROOT = os.environ.get(
+    'HAIL_TEST_REPO_ROOT', os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+)
+_TEST_DB_NAME = 'test_billing'
+
 log = logging.getLogger(__name__)
+
+
+@pytest_asyncio.fixture(scope='session')
+async def db():
+    """Spin up a real migrated batch DB and yield it; drop it on teardown."""
+    # Imported here rather than at module level: other test steps share this conftest but run in images
+    # without these packages.
+    import warnings as _warnings  # pylint: disable=import-outside-toplevel
+
+    import aiomysql  # pylint: disable=import-outside-toplevel
+
+    from gear import Database  # pylint: disable=import-outside-toplevel
+
+    sys.path.insert(0, os.path.join(_REPO_ROOT, 'ci'))
+    from create_local_database import async_main  # pylint: disable=import-outside-toplevel
+
+    conn = await aiomysql.connect(host='localhost', port=3306, user='root', password='pw')
+    try:
+        async with conn.cursor() as cur:
+            with _warnings.catch_warnings():
+                _warnings.simplefilter('ignore')
+                await cur.execute(f'DROP DATABASE IF EXISTS `{_TEST_DB_NAME}`')
+            await cur.execute('SET GLOBAL log_bin_trust_function_creators = 1')
+        await conn.commit()
+    finally:
+        conn.close()
+
+    orig_dir = os.getcwd()
+    os.chdir(_REPO_ROOT)
+    os.environ.pop('HAIL_SQL_DATABASE', None)
+    try:
+        await async_main('batch', _TEST_DB_NAME)
+    finally:
+        os.chdir(orig_dir)
+    database = Database()
+    await database.async_init()
+    yield database
+    await database.async_exit_stack.aclose()
+
+    conn = await aiomysql.connect(host='localhost', port=3306, user='root', password='pw')
+    try:
+        async with conn.cursor() as cur:
+            await cur.execute(f'DROP DATABASE IF EXISTS `{_TEST_DB_NAME}`')
+        await conn.commit()
+    finally:
+        conn.close()
 
 
 @pytest.fixture(autouse=True)
