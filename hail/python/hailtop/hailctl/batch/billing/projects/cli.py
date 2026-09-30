@@ -40,7 +40,7 @@ def create(
     from hailtop.batch_client.client import BatchClient  # pylint: disable=import-outside-toplevel
 
     with BatchClient('') as client:
-        result = client.create_billing_project_v2(
+        result = client.create_billing_project(
             name,
             quote_name=quote,
             limit=limit,
