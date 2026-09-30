@@ -420,11 +420,20 @@ def test_add_manager_is_global_bm_only():
     assert BillingPermission.ADD_MANAGER in BILLING_ROLE_PERMISSIONS['global_bm']
 
 
-def test_manage_bp_members_available_to_non_global_bm():
+def test_removing_other_members_is_global_bm_only():
+    # Any member can still remove themselves; that is handled by the route, not this permission.
     for role in ('quote_owner', 'quote_manager', 'bp_member'):
-        assert BillingPermission.MANAGE_BP_MEMBERS in BILLING_ROLE_PERMISSIONS[role], (
-            f'{role} should have MANAGE_BP_MEMBERS'
+        assert BillingPermission.MANAGE_BP_MEMBERS not in BILLING_ROLE_PERMISSIONS[role], (
+            f'{role} should not have MANAGE_BP_MEMBERS'
         )
+    assert BillingPermission.MANAGE_BP_MEMBERS in BILLING_ROLE_PERMISSIONS['global_bm']
+
+
+def test_edit_quote_amount_is_global_bm_and_owner_only():
+    assert BillingPermission.EDIT_QUOTE_AMOUNT in BILLING_ROLE_PERMISSIONS['global_bm']
+    assert BillingPermission.EDIT_QUOTE_AMOUNT in BILLING_ROLE_PERMISSIONS['quote_owner']
+    assert BillingPermission.EDIT_QUOTE_AMOUNT not in BILLING_ROLE_PERMISSIONS['quote_manager']
+    assert BillingPermission.EDIT_QUOTE_AMOUNT not in BILLING_ROLE_PERMISSIONS['bp_member']
 
 
 def test_manage_managers_available_to_quote_owner():
