@@ -37,6 +37,33 @@ function toCsv(rows: string[][], columns: string[]): string {
   return lines.join('\n');
 }
 
+// The billing API returns one record per (billing project, user); sum them per (quote, billing project).
+function sumByQuoteAndBp(records: BillingRecord[]): [string, string, number][] {
+  const byQuote = new Map<string, Map<string, number>>();
+  for (const r of records) {
+    let byBp = byQuote.get(r.quote_name);
+    if (byBp === undefined) {
+      byBp = new Map<string, number>();
+      byQuote.set(r.quote_name, byBp);
+    }
+    byBp.set(r.billing_project, (byBp.get(r.billing_project) ?? 0) + r.total_spent);
+  }
+  const rows: [string, string, number][] = [];
+  for (const [quote, byBp] of byQuote) {
+    for (const [bp, cost] of byBp) rows.push([quote, bp, cost]);
+  }
+  return rows.sort((a, b) => a[0].localeCompare(b[0]) || a[1].localeCompare(b[1]));
+}
+
+// The billing API expects MM/DD/YYYY and silently returns no records for anything it can't parse.
+function isValidMmddyyyy(s: string): boolean {
+  const m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(s);
+  if (m === null) return false;
+  const [month, day, year] = [parseInt(m[1], 10), parseInt(m[2], 10), parseInt(m[3], 10)];
+  const d = new Date(year, month - 1, day);
+  return d.getFullYear() === year && d.getMonth() === month - 1 && d.getDate() === day;
+}
+
 function mmddyyyyToIso(s: string): string {
   const [mm, dd, yyyy] = s.split('/');
   return `${yyyy}-${mm.padStart(2, '0')}-${dd.padStart(2, '0')}`;
@@ -88,9 +115,7 @@ function buildCsv(
     csv = toCsv(rows, ['quote_name', 'total_spent']);
     label = 'by quote';
   } else if (tab === 'by-quote-bp') {
-    const rows = [...records]
-      .sort((a, b) => a.quote_name.localeCompare(b.quote_name) || a.billing_project.localeCompare(b.billing_project))
-      .map((r) => [r.quote_name, r.billing_project, String(r.total_spent)]);
+    const rows = sumByQuoteAndBp(records).map(([q, bp, cost]) => [q, bp, String(cost)]);
     csv = toCsv(rows, ['quote_name', 'billing_project', 'total_spent']);
     label = 'by quote and billing project';
   } else {
@@ -246,6 +271,10 @@ export function BillingPage({ basePath, isGlobalBm, username, initialStart, init
   const isDirty = start !== appliedStart || end !== appliedEnd;
 
   const fetchData = async (startVal: string, endVal: string) => {
+    if (!isValidMmddyyyy(startVal) || (endVal !== '' && !isValidMmddyyyy(endVal))) {
+      setError('Dates must be valid and in MM/DD/YYYY format.');
+      return;
+    }
     setLoading(true);
     setError(null);
     setRecords(null);
@@ -343,9 +372,7 @@ export function BillingPage({ basePath, isGlobalBm, username, initialStart, init
     : [];
 
   const byQuoteBp: [string, string, string][] = quoteRecords
-    ? [...quoteRecords]
-        .sort((a, b) => a.quote_name.localeCompare(b.quote_name) || a.billing_project.localeCompare(b.billing_project))
-        .map((r): [string, string, string] => [r.quote_name, r.billing_project, fmtCost(r.total_spent) || '$0'])
+    ? sumByQuoteAndBp(quoteRecords).map(([q, bp, cost]): [string, string, string] => [q, bp, fmtCost(cost) || '$0'])
     : [];
 
   const doExport = (action: 'download' | 'copy') => {
