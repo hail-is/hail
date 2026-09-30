@@ -1457,9 +1457,7 @@ class BatchClient:
         bp_resp = await self._post(f'/api/v1alpha/billing_projects/{project}/create')
         return await bp_resp.json()
 
-    async def create_billing_project_v2(
-        self, project, quote_name='INTERNAL', limit=None, initial_users=None, comment=None
-    ):
+    async def create_billing_project_v2(self, project, quote_name, limit=None, initial_users=None, comment=None):
         body = {'quote_name': quote_name}
         if limit is not None:
             body['limit'] = limit
@@ -1519,12 +1517,10 @@ class BatchClient:
         resp = await self._get('/api/v1alpha/quotes')
         return await resp.json()
 
-    async def create_quote(
-        self, name, cost_object, authorized_amount=None, pi_name=None, pm_designee=None, comment=None
-    ):
+    async def create_quote(self, name, cost_object, authorized_amount, pi_name=None, pm_designee=None, comment=None):
         body = {
             'cost_object': cost_object,
-            'authorized_amount': 'unlimited' if authorized_amount is None else authorized_amount,
+            'authorized_amount': authorized_amount,
         }
         if pi_name is not None:
             body['pi_name'] = pi_name
