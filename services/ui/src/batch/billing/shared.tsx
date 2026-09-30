@@ -5,6 +5,12 @@ import type { BillingEvent, BillingProject, Quote } from './api';
 import { fetchJson, apiCall, errorMessage, INTERNAL_QUOTE_NAME } from './api';
 import { fmtCost, fmtDollars } from './fmt';
 
+// Percentage of whole used by part, capped at 100. A zero whole (e.g. a $0 limit) counts as full once anything is used.
+function pctOf(part: number, whole: number): number {
+  if (whole <= 0) return part > 0 ? 100 : 0;
+  return Math.min((part / whole) * 100, 100);
+}
+
 interface BudgetBarProps {
   accrued: number;
   limit: number | null;
@@ -61,8 +67,8 @@ export function QuoteBudgetBar({ spent, allocated, authorized }: {
     );
   }
 
-  const allocPct = Math.min((allocated / authorized) * 100, 100);
-  const spentPct = Math.min((spent / authorized) * 100, 100);
+  const allocPct = pctOf(allocated, authorized);
+  const spentPct = pctOf(spent, authorized);
 
   return (
     <div>
@@ -92,8 +98,8 @@ export function QuoteCompactBudgetBar({ spent, allocated, authorized }: {
     );
   }
 
-  const allocPct = Math.min((allocated / authorized) * 100, 100);
-  const spentPct = Math.min((spent / authorized) * 100, 100);
+  const allocPct = pctOf(allocated, authorized);
+  const spentPct = pctOf(spent, authorized);
 
   return (
     <div className="relative min-w-[120px] h-3 bg-slate-200 rounded overflow-hidden">
@@ -114,7 +120,7 @@ export function CompactBudgetBar({ accrued, limit }: BudgetBarProps) {
 
   const isOver = accrued >= limit;
   const isLow = !isOver && accrued >= limit * 0.9;
-  const pct = Math.min((accrued / limit) * 100, 100);
+  const pct = pctOf(accrued, limit);
 
   return (
     <div className="relative min-w-[120px] h-3 bg-slate-200 rounded overflow-hidden">
@@ -320,8 +326,8 @@ function sortQuotes(quotes: Quote[], key: QuoteSortKey, dir: SortDir): Quote[] {
         else cmp = a.authorized_amount - b.authorized_amount;
         break;
       case 'usage': {
-        const pA = a.authorized_amount === null ? 0 : totalAllocated(a) / a.authorized_amount;
-        const pB = b.authorized_amount === null ? 0 : totalAllocated(b) / b.authorized_amount;
+        const pA = a.authorized_amount === null ? 0 : pctOf(totalAllocated(a), a.authorized_amount);
+        const pB = b.authorized_amount === null ? 0 : pctOf(totalAllocated(b), b.authorized_amount);
         cmp = pA - pB;
         break;
       }

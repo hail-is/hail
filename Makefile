@@ -232,6 +232,12 @@ batch/batch/front_end/static/compiled-js/batch.js: services/ui/dist/.built
 
 batch-image: batch/batch/front_end/static/compiled-js/batch.js
 
+batch/batch/front_end/static/compiled-js/billing.js: services/ui/dist/.built
+	mkdir -p $(@D)
+	cp services/ui/dist/batch/billing.js $@
+
+batch-image: batch/batch/front_end/static/compiled-js/billing.js
+
 batch/batch/driver/static/compiled-js/index.js: services/ui/dist/.built
 	mkdir -p $(@D)
 	cp services/ui/dist/batch_driver/index.js $@
@@ -342,6 +348,7 @@ run-dev-proxy: ci/ci/static/compiled-js/flaky_tests.js \
     ci/ci/static/compiled-js/pr.js \
     batch/batch/front_end/static/compiled-js/job.js \
     batch/batch/front_end/static/compiled-js/batch.js \
+    batch/batch/front_end/static/compiled-js/billing.js \
     batch/batch/driver/static/compiled-js/index.js \
     monitoring/monitoring/static/compiled-js/index.js \
     auth/auth/static/compiled-js/index.js \
