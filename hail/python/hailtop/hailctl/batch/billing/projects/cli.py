@@ -25,8 +25,10 @@ def list(output: StructuredFormatOption = StructuredFormat.YAML):
 @app.command()
 def create(
     name: str,
-    quote: str = typer.Option('INTERNAL', help='Quote to create the billing project under.'),
-    limit: Optional[float] = typer.Option(None, help='Spending limit in dollars.'),
+    quote: str = typer.Option(..., help='Quote to create the billing project under.'),
+    limit: Optional[float] = typer.Option(
+        None, help='Spending limit in dollars. Required unless the quote is INTERNAL.'
+    ),
     users: Optional[List[str]] = typer.Option(None, '--user', help='Initial users to add (repeatable).'),
     comment: Optional[str] = typer.Option(None, help='Short comment to record with this event.'),
     output: StructuredFormatOption = StructuredFormat.YAML,
@@ -88,7 +90,9 @@ def remove_user(
 @app.command()
 def set_limit(
     name: str,
-    limit: Optional[float] = typer.Argument(None, help='Spending limit in dollars, or omit to clear.'),
+    limit: Optional[float] = typer.Argument(
+        None, help='Spending limit in dollars. Omit to clear (only allowed under the INTERNAL quote).'
+    ),
     comment: Optional[str] = typer.Option(None, help='Short comment to record with this event.'),
     output: StructuredFormatOption = StructuredFormat.YAML,
 ):
