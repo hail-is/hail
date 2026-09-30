@@ -3,6 +3,7 @@ export type BillingRole = 'global_bm' | 'quote_owner' | 'quote_manager' | 'bp_me
 export type Permission =
   | 'view_quote'
   | 'edit_quote'
+  | 'edit_quote_amount'
   | 'close_quote'
   | 'add_manager'
   | 'manage_managers'
@@ -16,24 +17,25 @@ export type Permission =
   | 'change_bp_quote'
   | 'view_events';
 
+// Mirrors BILLING_ROLE_PERMISSIONS in batch/batch/billing_auth.py.
 const ROLE_PERMISSIONS: Record<BillingRole, Set<Permission>> = {
   global_bm: new Set([
-    'view_quote', 'edit_quote', 'close_quote', 'add_manager', 'manage_managers',
+    'view_quote', 'edit_quote', 'edit_quote_amount', 'close_quote', 'add_manager', 'manage_managers',
     'view_bp', 'create_bp', 'edit_bp_limit', 'edit_bp_metadata',
     'add_bp_member', 'manage_bp_members', 'close_reopen_bp', 'change_bp_quote', 'view_events',
   ]),
   quote_owner: new Set([
-    'view_quote', 'edit_quote', 'close_quote', 'manage_managers',
+    'view_quote', 'edit_quote', 'edit_quote_amount', 'close_quote', 'manage_managers',
     'view_bp', 'create_bp', 'edit_bp_limit', 'edit_bp_metadata',
-    'manage_bp_members', 'close_reopen_bp', 'change_bp_quote', 'view_events',
+    'close_reopen_bp', 'change_bp_quote', 'view_events',
   ]),
   quote_manager: new Set([
     'view_quote', 'edit_quote',
     'view_bp', 'create_bp', 'edit_bp_limit', 'edit_bp_metadata',
-    'manage_bp_members', 'close_reopen_bp', 'change_bp_quote', 'view_events',
+    'close_reopen_bp', 'change_bp_quote', 'view_events',
   ]),
   bp_member: new Set([
-    'view_bp', 'edit_bp_metadata', 'manage_bp_members', 'view_events',
+    'view_bp', 'edit_bp_metadata', 'view_events',
   ]),
 };
 

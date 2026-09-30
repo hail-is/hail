@@ -167,7 +167,7 @@ export function QuotePage({ basePath, quoteName }: Props) {
               label="Authorized Amount"
               value={quote.authorized_amount !== null ? String(quote.authorized_amount) : ''}
               displayValue={fmtDollars(quote.authorized_amount)}
-              canEdit={canEdit}
+              canEdit={can(billingRole, 'edit_quote_amount')}
               inputType="number"
               prefix="$"
               placeholder={canBeUnlimited ? 'blank = unlimited' : undefined}
@@ -243,7 +243,7 @@ export function QuotePage({ basePath, quoteName }: Props) {
               </select>
               <span
                 className="material-symbols-outlined text-slate-400 hover:text-slate-600 cursor-default text-base"
-                title="Managers can edit quote details and manage billing projects. Owners can additionally add and remove managers."
+                title="Managers can edit quote details and manage billing projects. Owners can additionally change the authorized amount, close or reopen the quote, and remove managers."
               >
                 info
               </span>
