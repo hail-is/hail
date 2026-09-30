@@ -3561,10 +3561,8 @@ async def api_get_billing_projects_remove_user(request: web.Request, userdata: U
     return json_response({'billing_project': billing_project, 'user': user})
 
 
-async def _add_user_to_billing_project(
-    request: web.Request, db: Database, billing_project: str, user: str, actor: str, comment: Optional[str] = None
-):
-    """Verify the user exists via auth service, then insert into billing_project_users."""
+async def _verify_user_exists(request: web.Request, user: str) -> None:
+    """Raise NonExistentUserError if the auth service does not know about user."""
     try:
         session_id = await get_session_id(request)
         assert session_id is not None
@@ -3575,6 +3573,12 @@ async def _add_user_to_billing_project(
             raise NonExistentUserError(user) from e
         raise
 
+
+async def _add_user_to_billing_project(
+    request: web.Request, db: Database, billing_project: str, user: str, actor: str, comment: Optional[str] = None
+):
+    """Verify the user exists via auth service, then insert into billing_project_users."""
+    await _verify_user_exists(request, user)
     await billing_dao.add_billing_project_user(db, billing_project, user, actor, comment)
 
 
@@ -3652,6 +3656,9 @@ async def api_get_create_billing_projects(request: web.Request, userdata: UserDa
     initial_users = body.get('initial_users', [])
     if not isinstance(initial_users, list) or not all(isinstance(u, str) for u in initial_users):
         raise web.HTTPBadRequest(reason="'initial_users' must be a list of strings.")
+    # user names are compared case-insensitively in billing_project_users
+    if len({u.lower() for u in initial_users}) != len(initial_users):
+        raise web.HTTPBadRequest(reason="'initial_users' must not contain duplicates.")
     comment = _optional_str(body, 'comment')
 
     quote_row = await db.select_and_fetchone('SELECT id FROM quotes WHERE name_cs = %s', (quote_name,))
@@ -3660,8 +3667,18 @@ async def api_get_create_billing_projects(request: web.Request, userdata: UserDa
     quote_id = quote_row['id']
 
     billing_role = await resolve_billing_role_for_quote_id(db, username, userdata, quote_id)
-    if billing_role is None or BillingPermission.CREATE_BP not in BILLING_ROLE_PERMISSIONS.get(billing_role, set()):
+    if billing_role is None:
         raise web.HTTPForbidden(reason='Insufficient billing permissions to create billing projects.')
+    role_permissions = BILLING_ROLE_PERMISSIONS.get(billing_role, set())
+    if BillingPermission.CREATE_BP not in role_permissions:
+        raise web.HTTPForbidden(reason='Insufficient billing permissions to create billing projects.')
+    # Creating with members must not bypass the restriction on who can add members to a billing project.
+    if initial_users and BillingPermission.ADD_BP_MEMBER not in role_permissions:
+        raise web.HTTPForbidden(reason='Insufficient billing permissions to add users to billing projects.')
+
+    # Check every user before creating anything, so a typo fails the whole request.
+    for user in initial_users:
+        await _handle_api_error(_verify_user_exists, request, user)
 
     await _handle_api_error(
         billing_dao.create_billing_project,
