@@ -2270,8 +2270,6 @@ case class MatrixBlockMatrixWriter(
 }
 
 object MatrixNativePartitionedColumnsWriter {
-  val maxFanoutTargets: Int = 100
-
   def targetPaths(prefix: String, nFanoutTargets: Int): IndexedSeq[String] =
     ArraySeq.tabulate(nFanoutTargets)(i => f"$prefix/$i%02d.mt")
 }
@@ -2291,13 +2289,8 @@ case class MatrixNativePartitionedColumnsWriter(
 ) extends MatrixWriter {
   override def path = prefix
 
+  // min, max is checked in python
   require(nFanoutTargets > 1, s"must write at least two matrix tables, found $nFanoutTargets")
-
-  require(
-    nFanoutTargets <= MatrixNativePartitionedColumnsWriter.maxFanoutTargets,
-    s"cannot write more than ${MatrixNativePartitionedColumnsWriter.maxFanoutTargets} matrix " +
-      s"tables, found $nFanoutTargets",
-  )
 
   override def lower(
     colsFieldName: String,

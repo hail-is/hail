@@ -38,9 +38,8 @@ def block_matrices_tofiles(bms: List[BlockMatrix], prefix: str, overwrite: bool 
 def write_mts_split_by_cols(
     mt: MatrixTable, prefix: str, n_fanout_targets: int = 50, overwrite: bool = False, codec_spec: str | None = None
 ):
-    fanout_limit = 100  # magic number from MatrixNativePartitionedColumnsWriter.scala, keep in sync
-    if not 1 < n_fanout_targets <= fanout_limit:
-        raise ValueError(f'fanout limit must be between 2 and {fanout_limit}, got {n_fanout_targets}')
+    if not 1 < n_fanout_targets <= 100:
+        raise ValueError(f'Can only write between 2 and 100 matrix tables, got {n_fanout_targets}')
 
     from hail import current_backend
 

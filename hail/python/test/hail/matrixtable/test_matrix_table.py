@@ -2596,7 +2596,7 @@ def test_write_mts_split_by_cols_too_few_columns():
 @pytest.mark.parametrize('n', [-1, 0, 1, 101])
 def test_write_mts_split_by_cols_bad_n(n):
     mt = _split_test_mt(5, 10)
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match='Can only write between 2 and 100'):
         hl.experimental.write_mts_split_by_cols(mt, new_temp_file(), n_fanout_targets=n)
 
 
@@ -2605,7 +2605,7 @@ def test_write_mts_split_by_cols_overwrite():
     mt = _split_test_mt(11, 23)
     hl.experimental.write_mts_split_by_cols(mt, prefix, n_fanout_targets=4)
 
-    with pytest.raises(Exception):
+    with pytest.raises(hl.utils.FatalError, match='file already exists'):
         hl.experimental.write_mts_split_by_cols(mt, prefix, n_fanout_targets=4)
 
     # a re-run with smaller n and overwrite=True leaves no stale slices
