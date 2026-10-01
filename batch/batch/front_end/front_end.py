@@ -2483,18 +2483,13 @@ def _escape_like(s: str) -> str:
     return s.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')
 
 
-async def _get_job_preemption_costs(
-    db: Database, record: Dict[str, Any], spec: Optional[Dict[str, Any]]
-) -> Tuple[Optional[float], Optional[float]]:
+async def _get_job_preemption_costs(db: Database, record: Dict[str, Any]) -> Tuple[Optional[float], Optional[float]]:
     """A job's retried cost and projected non-preemptible cost, each None where it doesn't apply.
 
     Only finished jobs are queried, so polling a running job costs nothing extra.
     """
     state = record['state']
     if state not in complete_states:
-        return None, None
-    preemptible = spec is not None and spec.get('resources', {}).get('preemptible', BATCH_JOB_DEFAULT_PREEMPTIBLE)
-    if not preemptible and state != 'Success':
         return None, None
 
     attempt_resources = [
@@ -2517,7 +2512,7 @@ WHERE attempt_resources.batch_id = %s AND attempt_resources.job_id = %s;
     ]
     outcome_attempt_id = record['attempt_id']
 
-    retried_cost = retried_attempts_cost(attempt_resources, outcome_attempt_id) if preemptible else None
+    retried_cost = retried_attempts_cost(attempt_resources, outcome_attempt_id)
 
     projected_cost = None
     counterparts = sorted(nonpreemptible_counterparts(attempt_resources, outcome_attempt_id))
@@ -2609,7 +2604,7 @@ LEFT JOIN resources ON usage_t.resource_id = resources.resource_id
             else:
                 full_spec['regions'] = sorted(app['regions'].keys())
 
-    retried_cost, projected_cost = await _get_job_preemption_costs(db, record, full_spec)
+    retried_cost, projected_cost = await _get_job_preemption_costs(db, record)
 
     job: GetJobResponseV1Alpha = {
         **job_record_to_dict(record, attributes.get('name')),

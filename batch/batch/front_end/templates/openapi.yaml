@@ -2349,7 +2349,7 @@ components:
             $ref: '#/components/schemas/CostBreakdownEntry'
         retried_attempts_cost:
           type: number
-          description: "Summed cost in USD of the job's retried attempts: every attempt except its outcome attempt and cancelled attempts. Null unless the job is finished and preemptible. Only returned by the get-job endpoint."
+          description: "Summed cost in USD of the job's retried attempts: every attempt except its outcome attempt and cancelled attempts. Null unless the job is finished and at least one of its attempts was billed for preemptible resources. Only returned by the get-job endpoint."
           nullable: true
         projected_nonpreemptible_cost:
           type: number

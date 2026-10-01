@@ -508,6 +508,19 @@ def test_retried_attempts_cost_of_attempts_without_duration_is_zero():
     assert retried_attempts_cost(rows, outcome_attempt_id=None) == 0.0
 
 
+def test_retried_attempts_cost_is_none_when_no_attempt_was_billed_for_a_preemptible_product():
+    rows = [
+        _attempt_resource('a', 'does_not_exist', resource='compute/n1-nonpreemptible/us-central1/1'),
+        _attempt_resource('b', 'completed', resource='compute/n1-nonpreemptible/us-central1/1'),
+        _attempt_resource('b', 'completed', resource='service-fee/1'),
+    ]
+    assert retried_attempts_cost(rows, outcome_attempt_id='b') is None
+
+
+def test_retried_attempts_cost_is_none_without_attempts():
+    assert retried_attempts_cost([], outcome_attempt_id=None) is None
+
+
 _OUTCOME_ON_PREEMPTIBLE = [
     _attempt_resource(
         'retried', 'preempted', start_time=0, rollup_time=1000, resource='compute/n1-preemptible/us-central1/500'

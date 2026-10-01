@@ -56,8 +56,20 @@ def rate_in_effect(resources: Iterable[Tuple[str, float]], product: str, time_ms
     return best[1] if best is not None else None
 
 
-def retried_attempts_cost(attempt_resources: Iterable[AttemptResource], outcome_attempt_id: Optional[str]) -> float:
-    """The cost of a finished job's retried attempts: every attempt but its outcome attempt and cancelled attempts."""
+def _product(resource: str) -> str:
+    return resource.rsplit('/', 1)[0]
+
+
+def retried_attempts_cost(
+    attempt_resources: Iterable[AttemptResource], outcome_attempt_id: Optional[str]
+) -> Optional[float]:
+    """The cost of a finished job's retried attempts: every attempt but its outcome attempt and cancelled attempts.
+
+    None if none of the job's attempts was billed for a preemptible product, i.e. the job didn't run preemptible.
+    """
+    attempt_resources = list(attempt_resources)
+    if not any(nonpreemptible_product(_product(row.resource)) is not None for row in attempt_resources):
+        return None
     return sum(
         (_cost(row) for row in attempt_resources if row.attempt_id != outcome_attempt_id and row.reason != 'cancelled'),
         0.0,
@@ -70,10 +82,6 @@ def _outcome_attempt_resources(
     if outcome_attempt_id is None:
         return []
     return [row for row in attempt_resources if row.attempt_id == outcome_attempt_id]
-
-
-def _product(resource: str) -> str:
-    return resource.rsplit('/', 1)[0]
 
 
 def nonpreemptible_counterparts(
