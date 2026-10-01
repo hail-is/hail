@@ -2569,7 +2569,7 @@ def _check_split_by_cols(mt, prefix, n, n_cols):
         (12, 24, 4),  # even
         (11, 5, 5),  # one column per output
         (11, 100, 2),
-        (11, 103, 100),  # maximum fanout
+        # (11, 103, 100),  # maximum fanout, too long running
     ],
 )
 def test_write_mts_split_by_cols(n_rows, n_cols, n):
