@@ -37,7 +37,8 @@ T0 = 1_700_000_000_000
 # Jobs are written in transactions of at most this many, like the client's job bunches (MAX_BUNCH_SIZE).
 JOB_CHUNK_SIZE = 1024
 
-_RAN_STATES = ('Running', 'Success', 'Failed', 'Error')
+# States whose job holds an attempt (jobs.attempt_id): Creating and Running are in progress, the rest finished.
+_ATTEMPTED_STATES = ('Creating', 'Running', 'Success', 'Failed', 'Error')
 
 
 @dataclass
@@ -63,13 +64,13 @@ class Job:
     parent_ids: Sequence[int] = ()
     # Defaults: 0 for Success, 1 for Failed, None (stored as [null, …]) for Error, no status otherwise.
     exit_code: Optional[int] = _UNSET
-    # How many attempts to generate: all but the last were preempted. The last is running for a Running job,
-    # finished for Success/Failed/Error, and preempted for any other state. Defaults to 1 for Running, Success,
-    # Failed and Error, 0 otherwise.
+    # How many attempts to generate: all but the last were preempted. The last is in progress for a Creating or
+    # Running job, finished for Success/Failed/Error, and preempted for any other state. Defaults to 1 for
+    # Creating, Running, Success, Failed and Error, 0 otherwise.
     n_attempts: Optional[int] = None
     # Explicit attempts instead of generated ones (not with n_attempts).
     attempts: Optional[List[Attempt]] = None
-    # jobs.attempt_id. Defaults to the last attempt's id for Running, Success, Failed and Error, otherwise None
+    # jobs.attempt_id. Defaults to the last attempt's id for Creating, Running, Success, Failed and Error, else None
     # (the driver clears it when an attempt is preempted).
     current_attempt_id: Optional[str] = _UNSET
     cancelled: bool = False
@@ -140,7 +141,7 @@ def preempted_job(state: str = 'Ready', n_attempts: int = 1, **kwargs) -> Job:
     ``state='Cancelled'`` gives a job that was preempted and then cancelled: it has a start time from
     the preempted attempt but no end time.
     """
-    assert state not in _RAN_STATES, state
+    assert state not in _ATTEMPTED_STATES, state
     return Job(state=state, n_attempts=n_attempts, **kwargs)
 
 
@@ -166,14 +167,17 @@ def _attempts(job_id: int, job: Job) -> List[Attempt]:
     if job.attempts is not None:
         assert job.n_attempts is None, 'give attempts or n_attempts, not both'
         return job.attempts
-    n = job.n_attempts if job.n_attempts is not None else int(job.state in _RAN_STATES)
+    n = job.n_attempts if job.n_attempts is not None else int(job.state in _ATTEMPTED_STATES)
     base = T0 + job_id * 100_000
     attempts = []
     for k in range(n):
         start = base + k * 10_000
         attempt_id = f'att-{k + 1}'
-        if k < n - 1 or job.state not in _RAN_STATES:
+        if k < n - 1 or job.state not in _ATTEMPTED_STATES:
             attempts.append(Attempt(attempt_id, start_time=start, end_time=start + 5_000, reason='preempted'))
+        elif job.state == 'Creating':
+            # mark_job_creating adds the attempt with rollup_time = start_time: nothing billed yet
+            attempts.append(Attempt(attempt_id, start_time=start, rollup_time=start))
         elif job.state == 'Running':
             attempts.append(Attempt(attempt_id, start_time=start))
         else:
@@ -188,6 +192,18 @@ def _rollup_time(a: Attempt) -> Optional[int]:
     if a.end_time is not None:
         return a.end_time
     return a.start_time + 1_000 if a.start_time is not None else None
+
+
+def _n_pending_parents(seeded: SeededBatch, job: Job, committed: bool) -> int:
+    """The front end writes every parent as pending; committing (and each parent completing) counts down to the
+    parents that haven't finished. Only a Pending job has any left: the rest became Ready at zero."""
+    if job.state != 'Pending':
+        return 0
+    if not committed:
+        return len(job.parent_ids)
+    for p in job.parent_ids:
+        assert p in seeded.jobs, f'parent {p} must be an earlier seeded job'
+    return sum(seeded.jobs[p].state not in COMPLETE_STATES for p in job.parent_ids)
 
 
 def _default_exit_code(state: str) -> Optional[int]:
@@ -353,7 +369,7 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
                 )
             if job.current_attempt_id is not _UNSET:
                 current_attempt_id = job.current_attempt_id
-            elif attempts and job.state in _RAN_STATES:
+            elif attempts and job.state in _ATTEMPTED_STATES:
                 current_attempt_id = attempts[-1].attempt_id
             else:
                 current_attempt_id = None
@@ -367,7 +383,7 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
                 _db_status(format_version, job, attempts),
                 job.always_run,
                 job.cores_mcpu,
-                len(job.parent_ids) if job.state == 'Pending' else 0,
+                _n_pending_parents(seeded, job, update.committed),
                 job.cancelled,
                 current_attempt_id,
                 job.inst_coll,

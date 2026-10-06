@@ -24,6 +24,7 @@ from gear import Database
 # Tables keyed by batch_id whose every access must use an index with batch_id in used_key_parts.
 SCOPED_TABLES = (
     'jobs',
+    'jobs_telemetry',
     'job_attributes',
     'job_group_attributes',
     'attempts',

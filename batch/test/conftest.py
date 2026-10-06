@@ -55,7 +55,7 @@ async def db():
     database = Database()
     await database.async_init()
     yield database
-    await database.async_exit_stack.aclose()
+    await database.async_close()
 
     conn = await aiomysql.connect(host='localhost', port=3306, user='root', password='pw')
     try:

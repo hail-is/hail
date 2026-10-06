@@ -350,10 +350,45 @@ async def test_seed_without_costs(db):
 
 async def test_seed_writes_jobs_in_chunks(db):
     # more than one JOB_CHUNK_SIZE, and a second update starting mid-chunk
-    seeded = await seed_batch(db, [Update(jobs=[Job() for _ in range(1500)]), Update(jobs=[Job(state='Failed')] * 10)])
+    seeded = await seed_batch(
+        db, [Update(jobs=[Job() for _ in range(1500)]), Update(jobs=[Job(state='Failed')] * 10)], with_costs=False
+    )
     row = await db.execute_and_fetchone(
         'SELECT COUNT(*) AS n, MIN(job_id) AS lo, MAX(job_id) AS hi FROM jobs WHERE batch_id = %s', (seeded.batch_id,)
     )
     assert (row['n'], row['lo'], row['hi']) == (1510, 1, 1510)
     batch = await db.execute_and_fetchone('SELECT n_jobs, state FROM batches WHERE id = %s', (seeded.batch_id,))
     assert batch == {'n_jobs': 1510, 'state': 'complete'}
+
+
+async def test_seed_creating_job_holds_unbilled_attempt(db):
+    seeded = await seed_batch(db, [Update(jobs=[Job(state='Creating')])])
+    job = await db.execute_and_fetchone(
+        'SELECT attempt_id FROM jobs WHERE batch_id = %s AND job_id = 1', (seeded.batch_id,)
+    )
+    assert job['attempt_id'] == 'att-1'
+    attempt = await db.execute_and_fetchone(
+        'SELECT start_time, rollup_time, end_time FROM attempts WHERE batch_id = %s AND job_id = 1', (seeded.batch_id,)
+    )
+    assert attempt['start_time'] is not None
+    assert attempt['rollup_time'] == attempt['start_time']
+    assert attempt['end_time'] is None
+    cost = await db.execute_and_fetchone(
+        'SELECT COUNT(*) AS n FROM aggregated_job_resources_v3 WHERE batch_id = %s', (seeded.batch_id,)
+    )
+    assert cost['n'] == 0
+
+
+async def test_seed_n_pending_parents_counts_unfinished_parents(db):
+    seeded = await seed_batch(
+        db,
+        [
+            Update(jobs=[Job(state='Success'), Job(state='Running'), Job(state='Pending', parent_ids=[1, 2])]),
+            # uncommitted: the front end writes every parent as pending
+            Update(jobs=[Job(state='Pending', parent_ids=[1])], committed=False),
+        ],
+    )
+    rows = await _fetchall(
+        db, 'SELECT job_id, n_pending_parents FROM jobs WHERE batch_id = %s ORDER BY job_id', (seeded.batch_id,)
+    )
+    assert [(r['job_id'], r['n_pending_parents']) for r in rows] == [(1, 0), (2, 0), (3, 1), (4, 1)]
