@@ -152,6 +152,7 @@ async function fetchAllJobs(batchBaseUrl: string, batchId: number): Promise<JobL
   let lastJobId: number | undefined;
   for (;;) {
     const url = new URL(`${batchBaseUrl}/api/v1alpha/batches/${batchId}/jobs`, window.location.origin);
+    url.searchParams.set('recursive', 'true');
     if (lastJobId !== undefined) url.searchParams.set('last_job_id', String(lastJobId));
     const page = await apiFetch<{ jobs: JobListEntry[]; last_job_id?: number }>(url.toString());
     all.push(...page.jobs);
@@ -171,6 +172,7 @@ async function fetchFirstBadJobs(batchBaseUrl: string, batchId: number): Promise
   let lastJobId: number | undefined;
   while (found.length <= FAILED_JOBS_DISPLAY_LIMIT) {
     const url = new URL(`${batchBaseUrl}/api/v1alpha/batches/${batchId}/jobs`, window.location.origin);
+    url.searchParams.set('recursive', 'true');
     url.searchParams.set('q', 'bad');
     if (lastJobId !== undefined) url.searchParams.set('last_job_id', String(lastJobId));
     const page = await apiFetch<{ jobs: JobListEntry[]; last_job_id?: number }>(url.toString());
