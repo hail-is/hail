@@ -18,12 +18,12 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Sequence
 
 from batch.batch_format_version import BatchFormatVersion
+from batch.globals import BATCH_FORMAT_VERSION as LATEST_FORMAT_VERSION
 from gear import Database
 
 ROOT_JOB_GROUP_ID = 0
 BILLING_PROJECT = 'test'
 USER = 'test'
-LATEST_FORMAT_VERSION = 7
 
 COMPLETE_STATES = ('Success', 'Failed', 'Error', 'Cancelled')
 ALL_STATES = ('Pending', 'Ready', 'Creating', 'Running', *COMPLETE_STATES)
@@ -193,6 +193,16 @@ def _rollup_time(a: Attempt) -> Optional[int]:
     if a.end_time is not None:
         return a.end_time
     return a.start_time + 1_000 if a.start_time is not None else None
+
+
+def _cancelled(seeded: SeededBatch, job: Job, committed: bool) -> bool:
+    """jobs.cancelled: as given, or set by production once any parent finished other than Success (on commit,
+    and as each parent completes). Nothing has been derived yet in an uncommitted update."""
+    if not committed:
+        return job.cancelled
+    return job.cancelled or any(
+        seeded.jobs[p].state in COMPLETE_STATES and seeded.jobs[p].state != 'Success' for p in job.parent_ids
+    )
 
 
 def _n_pending_parents(seeded: SeededBatch, job: Job, committed: bool) -> int:
@@ -469,7 +479,7 @@ def _plan(seeded: SeededBatch, updates: Sequence[Update], *, format_version: int
                 job.always_run,
                 job.cores_mcpu,
                 _n_pending_parents(seeded, job, update.committed),
-                job.cancelled,
+                _cancelled(seeded, job, update.committed),
                 current_attempt_id,
                 job.inst_coll,
             ))

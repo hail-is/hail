@@ -458,3 +458,33 @@ async def test_seed_n_pending_parents_counts_unfinished_parents(db):
         db, 'SELECT job_id, n_pending_parents FROM jobs WHERE batch_id = %s ORDER BY job_id', (seeded.batch_id,)
     )
     assert [(r['job_id'], r['n_pending_parents']) for r in rows] == [(1, 0), (2, 0), (3, 1), (4, 1)]
+
+
+async def test_seed_cancels_children_of_unsuccessful_parents(db):
+    seeded = await seed_batch(
+        db,
+        [
+            Update(
+                jobs=[
+                    Job(state='Failed'),
+                    Job(state='Success'),
+                    Job(state='Cancelled', parent_ids=[1]),
+                    Job(state='Success', parent_ids=[2]),
+                    Job(state='Cancelled', parent_ids=[2], cancelled=True),
+                ]
+            ),
+            # uncommitted: the commit would set it, but it hasn't run
+            Update(jobs=[Job(state='Pending', parent_ids=[1])], committed=False),
+        ],
+    )
+    rows = await _fetchall(
+        db, 'SELECT job_id, cancelled FROM jobs WHERE batch_id = %s ORDER BY job_id', (seeded.batch_id,)
+    )
+    assert [(r['job_id'], bool(r['cancelled'])) for r in rows] == [
+        (1, False),
+        (2, False),
+        (3, True),
+        (4, False),
+        (5, True),
+        (6, False),
+    ]
