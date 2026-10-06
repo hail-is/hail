@@ -37,10 +37,12 @@ async def db():
     conn = await aiomysql.connect(host='localhost', port=3306, user='root', password='pw')
     try:
         async with conn.cursor() as cur:
+            # Both can warn (a missing database; the variable is deprecated in later 8.0 releases), and pytest.ini turns
+            # warnings into errors.
             with _warnings.catch_warnings():
                 _warnings.simplefilter('ignore')
                 await cur.execute(f'DROP DATABASE IF EXISTS `{_TEST_DB_NAME}`')
-            await cur.execute('SET GLOBAL log_bin_trust_function_creators = 1')
+                await cur.execute('SET GLOBAL log_bin_trust_function_creators = 1')
         await conn.commit()
     finally:
         conn.close()

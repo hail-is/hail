@@ -75,10 +75,14 @@ async def test_seed_updates_gaps_and_counts(db):
 
 
 async def test_seed_rejects_scheduled_jobs_in_uncommitted_updates(db):
+    before = await db.execute_and_fetchone('SELECT MAX(id) AS id FROM batches')
     with pytest.raises(AssertionError, match="state='Pending'"):
         await seed_batch(db, [Update(jobs=[Job()]), Update(jobs=[Job()], committed=False)])
     with pytest.raises(AssertionError, match="state='Ready'"):
         await seed_batch(db, [Update(jobs=[preempted_job()], committed=False)])
+    # a rejected plan leaves no batch behind
+    leftover = await db.execute_and_fetchone('SELECT COUNT(*) AS n FROM batches WHERE id > %s', (before['id'] or 0,))
+    assert leftover['n'] == 0
 
 
 async def test_seed_nested_groups(db):
@@ -277,6 +281,24 @@ async def test_explain_finds_per_batch_tables_from_schema(db):
         (1,),
     )
     assert_scoped(plan)
+
+
+@pytest.mark.usefixtures('noise_batch')  # its rows make the plan realistic
+async def test_explain_requires_one_batch_in_range_scans(db):
+    # the same index and key parts as a scoped query, but spanning batches
+    for where, args in (('j.batch_id BETWEEN %s AND %s', (1, 2)), ('j.batch_id IN (%s, %s)', (1, 2))):
+        plan = await explain(
+            db, f'SELECT j.job_id FROM jobs AS j FORCE INDEX (PRIMARY) WHERE {where} AND j.job_id < 10', args
+        )
+        assert [a.used_key_parts[0] for a in plan.accesses] == ['batch_id']
+        with pytest.raises(AssertionError, match='is not a single batch_id'):
+            assert_scoped(plan, aliases={'j': 'jobs'})
+
+    plan = await explain(
+        db, 'SELECT j.job_id FROM jobs AS j FORCE INDEX (PRIMARY) WHERE j.batch_id = %s AND j.job_id < 10', (1,)
+    )
+    assert plan.accesses[0].access_type == 'range'
+    assert_scoped(plan, aliases={'j': 'jobs'})
 
 
 @pytest.mark.usefixtures('noise_batch')  # its rows make the plan realistic

@@ -16,6 +16,7 @@ Run ``db_seed.analyze_tables`` after seeding so the optimizer sees realistic row
 """
 
 import json
+import re
 import warnings
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Set, Tuple
@@ -79,6 +80,8 @@ class Plan:
     base_tables: Set[str] = field(default_factory=set)  # the database's real table names
     # per-batch table -> the column holding its batch id (batch_id, or id for batches and a few counters)
     batch_scope_columns: Dict[str, str] = field(default_factory=dict)
+    # table or alias -> the ranges of each range scan on it, from EXPLAIN FORMAT=TREE ("over (...)")
+    ranges: Dict[str, List[str]] = field(default_factory=dict)
 
     @property
     def rewritten_sql(self) -> Optional[str]:
@@ -152,6 +155,10 @@ async def explain(db: Database, sql: str, args: Optional[Sequence[Any]] = None) 
             warnings.simplefilter('ignore')
             row = await tx.execute_and_fetchone(f'EXPLAIN FORMAT=JSON {sql}', args)
         mysql_warnings = [w async for w in tx.execute_and_fetchall('SHOW WARNINGS')]
+        # The JSON plan doesn't say what a range scan's ranges are; the tree plan does.
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore')
+            tree = await tx.execute_and_fetchone(f'EXPLAIN FORMAT=TREE {sql}', args)
         base_tables = {
             r['name']
             async for r in tx.execute_and_fetchall(
@@ -162,7 +169,19 @@ async def explain(db: Database, sql: str, args: Optional[Sequence[Any]] = None) 
     raw = json.loads(row['EXPLAIN'])
     plan = Plan(raw=raw, warnings=mysql_warnings, base_tables=base_tables, batch_scope_columns=batch_scope_columns)
     _walk(raw, '$', plan)
+    for line in tree['EXPLAIN'].splitlines():
+        m = re.search(r'range scan on (\S+) using \S+ over (.*?)(?:\s+\(cost=.*)?$', line)
+        if m:
+            plan.ranges.setdefault(m.group(1), []).append(m.group(2))
     return plan
+
+
+def _single_batch(ranges: str, column: str) -> bool:
+    """Every mention of ``column`` in a range scan's ranges is ``column = v``, for one ``v``: e.g.
+    ``(batch_id = 7 AND 100 <= job_id)``, not ``(1 <= batch_id <= 2)`` or ``(batch_id = 1) OR (batch_id = 2)``."""
+    mentions = re.findall(rf'\b{column}\b', ranges)
+    values = re.findall(rf'\b{column} = ([^\s)]+)', ranges)
+    return len(values) == len(mentions) and len(set(values)) == 1
 
 
 def assert_scoped(
@@ -178,6 +197,9 @@ def assert_scoped(
     every subquery is dependent (runs per outer row rather than once over the whole table), nothing is
     materialized, and, unless ``allow_filesort``, nothing is filesorted (a filesort reads every candidate row
     before a ``LIMIT`` can stop it).
+
+    "Uses an index on its batch column" means a lookup on it, or a range scan whose ranges fix it to one value
+    (``batch_id BETWEEN 1 AND 2`` uses the same index as ``batch_id = 1``, so the ranges are checked).
 
     ``EXPLAIN`` reports aliases, not tables, so map each alias the query uses in ``aliases``. A name that is
     neither a real table nor a mapped alias fails: otherwise an aliased scoped table would go unchecked.
@@ -198,6 +220,16 @@ def assert_scoped(
             problems.append(f'{name}: full scan (access_type={a.access_type}) at {a.path}')
         elif column not in a.used_key_parts:
             problems.append(f'{name}: key {a.key} used_key_parts {a.used_key_parts} lacks {column} at {a.path}')
+        elif a.access_type == 'range':
+            # A lookup (const/eq_ref/ref) is an equality by construction; a range scan may span batches.
+            scans = plan.ranges.get(a.table)
+            if not scans:
+                problems.append(f'{name}: range scan with no ranges in EXPLAIN FORMAT=TREE at {a.path}')
+            problems.extend(
+                f'{name}: range {r} is not a single {column} at {a.path}'
+                for r in scans or []
+                if not _single_batch(r, column)
+            )
     problems.extend(f'non-dependent subquery at {s.path}' for s in plan.subqueries if not s.dependent)
     if not allow_materialized:
         problems.extend(f'materialized subquery at {p}' for p in plan.materialized)

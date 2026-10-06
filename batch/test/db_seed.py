@@ -308,8 +308,9 @@ async def seed_batch(
     time: its trigger runs several statements per row. Attempts and their times are still written. Use it for
     large batches that aren't testing cost; the noise batch keeps the cost tables populated for EXPLAIN.
 
-    Rows are planned in memory first, then written: the batch, updates and groups in one transaction, then
-    jobs in transactions of JOB_CHUNK_SIZE. A failure part way leaves a partial batch; tests don't reuse ids.
+    Rows are planned in memory first (an invalid plan deletes the batch row and raises), then written: the
+    updates and groups in one transaction, then jobs in transactions of JOB_CHUNK_SIZE. A database error part
+    way through writing leaves a partial batch; tests don't reuse ids.
     """
     resource_ids = await ensure_seed_resources(db) if with_costs else {}
 
@@ -324,6 +325,81 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
     assert batch_id is not None
     seeded = SeededBatch(batch_id, format_version, [], {}, {ROOT_JOB_GROUP_ID: None})
 
+    try:
+        update_rows, job_group_rows, job_chunks, staging_rows = _plan(
+            seeded, updates, format_version=format_version, with_costs=with_costs, resource_ids=resource_ids
+        )
+    except BaseException:
+        # A plan the seeder rejects leaves nothing behind: so far only the batch row exists.
+        await db.execute_update('DELETE FROM batches WHERE id = %s', (batch_id,))
+        raise
+
+    n_jobs, n_complete = _counts(seeded)
+
+    def group_state(g):
+        return 'complete' if sum(n_complete[g].values()) == n_jobs[g] else 'running'
+
+    async with db.start() as tx:
+        await tx.execute_many(_INSERT_BATCH_UPDATE, update_rows)
+        await tx.execute_many(
+            _INSERT_JOB_GROUP,
+            [
+                (
+                    batch_id,
+                    g,
+                    user,
+                    json.dumps(attrs),
+                    group_state(g),
+                    n_jobs[g],
+                    T0,
+                    T0 if group_state(g) == 'complete' else None,
+                    update_id,
+                )
+                for g, update_id, attrs in job_group_rows
+            ],
+        )
+        await tx.execute_many(
+            _INSERT_JOB_GROUP_ANCESTOR,
+            [(batch_id, g, a, level) for g, _, _ in job_group_rows for level, a in enumerate(seeded.ancestors(g))],
+        )
+        await tx.execute_many(
+            _INSERT_JOB_GROUP_COMPLETE_STATES,
+            [
+                (batch_id, g, sum(c.values()), c['Success'], c['Failed'] + c['Error'], c['Cancelled'])
+                for g, c in n_complete.items()
+            ],
+        )
+        group_attribute_rows = [(batch_id, g, k, v) for g, _, attrs in job_group_rows for k, v in attrs.items()]
+        if group_attribute_rows:
+            await tx.execute_many(_INSERT_JOB_GROUP_ATTRIBUTE, group_attribute_rows)
+
+    for chunk in job_chunks:
+        async with db.start() as tx:
+            for sql, key in (
+                (_INSERT_JOB, 'jobs'),
+                (_INSERT_JOB_ATTRIBUTE, 'attributes'),
+                (_INSERT_JOB_PARENT, 'parents'),
+                (_INSERT_ATTEMPT, 'attempts'),
+                (_INSERT_ATTEMPT_RESOURCE, 'resources'),
+            ):
+                if chunk[key]:
+                    await tx.execute_many(sql, chunk[key])
+
+    root_state = group_state(ROOT_JOB_GROUP_ID)
+    async with db.start() as tx:
+        if staging_rows:
+            await tx.execute_many(_INSERT_STAGING, staging_rows)
+        await tx.execute_update(
+            'UPDATE batches SET n_jobs = %s, state = %s, time_completed = %s WHERE id = %s',
+            (n_jobs[ROOT_JOB_GROUP_ID], root_state, T0 if root_state == 'complete' else None, batch_id),
+        )
+
+    return seeded
+
+
+def _plan(seeded: SeededBatch, updates: Sequence[Update], *, format_version: int, with_costs: bool, resource_ids):
+    """Validate the updates and build every row to write, without touching the database."""
+    batch_id = seeded.batch_id
     update_rows = []
     job_group_rows: List[tuple] = [(ROOT_JOB_GROUP_ID, None, {})]  # (job_group_id, update_id, attributes)
     job_chunks: List[Dict[str, list]] = []
@@ -437,67 +513,7 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
         )
         next_job_id += n_reserved
 
-    n_jobs, n_complete = _counts(seeded)
-
-    def group_state(g):
-        return 'complete' if sum(n_complete[g].values()) == n_jobs[g] else 'running'
-
-    async with db.start() as tx:
-        await tx.execute_many(_INSERT_BATCH_UPDATE, update_rows)
-        await tx.execute_many(
-            _INSERT_JOB_GROUP,
-            [
-                (
-                    batch_id,
-                    g,
-                    user,
-                    json.dumps(attrs),
-                    group_state(g),
-                    n_jobs[g],
-                    T0,
-                    T0 if group_state(g) == 'complete' else None,
-                    update_id,
-                )
-                for g, update_id, attrs in job_group_rows
-            ],
-        )
-        await tx.execute_many(
-            _INSERT_JOB_GROUP_ANCESTOR,
-            [(batch_id, g, a, level) for g, _, _ in job_group_rows for level, a in enumerate(seeded.ancestors(g))],
-        )
-        await tx.execute_many(
-            _INSERT_JOB_GROUP_COMPLETE_STATES,
-            [
-                (batch_id, g, sum(c.values()), c['Success'], c['Failed'] + c['Error'], c['Cancelled'])
-                for g, c in n_complete.items()
-            ],
-        )
-        group_attribute_rows = [(batch_id, g, k, v) for g, _, attrs in job_group_rows for k, v in attrs.items()]
-        if group_attribute_rows:
-            await tx.execute_many(_INSERT_JOB_GROUP_ATTRIBUTE, group_attribute_rows)
-
-    for chunk in job_chunks:
-        async with db.start() as tx:
-            for sql, key in (
-                (_INSERT_JOB, 'jobs'),
-                (_INSERT_JOB_ATTRIBUTE, 'attributes'),
-                (_INSERT_JOB_PARENT, 'parents'),
-                (_INSERT_ATTEMPT, 'attempts'),
-                (_INSERT_ATTEMPT_RESOURCE, 'resources'),
-            ):
-                if chunk[key]:
-                    await tx.execute_many(sql, chunk[key])
-
-    root_state = group_state(ROOT_JOB_GROUP_ID)
-    async with db.start() as tx:
-        if staging_rows:
-            await tx.execute_many(_INSERT_STAGING, staging_rows)
-        await tx.execute_update(
-            'UPDATE batches SET n_jobs = %s, state = %s, time_completed = %s WHERE id = %s',
-            (n_jobs[ROOT_JOB_GROUP_ID], root_state, T0 if root_state == 'complete' else None, batch_id),
-        )
-
-    return seeded
+    return update_rows, job_group_rows, job_chunks, staging_rows
 
 
 def _counts(seeded: SeededBatch):
