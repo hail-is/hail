@@ -16,7 +16,12 @@ async def test_seed_updates_gaps_and_counts(db):
         [
             Update(jobs=[Job(), Job(state='Failed'), Job(state='Running')], job_groups=[JobGroup()]),
             # abandoned: reserves 5 ids, uploads 2 jobs and a group, never commits
-            Update(jobs=[Job(job_group_id=1), Job()], job_groups=[JobGroup()], committed=False, n_reserved_jobs=5),
+            Update(
+                jobs=[Job(state='Pending', job_group_id=1), Job(state='Pending')],
+                job_groups=[JobGroup()],
+                committed=False,
+                n_reserved_jobs=5,
+            ),
             Update(jobs=[Job(job_group_id=1), Job(state='Cancelled', job_group_id=1)]),
             # pending, no jobs uploaded yet
             Update(committed=False, n_reserved_jobs=3),
@@ -54,15 +59,24 @@ async def test_seed_updates_gaps_and_counts(db):
     assert complete == {'n_completed': 4, 'n_succeeded': 2, 'n_failed': 1, 'n_cancelled': 1}
 
     # staging rows exist for every update with jobs (including the abandoned one), recursively per ancestor
+    # (n_jobs, n_ready_jobs): only update 1's parentless jobs start Ready, as in the front end
     staging = {
-        (r['update_id'], r['job_group_id']): r['n_jobs']
+        (r['update_id'], r['job_group_id']): (r['n_jobs'], r['n_ready_jobs'])
         for r in await _fetchall(
             db,
-            'SELECT update_id, job_group_id, n_jobs FROM job_groups_inst_coll_staging WHERE batch_id = %s',
+            'SELECT update_id, job_group_id, n_jobs, n_ready_jobs FROM job_groups_inst_coll_staging '
+            'WHERE batch_id = %s',
             (batch_id,),
         )
     }
-    assert staging == {(1, 0): 3, (2, 0): 2, (2, 1): 1, (3, 0): 2, (3, 1): 2}
+    assert staging == {(1, 0): (3, 3), (2, 0): (2, 0), (2, 1): (1, 0), (3, 0): (2, 0), (3, 1): (2, 0)}
+
+
+async def test_seed_rejects_scheduled_jobs_in_uncommitted_updates(db):
+    with pytest.raises(AssertionError, match="state='Pending'"):
+        await seed_batch(db, [Update(jobs=[Job()]), Update(jobs=[Job()], committed=False)])
+    with pytest.raises(AssertionError, match="state='Ready'"):
+        await seed_batch(db, [Update(jobs=[preempted_job()], committed=False)])
 
 
 async def test_seed_nested_groups(db):
@@ -219,6 +233,28 @@ async def test_explain_detects_full_scan(db):
     plan = await explain(db, "SELECT job_id FROM jobs WHERE state = 'Running' AND cores_mcpu + 0 = %s", (1000,))
     with pytest.raises(AssertionError, match='full scan'):
         assert_scoped(plan)
+
+
+@pytest.mark.usefixtures('noise_batch')  # its rows make the plan realistic
+async def test_explain_resolves_aliases(db):
+    sql = """
+SELECT j.job_id, latest_attempt.start_time
+FROM jobs AS j FORCE INDEX (PRIMARY)
+LEFT JOIN attempts AS latest_attempt
+  ON latest_attempt.batch_id = j.batch_id AND latest_attempt.job_id = j.job_id AND latest_attempt.attempt_id = j.attempt_id
+WHERE j.batch_id = %s
+ORDER BY j.job_id
+LIMIT 10;
+"""
+    plan = await explain(db, sql, (1,))
+    with pytest.raises(AssertionError, match='latest_attempt: not a table'):
+        assert_scoped(plan)
+    assert_scoped(plan, aliases={'j': 'jobs', 'latest_attempt': 'attempts'})
+
+    # an aliased scoped table is checked like the table itself
+    plan = await explain(db, "SELECT a.job_id FROM attempts AS a WHERE a.reason + '' = %s", ('preempted',))
+    with pytest.raises(AssertionError, match=r'a \(alias of attempts\): full scan'):
+        assert_scoped(plan, aliases={'a': 'attempts'})
 
 
 @pytest.mark.usefixtures('noise_batch')  # its rows make the plan realistic

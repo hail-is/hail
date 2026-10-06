@@ -7,6 +7,8 @@ Two complementary checks, both against a real MySQL:
   Seed a large noise batch next to the batch under test so an unscoped read shows up.
 - :func:`explain` + :func:`assert_scoped` check the plan's structure: every access to a per-batch table uses
   an index on ``batch_id``, subqueries are dependent rather than materialized, and nothing is filesorted.
+  ``EXPLAIN`` names tables by their alias, so queries that alias a table pass ``aliases`` to
+  :func:`assert_scoped`; an access it can't resolve to a real table fails rather than being skipped.
   :func:`assert_hint_kept` checks an optimizer hint survived (e.g. ``MAX_EXECUTION_TIME``).
 
 Run ``db_seed.analyze_tables`` after seeding so the optimizer sees realistic row counts.
@@ -15,7 +17,7 @@ Run ``db_seed.analyze_tables`` after seeding so the optimizer sees realistic row
 import json
 import warnings
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from typing import Any, Dict, List, Mapping, Optional, Sequence, Set, Tuple
 
 from gear import Database
 
@@ -23,6 +25,7 @@ from gear import Database
 SCOPED_TABLES = (
     'jobs',
     'job_attributes',
+    'job_group_attributes',
     'attempts',
     'job_parents',
     'attempt_resources',
@@ -88,6 +91,7 @@ class Plan:
     materialized: List[str] = field(default_factory=list)  # paths of materialized derived tables/subqueries
     filesorts: List[str] = field(default_factory=list)  # paths of ordering/grouping operations using filesort
     warnings: List[Dict[str, Any]] = field(default_factory=list)  # SHOW WARNINGS after the EXPLAIN
+    base_tables: Set[str] = field(default_factory=set)  # the database's real table names
 
     @property
     def rewritten_sql(self) -> Optional[str]:
@@ -141,8 +145,14 @@ async def explain(db: Database, sql: str, args: Optional[Sequence[Any]] = None) 
             warnings.simplefilter('ignore')
             row = await tx.execute_and_fetchone(f'EXPLAIN FORMAT=JSON {sql}', args)
         mysql_warnings = [w async for w in tx.execute_and_fetchall('SHOW WARNINGS')]
+        base_tables = {
+            r['name']
+            async for r in tx.execute_and_fetchall(
+                'SELECT table_name AS name FROM information_schema.tables WHERE table_schema = DATABASE()'
+            )
+        }
     raw = json.loads(row['EXPLAIN'])
-    plan = Plan(raw=raw, warnings=mysql_warnings)
+    plan = Plan(raw=raw, warnings=mysql_warnings, base_tables=base_tables)
     _walk(raw, '$', plan)
     return plan
 
@@ -150,6 +160,7 @@ async def explain(db: Database, sql: str, args: Optional[Sequence[Any]] = None) 
 def assert_scoped(
     plan: Plan,
     *,
+    aliases: Optional[Mapping[str, str]] = None,  # alias -> table, e.g. {'latest_attempt': 'attempts'}
     tables: Sequence[str] = SCOPED_TABLES,
     allow_filesort: bool = False,
     allow_materialized: bool = False,
@@ -157,15 +168,26 @@ def assert_scoped(
     """Every access to ``tables`` uses a ``batch_id`` index (never a full table or index scan), every subquery
     is dependent (runs per outer row rather than once over the whole table), nothing is materialized, and,
     unless ``allow_filesort``, nothing is filesorted (a filesort reads every candidate row before a ``LIMIT``
-    can stop it)."""
+    can stop it).
+
+    ``EXPLAIN`` reports aliases, not tables, so map each alias the query uses in ``aliases``. A name that is
+    neither a real table nor a mapped alias fails: otherwise an aliased scoped table would go unchecked.
+    MySQL's own temporary tables (``<derived2>``, ``<subquery3>``, ...) are covered by the materialization check."""
     problems = []
     for a in plan.accesses:
-        if a.table not in tables:
+        if a.table.startswith('<'):
+            continue
+        table = (aliases or {}).get(a.table, a.table)
+        name = table if table == a.table else f'{a.table} (alias of {table})'
+        if table not in plan.base_tables:
+            problems.append(f'{a.table}: not a table; pass its table in aliases at {a.path}')
+            continue
+        if table not in tables:
             continue
         if a.access_type in ('ALL', 'index'):
-            problems.append(f'{a.table}: full scan (access_type={a.access_type}) at {a.path}')
+            problems.append(f'{name}: full scan (access_type={a.access_type}) at {a.path}')
         elif 'batch_id' not in a.used_key_parts:
-            problems.append(f'{a.table}: key {a.key} used_key_parts {a.used_key_parts} lacks batch_id at {a.path}')
+            problems.append(f'{name}: key {a.key} used_key_parts {a.used_key_parts} lacks batch_id at {a.path}')
     problems.extend(f'non-dependent subquery at {s.path}' for s in plan.subqueries if not s.dependent)
     if not allow_materialized:
         problems.extend(f'materialized subquery at {p}' for p in plan.materialized)

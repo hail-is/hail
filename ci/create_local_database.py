@@ -33,20 +33,23 @@ async def async_main(service: str, database_name: str):
     db = Database()
     await db.async_init()
 
-    await create_migration_tables(db, database_name)
-    with tempfile.NamedTemporaryFile() as mysql_cnf:
-        mysql_cnf.write(
-            f"""
+    try:
+        await create_migration_tables(db, database_name)
+        with tempfile.NamedTemporaryFile() as mysql_cnf:
+            mysql_cnf.write(
+                f"""
 [client]
 host = 127.0.0.1
 user = root
 password = pw
 database = {database_name}
 """.encode()
-        )
-        mysql_cnf.flush()
-        for i, m in enumerate(migrations):
-            await migrate(database_name, db, mysql_cnf.name, i, m)
+            )
+            mysql_cnf.flush()
+            for i, m in enumerate(migrations):
+                await migrate(database_name, db, mysql_cnf.name, i, m)
+    finally:
+        await db.async_close()
 
 
 def read_migrations_from_build_yaml(service: str) -> List[dict]:

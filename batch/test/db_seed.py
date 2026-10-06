@@ -88,6 +88,9 @@ class JobGroup:
 class Update:
     """A batch update. ``committed=False`` leaves it pending; one followed by later updates is abandoned.
 
+    Jobs in an uncommitted update can't have been scheduled: they must be in their initial state (``Ready`` in
+    update 1 with no parents, ``Pending`` otherwise) with no attempts, so they never carry cost.
+
     ``n_reserved_jobs`` (default ``len(jobs)``) is the id range the update claims. Reserving more than
     the jobs written leaves an id gap, as a partly uploaded update does.
     """
@@ -339,6 +342,15 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
             seeded.jobs[job_id] = job
 
             attempts = _attempts(job_id, job)
+            # The front end starts a job Ready only in update 1 and with no parents; anything later starts
+            # Pending, since its parents may be in earlier updates (front_end.py, "always start out as pending").
+            initially_ready = update_id == 1 and not job.parent_ids
+            if not update.committed:
+                initial_state = 'Ready' if initially_ready else 'Pending'
+                assert job.state == initial_state and not attempts, (
+                    f'job {job_id} is in uncommitted update {update_id}, so it cannot have been scheduled: '
+                    f'give it state={initial_state!r} and no attempts'
+                )
             if job.current_attempt_id is not _UNSET:
                 current_attempt_id = job.current_attempt_id
             elif attempts and job.state in _RAN_STATES:
@@ -380,7 +392,7 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
                         for r, q in a.resources.items()
                     )
             for ancestor in seeded.ancestors(job.job_group_id):
-                staging.setdefault((ancestor, job.inst_coll), []).append(None if job.parent_ids else job.cores_mcpu)
+                staging.setdefault((ancestor, job.inst_coll), []).append(job.cores_mcpu if initially_ready else None)
 
         # Written with the job rows, recursively (one row per ancestor), as the front end does.
         staging_rows.extend(
