@@ -2,8 +2,10 @@ import json
 
 import pytest
 
+from batch.batch_format_version import BatchFormatVersion
+
 from .db_query_checks import assert_hint_kept, assert_scoped, count_row_reads, explain
-from .db_seed import Attempt, Job, JobGroup, Update, preempted_job, seed_batch
+from .db_seed import LATEST_FORMAT_VERSION, Attempt, Job, JobGroup, Update, preempted_job, seed_batch
 
 
 async def _fetchall(db, sql, args=None):
@@ -143,15 +145,31 @@ async def test_seed_preempted_jobs_and_exit_codes(db):
     assert [r['job_id'] for r in names] == [1, 2, 3, 4]
 
 
-async def test_seed_format_version_1(db):
-    seeded = await seed_batch(db, [Update(jobs=[Job(state='Failed', exit_code=2)])], format_version=1)
-    row = await db.execute_and_fetchone(
+@pytest.mark.parametrize('format_version', [1, LATEST_FORMAT_VERSION])
+async def test_seed_status_reads_back_through_production_decoder(db, format_version):
+    seeded = await seed_batch(
+        db,
+        [
+            Update(
+                jobs=[Job(state='Success'), Job(state='Failed', exit_code=2), Job(state='Error'), Job(state='Running')]
+            )
+        ],
+        format_version=format_version,
+    )
+    rows = await _fetchall(
+        db,
         'SELECT batches.format_version, jobs.status FROM jobs JOIN batches ON batches.id = jobs.batch_id '
-        'WHERE jobs.batch_id = %s',
+        'WHERE jobs.batch_id = %s ORDER BY jobs.job_id',
         (seeded.batch_id,),
     )
-    assert row['format_version'] == 1
-    assert json.loads(row['status'])['container_statuses']['main']['container_status']['exit_code'] == 2
+    assert {r['format_version'] for r in rows} == {format_version}
+    decoder = BatchFormatVersion(format_version)
+    decoded = [
+        tuple(decoder.get_status_exit_code_duration(json.loads(r['status']))) if r['status'] is not None else None
+        for r in rows
+    ]
+    # generated attempts finish 5s after they start; an Error job has no exit code but still a duration
+    assert decoded == [(0, 5_000), (2, 5_000), (None, 5_000), None]
 
 
 async def test_seed_resources_aggregated_by_trigger(db):

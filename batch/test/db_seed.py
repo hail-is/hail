@@ -17,6 +17,7 @@ import json
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Sequence
 
+from batch.batch_format_version import BatchFormatVersion
 from gear import Database
 
 ROOT_JOB_GROUP_ID = 0
@@ -211,24 +212,32 @@ def _default_exit_code(state: str) -> Optional[int]:
 
 
 def _db_status(format_version: int, job: Job, attempts: List[Attempt]) -> Optional[str]:
+    """The worker's status for a finished job, encoded by the production encoder (BatchFormatVersion.db_status):
+    the full dict for format version 1, ``[exit_code, duration]`` after."""
     if job.state not in ('Success', 'Failed', 'Error'):
         return None
     ec = _default_exit_code(job.state) if job.exit_code is _UNSET else job.exit_code
-    main = {'error': 'seeded error'} if ec is None else {'container_status': {'exit_code': ec}}
     last = attempts[-1] if attempts else None
     start_time = last.start_time if last else None
     end_time = last.end_time if last else None
+    duration = end_time - start_time if start_time is not None and end_time is not None else None
+
+    main: Dict[str, Any] = {'error': 'seeded error'} if ec is None else {'container_status': {'exit_code': ec}}
     if format_version == 1:
-        return json.dumps({
+        # Format-version-1 batches ran when workers wrote status version 1, where duration is the sum of each
+        # container's timing.runtime.duration. Only main: input/output containers only ran with files.
+        if duration is not None:
+            main['timing'] = {'runtime': {'duration': duration}}
+        status = {'version': 1, 'state': job.state.lower(), 'container_statuses': {'main': main}}
+    else:
+        status = {
             'version': 2,
             'state': job.state.lower(),
             'start_time': start_time,
             'end_time': end_time,
-            'container_statuses': {'input': None, 'main': main, 'output': None},
-        })
-    # The same encoding as BatchFormatVersion.db_status: [exit_code, duration].
-    duration = end_time - start_time if start_time is not None and end_time is not None else None
-    return json.dumps([ec, duration])
+            'container_statuses': {'main': main},
+        }
+    return json.dumps(BatchFormatVersion(format_version).db_status(status))
 
 
 def _db_spec(format_version: int) -> str:
