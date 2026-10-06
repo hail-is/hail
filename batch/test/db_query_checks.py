@@ -6,7 +6,8 @@ Two complementary checks, both against a real MySQL:
   bound it by what the request asked for (window size, ``LIMIT``, group size) whatever plan MySQL picks.
   Seed a large noise batch next to the batch under test so an unscoped read shows up.
 - :func:`explain` + :func:`assert_scoped` check the plan's structure: every access to a per-batch table uses
-  an index on ``batch_id``, subqueries are dependent rather than materialized, and nothing is filesorted.
+  an index on its batch column, subqueries are dependent rather than materialized, and nothing is filesorted.
+  The per-batch tables are read from the schema (see :func:`_batch_scope_columns`), so new ones are covered.
   ``EXPLAIN`` names tables by their alias, so queries that alias a table pass ``aliases`` to
   :func:`assert_scoped`; an access it can't resolve to a real table fails rather than being skipped.
   :func:`assert_hint_kept` checks an optimizer hint survived (e.g. ``MAX_EXECUTION_TIME``).
@@ -20,23 +21,6 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Set, Tuple
 
 from gear import Database
-
-# Tables keyed by batch_id whose every access must use an index with batch_id in used_key_parts.
-SCOPED_TABLES = (
-    'jobs',
-    'jobs_telemetry',
-    'job_attributes',
-    'job_group_attributes',
-    'attempts',
-    'job_parents',
-    'attempt_resources',
-    'aggregated_job_resources_v3',
-    'aggregated_job_group_resources_v3',
-    'job_groups',
-    'job_group_self_and_ancestors',
-    'job_groups_inst_coll_staging',
-    'batch_updates',
-)
 
 _SUBQUERY_KEYS = (
     'attached_subqueries',
@@ -93,6 +77,8 @@ class Plan:
     filesorts: List[str] = field(default_factory=list)  # paths of ordering/grouping operations using filesort
     warnings: List[Dict[str, Any]] = field(default_factory=list)  # SHOW WARNINGS after the EXPLAIN
     base_tables: Set[str] = field(default_factory=set)  # the database's real table names
+    # per-batch table -> the column holding its batch id (batch_id, or id for batches and a few counters)
+    batch_scope_columns: Dict[str, str] = field(default_factory=dict)
 
     @property
     def rewritten_sql(self) -> Optional[str]:
@@ -137,6 +123,26 @@ def _walk(node: Any, path: str, plan: Plan):
         _walk(v, f'{path}.{k}', plan)
 
 
+async def _batch_scope_columns(tx) -> Dict[str, str]:
+    """Every per-batch table and the column holding its batch id: ``batches.id`` itself, every column with a
+    foreign key to it (which covers tables whose batch column is named ``id``), and every ``batch_id`` column
+    (in case a migration dropped a foreign key). Read from the schema so that new tables are covered."""
+    rows = tx.execute_and_fetchall(
+        """
+SELECT table_name AS t, column_name AS c FROM information_schema.key_column_usage
+WHERE table_schema = DATABASE() AND referenced_table_name = 'batches' AND referenced_column_name = 'id'
+UNION
+SELECT table_name AS t, column_name AS c FROM information_schema.columns
+WHERE table_schema = DATABASE() AND column_name = 'batch_id';
+"""
+    )
+    columns = {'batches': 'id'}
+    async for r in rows:
+        assert columns.get(r['t'], r['c']) == r['c'], f"{r['t']} has two batch columns: {columns[r['t']]}, {r['c']}"
+        columns[r['t']] = r['c']
+    return columns
+
+
 async def explain(db: Database, sql: str, args: Optional[Sequence[Any]] = None) -> Plan:
     """``EXPLAIN FORMAT=JSON`` the statement, and collect the warnings it leaves (on the same connection)."""
     async with db.start(read_only=True) as tx:
@@ -152,8 +158,9 @@ async def explain(db: Database, sql: str, args: Optional[Sequence[Any]] = None) 
                 'SELECT table_name AS name FROM information_schema.tables WHERE table_schema = DATABASE()'
             )
         }
+        batch_scope_columns = await _batch_scope_columns(tx)
     raw = json.loads(row['EXPLAIN'])
-    plan = Plan(raw=raw, warnings=mysql_warnings, base_tables=base_tables)
+    plan = Plan(raw=raw, warnings=mysql_warnings, base_tables=base_tables, batch_scope_columns=batch_scope_columns)
     _walk(raw, '$', plan)
     return plan
 
@@ -162,14 +169,15 @@ def assert_scoped(
     plan: Plan,
     *,
     aliases: Optional[Mapping[str, str]] = None,  # alias -> table, e.g. {'latest_attempt': 'attempts'}
-    tables: Sequence[str] = SCOPED_TABLES,
+    # per-batch table -> batch column; defaults to the schema's (Plan.batch_scope_columns)
+    tables: Optional[Mapping[str, str]] = None,
     allow_filesort: bool = False,
     allow_materialized: bool = False,
 ):
-    """Every access to ``tables`` uses a ``batch_id`` index (never a full table or index scan), every subquery
-    is dependent (runs per outer row rather than once over the whole table), nothing is materialized, and,
-    unless ``allow_filesort``, nothing is filesorted (a filesort reads every candidate row before a ``LIMIT``
-    can stop it).
+    """Every access to a per-batch table uses an index on its batch column (never a full table or index scan),
+    every subquery is dependent (runs per outer row rather than once over the whole table), nothing is
+    materialized, and, unless ``allow_filesort``, nothing is filesorted (a filesort reads every candidate row
+    before a ``LIMIT`` can stop it).
 
     ``EXPLAIN`` reports aliases, not tables, so map each alias the query uses in ``aliases``. A name that is
     neither a real table nor a mapped alias fails: otherwise an aliased scoped table would go unchecked.
@@ -183,12 +191,13 @@ def assert_scoped(
         if table not in plan.base_tables:
             problems.append(f'{a.table}: not a table; pass its table in aliases at {a.path}')
             continue
-        if table not in tables:
+        column = (plan.batch_scope_columns if tables is None else tables).get(table)
+        if column is None:
             continue
         if a.access_type in ('ALL', 'index'):
             problems.append(f'{name}: full scan (access_type={a.access_type}) at {a.path}')
-        elif 'batch_id' not in a.used_key_parts:
-            problems.append(f'{name}: key {a.key} used_key_parts {a.used_key_parts} lacks batch_id at {a.path}')
+        elif column not in a.used_key_parts:
+            problems.append(f'{name}: key {a.key} used_key_parts {a.used_key_parts} lacks {column} at {a.path}')
     problems.extend(f'non-dependent subquery at {s.path}' for s in plan.subqueries if not s.dependent)
     if not allow_materialized:
         problems.extend(f'materialized subquery at {p}' for p in plan.materialized)

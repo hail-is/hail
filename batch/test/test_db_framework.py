@@ -236,6 +236,32 @@ async def test_explain_detects_full_scan(db):
 
 
 @pytest.mark.usefixtures('noise_batch')  # its rows make the plan realistic
+async def test_explain_finds_per_batch_tables_from_schema(db):
+    plan = await explain(db, 'SELECT 1')
+    columns = plan.batch_scope_columns
+    # tables whose batch column is named id, found through their foreign keys to batches.id
+    assert columns['batches'] == 'id'
+    assert columns['job_groups_n_jobs_in_complete_states'] == 'id'
+    assert columns['job_groups_cancelled'] == 'id'
+    for table in ('jobs', 'jobs_telemetry', 'job_group_attributes', 'attempt_resources', 'batch_updates'):
+        assert columns[table] == 'batch_id', table
+    # tables that aren't per batch
+    for table in ('billing_projects', 'resources', 'instances', 'user_inst_coll_resources'):
+        assert table not in columns, table
+
+    plan = await explain(db, "SELECT id FROM batches WHERE billing_project + '' = %s", ('test',))
+    with pytest.raises(AssertionError, match='batches: full scan'):
+        assert_scoped(plan)
+
+    plan = await explain(
+        db,
+        'SELECT n_completed FROM job_groups_n_jobs_in_complete_states WHERE id = %s AND job_group_id = 0',
+        (1,),
+    )
+    assert_scoped(plan)
+
+
+@pytest.mark.usefixtures('noise_batch')  # its rows make the plan realistic
 async def test_explain_resolves_aliases(db):
     sql = """
 SELECT j.job_id, latest_attempt.start_time
