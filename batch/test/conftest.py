@@ -85,11 +85,20 @@ async def noise_batch(db):
     )
 
     states = ('Success', 'Failed', 'Error', 'Cancelled', 'Running', 'Ready', 'Pending')
+    finished = ('Success', 'Failed', 'Error', 'Cancelled')
     groups = [JobGroup(), JobGroup(parent_id=1), JobGroup()]
     jobs = []
     for i in range(NOISE_BATCH_N_JOBS):
         job_id = i + 1
         state = states[i % len(states)]
+        # Consistent dependencies: a Pending job waits on the Ready job before it; every fifth other job depends
+        # on the most recent finished job.
+        if state == 'Pending':
+            parent_ids = [job_id - 1]
+        elif i % 5 == 0:
+            parent_ids = [p for p in range(job_id - 1, max(job_id - 8, 0), -1) if states[(p - 1) % 7] in finished][:1]
+        else:
+            parent_ids = []
         attempts = None
         if state == 'Success' and i % 3 == 0:
             attempts = [
@@ -101,7 +110,7 @@ async def noise_batch(db):
                 state=state,
                 job_group_id=i % 4,
                 attributes={'shard': str(i % 10)},
-                parent_ids=[job_id - 1] if i % 5 == 0 and job_id > 1 else (),
+                parent_ids=parent_ids,
                 attempts=attempts,
             )
         )

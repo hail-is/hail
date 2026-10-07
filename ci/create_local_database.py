@@ -19,7 +19,10 @@ async def async_main(service: str, database_name: str):
 
     db = Database()
     await db.async_init()
-    await db.just_execute(f'CREATE DATABASE IF NOT EXISTS `{database_name}`;')
+    try:
+        await db.just_execute(f'CREATE DATABASE IF NOT EXISTS `{database_name}`;')
+    finally:
+        await db.async_close()
 
     os.environ['HAIL_SQL_DATABASE'] = database_name
     os.environ['HAIL_SCOPE'] = 'dev'
@@ -29,7 +32,6 @@ async def async_main(service: str, database_name: str):
         os.environ['HAIL_CLOUD'] = 'gcp'
 
     # Pick up the `HAIL_SQL_DATABASE` change
-    await db.async_close()
     db = Database()
     await db.async_init()
 

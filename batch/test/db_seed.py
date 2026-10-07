@@ -90,6 +90,8 @@ class JobGroup:
 class Update:
     """A batch update. ``committed=False`` leaves it pending; one followed by later updates is abandoned.
 
+    In a committed update a job must be Pending exactly when one of its parents hasn't finished, as in production.
+
     Jobs in an uncommitted update can't have been scheduled: they must be in their initial state (``Ready`` in
     update 1 with no parents, ``Pending`` otherwise) with no attempts, so they never carry cost.
 
@@ -205,6 +207,24 @@ def _cancelled(seeded: SeededBatch, job: Job, committed: bool) -> bool:
     )
 
 
+def _unfinished_parents(seeded: SeededBatch, job: Job) -> int:
+    for p in job.parent_ids:
+        assert p in seeded.jobs, f'parent {p} must be an earlier seeded job'
+    return sum(seeded.jobs[p].state not in COMPLETE_STATES for p in job.parent_ids)
+
+
+def _check_state_matches_parents(seeded: SeededBatch, job_id: int, job: Job):
+    """A committed job is Pending exactly while it has unfinished parents: commit_batch_update and each parent's
+    completion move it to Ready at zero, and cancellation only acts on Ready jobs (driver/canceller.py)."""
+    unfinished = _unfinished_parents(seeded, job)
+    if job.state == 'Pending':
+        assert unfinished > 0, f'job {job_id} is Pending with no unfinished parents; production would make it Ready'
+    else:
+        assert unfinished == 0, (
+            f'job {job_id} is {job.state} with {unfinished} unfinished parent(s); production keeps it Pending'
+        )
+
+
 def _n_pending_parents(seeded: SeededBatch, job: Job, committed: bool) -> int:
     """The front end writes every parent as pending; committing (and each parent completing) counts down to the
     parents that haven't finished. Only a Pending job has any left: the rest became Ready at zero."""
@@ -212,9 +232,7 @@ def _n_pending_parents(seeded: SeededBatch, job: Job, committed: bool) -> int:
         return 0
     if not committed:
         return len(job.parent_ids)
-    for p in job.parent_ids:
-        assert p in seeded.jobs, f'parent {p} must be an earlier seeded job'
-    return sum(seeded.jobs[p].state not in COMPLETE_STATES for p in job.parent_ids)
+    return _unfinished_parents(seeded, job)
 
 
 def _default_exit_code(state: str) -> Optional[int]:
@@ -462,6 +480,8 @@ def _plan(seeded: SeededBatch, updates: Sequence[Update], *, format_version: int
                     f'job {job_id} is in uncommitted update {update_id}, so it cannot have been scheduled: '
                     f'give it state={initial_state!r} and no attempts'
                 )
+            else:
+                _check_state_matches_parents(seeded, job_id, job)
             if job.current_attempt_id is not _UNSET:
                 current_attempt_id = job.current_attempt_id
             elif attempts and job.state in _ATTEMPTED_STATES:

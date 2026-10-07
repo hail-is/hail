@@ -23,6 +23,12 @@ from typing import Any, Dict, List, Mapping, Optional, Sequence, Set, Tuple
 
 from gear import Database
 
+# Small, fixed lookup tables that aren't per batch: a full scan of one is fine. A full scan of any other table
+# fails assert_scoped by default.
+SMALL_LOOKUP_TABLES = ('resources', 'inst_colls', 'regions', 'globals', 'feature_flags')
+
+_LOOKUP_ACCESS_TYPES = ('system', 'const', 'eq_ref', 'ref', 'ref_or_null')
+
 _SUBQUERY_KEYS = (
     'attached_subqueries',
     'select_list_subqueries',
@@ -59,6 +65,7 @@ class TableAccess:
     access_type: Optional[str]
     key: Optional[str]
     used_key_parts: List[str]
+    ref: List[str]  # what each used key part was matched against: 'const', a column 'db.alias.col', or 'func'
     path: str
 
 
@@ -107,6 +114,7 @@ def _walk(node: Any, path: str, plan: Plan):
                 access_type=node.get('access_type'),
                 key=node.get('key'),
                 used_key_parts=list(node.get('used_key_parts', [])),
+                ref=list(node.get('ref', [])),
                 path=path,
             )
         )
@@ -190,21 +198,30 @@ def assert_scoped(
     aliases: Optional[Mapping[str, str]] = None,  # alias -> table, e.g. {'latest_attempt': 'attempts'}
     # per-batch table -> batch column; defaults to the schema's (Plan.batch_scope_columns)
     tables: Optional[Mapping[str, str]] = None,
+    allow_full_scan: Sequence[str] = SMALL_LOOKUP_TABLES,
     allow_filesort: bool = False,
     allow_materialized: bool = False,
 ):
-    """Every access to a per-batch table uses an index on its batch column (never a full table or index scan),
-    every subquery is dependent (runs per outer row rather than once over the whole table), nothing is
-    materialized, and, unless ``allow_filesort``, nothing is filesorted (a filesort reads every candidate row
-    before a ``LIMIT`` can stop it).
+    """Every access to a per-batch table is proven to read one batch, every subquery is dependent (runs per outer
+    row rather than once over the whole table), nothing is materialized, nothing other than
+    ``allow_full_scan`` is fully scanned, and, unless ``allow_filesort``, nothing is filesorted (a filesort
+    reads every candidate row before a ``LIMIT`` can stop it).
 
-    "Uses an index on its batch column" means a lookup on it, or a range scan whose ranges fix it to one value
-    (``batch_id BETWEEN 1 AND 2`` uses the same index as ``batch_id = 1``, so the ranges are checked).
+    An access to a per-batch table is proven to read one batch when its index's batch column is:
+
+    - matched against a constant (a lookup), or
+    - fixed to one value in every range of a range scan (``batch_id BETWEEN 1 AND 2`` uses the same index as
+      ``batch_id = 1``, so the ranges are checked), or
+    - matched against the batch column of another access already proven (a join or a correlated subquery on
+      ``batch_id``). A lookup fed by any other column, e.g. ``jobs.batch_id = resources.resource_id``, reads
+      a batch per outer row, so it isn't proven.
 
     ``EXPLAIN`` reports aliases, not tables, so map each alias the query uses in ``aliases``. A name that is
     neither a real table nor a mapped alias fails: otherwise an aliased scoped table would go unchecked.
     MySQL's own temporary tables (``<derived2>``, ``<subquery3>``, ...) are covered by the materialization check."""
+    scope_columns = plan.batch_scope_columns if tables is None else tables
     problems = []
+    candidates = []  # (access, display name, batch column) still to prove
     for a in plan.accesses:
         if a.table.startswith('<'):
             continue
@@ -213,23 +230,56 @@ def assert_scoped(
         if table not in plan.base_tables:
             problems.append(f'{a.table}: not a table; pass its table in aliases at {a.path}')
             continue
-        column = (plan.batch_scope_columns if tables is None else tables).get(table)
-        if column is None:
-            continue
+        column = scope_columns.get(table)
         if a.access_type in ('ALL', 'index'):
-            problems.append(f'{name}: full scan (access_type={a.access_type}) at {a.path}')
+            if column is not None or table not in allow_full_scan:
+                problems.append(f'{name}: full scan (access_type={a.access_type}) at {a.path}')
+        elif column is None:
+            continue
         elif column not in a.used_key_parts:
             problems.append(f'{name}: key {a.key} used_key_parts {a.used_key_parts} lacks {column} at {a.path}')
-        elif a.access_type == 'range':
-            # A lookup (const/eq_ref/ref) is an equality by construction; a range scan may span batches.
-            scans = plan.ranges.get(a.table)
-            if not scans:
-                problems.append(f'{name}: range scan with no ranges in EXPLAIN FORMAT=TREE at {a.path}')
-            problems.extend(
-                f'{name}: range {r} is not a single {column} at {a.path}'
-                for r in scans or []
-                if not _single_batch(r, column)
-            )
+        else:
+            candidates.append((a, name, column))
+
+    # Prove accesses to fixpoint: constants and single-batch ranges first, then lookups fed by proven ones.
+    proven: Set[int] = set()  # ids of proven accesses
+    unproven_reason: Dict[int, str] = {}
+
+    def alias_proven(alias: str, col: str) -> bool:
+        matches = [(a, c) for a, _, c in candidates if a.table == alias]
+        return bool(matches) and all(id(a) in proven and c == col for a, c in matches)
+
+    changed = True
+    while changed:
+        changed = False
+        for a, _, column in candidates:
+            if id(a) in proven:
+                continue
+            if a.access_type == 'range':
+                scans = plan.ranges.get(a.table)
+                bad = [r for r in scans or [] if not _single_batch(r, column)]
+                if scans and not bad:
+                    proven.add(id(a))
+                    changed = True
+                else:
+                    unproven_reason[id(a)] = (
+                        f'range {bad[0]} is not a single {column}'
+                        if bad
+                        else 'range scan with no ranges in the tree plan'
+                    )
+            elif a.access_type in _LOOKUP_ACCESS_TYPES:
+                i = a.used_key_parts.index(column)
+                ref = a.ref[i] if i < len(a.ref) else None
+                parts = (ref or '').split('.')
+                if ref == 'const' or (len(parts) == 3 and alias_proven(parts[1], parts[2])):
+                    proven.add(id(a))
+                    changed = True
+                else:
+                    unproven_reason[id(a)] = f'{column} is matched against {ref}, not one batch'
+            else:
+                unproven_reason[id(a)] = f'access type {a.access_type} cannot be proven to read one batch'
+    problems.extend(f'{name}: {unproven_reason[id(a)]} at {a.path}' for a, name, _ in candidates if id(a) not in proven)
+
     problems.extend(f'non-dependent subquery at {s.path}' for s in plan.subqueries if not s.dependent)
     if not allow_materialized:
         problems.extend(f'materialized subquery at {p}' for p in plan.materialized)

@@ -74,6 +74,15 @@ async def test_seed_updates_gaps_and_counts(db):
     assert staging == {(1, 0): (3, 3), (2, 0): (2, 0), (2, 1): (1, 0), (3, 0): (2, 0), (3, 1): (2, 0)}
 
 
+async def test_seed_rejects_states_that_disagree_with_parents(db):
+    with pytest.raises(AssertionError, match='Ready with 1 unfinished parent'):
+        await seed_batch(db, [Update(jobs=[Job(state='Running'), Job(state='Ready', parent_ids=[1])])])
+    with pytest.raises(AssertionError, match='Pending with no unfinished parents'):
+        await seed_batch(db, [Update(jobs=[Job(state='Pending')])])
+    with pytest.raises(AssertionError, match='Pending with no unfinished parents'):
+        await seed_batch(db, [Update(jobs=[Job(state='Failed'), Job(state='Pending', parent_ids=[1])])])
+
+
 async def test_seed_rejects_scheduled_jobs_in_uncommitted_updates(db):
     before = await db.execute_and_fetchone('SELECT MAX(id) AS id FROM batches')
     with pytest.raises(AssertionError, match="state='Pending'"):
@@ -246,6 +255,9 @@ LIMIT 50;
     )
     # Without FORCE INDEX, MySQL picks jobs_batch_id_update_id here and filesorts, which assert_scoped rejects.
     assert {a.table for a in plan.accesses} == {'jobs', 'job_attributes'}
+    # the correlated subquery's batch_id comes from the outer jobs row, which is proven by its range
+    (attributes,) = plan.accesses_to('job_attributes')
+    assert attributes.ref[0].endswith('.jobs.batch_id'), attributes.ref
     assert_scoped(plan)
     assert_hint_kept(plan)
 
@@ -299,6 +311,25 @@ async def test_explain_requires_one_batch_in_range_scans(db):
     )
     assert plan.accesses[0].access_type == 'range'
     assert_scoped(plan, aliases={'j': 'jobs'})
+
+
+@pytest.mark.usefixtures('noise_batch')  # its rows make the plan realistic
+async def test_explain_requires_lookups_fed_by_one_batch(db):
+    # each resources row supplies a different "batch id"
+    plan = await explain(
+        db, 'SELECT STRAIGHT_JOIN j.job_id FROM resources AS r JOIN jobs AS j ON j.batch_id = r.resource_id'
+    )
+    with pytest.raises(AssertionError, match=r'j \(alias of jobs\): batch_id is matched against \S+\.r\.resource_id'):
+        assert_scoped(plan, aliases={'r': 'resources', 'j': 'jobs'})
+
+
+@pytest.mark.usefixtures('noise_batch')  # its rows make the plan realistic
+async def test_explain_full_scans_fail_except_small_lookup_tables(db):
+    assert_scoped(await explain(db, 'SELECT resource FROM resources'))
+    plan = await explain(db, "SELECT name FROM instances WHERE state + '' = %s", ('active',))
+    with pytest.raises(AssertionError, match='instances: full scan'):
+        assert_scoped(plan)
+    assert_scoped(plan, allow_full_scan=['instances'])
 
 
 @pytest.mark.usefixtures('noise_batch')  # its rows make the plan realistic
