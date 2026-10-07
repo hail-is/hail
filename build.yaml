@@ -3230,6 +3230,41 @@ steps:
       - merge_code
       - batch_image
   - kind: runImage
+    name: test_batch_unit
+    resources:
+      memory: standard
+      cpu: '0.25'
+    image:
+      valueFrom: batch_image.image
+    script: |
+      set -ex
+      hail-pip-install -r /io/dev-requirements.txt
+      cd /io
+      python3 -m pytest \
+              --color=yes \
+              -Werror:::hail -Werror:::hailtop -Werror::ResourceWarning \
+              --log-cli-level=INFO \
+              -s \
+              -r A \
+              -vv \
+              --instafail \
+              --durations=50 \
+              /io/test/test_utils.py \
+              /io/test/test_time_limited_max_size_cache.py \
+              /io/test/test_job_list_unit.py
+    inputs:
+      - from: /repo/batch/test
+        to: /io/test
+      - from: /repo/hail/python/dev/pinned-requirements.txt
+        to: /io/dev-requirements.txt
+    timeout: 600
+    scopes:
+      - test
+      - dev
+    dependsOn:
+      - merge_code
+      - batch_image
+  - kind: runImage
     name: test_batch_job_private_machines
     scopes:
       - test
