@@ -214,6 +214,9 @@ def assert_scoped(
                 problems.append(f'{name}: full scan (access_type={a.access_type}) at {a.path}')
         elif column is None:
             continue
+        elif a.access_type == 'index_merge':
+            # proven below from each merged index's ranges, which EXPLAIN FORMAT=JSON doesn't list as key parts
+            candidates.append((a, name, column))
         elif column not in a.used_key_parts:
             problems.append(f'{name}: key {a.key} used_key_parts {a.used_key_parts} lacks {column} at {a.path}')
         else:
@@ -233,8 +236,11 @@ def assert_scoped(
         for a, _, column in candidates:
             if id(a) in proven:
                 continue
-            if a.access_type == 'range':
+            if a.access_type in ('range', 'index_merge'):
                 scans = plan.ranges.get(a.table)
+                if a.access_type == 'index_merge' and scans:
+                    # the merged indexes' ranges must all fix the same batch, not one each
+                    scans = [' OR '.join(scans)]
                 bad = [r for r in scans or [] if not _single_batch(r, column)]
                 if scans and not bad:
                     proven.add(id(a))

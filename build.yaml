@@ -3206,7 +3206,8 @@ steps:
               --instafail \
               --durations=50 \
               --timeout=120 \
-              /io/test/test_db_framework.py
+              /io/test/test_db_framework.py \
+              /io/test/test_job_list_db.py
     inputs:
       - from: /repo/batch/test
         to: /io/test
