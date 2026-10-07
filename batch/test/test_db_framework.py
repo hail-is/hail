@@ -362,8 +362,7 @@ async def test_explain_full_scans_fail_except_small_lookup_tables(db):
 
 
 async def test_explain_accepts_query_v2_cost_lateral(db, noise_batch):
-    # The cost LATERAL step A reuses, taken from production's SQL so the test follows it if it changes. It
-    # materializes cost_t (and usage_t inside it) per job; the reads inside are proven through jobs.batch_id.
+    # Production's cost LATERAL, taken from query_v2 so the test follows it if it changes.
     v2_sql, _ = parse_job_group_jobs_query_v2(noise_batch.batch_id, 0, '', None, False)
     start = v2_sql.index('LEFT JOIN LATERAL (')
     end = v2_sql.index(') AS cost_t ON TRUE') + len(') AS cost_t ON TRUE')

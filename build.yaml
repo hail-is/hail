@@ -3191,8 +3191,7 @@ steps:
       hail-apt-get-install mysql-server
       mysqld --user=root --daemonize --log-error=/tmp/mysqld.log
       until mysqladmin --user=root ping --silent; do sleep 1; done
-      # Ubuntu's root uses auth_socket, which ignores passwords and refuses TCP logins; the fixture connects over
-      # TCP, so switch root to password auth (IDENTIFIED BY alone keeps the current plugin).
+      # Ubuntu's root uses auth_socket, which refuses the fixture's TCP login. IDENTIFIED BY alone keeps the plugin.
       mysql --user=root -e "ALTER USER 'root'@'localhost' IDENTIFIED WITH caching_sha2_password BY 'pw'; FLUSH PRIVILEGES;"
 
       # The db fixture applies the batch migrations listed in build.yaml, relative to this root.

@@ -1,16 +1,8 @@
-"""Seed consistent batch rows directly into a real-migration batch database, for DB-layer tests.
+"""Write batches straight into a migrated batch database, in states production can reach.
 
-Rows are written the way the front end and driver would leave them, without going through
-``commit_batch_update`` or the scheduling procedures, so a test can put jobs in any final state. The
-tables the read paths use are kept consistent with each other (``batches``, ``batch_updates``,
-``job_groups``, ``job_group_self_and_ancestors``, ``job_groups_n_jobs_in_complete_states``,
-``job_groups_inst_coll_staging``, ``jobs``, ``job_attributes``, ``job_parents``, ``attempts``,
-``attempt_resources``, and, through the ``attempt_resources`` trigger, the aggregated resource tables).
-Scheduler bookkeeping (``user_inst_coll_resources``, ``job_group_inst_coll_cancellable_resources``,
-``jobs_telemetry``) is not written, so seeded batches must never be handed to a driver.
-
-Each call to :func:`seed_batch` creates a new batch with its own auto-increment id; the database is shared
-across the test session, so tests must only look at their own batch ids.
+Rows are inserted directly rather than through the front end and the scheduling procedures, so any final state
+can be set up quickly; the derived columns and counters are computed to match what those would have written.
+Scheduler bookkeeping (``user_inst_coll_resources`` and friends) isn't written, so a driver can't run these.
 """
 
 import json
@@ -29,17 +21,17 @@ USER = 'test'
 COMPLETE_STATES = ('Success', 'Failed', 'Error', 'Cancelled')
 ALL_STATES = ('Pending', 'Ready', 'Creating', 'Running', *COMPLETE_STATES)
 
-# Resources the seeder bills against. Real rows exist too, but these keep seeded costs independent of them.
+# Seeded costs use these, so they don't depend on the real resources' rates.
 SEED_RESOURCES = {'seed/compute/1': 0.001, 'seed/memory/1': 0.0001, 'seed/disk/1': 0.00001}
 
 _UNSET: Any = object()
 
 T0 = 1_700_000_000_000
 
-# Jobs are written in transactions of at most this many, like the client's job bunches (MAX_BUNCH_SIZE).
+# Like the client's job bunches.
 JOB_CHUNK_SIZE = 1024
 
-# States whose job holds an attempt (jobs.attempt_id): Creating and Running are in progress, the rest finished.
+# States in which jobs.attempt_id is set.
 _ATTEMPTED_STATES = ('Creating', 'Running', 'Success', 'Failed', 'Error')
 
 
@@ -48,31 +40,23 @@ class Attempt:
     attempt_id: str
     start_time: Optional[int]
     end_time: Optional[int] = None
-    # Defaults to end_time, or start_time + 1s for an attempt that's still running.
-    rollup_time: Optional[int] = _UNSET
+    rollup_time: Optional[int] = _UNSET  # defaults to end_time, or start_time + 1s while running
     reason: Optional[str] = None
-    # Defaults to seed-{the job's inst_coll}; the seeder writes a matching instances row (attempts has a foreign key).
-    instance_name: Optional[str] = _UNSET
-    # resource name -> quantity; usage is quantity * (rollup_time - start_time).
+    instance_name: Optional[str] = _UNSET  # defaults to seed-{inst_coll}
+    # resource -> quantity; billed for rollup_time - start_time
     resources: Dict[str, int] = field(default_factory=lambda: {'seed/compute/1': 1000, 'seed/memory/1': 3840})
 
 
 @dataclass
 class Job:
-    """One job. ``job_group_id`` is absolute (0 is the root, sub-groups are numbered in creation order)."""
-
     state: str = 'Success'
-    job_group_id: int = ROOT_JOB_GROUP_ID
-    name: Optional[str] = _UNSET  # defaults to 'job-{job_id}'; None means no name attribute
+    job_group_id: int = ROOT_JOB_GROUP_ID  # groups are numbered in creation order across the batch
+    name: Optional[str] = _UNSET  # defaults to 'job-{job_id}'; None for no name
     attributes: Dict[str, str] = field(default_factory=dict)
     parent_ids: Sequence[int] = ()
-    # Defaults: 0 for Success, 1 for Failed, None (stored as [null, …]) for Error, no status otherwise.
-    exit_code: Optional[int] = _UNSET
-    # How many attempts to generate: all but the last were preempted. The last is in progress for a Creating or
-    # Running job, finished for Success/Failed/Error, and preempted for any other state. Defaults to 1 for
-    # Creating, Running, Success, Failed and Error, 0 otherwise.
+    exit_code: Optional[int] = _UNSET  # defaults to 0 for Success, 1 for Failed, None for Error
+    # Generated attempts: all but the last preempted. Defaults to 1 if the state implies an attempt, else 0.
     n_attempts: Optional[int] = None
-    # Explicit attempts instead of generated ones (not with n_attempts).
     attempts: Optional[List[Attempt]] = None
     cancelled: bool = False
     inst_coll: str = 'standard'
@@ -86,16 +70,8 @@ class JobGroup:
 
 @dataclass
 class Update:
-    """A batch update. ``committed=False`` leaves it pending; one followed by later updates is abandoned.
-
-    In a committed update a job must be Pending exactly when one of its parents hasn't finished, as in production.
-
-    Jobs in an uncommitted update can't have been scheduled: they must be in their initial state (``Ready`` in
-    update 1 with no parents, ``Pending`` otherwise) with no attempts, so they never carry cost.
-
-    ``n_reserved_jobs`` (default ``len(jobs)``) is the id range the update claims. Reserving more than
-    the jobs written leaves an id gap, as a partly uploaded update does.
-    """
+    """``committed=False`` leaves the update pending, or abandoned if later updates follow it. Its jobs can't
+    have run yet. Reserving more ids than jobs (``n_reserved_jobs``) leaves a gap, as a partial upload does."""
 
     jobs: List[Job] = field(default_factory=list)
     job_groups: List[JobGroup] = field(default_factory=list)
@@ -119,15 +95,15 @@ class SeededBatch:
     batch_id: int
     format_version: int
     updates: List[SeededUpdate]
-    jobs: Dict[int, Job]  # job_id -> spec
-    job_group_parents: Dict[int, Optional[int]]  # job_group_id -> parent (None for the root)
+    jobs: Dict[int, Job]
+    job_group_parents: Dict[int, Optional[int]]  # None for the root
 
     @property
     def committed_job_ids(self) -> List[int]:
         return sorted(j for u in self.updates if u.committed for j in u.job_ids)
 
     def ancestors(self, job_group_id: int) -> List[int]:
-        """Self and ancestors, self first."""
+        """Self first, root last."""
         result = []
         g: Optional[int] = job_group_id
         while g is not None:
@@ -137,17 +113,14 @@ class SeededBatch:
 
 
 def preempted_job(state: str = 'Ready', n_attempts: int = 1, **kwargs) -> Job:
-    """A job whose attempts were all preempted, now back in ``state`` with ``jobs.attempt_id = NULL``.
-
-    ``state='Cancelled'`` gives a job that was preempted and then cancelled: it has a start time from
-    the preempted attempt but no end time.
-    """
+    """A job whose attempts were all preempted. With ``state='Cancelled'``, it was then cancelled: it has a
+    start time but no end time."""
     assert state not in _ATTEMPTED_STATES, state
     return Job(state=state, n_attempts=n_attempts, **kwargs)
 
 
 async def ensure_seed_resources(db: Database) -> Dict[str, int]:
-    """Insert SEED_RESOURCES if missing and return their ids."""
+    """Returns the resource ids."""
     await db.execute_many(
         'INSERT INTO resources (resource, rate) VALUES (%s, %s) ON DUPLICATE KEY UPDATE rate = rate',
         list(SEED_RESOURCES.items()),
@@ -177,7 +150,7 @@ def _attempts(job_id: int, job: Job) -> List[Attempt]:
         if k < n - 1 or job.state not in _ATTEMPTED_STATES:
             attempts.append(Attempt(attempt_id, start_time=start, end_time=start + 5_000, reason='preempted'))
         elif job.state == 'Creating':
-            # mark_job_creating adds the attempt with rollup_time = start_time: nothing billed yet
+            # nothing billed yet
             attempts.append(Attempt(attempt_id, start_time=start, rollup_time=start))
         elif job.state == 'Running':
             attempts.append(Attempt(attempt_id, start_time=start))
@@ -196,8 +169,7 @@ def _rollup_time(a: Attempt) -> Optional[int]:
 
 
 def _cancelled(seeded: SeededBatch, job: Job, committed: bool) -> bool:
-    """jobs.cancelled: as given, or set by production once any parent finished other than Success (on commit,
-    and as each parent completes). Nothing has been derived yet in an uncommitted update."""
+    """Production also cancels a job once any parent finishes unsuccessfully, but only from commit on."""
     if not committed:
         return job.cancelled
     return job.cancelled or any(
@@ -210,8 +182,8 @@ def _unfinished_parents(seeded: SeededBatch, job: Job) -> int:
 
 
 def _check_state_matches_parents(seeded: SeededBatch, job_id: int, job: Job):
-    """A committed job is Pending exactly while it has unfinished parents: commit_batch_update and each parent's
-    completion move it to Ready at zero, and cancellation only acts on Ready jobs (driver/canceller.py)."""
+    """A committed job is Pending exactly while it has unfinished parents. (Cancellation doesn't change that:
+    the canceller only acts on Ready jobs.)"""
     unfinished = _unfinished_parents(seeded, job)
     if job.state == 'Pending':
         assert unfinished > 0, f'job {job_id} is Pending with no unfinished parents; production would make it Ready'
@@ -222,8 +194,7 @@ def _check_state_matches_parents(seeded: SeededBatch, job_id: int, job: Job):
 
 
 def _n_pending_parents(seeded: SeededBatch, job: Job, committed: bool) -> int:
-    """The front end writes every parent as pending; committing (and each parent completing) counts down to the
-    parents that haven't finished. Only a Pending job has any left: the rest became Ready at zero."""
+    """Upload counts every parent; commit and each parent finishing count down from there."""
     if job.state != 'Pending':
         return 0
     if not committed:
@@ -236,8 +207,7 @@ def _default_exit_code(state: str) -> Optional[int]:
 
 
 def _db_status(format_version: int, job: Job, attempts: List[Attempt]) -> Optional[str]:
-    """The worker's status for a finished job, encoded by the production encoder (BatchFormatVersion.db_status):
-    the full dict for format version 1, ``[exit_code, duration]`` after."""
+    """Encoded by production's encoder, in the status version workers wrote at that format version."""
     if job.state not in ('Success', 'Failed', 'Error'):
         return None
     ec = _default_exit_code(job.state) if job.exit_code is _UNSET else job.exit_code
@@ -248,8 +218,7 @@ def _db_status(format_version: int, job: Job, attempts: List[Attempt]) -> Option
 
     main: Dict[str, Any] = {'error': 'seeded error'} if ec is None else {'container_status': {'exit_code': ec}}
     if format_version == 1:
-        # Format-version-1 batches ran when workers wrote status version 1, where duration is the sum of each
-        # container's timing.runtime.duration. Only main: input/output containers only ran with files.
+        # Duration is read back as the sum of container timings. Input/output containers only ran with files.
         if duration is not None:
             main['timing'] = {'runtime': {'duration': duration}}
         status = {'version': 1, 'state': job.state.lower(), 'container_statuses': {'main': main}}
@@ -272,8 +241,7 @@ def _db_spec(format_version: int) -> str:
     return json.dumps([None, None, 0, 0, None])
 
 
-# Every VALUES tuple below is all placeholders: PyMySQL only batches executemany into multi-row INSERTs then,
-# and otherwise sends one statement per row.
+# Every VALUES tuple below is only placeholders: otherwise PyMySQL's executemany sends one statement per row.
 _INSERT_BATCH_UPDATE = """
 INSERT INTO batch_updates (batch_id, update_id, token, start_job_group_id, n_job_groups, start_job_id, n_jobs,
   committed, time_created, time_committed)
@@ -302,14 +270,14 @@ _INSERT_ATTEMPT = """
 INSERT INTO attempts (batch_id, job_id, attempt_id, instance_name, start_time, rollup_time, end_time, reason)
 VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
 """
-# Instances are shared across batches, so an existing one is left as it is.
+# Instances are shared across batches.
 _INSERT_INSTANCE = """
 INSERT INTO instances (name, state, token, cores_mcpu, time_created, last_updated, version, location, inst_coll,
   machine_type, preemptible)
 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
 ON DUPLICATE KEY UPDATE name = name;
 """
-# The attempt_resources_after_insert trigger fills the aggregated_*_resources_v3 tables, once per row.
+# Its insert trigger fills the aggregated resource tables, at several statements per row.
 _INSERT_ATTEMPT_RESOURCE = """
 INSERT INTO attempt_resources (batch_id, job_id, attempt_id, quantity, resource_id, deduped_resource_id)
 VALUES (%s, %s, %s, %s, %s, %s);
@@ -328,20 +296,15 @@ async def seed_batch(
     format_version: int = LATEST_FORMAT_VERSION,
     with_costs: bool = True,
 ) -> SeededBatch:
-    """Create a batch with the given updates, in order, and return what was written.
+    """Create a batch from ``updates``, in order.
 
-    ``with_costs=False`` skips ``attempt_resources`` (so the jobs have no cost), which is most of the seeding
-    time: its trigger runs several statements per row. Attempts and their times are still written. Use it for
-    large batches that aren't testing cost; the noise batch keeps the cost tables populated for EXPLAIN.
+    ``with_costs=False`` writes no ``attempt_resources``, so jobs have no cost: its trigger is most of the
+    seeding time, so it's worth skipping for large batches.
 
-    Staging rows (``job_groups_inst_coll_staging``) are written per chunk with the chunk's jobs, one token per
-    chunk, as the front end writes them per create-jobs request. Committed updates' staging rows are kept:
-    production has them until the driver's cleanup loop deletes them, and keeping them is the stricter case for
-    a query that must only count pending updates.
+    Committed updates' staging rows are kept, as they are in production until the driver's cleanup loop runs.
 
-    Rows are planned in memory first (an invalid plan deletes the batch row and raises), then written: the
-    updates and groups in one transaction, then jobs in transactions of JOB_CHUNK_SIZE (like the client's job
-    bunches). A database error part way through writing leaves a partial batch; tests don't reuse ids.
+    An invalid scenario raises and leaves nothing behind. A database error part way through writing leaves a
+    partial batch.
     """
     resource_ids = await ensure_seed_resources(db) if with_costs else {}
 
@@ -361,7 +324,7 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
             seeded, updates, format_version=format_version, with_costs=with_costs, resource_ids=resource_ids
         )
     except BaseException:
-        # A plan the seeder rejects leaves nothing behind: so far only the batch row exists.
+        # only the batch row has been written
         await db.execute_update('DELETE FROM batches WHERE id = %s', (batch_id,))
         raise
 
@@ -433,7 +396,7 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
 
 
 def _plan(seeded: SeededBatch, updates: Sequence[Update], *, format_version: int, with_costs: bool, resource_ids):
-    """Validate the updates and build every row to write, without touching the database."""
+    """Validate the scenario and build every row, before anything else is written."""
     batch_id = seeded.batch_id
     update_rows = []
     job_group_rows: List[tuple] = [(ROOT_JOB_GROUP_ID, None)]  # (job_group_id, update_id)
@@ -462,8 +425,7 @@ def _plan(seeded: SeededBatch, updates: Sequence[Update], *, format_version: int
         job_group_ids = []
         for jg in update.job_groups:
             assert jg.parent_id in seeded.job_group_parents, f'job group parent {jg.parent_id} does not exist'
-            # The front end's limit: the parent's own ancestry (itself up to the root) must be at most
-            # MAX_JOB_GROUPS_DEPTH rows, so groups nest at most MAX_JOB_GROUPS_DEPTH levels below the root.
+            # the front end's check
             assert len(seeded.ancestors(jg.parent_id)) <= MAX_JOB_GROUPS_DEPTH, (
                 f'job group {next_job_group_id} would be nested deeper than MAX_JOB_GROUPS_DEPTH '
                 f'({MAX_JOB_GROUPS_DEPTH}) below the root'
@@ -496,8 +458,7 @@ def _plan(seeded: SeededBatch, updates: Sequence[Update], *, format_version: int
             seeded.jobs[job_id] = job
 
             attempts = _attempts(job_id, job)
-            # The front end starts a job Ready only in update 1 and with no parents; anything later starts
-            # Pending, since its parents may be in earlier updates (front_end.py, "always start out as pending").
+            # as the front end decides it at upload
             initially_ready = update_id == 1 and not job.parent_ids
             if not update.committed:
                 initial_state = 'Ready' if initially_ready else 'Pending'
@@ -507,10 +468,8 @@ def _plan(seeded: SeededBatch, updates: Sequence[Update], *, format_version: int
                 )
             else:
                 _check_state_matches_parents(seeded, job_id, job)
-            # jobs.attempt_id: the last attempt while it holds one; the driver clears it on preemption
             current_attempt_id = attempts[-1].attempt_id if attempts and job.state in _ATTEMPTED_STATES else None
-            # production always adds the attempt before a job becomes Creating or Running (mark_job_creating,
-            # scheduling)
+            # scheduling adds the attempt before a job becomes Creating or Running
             assert job.state not in ('Creating', 'Running') or current_attempt_id is not None, (
                 f'job {job_id} is {job.state}, so it must have a current attempt'
             )
@@ -557,8 +516,7 @@ def _plan(seeded: SeededBatch, updates: Sequence[Update], *, format_version: int
             for ancestor in seeded.ancestors(job.job_group_id):
                 staging.setdefault((ancestor, job.inst_coll), []).append(job.cores_mcpu if initially_ready else None)
 
-        # Written with each chunk's job rows, recursively (one row per ancestor), one token per chunk: the front
-        # end writes them per create-jobs request with a random token.
+        # One row per ancestor group, and a token per chunk, as the front end writes them per create-jobs request.
         for token, (chunk, staging) in enumerate(zip(job_chunks[-len(chunk_staging) :], chunk_staging)):
             chunk['staging'].extend(
                 (
@@ -590,7 +548,7 @@ def _plan(seeded: SeededBatch, updates: Sequence[Update], *, format_version: int
 
 
 def _counts(seeded: SeededBatch):
-    """The counters commit_batch_update and mark_job_complete would have maintained (committed jobs only)."""
+    """Per group, including sub-groups, over committed jobs only."""
     n_jobs: Dict[int, int] = dict.fromkeys(seeded.job_group_parents, 0)
     n_complete: Dict[int, Dict[str, int]] = {g: dict.fromkeys(COMPLETE_STATES, 0) for g in seeded.job_group_parents}
     for job_id in seeded.committed_job_ids:
@@ -603,7 +561,7 @@ def _counts(seeded: SeededBatch):
 
 
 async def analyze_tables(db: Database):
-    """Refresh index statistics for every table, so EXPLAIN reflects the seeded row counts."""
+    """Update index statistics, so the optimizer plans for the seeded row counts."""
     tables = [
         r['name']
         async for r in db.execute_and_fetchall(

@@ -11,8 +11,7 @@ from hailtop.batch_client import aioclient
 from hailtop.batch_client.client import BatchClient
 from hailtop.config import get_remote_tmpdir
 
-# The root that build.yaml, ci/ and batch/sql are read from when applying migrations. In CI the tests are
-# mounted away from the rest of the repo, so the test step sets this explicitly.
+# Where migrations are read from. CI mounts the tests away from the repo, so it sets this.
 _REPO_ROOT = os.environ.get(
     'HAIL_TEST_REPO_ROOT', os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 )
@@ -24,8 +23,7 @@ log = logging.getLogger(__name__)
 @pytest_asyncio.fixture(scope='session')
 async def db():
     """Spin up a real migrated batch DB and yield it; drop it on teardown."""
-    # Imported here rather than at module level: other test steps share this conftest but run in images
-    # without these packages.
+    # Other test steps share this conftest in images without these packages.
     import aiomysql  # pylint: disable=import-outside-toplevel
 
     from gear import Database  # pylint: disable=import-outside-toplevel
@@ -36,8 +34,7 @@ async def db():
     conn = await aiomysql.connect(host='localhost', port=3306, user='root', password='pw')
     try:
         async with conn.cursor() as cur:
-            # Both can warn (a missing database; the variable is deprecated in later 8.0 releases), and pytest.ini turns
-            # warnings into errors.
+            # Both can warn, and pytest.ini turns warnings into errors.
             with warnings.catch_warnings():
                 warnings.simplefilter('ignore')
                 await cur.execute(f'DROP DATABASE IF EXISTS `{_TEST_DB_NAME}`')
@@ -53,7 +50,7 @@ async def db():
         await async_main('batch', _TEST_DB_NAME)
     finally:
         os.chdir(orig_dir)
-    # async_main points HAIL_SQL_DATABASE at the new database as a side effect; set it here rather than rely on that.
+    # async_main sets this too, but only as a side effect.
     os.environ['HAIL_SQL_DATABASE'] = _TEST_DB_NAME
     database = Database()
     await database.async_init()
@@ -74,8 +71,7 @@ NOISE_BATCH_N_JOBS = 2000
 
 @pytest_asyncio.fixture(scope='session')
 async def noise_batch(db):
-    """A large batch seeded once per session, so an unscoped read or full scan in a query under test shows up
-    in its row-read count and makes MySQL's plans realistic. Tables are analyzed after seeding."""
+    """Another batch's rows, so a query that reads beyond its own batch shows it, and so plans are realistic."""
     from .db_seed import (  # pylint: disable=import-outside-toplevel
         Job,
         JobGroup,
@@ -91,8 +87,7 @@ async def noise_batch(db):
     for i in range(NOISE_BATCH_N_JOBS):
         job_id = i + 1
         state = states[i % len(states)]
-        # Consistent dependencies: a Pending job waits on the Ready job before it; every fifth other job depends
-        # on the most recent finished job.
+        # Pending jobs wait on an unfinished parent; others only depend on finished ones.
         if state == 'Pending':
             parent_ids = [job_id - 1]
         elif i % 5 == 0:
@@ -109,7 +104,7 @@ async def noise_batch(db):
                 n_attempts=2 if state == 'Success' and i % 3 == 0 else None,
             )
         )
-    # plus a pending update partly uploaded, so batch_updates and staging have cross-batch rows to (not) read
+    # a partly uploaded pending update, so other batches' staging rows exist too
     pending = Update(jobs=[Job(state='Pending') for _ in range(200)], committed=False, n_reserved_jobs=300)
     seeded = await seed_batch(db, [Update(jobs=jobs, job_groups=groups), pending])
     await analyze_tables(db)

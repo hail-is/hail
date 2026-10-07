@@ -1,19 +1,4 @@
-"""Assertions that a query is scoped to one batch and bounded, independent of the data it happens to return.
-
-Two complementary checks, both against a real MySQL:
-
-- :func:`count_row_reads` counts the rows the storage engine actually read (``Handler_read%``), so a test can
-  bound it by what the request asked for (window size, ``LIMIT``, group size) whatever plan MySQL picks.
-  Seed a large noise batch next to the batch under test so an unscoped read shows up.
-- :func:`explain` + :func:`assert_scoped` check the plan's structure: every access to a per-batch table uses
-  an index on its batch column, subqueries and derived tables are dependent, and nothing is filesorted.
-  The per-batch tables are read from the schema (see :func:`_batch_scope_columns`), so new ones are covered.
-  ``EXPLAIN`` names tables by their alias, so queries that alias a table pass ``aliases`` to
-  :func:`assert_scoped`; an access it can't resolve to a real table fails rather than being skipped.
-  :func:`assert_hint_kept` checks an optimizer hint survived (e.g. ``MAX_EXECUTION_TIME``).
-
-Run ``db_seed.analyze_tables`` after seeding so the optimizer sees realistic row counts.
-"""
+"""Validators for SQL queries' plans and row reads, run against a real MySQL."""
 
 import json
 import re
@@ -23,8 +8,7 @@ from typing import Any, Dict, List, Mapping, Optional, Sequence, Set, Tuple
 
 from gear import Database
 
-# Small, fixed lookup tables that aren't per batch: a full scan of one is fine. A full scan of any other table
-# fails assert_scoped by default.
+# Small, fixed tables, which assert_scoped lets a query scan in full.
 SMALL_LOOKUP_TABLES = ('resources', 'inst_colls', 'regions', 'globals', 'feature_flags')
 
 _LOOKUP_ACCESS_TYPES = ('system', 'const', 'eq_ref', 'ref', 'ref_or_null')
@@ -45,10 +29,9 @@ async def _handler_reads(tx) -> int:
 
 
 async def count_row_reads(db: Database, sql: str, args: Optional[Sequence[Any]] = None) -> Tuple[List[dict], int]:
-    """Run ``sql`` and return its rows and the number of handler row reads it made.
+    """Run ``sql`` and return its rows and the number of rows the storage engine read for it.
 
-    Reads the session ``Handler_read%`` counters before and after, minus the cost of reading the counters
-    themselves (``SHOW STATUS`` reads rows too), all on one connection.
+    Reading the counters reads rows too, so that cost is measured and subtracted.
     """
     async with db.start(read_only=True) as tx:
         a = await _handler_reads(tx)
@@ -67,9 +50,7 @@ class TableAccess:
     used_key_parts: List[str]
     ref: List[str]  # what each used key part was matched against: 'const', a column 'db.alias.col', or 'func'
     path: str
-    # A derived table (FROM (subquery) AS d, LATERAL, or MySQL's own <subqueryN>): scanning its materialized rows
-    # is not a table read; the accesses inside it are checked separately.
-    derived: bool = False
+    derived: bool = False  # a materialized subquery; the tables it reads appear as accesses of their own
 
 
 @dataclass
@@ -81,7 +62,7 @@ class Subquery:
 @dataclass
 class Materialization:
     table: str
-    dependent: bool  # re-materialized per outer row (a LATERAL), rather than once over its whole input
+    dependent: bool  # built per outer row (e.g. a LATERAL), not once over its whole input
     path: str
 
 
@@ -90,18 +71,17 @@ class Plan:
     raw: Dict[str, Any]
     accesses: List[TableAccess] = field(default_factory=list)
     subqueries: List[Subquery] = field(default_factory=list)
-    materialized: List['Materialization'] = field(default_factory=list)  # derived tables and subqueries
-    filesorts: List[str] = field(default_factory=list)  # paths of ordering/grouping operations using filesort
-    warnings: List[Dict[str, Any]] = field(default_factory=list)  # SHOW WARNINGS after the EXPLAIN
-    base_tables: Set[str] = field(default_factory=set)  # the database's real table names
-    # per-batch table -> the column holding its batch id (batch_id, or id for batches and a few counters)
-    batch_scope_columns: Dict[str, str] = field(default_factory=dict)
-    # table or alias -> the ranges of each range scan on it, from EXPLAIN FORMAT=TREE ("over (...)")
+    materialized: List['Materialization'] = field(default_factory=list)
+    filesorts: List[str] = field(default_factory=list)
+    warnings: List[Dict[str, Any]] = field(default_factory=list)
+    base_tables: Set[str] = field(default_factory=set)
+    batch_scope_columns: Dict[str, str] = field(default_factory=dict)  # table -> its batch id column
+    # table or alias -> each range scan's ranges; only the tree format has them
     ranges: Dict[str, List[str]] = field(default_factory=dict)
 
     @property
     def rewritten_sql(self) -> Optional[str]:
-        """The statement as the optimizer rewrote it (warning 1003), including the hints it kept."""
+        """The statement as the optimizer rewrote it, with the hints it kept."""
         return next((w['Message'] for w in self.warnings if w['Code'] == 1003), None)
 
     def accesses_to(self, table: str) -> List[TableAccess]:
@@ -144,9 +124,8 @@ def _walk(node: Any, path: str, plan: Plan):
 
 
 async def _batch_scope_columns(tx) -> Dict[str, str]:
-    """Every per-batch table and the column holding its batch id: ``batches.id`` itself, every column with a
-    foreign key to it (which covers tables whose batch column is named ``id``), and every ``batch_id`` column
-    (in case a migration dropped a foreign key). Read from the schema so that new tables are covered."""
+    """Each per-batch table's batch id column, from the schema so new tables are covered. Foreign keys to
+    ``batches.id`` find the tables whose column is named ``id``; ``batch_id`` columns catch any without one."""
     rows = tx.execute_and_fetchall(
         """
 SELECT table_name AS t, column_name AS c FROM information_schema.key_column_usage
@@ -164,15 +143,14 @@ WHERE table_schema = DATABASE() AND column_name = 'batch_id';
 
 
 async def explain(db: Database, sql: str, args: Optional[Sequence[Any]] = None) -> Plan:
-    """``EXPLAIN FORMAT=JSON`` the statement, and collect the warnings it leaves (on the same connection)."""
+    """Explain ``sql``, with what the checks below need from the schema."""
     async with db.start(read_only=True) as tx:
-        # EXPLAIN always leaves a note (1003, the rewritten statement); aiomysql would re-raise it as a Python
-        # warning, which pytest.ini turns into an error. It's read back below instead.
+        # EXPLAIN always leaves a note, which aiomysql raises as a Python warning; it's read with SHOW WARNINGS.
         with warnings.catch_warnings():
             warnings.simplefilter('ignore')
             row = await tx.execute_and_fetchone(f'EXPLAIN FORMAT=JSON {sql}', args)
         mysql_warnings = [w async for w in tx.execute_and_fetchall('SHOW WARNINGS')]
-        # The JSON plan doesn't say what a range scan's ranges are; the tree plan does.
+        # Only the tree format shows a range scan's ranges.
         with warnings.catch_warnings():
             warnings.simplefilter('ignore')
             tree = await tx.execute_and_fetchone(f'EXPLAIN FORMAT=TREE {sql}', args)
@@ -194,8 +172,7 @@ async def explain(db: Database, sql: str, args: Optional[Sequence[Any]] = None) 
 
 
 def _single_batch(ranges: str, column: str) -> bool:
-    """Every mention of ``column`` in a range scan's ranges is ``column = v``, for one ``v``: e.g.
-    ``(batch_id = 7 AND 100 <= job_id)``, not ``(1 <= batch_id <= 2)`` or ``(batch_id = 1) OR (batch_id = 2)``."""
+    """``(batch_id = 7 AND 100 <= job_id)``, but not ``(1 <= batch_id <= 2)`` or ``(batch_id = 1) OR (batch_id = 2)``."""
     mentions = re.findall(rf'\b{column}\b', ranges)
     values = re.findall(rf'\b{column} = ([^\s)]+)', ranges)
     return len(values) == len(mentions) and len(set(values)) == 1
@@ -208,31 +185,21 @@ def assert_scoped(
     allow_full_scan: Sequence[str] = SMALL_LOOKUP_TABLES,
     allow_filesort: bool = False,
 ):
-    """Every access to a per-batch table is proven to read one batch, every subquery and materialized derived
-    table is dependent (runs per outer row, like a LATERAL, rather than once over its whole input), nothing other than
-    ``allow_full_scan`` is fully scanned, and, unless ``allow_filesort``, nothing is filesorted (a filesort
+    """Every per-batch table access reads one batch, every subquery and derived table is dependent, nothing
+    outside ``allow_full_scan`` is fully scanned, and nothing is filesorted unless ``allow_filesort`` (a filesort
     reads every candidate row before a ``LIMIT`` can stop it).
 
-    An access to a per-batch table is proven to read one batch when its index's batch column is:
+    An access reads one batch when its index's batch column is matched against a constant, fixed to one value
+    in every range of a range scan, or matched against the batch column of an access already shown to read one
+    batch. Using an index on the batch column isn't enough: ``batch_id BETWEEN 1 AND 2`` and
+    ``jobs.batch_id = resources.resource_id`` both do.
 
-    - matched against a constant (a lookup), or
-    - fixed to one value in every range of a range scan (``batch_id BETWEEN 1 AND 2`` uses the same index as
-      ``batch_id = 1``, so the ranges are checked), or
-    - matched against the batch column of another access already proven (a join or a correlated subquery on
-      ``batch_id``). A lookup fed by any other column, e.g. ``jobs.batch_id = resources.resource_id``, reads
-      a batch per outer row, so it isn't proven.
-
-    ``EXPLAIN`` reports aliases, not tables, so map each alias the query uses in ``aliases``. A name that is
-    neither a real table nor a mapped alias fails: otherwise an aliased scoped table would go unchecked.
-    Derived tables (``LATERAL (...) AS c``, ``FROM (...) AS d``, MySQL's ``<subqueryN>``) are reported under
-    their alias with ``materialized_from_subquery``; they're skipped here, since the accesses inside them are
-    checked like any other, and must be dependent.
-
-    The plans are the CI MySQL's (Ubuntu's mysql-server), which may differ from Cloud SQL's; production's
-    plan choices are checked separately (the job-list spec's §3.8)."""
+    ``EXPLAIN`` names tables by alias, so pass the query's aliases; an unknown name fails rather than going
+    unchecked. Derived tables are skipped, since the tables they read are checked as accesses of their own.
+    """
     scope_columns = plan.batch_scope_columns
     problems = []
-    candidates = []  # (access, display name, batch column) still to prove
+    candidates = []  # (access, display name, batch column)
     for a in plan.accesses:
         if a.derived or a.table.startswith('<'):
             continue
@@ -252,7 +219,7 @@ def assert_scoped(
         else:
             candidates.append((a, name, column))
 
-    # Prove accesses to fixpoint: constants and single-batch ranges first, then lookups fed by proven ones.
+    # Repeat until nothing changes: a lookup is proven only once the access feeding it is.
     proven: Set[int] = set()  # ids of proven accesses
     unproven_reason: Dict[int, str] = {}
 
@@ -299,8 +266,7 @@ def assert_scoped(
 
 
 def assert_hint_kept(plan: Plan, hint: str = 'MAX_EXECUTION_TIME'):
-    """The optimizer kept ``hint``: it appears in the rewritten statement and no warning was raised
-    (an ignored or misplaced hint, e.g. ``MAX_EXECUTION_TIME`` on a subquery, produces a warning)."""
+    """The optimizer kept ``hint``. An ignored or misplaced one (e.g. on a subquery) only produces a warning."""
     rewritten = plan.rewritten_sql
     assert rewritten is not None, plan.warnings
     assert f'/*+ {hint}(' in rewritten, rewritten
