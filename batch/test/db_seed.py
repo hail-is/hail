@@ -208,8 +208,6 @@ def _cancelled(seeded: SeededBatch, job: Job, committed: bool) -> bool:
 
 
 def _unfinished_parents(seeded: SeededBatch, job: Job) -> int:
-    for p in job.parent_ids:
-        assert p in seeded.jobs, f'parent {p} must be an earlier seeded job'
     return sum(seeded.jobs[p].state not in COMPLETE_STATES for p in job.parent_ids)
 
 
@@ -468,6 +466,9 @@ def _plan(seeded: SeededBatch, updates: Sequence[Update], *, format_version: int
             chunk = job_chunks[-1]
             assert job.state in ALL_STATES, job.state
             assert job.job_group_id in seeded.job_group_parents, f'job group {job.job_group_id} does not exist'
+            # before registering this job, so it can't be its own parent
+            for p in job.parent_ids:
+                assert p in seeded.jobs, f'job {job_id}: parent {p} must be an earlier seeded job'
             seeded.jobs[job_id] = job
 
             attempts = _attempts(job_id, job)

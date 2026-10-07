@@ -364,6 +364,11 @@ class Database:
     async def async_close(self):
         assert self.pool
         assert self.connection_release_task_manager
+        # Let connections already handed back finish returning to the pool: shutdown() cancels them, which
+        # _release_connection logs as an error. Bounded, so a stuck release can't hold up shutdown.
+        pending = list(self.connection_release_task_manager.tasks)
+        if pending:
+            await asyncio.wait(pending, timeout=5)
         self.connection_release_task_manager.shutdown()
         self.pool.close()
         await self.pool.wait_closed()

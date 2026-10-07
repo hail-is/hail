@@ -74,6 +74,18 @@ async def test_seed_updates_gaps_and_counts(db):
     assert staging == {(1, 0): (3, 3), (2, 0): (2, 0), (2, 1): (1, 0), (3, 0): (2, 0), (3, 1): (2, 0)}
 
 
+async def test_seed_rejects_self_and_later_parents(db):
+    with pytest.raises(AssertionError, match='job 1: parent 1 must be an earlier seeded job'):
+        await seed_batch(db, [Update(jobs=[Job(state='Pending', parent_ids=[1])])])
+    with pytest.raises(AssertionError, match='job 1: parent 2 must be an earlier seeded job'):
+        await seed_batch(db, [Update(jobs=[Job(state='Pending', parent_ids=[2]), Job(state='Ready')])])
+    # also in an uncommitted update, where the parent counts aren't derived
+    with pytest.raises(AssertionError, match='job 2: parent 2 must be an earlier seeded job'):
+        await seed_batch(
+            db, [Update(jobs=[Job()]), Update(jobs=[Job(state='Pending', parent_ids=[2])], committed=False)]
+        )
+
+
 async def test_seed_rejects_states_that_disagree_with_parents(db):
     with pytest.raises(AssertionError, match='Ready with 1 unfinished parent'):
         await seed_batch(db, [Update(jobs=[Job(state='Running'), Job(state='Ready', parent_ids=[1])])])
