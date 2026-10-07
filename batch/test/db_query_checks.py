@@ -75,7 +75,6 @@ class TableAccess:
 @dataclass
 class Subquery:
     dependent: bool
-    cacheable: bool
     path: str
 
 
@@ -138,11 +137,7 @@ def _walk(node: Any, path: str, plan: Plan):
         plan.filesorts.append(path)
     for key in _SUBQUERY_KEYS:
         for i, sq in enumerate(node.get(key, [])):
-            plan.subqueries.append(
-                Subquery(
-                    dependent=bool(sq.get('dependent')), cacheable=bool(sq.get('cacheable')), path=f'{path}.{key}[{i}]'
-                )
-            )
+            plan.subqueries.append(Subquery(dependent=bool(sq.get('dependent')), path=f'{path}.{key}[{i}]'))
 
     for k, v in node.items():
         _walk(v, f'{path}.{k}', plan)
@@ -210,11 +205,8 @@ def assert_scoped(
     plan: Plan,
     *,
     aliases: Optional[Mapping[str, str]] = None,  # alias -> table, e.g. {'latest_attempt': 'attempts'}
-    # per-batch table -> batch column; defaults to the schema's (Plan.batch_scope_columns)
-    tables: Optional[Mapping[str, str]] = None,
     allow_full_scan: Sequence[str] = SMALL_LOOKUP_TABLES,
     allow_filesort: bool = False,
-    allow_materialized: bool = False,
 ):
     """Every access to a per-batch table is proven to read one batch, every subquery and materialized derived
     table is dependent (runs per outer row, like a LATERAL, rather than once over its whole input), nothing other than
@@ -234,11 +226,11 @@ def assert_scoped(
     neither a real table nor a mapped alias fails: otherwise an aliased scoped table would go unchecked.
     Derived tables (``LATERAL (...) AS c``, ``FROM (...) AS d``, MySQL's ``<subqueryN>``) are reported under
     their alias with ``materialized_from_subquery``; they're skipped here, since the accesses inside them are
-    checked like any other, and must be dependent unless ``allow_materialized``.
+    checked like any other, and must be dependent.
 
     The plans are the CI MySQL's (Ubuntu's mysql-server), which may differ from Cloud SQL's; production's
     plan choices are checked separately (the job-list spec's §3.8)."""
-    scope_columns = plan.batch_scope_columns if tables is None else tables
+    scope_columns = plan.batch_scope_columns
     problems = []
     candidates = []  # (access, display name, batch column) still to prove
     for a in plan.accesses:
@@ -300,10 +292,7 @@ def assert_scoped(
     problems.extend(f'{name}: {unproven_reason[id(a)]} at {a.path}' for a, name, _ in candidates if id(a) not in proven)
 
     problems.extend(f'non-dependent subquery at {s.path}' for s in plan.subqueries if not s.dependent)
-    if not allow_materialized:
-        problems.extend(
-            f'non-dependent materialized {m.table} at {m.path}' for m in plan.materialized if not m.dependent
-        )
+    problems.extend(f'non-dependent materialized {m.table} at {m.path}' for m in plan.materialized if not m.dependent)
     if not allow_filesort:
         problems.extend(f'filesort at {p}' for p in plan.filesorts)
     assert not problems, '\n'.join(problems) + '\n' + json.dumps(plan.raw, indent=2)

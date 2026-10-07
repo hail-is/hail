@@ -19,10 +19,7 @@ async def async_main(service: str, database_name: str):
 
     db = Database()
     await db.async_init()
-    try:
-        await db.just_execute(f'CREATE DATABASE IF NOT EXISTS `{database_name}`;')
-    finally:
-        await db.async_close()
+    await db.just_execute(f'CREATE DATABASE IF NOT EXISTS `{database_name}`;')
 
     os.environ['HAIL_SQL_DATABASE'] = database_name
     os.environ['HAIL_SCOPE'] = 'dev'
@@ -32,26 +29,26 @@ async def async_main(service: str, database_name: str):
         os.environ['HAIL_CLOUD'] = 'gcp'
 
     # Pick up the `HAIL_SQL_DATABASE` change
+    await db.async_close()
     db = Database()
     await db.async_init()
 
-    try:
-        await create_migration_tables(db, database_name)
-        with tempfile.NamedTemporaryFile() as mysql_cnf:
-            mysql_cnf.write(
-                f"""
+    await create_migration_tables(db, database_name)
+    with tempfile.NamedTemporaryFile() as mysql_cnf:
+        mysql_cnf.write(
+            f"""
 [client]
 host = 127.0.0.1
 user = root
 password = pw
 database = {database_name}
 """.encode()
-            )
-            mysql_cnf.flush()
-            for i, m in enumerate(migrations):
-                await migrate(database_name, db, mysql_cnf.name, i, m)
-    finally:
-        await db.async_close()
+        )
+        mysql_cnf.flush()
+        for i, m in enumerate(migrations):
+            await migrate(database_name, db, mysql_cnf.name, i, m)
+
+    await db.async_close()
 
 
 def read_migrations_from_build_yaml(service: str) -> List[dict]:

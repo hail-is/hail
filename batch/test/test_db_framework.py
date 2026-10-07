@@ -142,14 +142,11 @@ async def test_seed_rejects_groups_deeper_than_production_allows(db):
         await seed_batch(db, [Update(job_groups=[JobGroup(), JobGroup(parent_id=1), JobGroup(parent_id=2)])])
 
 
-async def test_seed_rejects_bad_current_attempts(db):
+async def test_seed_rejects_in_progress_jobs_without_attempts(db):
     for state in ('Creating', 'Running'):
-        with pytest.raises(AssertionError, match=f'is {state}, so it must have a current attempt'):
-            await seed_batch(db, [Update(jobs=[Job(state=state, n_attempts=0)])])
-        with pytest.raises(AssertionError, match=f'is {state}, so it must have a current attempt'):
-            await seed_batch(db, [Update(jobs=[Job(state=state, current_attempt_id=None)])])
-    with pytest.raises(AssertionError, match="current attempt 'att-9' is not one of its attempts"):
-        await seed_batch(db, [Update(jobs=[Job(state='Success', current_attempt_id='att-9')])])
+        for job in (Job(state=state, n_attempts=0), Job(state=state, attempts=[])):
+            with pytest.raises(AssertionError, match=f'is {state}, so it must have a current attempt'):
+                await seed_batch(db, [Update(jobs=[job])])
 
 
 async def test_seed_preempted_jobs_and_exit_codes(db):
@@ -602,19 +599,6 @@ async def test_seed_staging_has_a_token_per_chunk(db):
         (1, 1024, 1024),
         (2, 452, 452),
     ]
-
-
-async def test_seed_can_delete_committed_staging(db):
-    seeded = await seed_batch(
-        db,
-        [Update(jobs=[Job()]), Update(jobs=[Job(state='Pending')], committed=False)],
-        delete_committed_staging=True,
-    )
-    rows = await _fetchall(
-        db, 'SELECT DISTINCT update_id FROM job_groups_inst_coll_staging WHERE batch_id = %s', (seeded.batch_id,)
-    )
-    # only the pending update's rows are left, as after the driver's cleanup loop
-    assert [r['update_id'] for r in rows] == [2]
 
 
 async def test_seed_attempts_have_instances(db):

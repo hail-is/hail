@@ -74,11 +74,7 @@ class Job:
     n_attempts: Optional[int] = None
     # Explicit attempts instead of generated ones (not with n_attempts).
     attempts: Optional[List[Attempt]] = None
-    # jobs.attempt_id. Defaults to the last attempt's id for Creating, Running, Success, Failed and Error, else None
-    # (the driver clears it when an attempt is preempted).
-    current_attempt_id: Optional[str] = _UNSET
     cancelled: bool = False
-    always_run: bool = False
     inst_coll: str = 'standard'
     cores_mcpu: int = 1000
 
@@ -86,7 +82,6 @@ class Job:
 @dataclass
 class JobGroup:
     parent_id: int = ROOT_JOB_GROUP_ID
-    attributes: Dict[str, str] = field(default_factory=dict)
 
 
 @dataclass
@@ -296,9 +291,6 @@ _INSERT_JOB_GROUP_COMPLETE_STATES = """
 INSERT INTO job_groups_n_jobs_in_complete_states (id, job_group_id, n_completed, n_succeeded, n_failed, n_cancelled)
 VALUES (%s, %s, %s, %s, %s, %s);
 """
-_INSERT_JOB_GROUP_ATTRIBUTE = """
-INSERT INTO job_group_attributes (batch_id, job_group_id, `key`, `value`) VALUES (%s, %s, %s, %s);
-"""
 _INSERT_JOB = """
 INSERT INTO jobs (batch_id, job_id, update_id, job_group_id, state, spec, status, always_run, cores_mcpu,
   n_pending_parents, cancelled, attempt_id, inst_coll)
@@ -334,10 +326,7 @@ async def seed_batch(
     updates: Sequence[Update],
     *,
     format_version: int = LATEST_FORMAT_VERSION,
-    user: str = USER,
-    billing_project: str = BILLING_PROJECT,
     with_costs: bool = True,
-    delete_committed_staging: bool = False,
 ) -> SeededBatch:
     """Create a batch with the given updates, in order, and return what was written.
 
@@ -346,10 +335,9 @@ async def seed_batch(
     large batches that aren't testing cost; the noise batch keeps the cost tables populated for EXPLAIN.
 
     Staging rows (``job_groups_inst_coll_staging``) are written per chunk with the chunk's jobs, one token per
-    chunk, as the front end writes them per create-jobs request. Committed updates' staging rows are kept by
-    default: production has them until the driver's cleanup loop deletes them, and keeping them is the stricter
-    case for a query that must only count pending updates. ``delete_committed_staging=True`` gives the state
-    after that cleanup instead.
+    chunk, as the front end writes them per create-jobs request. Committed updates' staging rows are kept:
+    production has them until the driver's cleanup loop deletes them, and keeping them is the stricter case for
+    a query that must only count pending updates.
 
     Rows are planned in memory first (an invalid plan deletes the batch row and raises), then written: the
     updates and groups in one transaction, then jobs in transactions of JOB_CHUNK_SIZE (like the client's job
@@ -363,7 +351,7 @@ INSERT INTO batches (userdata, user, billing_project, attributes, n_jobs, time_c
   format_version, migrated_batch)
 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
 """,
-        ('{}', user, billing_project, '{}', 0, T0, None, 'running', format_version, True),
+        ('{}', USER, BILLING_PROJECT, '{}', 0, T0, None, 'running', format_version, True),
     )
     assert batch_id is not None
     seeded = SeededBatch(batch_id, format_version, [], {}, {ROOT_JOB_GROUP_ID: None})
@@ -398,20 +386,20 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
                 (
                     batch_id,
                     g,
-                    user,
-                    json.dumps(attrs),
+                    USER,
+                    '{}',
                     group_state(g),
                     n_jobs[g],
                     T0,
                     T0 if group_state(g) == 'complete' else None,
                     update_id,
                 )
-                for g, update_id, attrs in job_group_rows
+                for g, update_id in job_group_rows
             ],
         )
         await tx.execute_many(
             _INSERT_JOB_GROUP_ANCESTOR,
-            [(batch_id, g, a, level) for g, _, _ in job_group_rows for level, a in enumerate(seeded.ancestors(g))],
+            [(batch_id, g, a, level) for g, _ in job_group_rows for level, a in enumerate(seeded.ancestors(g))],
         )
         await tx.execute_many(
             _INSERT_JOB_GROUP_COMPLETE_STATES,
@@ -420,9 +408,6 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
                 for g, c in n_complete.items()
             ],
         )
-        group_attribute_rows = [(batch_id, g, k, v) for g, _, attrs in job_group_rows for k, v in attrs.items()]
-        if group_attribute_rows:
-            await tx.execute_many(_INSERT_JOB_GROUP_ATTRIBUTE, group_attribute_rows)
 
     for chunk in job_chunks:
         async with db.start() as tx:
@@ -439,13 +424,6 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
 
     root_state = group_state(ROOT_JOB_GROUP_ID)
     async with db.start() as tx:
-        if delete_committed_staging:
-            committed = [u.update_id for u in seeded.updates if u.committed]
-            if committed:
-                await tx.execute_update(
-                    'DELETE FROM job_groups_inst_coll_staging WHERE batch_id = %s AND update_id IN %s',
-                    (batch_id, committed),
-                )
         await tx.execute_update(
             'UPDATE batches SET n_jobs = %s, state = %s, time_completed = %s WHERE id = %s',
             (n_jobs[ROOT_JOB_GROUP_ID], root_state, T0 if root_state == 'complete' else None, batch_id),
@@ -458,7 +436,7 @@ def _plan(seeded: SeededBatch, updates: Sequence[Update], *, format_version: int
     """Validate the updates and build every row to write, without touching the database."""
     batch_id = seeded.batch_id
     update_rows = []
-    job_group_rows: List[tuple] = [(ROOT_JOB_GROUP_ID, None, {})]  # (job_group_id, update_id, attributes)
+    job_group_rows: List[tuple] = [(ROOT_JOB_GROUP_ID, None)]  # (job_group_id, update_id)
     job_chunks: List[Dict[str, list]] = []
     instances: Dict[str, str] = {}  # name -> inst_coll
 
@@ -491,7 +469,7 @@ def _plan(seeded: SeededBatch, updates: Sequence[Update], *, format_version: int
                 f'({MAX_JOB_GROUPS_DEPTH}) below the root'
             )
             seeded.job_group_parents[next_job_group_id] = jg.parent_id
-            job_group_rows.append((next_job_group_id, update_id, jg.attributes))
+            job_group_rows.append((next_job_group_id, update_id))
             job_group_ids.append(next_job_group_id)
             next_job_group_id += 1
 
@@ -529,17 +507,10 @@ def _plan(seeded: SeededBatch, updates: Sequence[Update], *, format_version: int
                 )
             else:
                 _check_state_matches_parents(seeded, job_id, job)
-            if job.current_attempt_id is not _UNSET:
-                current_attempt_id = job.current_attempt_id
-            elif attempts and job.state in _ATTEMPTED_STATES:
-                current_attempt_id = attempts[-1].attempt_id
-            else:
-                current_attempt_id = None
-            # attempts.attempt_id has no foreign key, so check it here; and production always adds the attempt
-            # before a job becomes Creating or Running (mark_job_creating, scheduling).
-            assert current_attempt_id is None or current_attempt_id in {a.attempt_id for a in attempts}, (
-                f'job {job_id}: current attempt {current_attempt_id!r} is not one of its attempts'
-            )
+            # jobs.attempt_id: the last attempt while it holds one; the driver clears it on preemption
+            current_attempt_id = attempts[-1].attempt_id if attempts and job.state in _ATTEMPTED_STATES else None
+            # production always adds the attempt before a job becomes Creating or Running (mark_job_creating,
+            # scheduling)
             assert job.state not in ('Creating', 'Running') or current_attempt_id is not None, (
                 f'job {job_id} is {job.state}, so it must have a current attempt'
             )
@@ -551,7 +522,7 @@ def _plan(seeded: SeededBatch, updates: Sequence[Update], *, format_version: int
                 job.state,
                 _db_spec(format_version),
                 _db_status(format_version, job, attempts),
-                job.always_run,
+                False,  # always_run
                 job.cores_mcpu,
                 _n_pending_parents(seeded, job, update.committed),
                 _cancelled(seeded, job, update.committed),

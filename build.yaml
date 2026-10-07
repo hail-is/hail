@@ -3221,7 +3221,6 @@ steps:
         to: /io/repo/ci/create_database.py
       - from: /repo/batch/sql
         to: /io/repo/batch/sql
-    port: 5000
     timeout: 900
     scopes:
       - test

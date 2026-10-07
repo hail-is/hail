@@ -2,6 +2,7 @@ import hashlib
 import logging
 import os
 import sys
+import warnings
 
 import pytest
 import pytest_asyncio
@@ -25,8 +26,6 @@ async def db():
     """Spin up a real migrated batch DB and yield it; drop it on teardown."""
     # Imported here rather than at module level: other test steps share this conftest but run in images
     # without these packages.
-    import warnings as _warnings  # pylint: disable=import-outside-toplevel
-
     import aiomysql  # pylint: disable=import-outside-toplevel
 
     from gear import Database  # pylint: disable=import-outside-toplevel
@@ -39,8 +38,8 @@ async def db():
         async with conn.cursor() as cur:
             # Both can warn (a missing database; the variable is deprecated in later 8.0 releases), and pytest.ini turns
             # warnings into errors.
-            with _warnings.catch_warnings():
-                _warnings.simplefilter('ignore')
+            with warnings.catch_warnings():
+                warnings.simplefilter('ignore')
                 await cur.execute(f'DROP DATABASE IF EXISTS `{_TEST_DB_NAME}`')
                 await cur.execute('SET GLOBAL log_bin_trust_function_creators = 1')
         await conn.commit()
@@ -78,7 +77,6 @@ async def noise_batch(db):
     """A large batch seeded once per session, so an unscoped read or full scan in a query under test shows up
     in its row-read count and makes MySQL's plans realistic. Tables are analyzed after seeding."""
     from .db_seed import (  # pylint: disable=import-outside-toplevel
-        Attempt,
         Job,
         JobGroup,
         Update,
@@ -101,19 +99,14 @@ async def noise_batch(db):
             parent_ids = [p for p in range(job_id - 1, max(job_id - 8, 0), -1) if states[(p - 1) % 7] in finished][:1]
         else:
             parent_ids = []
-        attempts = None
-        if state == 'Success' and i % 3 == 0:
-            attempts = [
-                Attempt('pre-1', start_time=1_000 * job_id, end_time=1_000 * job_id + 500, reason='preempted'),
-                Attempt('att-2', start_time=1_000 * job_id + 600, end_time=1_000 * job_id + 900, reason='completed'),
-            ]
         jobs.append(
             Job(
                 state=state,
                 job_group_id=i % 4,
                 attributes={'shard': str(i % 10)},
                 parent_ids=parent_ids,
-                attempts=attempts,
+                # every third Success job was preempted once first
+                n_attempts=2 if state == 'Success' and i % 3 == 0 else None,
             )
         )
     # plus a pending update partly uploaded, so batch_updates and staging have cross-batch rows to (not) read
