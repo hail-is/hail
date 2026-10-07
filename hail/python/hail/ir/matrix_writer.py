@@ -172,6 +172,34 @@ class MatrixBlockMatrixWriter(MatrixWriter):
         )
 
 
+class MatrixNativePartitionedColumnsWriter(MatrixWriter):
+    @typecheck_method(prefix=str, n_fanout_targets=int, overwrite=bool, codec_spec=nullable(str))
+    def __init__(self, prefix, n_fanout_targets, overwrite, codec_spec):
+        self.prefix = prefix
+        self.n_fanout_targets = n_fanout_targets
+        self.overwrite = overwrite
+        self.codec_spec = codec_spec
+
+    def render(self):
+        writer = {
+            'name': 'MatrixNativePartitionedColumnsWriter',
+            'prefix': self.prefix,
+            'nFanoutTargets': self.n_fanout_targets,
+            'overwrite': self.overwrite,
+            'codecSpecJSONStr': self.codec_spec,
+        }
+        return escape_str(json.dumps(writer))
+
+    def __eq__(self, other):
+        return (
+            isinstance(other, MatrixNativePartitionedColumnsWriter)
+            and other.prefix == self.prefix
+            and other.n_fanout_targets == self.n_fanout_targets
+            and other.overwrite == self.overwrite
+            and other.codec_spec == self.codec_spec
+        )
+
+
 class MatrixNativeMultiWriter(object):
     @typecheck_method(paths=sequenceof(str), overwrite=bool, codec_spec=nullable(str))
     def __init__(self, paths, overwrite, codec_spec):
