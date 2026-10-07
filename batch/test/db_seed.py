@@ -20,6 +20,7 @@ from typing import Any, Dict, List, Optional, Sequence
 from batch.batch_format_version import BatchFormatVersion
 from batch.globals import BATCH_FORMAT_VERSION as LATEST_FORMAT_VERSION
 from gear import Database
+from hailtop.batch_client.globals import MAX_JOB_GROUPS_DEPTH
 
 ROOT_JOB_GROUP_ID = 0
 BILLING_PROJECT = 'test'
@@ -453,6 +454,12 @@ def _plan(seeded: SeededBatch, updates: Sequence[Update], *, format_version: int
         job_group_ids = []
         for jg in update.job_groups:
             assert jg.parent_id in seeded.job_group_parents, f'job group parent {jg.parent_id} does not exist'
+            # The front end's limit: the parent's own ancestry (itself up to the root) must be at most
+            # MAX_JOB_GROUPS_DEPTH rows, so groups nest at most MAX_JOB_GROUPS_DEPTH levels below the root.
+            assert len(seeded.ancestors(jg.parent_id)) <= MAX_JOB_GROUPS_DEPTH, (
+                f'job group {next_job_group_id} would be nested deeper than MAX_JOB_GROUPS_DEPTH '
+                f'({MAX_JOB_GROUPS_DEPTH}) below the root'
+            )
             seeded.job_group_parents[next_job_group_id] = jg.parent_id
             job_group_rows.append((next_job_group_id, update_id, jg.attributes))
             job_group_ids.append(next_job_group_id)
@@ -489,6 +496,14 @@ def _plan(seeded: SeededBatch, updates: Sequence[Update], *, format_version: int
                 current_attempt_id = attempts[-1].attempt_id
             else:
                 current_attempt_id = None
+            # attempts.attempt_id has no foreign key, so check it here; and production always adds the attempt
+            # before a job becomes Creating or Running (mark_job_creating, scheduling).
+            assert current_attempt_id is None or current_attempt_id in {a.attempt_id for a in attempts}, (
+                f'job {job_id}: current attempt {current_attempt_id!r} is not one of its attempts'
+            )
+            assert job.state not in ('Creating', 'Running') or current_attempt_id is not None, (
+                f'job {job_id} is {job.state}, so it must have a current attempt'
+            )
             chunk['jobs'].append((
                 batch_id,
                 job_id,

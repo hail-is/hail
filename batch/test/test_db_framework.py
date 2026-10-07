@@ -107,31 +107,45 @@ async def test_seed_rejects_scheduled_jobs_in_uncommitted_updates(db):
 
 
 async def test_seed_nested_groups(db):
-    # 0 -> 1 -> 2 -> 3, plus 12 empty siblings under 1
+    # 0 -> 1 -> 2 (the deepest production allows), plus 12 empty siblings of 2 under 1
     seeded = await seed_batch(
         db,
         [
             Update(
-                jobs=[Job(job_group_id=3), Job(job_group_id=2), Job(job_group_id=4)],
-                job_groups=[JobGroup(), JobGroup(parent_id=1), JobGroup(parent_id=2)]
-                + [JobGroup(parent_id=1) for _ in range(12)],
+                jobs=[Job(job_group_id=2), Job(job_group_id=1), Job(job_group_id=3)],
+                job_groups=[JobGroup(), JobGroup(parent_id=1)] + [JobGroup(parent_id=1) for _ in range(12)],
             )
         ],
     )
     batch_id = seeded.batch_id
     ancestors = await _fetchall(
         db,
-        'SELECT ancestor_id, level FROM job_group_self_and_ancestors WHERE batch_id = %s AND job_group_id = 3 '
+        'SELECT ancestor_id, level FROM job_group_self_and_ancestors WHERE batch_id = %s AND job_group_id = 2 '
         'ORDER BY level',
         (batch_id,),
     )
-    assert [(r['ancestor_id'], r['level']) for r in ancestors] == [(3, 0), (2, 1), (1, 2), (0, 3)]
+    assert [(r['ancestor_id'], r['level']) for r in ancestors] == [(2, 0), (1, 1), (0, 2)]
     n_jobs = {
         r['job_group_id']: r['n_jobs']
         for r in await _fetchall(db, 'SELECT job_group_id, n_jobs FROM job_groups WHERE batch_id = %s', (batch_id,))
     }
-    assert (n_jobs[0], n_jobs[1], n_jobs[2], n_jobs[3], n_jobs[4], n_jobs[5]) == (3, 3, 2, 1, 1, 0)
-    assert len(n_jobs) == 16
+    assert (n_jobs[0], n_jobs[1], n_jobs[2], n_jobs[3], n_jobs[4]) == (3, 3, 1, 1, 0)
+    assert len(n_jobs) == 15
+
+
+async def test_seed_rejects_groups_deeper_than_production_allows(db):
+    with pytest.raises(AssertionError, match='nested deeper than MAX_JOB_GROUPS_DEPTH'):
+        await seed_batch(db, [Update(job_groups=[JobGroup(), JobGroup(parent_id=1), JobGroup(parent_id=2)])])
+
+
+async def test_seed_rejects_bad_current_attempts(db):
+    for state in ('Creating', 'Running'):
+        with pytest.raises(AssertionError, match=f'is {state}, so it must have a current attempt'):
+            await seed_batch(db, [Update(jobs=[Job(state=state, n_attempts=0)])])
+        with pytest.raises(AssertionError, match=f'is {state}, so it must have a current attempt'):
+            await seed_batch(db, [Update(jobs=[Job(state=state, current_attempt_id=None)])])
+    with pytest.raises(AssertionError, match="current attempt 'att-9' is not one of its attempts"):
+        await seed_batch(db, [Update(jobs=[Job(state='Success', current_attempt_id='att-9')])])
 
 
 async def test_seed_preempted_jobs_and_exit_codes(db):
