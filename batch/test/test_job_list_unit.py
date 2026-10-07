@@ -29,6 +29,22 @@ from batch.front_end.query.job_list import (
     parse_job_list_params,
     plan_window,
 )
+from batch.front_end.query.job_list_sql import (
+    GroupFilter,
+    Statement,
+    attempts_statement,
+    batch_range_statement,
+    cost_per_hour_statement,
+    count_statement,
+    direct_group_range_statement,
+    escape_like,
+    groups_statement,
+    jobs_statement,
+    parent_edges_statement,
+    recursive_group_range_statement,
+    staged_pending_jobs_statement,
+    subgroups_statement,
+)
 
 LIMITS = JobListLimits()
 
@@ -516,3 +532,166 @@ def test_paging_property(seed):
     seen = _follow(serve, (start, direction))
     assert len(seen) == len(set(seen)), 'a job came back twice'
     assert sorted(seen) == matching
+
+
+# SQL builders, without a database
+
+BATCH_ID = 424242424
+GROUP_ID = 31337
+JOB_ID = 987654321
+STRINGS = ["SENTINEL_a", "'; DROP TABLE jobs; --", '%_\\', '名前"', 'a`b']
+WIDE = JobListLimits(max_filter_leaves=100, max_filter_bytes=100_000)
+
+
+def _all_leaves_filters() -> List[str]:
+    """Filters that between them use every field and operator, with distinctive values."""
+    s0, s1, s2, s3, s4 = STRINGS
+    per_field = [
+        leaf('job_id', '=', JOB_ID),
+        leaf('job_id', 'in', [JOB_ID, JOB_ID - 1]),
+        *[leaf('job_id', op, JOB_ID) for op in ('<', '<=', '>', '>=')],
+        leaf('state', '=', 'Failed'),
+        leaf('state', '!=', 'Success'),
+        leaf('state', 'in', ['Error', 'Cancelled']),
+        *[leaf('name', op, s) for op, s in [('=', s0), ('!=', s1), ('contains', s2), ('not_contains', s3)]],
+        *[
+            leaf('attribute', op, s, key=s4)
+            for op, s in [('=', s0), ('!=', s1), ('contains', s2), ('not_contains', s3)]
+        ],
+        leaf('attribute', 'exists', key=s1),
+        leaf('text', 'contains', s2),
+        leaf('text', '=', s1),
+        leaf('instance', '=', s0),
+        leaf('instance', 'contains', s3),
+        leaf('instance_collection', '=', s4),
+        leaf('exit_code', '=', -77777),
+        leaf('exit_code', '!=', -77778),
+        leaf('exit_code', 'in', [-77779, -77780]),
+        *[leaf('cost', op, 12345.678) for op in ('<', '<=', '>', '>=')],
+        *[leaf('start_time', op, '2031-07-05T01:02:03.004Z') for op in ('<', '>=')],
+        *[leaf('end_time', op, 1940979723005) for op in ('<=', '>')],
+        *[leaf('duration', op, 86400017) for op in ('<', '>')],
+        *[leaf('latest_attempt_duration', op, 86400019) for op in ('<=', '>=')],
+    ]
+    return [
+        f({'and': per_field}),
+        f({'or': per_field}),
+        f({'and': [{'or': per_field[:20]}, {'or': per_field[20:]}]}),
+    ]
+
+
+ALL_INCLUDES = parse_include(','.join(['start_time', 'end_time', 'latest_attempt_duration', 'exit_code', 'cost']))
+
+
+def _statements() -> List[Statement]:
+    stmts = [
+        groups_statement(BATCH_ID, [GROUP_ID, GROUP_ID + 1]),
+        batch_range_statement(BATCH_ID),
+        direct_group_range_statement(BATCH_ID, [GROUP_ID, GROUP_ID + 1]),
+        staged_pending_jobs_statement(BATCH_ID, [GROUP_ID]),
+        subgroups_statement(BATCH_ID, [GROUP_ID], 10001),
+        recursive_group_range_statement(BATCH_ID, [GROUP_ID, GROUP_ID + 1]),
+        attempts_statement(BATCH_ID, [JOB_ID, JOB_ID - 1]),
+        cost_per_hour_statement(BATCH_ID, [JOB_ID]),
+        parent_edges_statement(BATCH_ID, [JOB_ID], BACKWARD, 10001),
+    ]
+    groups = [None, GroupFilter((GROUP_ID,), False), GroupFilter((GROUP_ID, GROUP_ID + 1), True)]
+    for raw in [None, *_all_leaves_filters()]:
+        filter_ = None if raw is None else parse_filter(raw, WIDE)
+        for group_filter in groups:
+            for direction in (FORWARD, BACKWARD):
+                stmts.append(
+                    jobs_statement(BATCH_ID, JOB_ID, JOB_ID + 3, direction, 51, group_filter, filter_, ALL_INCLUDES)
+                )
+            stmts.append(count_statement(BATCH_ID, JOB_ID, JOB_ID + 3, group_filter, filter_))
+    return stmts
+
+
+STATEMENTS = _statements()
+STATEMENT_IDS = [s.name for s in STATEMENTS]
+
+
+@pytest.mark.parametrize('stmt', STATEMENTS, ids=STATEMENT_IDS)
+def test_statement_hint_first(stmt: Statement):
+    sql = stmt.sql(7)
+    assert sql.startswith('SELECT /*+ MAX_EXECUTION_TIME(7) */ ')
+    # anywhere else MySQL ignores it with only a warning
+    assert sql.count('/*+') == 1
+
+
+@pytest.mark.parametrize('stmt', STATEMENTS, ids=STATEMENT_IDS)
+def test_statement_values_only_in_args(stmt: Statement):
+    # Substitution uses Python's %, so a stray % in the text would break it, and each value needs a placeholder.
+    assert stmt.body.count('%s') == len(stmt.args)
+    assert '%' not in stmt.body.replace('%s', '')
+    distinctive = [BATCH_ID, GROUP_ID, JOB_ID, -77777, 12345.678, 1940979723005, 86400017, *STRINGS]
+    for v in distinctive:
+        assert str(v) not in stmt.body, v
+    for s in STRINGS:
+        for part in s.split():
+            assert part not in stmt.body or part in ('--',), part
+
+
+def test_statement_args_carry_the_values():
+    stmt = jobs_statement(
+        BATCH_ID, 1, 2, FORWARD, 51, GroupFilter((GROUP_ID,), True), parse_filter(_all_leaves_filters()[0], WIDE), ()
+    )
+    args = [str(a) for a in stmt.args]
+    for s in STRINGS:
+        assert s in args or f'%{escape_like(s)}%' in args, s
+    for v in (BATCH_ID, GROUP_ID, JOB_ID, -77777, 12345.678, 1940979723005, 86400017):
+        assert str(v) in args, v
+
+
+@pytest.mark.parametrize('stmt', STATEMENTS, ids=STATEMENT_IDS)
+def test_statement_subqueries_correlated(stmt: Statement):
+    body = stmt.body
+    for alias, table in stmt.aliases.items():
+        assert body.count(f'{table} AS {alias}') == 1, alias
+        if alias in ('upd', 'anc', 'j', 'ar', 'r', 'name_attr', 'cost_resources', 'staging'):
+            continue
+        # every subquery on another per-batch table is tied to the outer job
+        assert f'{alias}.batch_id = jobs.batch_id' in body, alias
+        column = 'job_group_id' if alias == 'grp' else 'job_id'
+        assert f'{alias}.{column} = jobs.{column}' in body, alias
+
+
+@pytest.mark.parametrize('stmt', STATEMENTS, ids=STATEMENT_IDS)
+def test_statement_derived_tables_once(stmt: Statement):
+    for derived in ('attempt_summary', 'cost_t'):
+        assert stmt.body.count(f') AS {derived} ON TRUE') <= 1, derived
+
+
+@pytest.mark.parametrize('ms', [0, -1, 1.5, True, '5', None])
+def test_statement_bad_time_limit(ms):
+    with pytest.raises(ValueError):
+        batch_range_statement(BATCH_ID).sql(ms)
+
+
+def test_join_order_follows_the_filter():
+    time_leaf = parse_filter(f(leaf('end_time', '>', 1)), LIMITS)
+    cost_leaf = parse_filter(f(leaf('cost', '>', 1)), LIMITS)
+    includes = parse_include('start_time,cost')
+
+    body = jobs_statement(BATCH_ID, 1, 2, FORWARD, 51, None, time_leaf, includes).body
+    assert body.index('AS attempt_summary') < min(body.index('AS cost_t'), body.index('AS name_attr'))
+
+    body = jobs_statement(BATCH_ID, 1, 2, FORWARD, 51, None, cost_leaf, includes).body
+    assert body.index('AS cost_t') < body.index('AS attempt_summary')
+
+    name_leaf = parse_filter(f(leaf('name', '=', 'x')), LIMITS)
+    body = jobs_statement(BATCH_ID, 1, 2, FORWARD, 51, None, name_leaf, includes).body
+    assert body.index('AS name_attr') < body.index('AS attempt_summary')
+
+
+def test_only_needed_fragments():
+    body = jobs_statement(BATCH_ID, 1, 2, FORWARD, 51, None, None, ()).body
+    assert 'attempt_summary' not in body and 'cost_t' not in body and 'status' not in body
+    state_leaf = parse_filter(f(leaf('state', '=', 'Failed')), LIMITS)
+    body = count_statement(BATCH_ID, 1, 2, None, state_leaf).body
+    assert 'name_attr' not in body and 'attempt_summary' not in body and 'cost_t' not in body
+
+
+def test_escape_like():
+    assert escape_like('a_b%c\\d') == 'a\\_b\\%c\\\\d'
+    assert escape_like('plain') == 'plain'

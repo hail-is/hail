@@ -3208,7 +3208,8 @@ steps:
               --durations=50 \
               --timeout=120 \
               -o timeout_func_only=true \
-              /io/test/test_db_framework.py
+              /io/test/test_db_framework.py \
+              /io/test/test_job_list_db.py
     inputs:
       - from: /repo/batch/test
         to: /io/test
