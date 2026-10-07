@@ -3,6 +3,7 @@ import json
 import pytest
 
 from batch.batch_format_version import BatchFormatVersion
+from batch.front_end.query.query_v2 import parse_job_group_jobs_query_v2
 
 from .db_query_checks import assert_hint_kept, assert_scoped, count_row_reads, explain
 from .db_seed import LATEST_FORMAT_VERSION, Attempt, Job, JobGroup, Update, preempted_job, seed_batch
@@ -41,7 +42,10 @@ async def test_seed_updates_gaps_and_counts(db):
     batch = await db.execute_and_fetchone('SELECT n_jobs, state FROM batches WHERE id = %s', (batch_id,))
     assert batch == {'n_jobs': 5, 'state': 'running'}
 
-    job_ids = [r['job_id'] for r in await _fetchall(db, 'SELECT job_id FROM jobs WHERE batch_id = %s', (batch_id,))]
+    job_ids = [
+        r['job_id']
+        for r in await _fetchall(db, 'SELECT job_id FROM jobs WHERE batch_id = %s ORDER BY job_id', (batch_id,))
+    ]
     assert job_ids == [1, 2, 3, 4, 5, 9, 10]
 
     groups = {
@@ -180,7 +184,9 @@ async def test_seed_preempted_jobs_and_exit_codes(db):
     )
     assert {(r['job_id'], r['reason']) for r in attempts} == {(1, 'preempted'), (2, 'preempted')}
 
-    names = await _fetchall(db, "SELECT job_id FROM job_attributes WHERE batch_id = %s AND `key` = 'name'", (batch_id,))
+    names = await _fetchall(
+        db, "SELECT job_id FROM job_attributes WHERE batch_id = %s AND `key` = 'name' ORDER BY job_id", (batch_id,)
+    )
     assert [r['job_id'] for r in names] == [1, 2, 3, 4]
 
 
@@ -358,6 +364,39 @@ async def test_explain_full_scans_fail_except_small_lookup_tables(db):
     assert_scoped(plan, allow_full_scan=['instances'])
 
 
+async def test_explain_accepts_query_v2_cost_lateral(db, noise_batch):
+    # The cost LATERAL step A reuses, taken from production's SQL so the test follows it if it changes. It
+    # materializes cost_t (and usage_t inside it) per job; the reads inside are proven through jobs.batch_id.
+    v2_sql, _ = parse_job_group_jobs_query_v2(noise_batch.batch_id, 0, '', None, False)
+    start = v2_sql.index('LEFT JOIN LATERAL (')
+    end = v2_sql.index(') AS cost_t ON TRUE') + len(') AS cost_t ON TRUE')
+    sql = f"""
+SELECT jobs.job_id, cost_t.cost
+FROM jobs FORCE INDEX (PRIMARY)
+{v2_sql[start:end]}
+WHERE jobs.batch_id = %s AND jobs.job_id >= %s
+ORDER BY jobs.job_id
+LIMIT 50;
+"""
+    plan = await explain(db, sql, (noise_batch.batch_id, 100))
+    assert 'cost_t' in {m.table for m in plan.materialized}
+    assert all(m.dependent for m in plan.materialized)
+    assert_scoped(plan)
+
+
+@pytest.mark.usefixtures('noise_batch')  # its rows make the plan realistic
+async def test_explain_rejects_non_dependent_derived_tables(db):
+    # materialized once over its whole input rather than per outer row
+    plan = await explain(
+        db,
+        'SELECT j.job_id, d.n FROM jobs AS j, (SELECT job_id, COUNT(*) AS n FROM job_parents GROUP BY job_id) AS d '
+        'WHERE j.batch_id = %s AND d.job_id = j.job_id',
+        (1,),
+    )
+    with pytest.raises(AssertionError, match='non-dependent materialized d'):
+        assert_scoped(plan, aliases={'j': 'jobs'})
+
+
 @pytest.mark.usefixtures('noise_batch')  # its rows make the plan realistic
 async def test_explain_resolves_aliases(db):
     sql = """
@@ -454,7 +493,9 @@ async def test_seed_n_attempts(db):
         (3, 'att-1', 'preempted'),
         (3, 'att-2', 'preempted'),
     ]
-    current = await _fetchall(db, 'SELECT job_id, attempt_id FROM jobs WHERE batch_id = %s', (seeded.batch_id,))
+    current = await _fetchall(
+        db, 'SELECT job_id, attempt_id FROM jobs WHERE batch_id = %s ORDER BY job_id', (seeded.batch_id,)
+    )
     assert [(r['job_id'], r['attempt_id']) for r in current] == [(1, 'att-3'), (2, 'att-2'), (3, None)]
 
 
@@ -544,4 +585,59 @@ async def test_seed_cancels_children_of_unsuccessful_parents(db):
         (4, False),
         (5, True),
         (6, False),
+    ]
+
+
+async def test_seed_staging_has_a_token_per_chunk(db):
+    # 2,500 jobs in update 1: three chunks, so three staging rows (tokens 0-2) for the root group
+    seeded = await seed_batch(db, [Update(jobs=[Job(state='Ready') for _ in range(2_500)])], with_costs=False)
+    rows = await _fetchall(
+        db,
+        'SELECT token, n_jobs, n_ready_jobs FROM job_groups_inst_coll_staging '
+        'WHERE batch_id = %s AND job_group_id = 0 ORDER BY token',
+        (seeded.batch_id,),
+    )
+    assert [(r['token'], r['n_jobs'], r['n_ready_jobs']) for r in rows] == [
+        (0, 1024, 1024),
+        (1, 1024, 1024),
+        (2, 452, 452),
+    ]
+
+
+async def test_seed_can_delete_committed_staging(db):
+    seeded = await seed_batch(
+        db,
+        [Update(jobs=[Job()]), Update(jobs=[Job(state='Pending')], committed=False)],
+        delete_committed_staging=True,
+    )
+    rows = await _fetchall(
+        db, 'SELECT DISTINCT update_id FROM job_groups_inst_coll_staging WHERE batch_id = %s', (seeded.batch_id,)
+    )
+    # only the pending update's rows are left, as after the driver's cleanup loop
+    assert [r['update_id'] for r in rows] == [2]
+
+
+async def test_seed_attempts_have_instances(db):
+    seeded = await seed_batch(
+        db,
+        [
+            Update(
+                jobs=[
+                    Job(),
+                    Job(inst_coll='highmem'),
+                    Job(attempts=[Attempt('a', start_time=0, end_time=10, instance_name='seed-worker-7')]),
+                ]
+            )
+        ],
+    )
+    rows = await _fetchall(
+        db,
+        'SELECT attempts.job_id, attempts.instance_name, instances.inst_coll FROM attempts '
+        'JOIN instances ON instances.name = attempts.instance_name WHERE attempts.batch_id = %s ORDER BY job_id',
+        (seeded.batch_id,),
+    )
+    assert [(r['job_id'], r['instance_name'], r['inst_coll']) for r in rows] == [
+        (1, 'seed-standard', 'standard'),
+        (2, 'seed-highmem', 'highmem'),
+        (3, 'seed-worker-7', 'standard'),
     ]

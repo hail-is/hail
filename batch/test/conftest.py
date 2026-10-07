@@ -54,6 +54,8 @@ async def db():
         await async_main('batch', _TEST_DB_NAME)
     finally:
         os.chdir(orig_dir)
+    # async_main points HAIL_SQL_DATABASE at the new database as a side effect; set it here rather than rely on that.
+    os.environ['HAIL_SQL_DATABASE'] = _TEST_DB_NAME
     database = Database()
     await database.async_init()
     yield database
@@ -114,7 +116,9 @@ async def noise_batch(db):
                 attempts=attempts,
             )
         )
-    seeded = await seed_batch(db, [Update(jobs=jobs, job_groups=groups)])
+    # plus a pending update partly uploaded, so batch_updates and staging have cross-batch rows to (not) read
+    pending = Update(jobs=[Job(state='Pending') for _ in range(200)], committed=False, n_reserved_jobs=300)
+    seeded = await seed_batch(db, [Update(jobs=jobs, job_groups=groups), pending])
     await analyze_tables(db)
     return seeded
 

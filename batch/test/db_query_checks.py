@@ -6,7 +6,7 @@ Two complementary checks, both against a real MySQL:
   bound it by what the request asked for (window size, ``LIMIT``, group size) whatever plan MySQL picks.
   Seed a large noise batch next to the batch under test so an unscoped read shows up.
 - :func:`explain` + :func:`assert_scoped` check the plan's structure: every access to a per-batch table uses
-  an index on its batch column, subqueries are dependent rather than materialized, and nothing is filesorted.
+  an index on its batch column, subqueries and derived tables are dependent, and nothing is filesorted.
   The per-batch tables are read from the schema (see :func:`_batch_scope_columns`), so new ones are covered.
   ``EXPLAIN`` names tables by their alias, so queries that alias a table pass ``aliases`` to
   :func:`assert_scoped`; an access it can't resolve to a real table fails rather than being skipped.
@@ -67,6 +67,9 @@ class TableAccess:
     used_key_parts: List[str]
     ref: List[str]  # what each used key part was matched against: 'const', a column 'db.alias.col', or 'func'
     path: str
+    # A derived table (FROM (subquery) AS d, LATERAL, or MySQL's own <subqueryN>): scanning its materialized rows
+    # is not a table read; the accesses inside it are checked separately.
+    derived: bool = False
 
 
 @dataclass
@@ -77,11 +80,18 @@ class Subquery:
 
 
 @dataclass
+class Materialization:
+    table: str
+    dependent: bool  # re-materialized per outer row (a LATERAL), rather than once over its whole input
+    path: str
+
+
+@dataclass
 class Plan:
     raw: Dict[str, Any]
     accesses: List[TableAccess] = field(default_factory=list)
     subqueries: List[Subquery] = field(default_factory=list)
-    materialized: List[str] = field(default_factory=list)  # paths of materialized derived tables/subqueries
+    materialized: List['Materialization'] = field(default_factory=list)  # derived tables and subqueries
     filesorts: List[str] = field(default_factory=list)  # paths of ordering/grouping operations using filesort
     warnings: List[Dict[str, Any]] = field(default_factory=list)  # SHOW WARNINGS after the EXPLAIN
     base_tables: Set[str] = field(default_factory=set)  # the database's real table names
@@ -107,6 +117,7 @@ def _walk(node: Any, path: str, plan: Plan):
     if not isinstance(node, dict):
         return
 
+    materialized = node.get('materialized_from_subquery')
     if 'table_name' in node:
         plan.accesses.append(
             TableAccess(
@@ -116,10 +127,13 @@ def _walk(node: Any, path: str, plan: Plan):
                 used_key_parts=list(node.get('used_key_parts', [])),
                 ref=list(node.get('ref', [])),
                 path=path,
+                derived=materialized is not None,
             )
         )
-    if 'materialized_from_subquery' in node:
-        plan.materialized.append(path)
+    if materialized is not None:
+        plan.materialized.append(
+            Materialization(node.get('table_name', '?'), bool(materialized.get('dependent')), path)
+        )
     if node.get('using_filesort'):
         plan.filesorts.append(path)
     for key in _SUBQUERY_KEYS:
@@ -202,8 +216,8 @@ def assert_scoped(
     allow_filesort: bool = False,
     allow_materialized: bool = False,
 ):
-    """Every access to a per-batch table is proven to read one batch, every subquery is dependent (runs per outer
-    row rather than once over the whole table), nothing is materialized, nothing other than
+    """Every access to a per-batch table is proven to read one batch, every subquery and materialized derived
+    table is dependent (runs per outer row, like a LATERAL, rather than once over its whole input), nothing other than
     ``allow_full_scan`` is fully scanned, and, unless ``allow_filesort``, nothing is filesorted (a filesort
     reads every candidate row before a ``LIMIT`` can stop it).
 
@@ -218,12 +232,17 @@ def assert_scoped(
 
     ``EXPLAIN`` reports aliases, not tables, so map each alias the query uses in ``aliases``. A name that is
     neither a real table nor a mapped alias fails: otherwise an aliased scoped table would go unchecked.
-    MySQL's own temporary tables (``<derived2>``, ``<subquery3>``, ...) are covered by the materialization check."""
+    Derived tables (``LATERAL (...) AS c``, ``FROM (...) AS d``, MySQL's ``<subqueryN>``) are reported under
+    their alias with ``materialized_from_subquery``; they're skipped here, since the accesses inside them are
+    checked like any other, and must be dependent unless ``allow_materialized``.
+
+    The plans are the CI MySQL's (Ubuntu's mysql-server), which may differ from Cloud SQL's; production's
+    plan choices are checked separately (the job-list spec's §3.8)."""
     scope_columns = plan.batch_scope_columns if tables is None else tables
     problems = []
     candidates = []  # (access, display name, batch column) still to prove
     for a in plan.accesses:
-        if a.table.startswith('<'):
+        if a.derived or a.table.startswith('<'):
             continue
         table = (aliases or {}).get(a.table, a.table)
         name = table if table == a.table else f'{a.table} (alias of {table})'
@@ -282,7 +301,9 @@ def assert_scoped(
 
     problems.extend(f'non-dependent subquery at {s.path}' for s in plan.subqueries if not s.dependent)
     if not allow_materialized:
-        problems.extend(f'materialized subquery at {p}' for p in plan.materialized)
+        problems.extend(
+            f'non-dependent materialized {m.table} at {m.path}' for m in plan.materialized if not m.dependent
+        )
     if not allow_filesort:
         problems.extend(f'filesort at {p}' for p in plan.filesorts)
     assert not problems, '\n'.join(problems) + '\n' + json.dumps(plan.raw, indent=2)

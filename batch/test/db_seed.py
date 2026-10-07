@@ -51,6 +51,8 @@ class Attempt:
     # Defaults to end_time, or start_time + 1s for an attempt that's still running.
     rollup_time: Optional[int] = _UNSET
     reason: Optional[str] = None
+    # Defaults to seed-{the job's inst_coll}; the seeder writes a matching instances row (attempts has a foreign key).
+    instance_name: Optional[str] = _UNSET
     # resource name -> quantity; usage is quantity * (rollup_time - start_time).
     resources: Dict[str, int] = field(default_factory=lambda: {'seed/compute/1': 1000, 'seed/memory/1': 3840})
 
@@ -305,8 +307,15 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
 _INSERT_JOB_ATTRIBUTE = 'INSERT INTO job_attributes (batch_id, job_id, `key`, `value`) VALUES (%s, %s, %s, %s);'
 _INSERT_JOB_PARENT = 'INSERT INTO job_parents (batch_id, job_id, parent_id) VALUES (%s, %s, %s);'
 _INSERT_ATTEMPT = """
-INSERT INTO attempts (batch_id, job_id, attempt_id, start_time, rollup_time, end_time, reason)
-VALUES (%s, %s, %s, %s, %s, %s, %s);
+INSERT INTO attempts (batch_id, job_id, attempt_id, instance_name, start_time, rollup_time, end_time, reason)
+VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
+"""
+# Instances are shared across batches, so an existing one is left as it is.
+_INSERT_INSTANCE = """
+INSERT INTO instances (name, state, token, cores_mcpu, time_created, last_updated, version, location, inst_coll,
+  machine_type, preemptible)
+VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+ON DUPLICATE KEY UPDATE name = name;
 """
 # The attempt_resources_after_insert trigger fills the aggregated_*_resources_v3 tables, once per row.
 _INSERT_ATTEMPT_RESOURCE = """
@@ -328,6 +337,7 @@ async def seed_batch(
     user: str = USER,
     billing_project: str = BILLING_PROJECT,
     with_costs: bool = True,
+    delete_committed_staging: bool = False,
 ) -> SeededBatch:
     """Create a batch with the given updates, in order, and return what was written.
 
@@ -335,9 +345,15 @@ async def seed_batch(
     time: its trigger runs several statements per row. Attempts and their times are still written. Use it for
     large batches that aren't testing cost; the noise batch keeps the cost tables populated for EXPLAIN.
 
+    Staging rows (``job_groups_inst_coll_staging``) are written per chunk with the chunk's jobs, one token per
+    chunk, as the front end writes them per create-jobs request. Committed updates' staging rows are kept by
+    default: production has them until the driver's cleanup loop deletes them, and keeping them is the stricter
+    case for a query that must only count pending updates. ``delete_committed_staging=True`` gives the state
+    after that cleanup instead.
+
     Rows are planned in memory first (an invalid plan deletes the batch row and raises), then written: the
-    updates and groups in one transaction, then jobs in transactions of JOB_CHUNK_SIZE. A database error part
-    way through writing leaves a partial batch; tests don't reuse ids.
+    updates and groups in one transaction, then jobs in transactions of JOB_CHUNK_SIZE (like the client's job
+    bunches). A database error part way through writing leaves a partial batch; tests don't reuse ids.
     """
     resource_ids = await ensure_seed_resources(db) if with_costs else {}
 
@@ -353,7 +369,7 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
     seeded = SeededBatch(batch_id, format_version, [], {}, {ROOT_JOB_GROUP_ID: None})
 
     try:
-        update_rows, job_group_rows, job_chunks, staging_rows = _plan(
+        update_rows, job_group_rows, job_chunks, instances = _plan(
             seeded, updates, format_version=format_version, with_costs=with_costs, resource_ids=resource_ids
         )
     except BaseException:
@@ -367,6 +383,14 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
         return 'complete' if sum(n_complete[g].values()) == n_jobs[g] else 'running'
 
     async with db.start() as tx:
+        if instances:
+            await tx.execute_many(
+                _INSERT_INSTANCE,
+                [
+                    (name, 'active', 'seed', 16_000, T0, T0, 1, 'us-central1-a', ic, 'n1-standard-16', True)
+                    for name, ic in sorted(instances.items())
+                ],
+            )
         await tx.execute_many(_INSERT_BATCH_UPDATE, update_rows)
         await tx.execute_many(
             _INSERT_JOB_GROUP,
@@ -408,14 +432,20 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
                 (_INSERT_JOB_PARENT, 'parents'),
                 (_INSERT_ATTEMPT, 'attempts'),
                 (_INSERT_ATTEMPT_RESOURCE, 'resources'),
+                (_INSERT_STAGING, 'staging'),
             ):
                 if chunk[key]:
                     await tx.execute_many(sql, chunk[key])
 
     root_state = group_state(ROOT_JOB_GROUP_ID)
     async with db.start() as tx:
-        if staging_rows:
-            await tx.execute_many(_INSERT_STAGING, staging_rows)
+        if delete_committed_staging:
+            committed = [u.update_id for u in seeded.updates if u.committed]
+            if committed:
+                await tx.execute_update(
+                    'DELETE FROM job_groups_inst_coll_staging WHERE batch_id = %s AND update_id IN %s',
+                    (batch_id, committed),
+                )
         await tx.execute_update(
             'UPDATE batches SET n_jobs = %s, state = %s, time_completed = %s WHERE id = %s',
             (n_jobs[ROOT_JOB_GROUP_ID], root_state, T0 if root_state == 'complete' else None, batch_id),
@@ -430,7 +460,7 @@ def _plan(seeded: SeededBatch, updates: Sequence[Update], *, format_version: int
     update_rows = []
     job_group_rows: List[tuple] = [(ROOT_JOB_GROUP_ID, None, {})]  # (job_group_id, update_id, attributes)
     job_chunks: List[Dict[str, list]] = []
-    staging_rows = []
+    instances: Dict[str, str] = {}  # name -> inst_coll
 
     next_job_id = 1
     next_job_group_id = 1
@@ -466,11 +496,20 @@ def _plan(seeded: SeededBatch, updates: Sequence[Update], *, format_version: int
             next_job_group_id += 1
 
         job_ids = list(range(next_job_id, next_job_id + len(update.jobs)))
-        staging: Dict[tuple, List[Optional[int]]] = {}
+        chunk_staging: List[Dict[tuple, List[Optional[int]]]] = []
         for i, (job_id, job) in enumerate(zip(job_ids, update.jobs)):
             if i % JOB_CHUNK_SIZE == 0:
-                job_chunks.append({'jobs': [], 'attributes': [], 'parents': [], 'attempts': [], 'resources': []})
+                job_chunks.append({
+                    'jobs': [],
+                    'attributes': [],
+                    'parents': [],
+                    'attempts': [],
+                    'resources': [],
+                    'staging': [],
+                })
+                chunk_staging.append({})
             chunk = job_chunks[-1]
+            staging = chunk_staging[-1]
             assert job.state in ALL_STATES, job.state
             assert job.job_group_id in seeded.job_group_parents, f'job group {job.job_group_id} does not exist'
             # before registering this job, so it can't be its own parent
@@ -524,10 +563,16 @@ def _plan(seeded: SeededBatch, updates: Sequence[Update], *, format_version: int
             chunk['attributes'].extend((batch_id, job_id, k, v) for k, v in attributes.items())
             chunk['parents'].extend((batch_id, job_id, p) for p in job.parent_ids)
             for a in attempts:
+                instance_name = f'seed-{job.inst_coll}' if a.instance_name is _UNSET else a.instance_name
+                if instance_name is not None:
+                    assert instances.setdefault(instance_name, job.inst_coll) == job.inst_coll, (
+                        f'instance {instance_name} is in two instance collections'
+                    )
                 chunk['attempts'].append((
                     batch_id,
                     job_id,
                     a.attempt_id,
+                    instance_name,
                     a.start_time,
                     _rollup_time(a),
                     a.end_time,
@@ -541,11 +586,22 @@ def _plan(seeded: SeededBatch, updates: Sequence[Update], *, format_version: int
             for ancestor in seeded.ancestors(job.job_group_id):
                 staging.setdefault((ancestor, job.inst_coll), []).append(job.cores_mcpu if initially_ready else None)
 
-        # Written with the job rows, recursively (one row per ancestor), as the front end does.
-        staging_rows.extend(
-            (batch_id, update_id, g, ic, 0, len(cores), sum(c is not None for c in cores), sum(c or 0 for c in cores))
-            for (g, ic), cores in staging.items()
-        )
+        # Written with each chunk's job rows, recursively (one row per ancestor), one token per chunk: the front
+        # end writes them per create-jobs request with a random token.
+        for token, (chunk, staging) in enumerate(zip(job_chunks[-len(chunk_staging) :], chunk_staging)):
+            chunk['staging'].extend(
+                (
+                    batch_id,
+                    update_id,
+                    g,
+                    ic,
+                    token,
+                    len(cores),
+                    sum(c is not None for c in cores),
+                    sum(c or 0 for c in cores),
+                )
+                for (g, ic), cores in staging.items()
+            )
         seeded.updates.append(
             SeededUpdate(
                 update_id,
@@ -559,7 +615,7 @@ def _plan(seeded: SeededBatch, updates: Sequence[Update], *, format_version: int
         )
         next_job_id += n_reserved
 
-    return update_rows, job_group_rows, job_chunks, staging_rows
+    return update_rows, job_group_rows, job_chunks, instances
 
 
 def _counts(seeded: SeededBatch):
@@ -576,9 +632,12 @@ def _counts(seeded: SeededBatch):
 
 
 async def analyze_tables(db: Database):
-    """Refresh index statistics after seeding, so EXPLAIN reflects the seeded row counts."""
-    await db.just_execute(
-        'ANALYZE TABLE batches, batch_updates, job_groups, job_group_self_and_ancestors, '
-        'job_groups_inst_coll_staging, jobs, job_attributes, job_parents, attempts, attempt_resources, '
-        'aggregated_job_resources_v3, aggregated_job_group_resources_v3'
-    )
+    """Refresh index statistics for every table, so EXPLAIN reflects the seeded row counts."""
+    tables = [
+        r['name']
+        async for r in db.execute_and_fetchall(
+            "SELECT table_name AS name FROM information_schema.tables "
+            "WHERE table_schema = DATABASE() AND table_type = 'BASE TABLE'"
+        )
+    ]
+    await db.just_execute('ANALYZE TABLE ' + ', '.join(f'`{t}`' for t in tables))
