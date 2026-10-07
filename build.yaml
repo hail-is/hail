@@ -3233,7 +3233,8 @@ steps:
               /io/test/test_billing_project_management.py \
               /io/test/test_billing_reporting.py \
               /io/test/test_billing_review_fixes.py \
-              /io/test/test_quote_management.py
+              /io/test/test_quote_management.py \
+              /io/test/test_job_list_db.py
     inputs:
       - from: /repo/batch/test
         to: /io/test
