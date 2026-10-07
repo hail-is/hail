@@ -1025,3 +1025,51 @@ async def test_count_gets_only_the_leftover_budget(db, large_batch, max_scan_siz
     # with time to spare it's exact
     resp = await _job_list_with_clock(db, large_batch.batch_id, _Clock(0), wide, **query)
     assert resp['pagination']['total_jobs'] == 0
+
+
+async def test_dropped_connection_is_503_and_not_retried(db, large_batch):
+    import asyncio  # pylint: disable=import-outside-toplevel
+
+    import aiomysql  # pylint: disable=import-outside-toplevel
+    from aiohttp import web  # pylint: disable=import-outside-toplevel
+
+    from batch.front_end.job_list_api import job_list_response  # pylint: disable=import-outside-toplevel
+
+    # slow enough to catch mid-query: ten never-matching text leaves over 20,000 jobs
+    marker = 'killme'
+    filter_ = {'or': [{'field': 'text', 'op': 'contains', 'value': f'{marker}{i}'} for i in range(10)]}
+    query = {'job_group_ids': '0', 'recursive': 'true', 'filter': json.dumps(filter_)}
+    request = asyncio.create_task(job_list_response(db, large_batch.batch_id, query, asyncio.Semaphore(1)))
+
+    async def running_ids(cur):
+        await cur.execute('SHOW FULL PROCESSLIST')
+        return [r[0] for r in await cur.fetchall() if r[7] and f'{marker}0' in r[7] and 'PROCESSLIST' not in r[7]]
+
+    admin = await aiomysql.connect(host='localhost', port=3306, user='root', password='pw')
+    try:
+        async with admin.cursor() as cur:
+            killed = None
+            for _ in range(400):
+                ids_ = await running_ids(cur)
+                if ids_:
+                    killed = ids_[0]
+                    await cur.execute(f'KILL {int(killed)}')
+                    break
+                assert not request.done(), 'finished before it could be killed'
+                await asyncio.sleep(0.025)
+            assert killed is not None, 'never saw the query running'
+
+            # whatever error actually reaches the handler, the client sees a retryable 503
+            with pytest.raises(web.HTTPServiceUnavailable) as e:
+                await request
+            assert e.value.headers['Retry-After']
+
+            # run once: gear didn't retry it on another connection
+            await asyncio.sleep(1)
+            assert await running_ids(cur) == []
+    finally:
+        admin.close()
+
+    # the pool recovers
+    resp = await job_list(db, large_batch.batch_id, limit=1)
+    assert len(resp['jobs']) == 1

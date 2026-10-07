@@ -2,9 +2,12 @@ import json
 import random
 from typing import Dict, List, Optional, Sequence, Tuple
 
+import pymysql
 import pytest
+from aiohttp import web
 
 from batch.exceptions import QueryError
+from batch.front_end import job_list_api
 from batch.front_end.query.job_list import (
     BACKWARD,
     BOUNDARY,
@@ -31,6 +34,8 @@ from batch.front_end.query.job_list import (
 )
 from batch.front_end.query.job_list_sql import (
     GroupFilter,
+    JobGroupNotFound,
+    JobListTimeout,
     Statement,
     attempts_statement,
     batch_range_statement,
@@ -695,3 +700,107 @@ def test_only_needed_fragments():
 def test_escape_like():
     assert escape_like('a_b%c\\d') == 'a\\_b\\%c\\\\d'
     assert escape_like('plain') == 'plain'
+
+
+# The handler: error mapping and the concurrency limit, with the query layer stubbed out
+
+
+def _raising(exc: BaseException):
+    async def get_job_list(*args, **kwargs):  # pylint: disable=unused-argument
+        raise exc
+
+    return get_job_list
+
+
+def _with_context(outer: BaseException, inner: BaseException) -> BaseException:
+    outer.__context__ = inner
+    return outer
+
+
+async def _respond(monkeypatch, exc: BaseException, query=None, semaphore=None):
+    import asyncio  # pylint: disable=import-outside-toplevel
+
+    monkeypatch.setattr(job_list_api, 'get_job_list', _raising(exc))
+    semaphore = semaphore or asyncio.Semaphore(1)
+    try:
+        await job_list_api.job_list_response(None, 1, query or {}, semaphore)  # type: ignore
+    finally:
+        # released whatever happened
+        assert not semaphore.locked()
+
+
+@pytest.mark.parametrize(
+    'exc, status',
+    [
+        (QueryError('bad'), 400),
+        (JobGroupNotFound(), 404),
+        (JobListTimeout(), 503),
+        (pymysql.err.OperationalError(2013, 'Lost connection'), 503),
+        (pymysql.err.OperationalError(1040, 'Too many connections'), 503),
+        (pymysql.err.OperationalError(3024, 'maximum statement execution time exceeded'), 503),
+        (pymysql.err.InterfaceError(0, ''), 503),
+        (pymysql.err.InternalError(1205, 'Lock wait timeout'), 503),
+        # rolling back on a dead connection replaces the original error
+        (_with_context(RuntimeError('rollback failed'), pymysql.err.OperationalError(2013, 'Lost')), 503),
+    ],
+)
+async def test_handler_maps_errors(monkeypatch, exc, status):
+    with pytest.raises(web.HTTPException) as e:
+        await _respond(monkeypatch, exc)
+    assert e.value.status == status
+    if status == 503:
+        assert e.value.headers['Retry-After'] == str(job_list_api.RETRY_AFTER_SECS)
+
+
+@pytest.mark.parametrize('exc', [ValueError('a bug'), pymysql.err.InternalError(1064, 'syntax'), KeyError('x')])
+async def test_handler_leaves_other_errors_alone(monkeypatch, exc):
+    with pytest.raises(type(exc)):
+        await _respond(monkeypatch, exc)
+
+
+async def test_handler_timeout_suggests_narrowing_a_filter(monkeypatch):
+    with pytest.raises(web.HTTPServiceUnavailable) as e:
+        await _respond(monkeypatch, JobListTimeout(), {'filter': f(leaf('state', '=', 'Failed'))})
+    assert 'narrow the filter' in (e.value.text or '')
+    with pytest.raises(web.HTTPServiceUnavailable) as e:
+        await _respond(monkeypatch, JobListTimeout())
+    assert 'narrow the filter' not in (e.value.text or '')
+
+
+async def test_handler_bad_params_never_wait_for_the_database(monkeypatch):
+    import asyncio  # pylint: disable=import-outside-toplevel
+
+    monkeypatch.setattr(job_list_api, 'get_job_list', _raising(AssertionError('should not be called')))
+    held = asyncio.Semaphore(1)
+    await held.acquire()
+    with pytest.raises(web.HTTPBadRequest):
+        await job_list_api.job_list_response(None, 1, {'limit': 'lots'}, held, queue_wait_secs=0.01)  # type: ignore
+
+
+async def test_handler_waits_for_a_slot_then_runs(monkeypatch):
+    import asyncio  # pylint: disable=import-outside-toplevel
+
+    async def ok(*args, **kwargs):  # pylint: disable=unused-argument
+        return {'jobs': []}
+
+    monkeypatch.setattr(job_list_api, 'get_job_list', ok)
+    semaphore = asyncio.Semaphore(1)
+    await semaphore.acquire()
+    asyncio.get_running_loop().call_later(0.05, semaphore.release)
+    assert await job_list_api.job_list_response(None, 1, {}, semaphore, queue_wait_secs=2) == {'jobs': []}  # type: ignore
+    assert not semaphore.locked()
+
+
+async def test_handler_busy_after_the_queue_wait(monkeypatch):
+    import asyncio  # pylint: disable=import-outside-toplevel
+
+    monkeypatch.setattr(job_list_api, 'get_job_list', _raising(AssertionError('should not be called')))
+    semaphore = asyncio.Semaphore(1)
+    await semaphore.acquire()
+    with pytest.raises(web.HTTPServiceUnavailable) as e:
+        await job_list_api.job_list_response(None, 1, {}, semaphore, queue_wait_secs=0.05)  # type: ignore
+    assert e.value.headers['Retry-After'] == str(job_list_api.RETRY_AFTER_SECS)
+    # the slot it never got is still the holder's
+    assert semaphore.locked()
+    semaphore.release()
+    assert not semaphore.locked()
