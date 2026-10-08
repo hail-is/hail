@@ -493,7 +493,7 @@ Resources:
     Type: "AWS::KMS::Key"
     Properties:
       Description: "Root password for MySQL database"
-      EnableKeyRotation: true
+      EnableKeyRotation: false
       KeyPolicy:
         Version: "2012-10-17"
         Id: !Ref AWS::StackName
