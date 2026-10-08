@@ -615,79 +615,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/JobAttemptsResponse'
-  '/api/v1alpha/batches/{batch_id}/timing':
-    get:
-      summary: "Get job timing for a batch"
-      description: >
-        Get the start/end time of every attempt of every job in the batch, for building a
-        timing overview of the whole batch. Jobs that have not started yet have an empty
-        attempts array. Paginated by job_offset — see JobOffsetPagination.
-      operationId: getBatchTimingv1alpha
-      tags:
-        - Batches API v1Alpha
-      parameters:
-        - name: batch_id
-          in: path
-          description: "The ID of the batch."
-          required: true
-          schema:
-            type: number
-        - name: job_offset
-          in: query
-          description: "Job id offset to page from. Job ids within a batch are dense (1..n_jobs), so this maps directly onto a job_id range rather than a real SQL OFFSET. Defaults to 0."
-          required: false
-          schema:
-            type: integer
-        - name: page_size
-          in: query
-          description: "Number of jobs to include in this page (not number of attempts). Defaults to 50, capped at 1000."
-          required: false
-          schema:
-            type: integer
-      responses:
-        '200':
-          description: "Successfully retrieved the job timing for the batch."
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/BatchTimingResponse'
-  '/api/v1alpha/batches/{batch_id}/job_graph':
-    get:
-      summary: "Get the job dependency graph for a batch"
-      description: >
-        Get every job's parent ids for the whole batch, for rendering a job dependency DAG.
-        Jobs with no parents have an empty parent_ids array. Paginated by job_offset — see
-        JobOffsetPagination. Job metadata (name, state) is not included here; join client-side
-        against the existing jobs list endpoint by job_id.
-      operationId: getJobGraphv1alpha
-      tags:
-        - Batches API v1Alpha
-      parameters:
-        - name: batch_id
-          in: path
-          description: "The ID of the batch."
-          required: true
-          schema:
-            type: number
-        - name: job_offset
-          in: query
-          description: "Job id offset to page from. Job ids within a batch are dense (1..n_jobs), so this maps directly onto a job_id range rather than a real SQL OFFSET. Defaults to 0."
-          required: false
-          schema:
-            type: integer
-        - name: page_size
-          in: query
-          description: "Number of jobs to include in this page (not number of edges). Defaults to 50, capped at 1000."
-          required: false
-          schema:
-            type: integer
-      responses:
-        '200':
-          description: "Successfully retrieved the job graph for the batch."
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/JobGraphResponse'
   '/api/v1alpha/batches/{batch_id}/jobs/{job_id}/log':
     get:
       summary: "Get job log"
@@ -914,6 +841,134 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/JobV2ListResponse'
+  '/api/v2alpha/batches/{batch_id}/job-list':
+    get:
+      summary: "List a batch's jobs with chosen fields"
+      description: >
+        One row per job in the batch, or in the given job groups: job_id, job_group_id, name and
+        state always, plus the fields named in `include`, optionally narrowed by a structured
+        `filter`. Every request is bounded: it scans a window of at most `max_scan_size` job ids
+        (50,000) and gets at most 10 s of database time (a 503 with Retry-After past that).
+
+
+        Results are always in ascending job id order. A page can be short, or even empty, and
+        still have a link onward when the window ran out (`page_end_reason` says why the page
+        ended): keep following `next_page`/`previous_page`, which are ready-made requests, until
+        the link in your direction is null. Every response key is always present; a field that
+        wasn't requested is null, and the top-level `include` echoes what was.
+
+
+        Job ids can have gaps, and committed jobs can have ids above the batch's n_jobs (pending
+        or abandoned updates reserve ids), so size scans from `pagination.scan_range`, never from
+        n_jobs.
+
+
+        Limits: at most 10 job_group_ids; filters of at most 10 leaves, 2 levels of and/or, 100
+        values per `in`, and 2,048 bytes of JSON (UTF-8); with include=parent_ids, a page ends
+        early once its jobs have 10,000 parent edges between them. Up to 4 requests per server
+        run at once; others wait up to 2 s, then get a 503 with Retry-After. A UI-owned alpha
+        endpoint; v1/v2 /jobs are unchanged.
+      operationId: getJobListv2alpha
+      tags:
+        - Batches API v2Alpha
+      parameters:
+        - name: batch_id
+          in: path
+          description: "The ID of the batch."
+          required: true
+          schema:
+            type: number
+        - name: job_group_ids
+          in: query
+          description: >
+            Comma-separated job group ids (at most 10). Jobs in any of them, each returned once.
+            Each group must exist and be committed, or the response is 404. Defaults to 0, the
+            root.
+          required: false
+          schema:
+            type: string
+            example: "0"
+        - name: recursive
+          in: query
+          description: "Also include jobs in groups nested below the given groups. Defaults to false."
+          required: false
+          schema:
+            type: boolean
+        - name: filter
+          in: query
+          description: >
+            A URL-encoded JSON filter: a leaf {"field", "op", "value"} (plus "key" for
+            attribute), or {"and": [...]} / {"or": [...]} of filters. null values never match,
+            for any operator. Times are epoch milliseconds or ISO-8601 strings with Z or an
+            offset; durations are milliseconds; cost is US dollars. Fields and operators:
+            job_id (=, in, <, <=, >, >=; top-level and leaves also narrow scan_range);
+            state (=, !=, in); name (=, !=, contains, not_contains);
+            attribute with key (=, !=, contains, not_contains, exists);
+            text, any attribute key or value or attempt instance name (contains, =);
+            instance, any attempt's (=, contains); instance_collection (=);
+            exit_code (=, !=, in; 400 for very old batches);
+            cost, start_time, end_time, duration, latest_attempt_duration (<, <=, >, >=), each
+            meaning the same as the response field of that name (duration: end_time − start_time).
+          required: false
+          schema:
+            type: string
+            example: '{"and":[{"field":"state","op":"in","value":["Failed","Error"]}]}'
+        - name: scan_direction
+          in: query
+          description: "forward (higher job ids) or backward. Defaults to forward."
+          required: false
+          schema:
+            type: string
+            enum: [forward, backward]
+        - name: scan_start_job_id
+          in: query
+          description: >
+            Where the scan starts, inclusive; normally copied from a next_page/previous_page
+            link. Defaults to scan_range.min going forward and scan_range.max going backward.
+          required: false
+          schema:
+            type: integer
+        - name: limit
+          in: query
+          description: >
+            The most jobs to return, 0 to 1000; defaults to 50. 0 means no scan: only
+            scan_range and total_jobs are filled.
+          required: false
+          schema:
+            type: integer
+        - name: max_scan_size
+          in: query
+          description: >
+            How many job ids the window covers, from scan_start_job_id in the scan direction,
+            then intersected with scan_range. 1 to 50,000; defaults to 50,000.
+          required: false
+          schema:
+            type: integer
+        - name: include
+          in: query
+          description: >
+            Comma-separated extra fields: start_time, end_time, latest_attempt_duration,
+            exit_code, attempts, attempts.cost_per_hour (implies attempts), parent_ids, cost,
+            total_jobs.
+          required: false
+          schema:
+            type: string
+            example: "start_time,end_time,cost"
+      responses:
+        '200':
+          description: "Successfully retrieved a page of jobs."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobListResponse'
+        '400':
+          description: "A bad parameter or filter; the reason names the problem."
+        '404':
+          description: "The batch, or one of the job groups, doesn't exist or isn't committed."
+        '503':
+          description: >
+            The database was busy, slow or unreachable, or too many requests were waiting. Retry
+            after Retry-After seconds; if a filtered request keeps timing out, narrow the filter.
   '/api/v2alpha/batches/{batch_id}/job-groups/{job_group_id}/jobs':
     get:
       summary: "List jobs in a job group"
@@ -2514,87 +2569,148 @@ components:
           items:
             $ref: '#/components/schemas/JobAttemptResponse'
 
-    JobOffsetPagination:
+    JobListResponse:
       type: object
-      description: >
-        Pagination info shared by endpoints that page over a batch's jobs by job_offset (see
-        the job_offset/page_size query params on those endpoints).
       properties:
-        current_job_offset:
-          type: integer
-          description: "The job_offset that produced this page."
-        next_page_job_offset:
-          type: integer
-          description: "The job_offset to request for the next page. Null if this is the last page."
-          nullable: true
-        page_size:
-          type: integer
-          description: "The page_size that produced this page."
-        total_jobs:
-          type: integer
-          description: "Total number of jobs in the batch."
+        jobs:
+          type: array
+          items:
+            $ref: '#/components/schemas/JobListEntry'
+        include:
+          type: array
+          description: "The requested includes, deduplicated, in a fixed order; [] if none."
+          items:
+            type: string
+        pagination:
+          $ref: '#/components/schemas/JobListPagination'
 
-    AttemptTiming:
+    JobListEntry:
+      type: object
+      description: "Every key is always present: null when not requested, or when there's no value."
+      properties:
+        job_id:
+          type: integer
+        job_group_id:
+          type: integer
+        name:
+          type: string
+          nullable: true
+        state:
+          type: string
+        start_time:
+          type: integer
+          nullable: true
+          description: "The earliest start of any attempt, in epoch milliseconds."
+        end_time:
+          type: integer
+          nullable: true
+          description: "The latest attempt's end, in epoch milliseconds; only once the job's state is terminal."
+        latest_attempt_duration:
+          type: integer
+          nullable: true
+          description: >
+            The latest attempt's run time in milliseconds; null while it runs, or while the job
+            waits to be retried. end_time − start_time is instead the whole job's wall-clock time,
+            retries included.
+        exit_code:
+          type: integer
+          nullable: true
+        cost:
+          type: number
+          nullable: true
+          description: "Total cost in US dollars; null for a job that never ran."
+        attempts:
+          type: array
+          nullable: true
+          items:
+            $ref: '#/components/schemas/JobListAttempt'
+        parent_ids:
+          type: array
+          nullable: true
+          items:
+            type: integer
+        parent_ids_truncated:
+          type: boolean
+          nullable: true
+          description: >
+            With include=parent_ids: true only for a job with more parents than a page's
+            parent-edge budget, returned alone with as many as fit.
+
+    JobListAttempt:
       type: object
       properties:
         attempt_id:
           type: string
-          description: "ID of the attempt"
+        instance_name:
+          type: string
+          nullable: true
         start_time:
           type: integer
-          description: "When the attempt started, in epoch milliseconds"
           nullable: true
         end_time:
           type: integer
-          description: "When the attempt ended, in epoch milliseconds"
           nullable: true
         reason:
           type: string
-          description: "Reason for the attempt status"
           nullable: true
+        cost_per_hour:
+          type: number
+          nullable: true
+          description: >
+            With include=attempts.cost_per_hour: US dollars per hour. Best-effort: null when the
+            attempt's resource records are gone, which is expected for older batches.
 
-    JobTiming:
+    JobListPageLink:
       type: object
+      description: "A ready-made request for the next page in one direction: send these two parameters as-is."
       properties:
-        job_id:
+        scan_start_job_id:
           type: integer
-          description: "ID of the job"
-        attempts:
-          type: array
-          items:
-            $ref: '#/components/schemas/AttemptTiming'
+        scan_direction:
+          type: string
+          enum: [forward, backward]
 
-    BatchTimingResponse:
+    JobListPagination:
       type: object
       properties:
-        data:
-          type: array
-          items:
-            $ref: '#/components/schemas/JobTiming'
-        pagination:
-          $ref: '#/components/schemas/JobOffsetPagination'
-
-    JobGraphEntry:
-      type: object
-      properties:
-        job_id:
+        first_job_id:
           type: integer
-          description: "ID of the job"
-        parent_ids:
-          type: array
-          items:
-            type: integer
-          description: "IDs of this job's parents"
-
-    JobGraphResponse:
-      type: object
-      properties:
-        data:
-          type: array
-          items:
-            $ref: '#/components/schemas/JobGraphEntry'
-        pagination:
-          $ref: '#/components/schemas/JobOffsetPagination'
+          nullable: true
+        last_job_id:
+          type: integer
+          nullable: true
+        next_page:
+          $ref: '#/components/schemas/JobListPageLink'
+          nullable: true
+        previous_page:
+          $ref: '#/components/schemas/JobListPageLink'
+          nullable: true
+        page_end_reason:
+          type: string
+          nullable: true
+          enum: [limit, scan_size, parent_edges, boundary]
+          description: >
+            Why the page ended: limit (full), scan_size (the window ran out), parent_edges (the
+            parent-edge budget ran out), boundary (the end of scan_range: nothing more this way),
+            or null for limit=0.
+        scan_range:
+          type: object
+          properties:
+            min:
+              type: integer
+              nullable: true
+            max:
+              type: integer
+              nullable: true
+            stable_below_job_id:
+              type: integer
+              description: "No job with a lower id can still appear in the batch."
+        total_jobs:
+          type: integer
+          nullable: true
+          description: >
+            With include=total_jobs: the exact number of matching jobs, or null when that could
+            be too costly to count. Never approximate.
 
     ResourceUsageResponse:
       type: object

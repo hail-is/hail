@@ -267,7 +267,8 @@ jobs:
             --instafail \
             --durations=50 \
             batch/test/test_utils.py \
-            batch/test/test_time_limited_max_size_cache.py
+            batch/test/test_time_limited_max_size_cache.py \
+            batch/test/test_job_list_unit.py
 
   check-ui:
     name: Check UI
