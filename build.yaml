@@ -2656,6 +2656,9 @@ steps:
       - name: fix-provisioning-availability-bug
         script: /io/sql/121-fix-provisioning-availability-bug.sql
         online: true
+      - name: rename-job-groups-cancelled-column
+        script: /io/sql/rename-job-groups-cancelled-column.sql
+        online: false
     inputs:
       - from: /repo/batch/sql
         to: /io/sql
