@@ -435,6 +435,12 @@ gcloud compute ssh --zone "us-central1-a" "<VM-NAME>" --project "<PROJECT>"
   ./bootstrap.sh bootstrap $GITHUB_ORGANIZATION/hail:<BRANCH> deploy_batch
   ```
 
+Troubleshooting:
+
+  - If the docker pull fails because it's missing `...:cache` images
+    - It might be because it's been a few days since the images were built and the local cache has expired.
+    - Workaround: manually add `cache` tags in the artifact registry to `hail-buildkit`, `ci-utils` and `batch-worker` images
+
 - Deploy the gateway: run `make -C $HAIL/gateway envoy-xds-config deploy NAMESPACE=default`.
 
 - Create the initial (developer) user.
