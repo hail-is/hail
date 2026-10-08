@@ -320,7 +320,7 @@ class SparkBackend(val spark: SparkSession) extends Backend with Logging {
   ): Any =
     _jvmLowerAndExecute(ctx, ir0, lowerTable, lowerBM, print) match {
       case Left(x) => x
-      case Right((pt, off)) => SafeRow(pt, off).get(0)
+      case Right((pt, off)) => SafeRow(ctx.stateManager, pt, off).get(0)
     }
 
   private[this] def _jvmLowerAndExecute(

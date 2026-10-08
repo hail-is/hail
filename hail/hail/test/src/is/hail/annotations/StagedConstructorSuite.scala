@@ -258,8 +258,8 @@ class StagedConstructorSuite {
     }
 
     assertEq(rv.pretty(arrayType), rv2.pretty(arrayType))
-    assert(new UnsafeIndexedSeq(arrayType, rv.region, rv.offset).sameElements(
-      new UnsafeIndexedSeq(arrayType, rv2.region, rv2.offset)
+    assert(new UnsafeIndexedSeq(sm, arrayType, rv.region, rv.offset).sameElements(
+      new UnsafeIndexedSeq(sm, arrayType, rv2.region, rv2.offset)
     ))
   }
 
@@ -300,8 +300,8 @@ class StagedConstructorSuite {
     rvb2.endArray()
     rv2.setOffset(rvb2.end())
     assertEq(rv.pretty(rt), rv2.pretty(rt))
-    assert(new UnsafeIndexedSeq(rt, rv.region, rv.offset).sameElements(
-      new UnsafeIndexedSeq(rt, rv2.region, rv2.offset)
+    assert(new UnsafeIndexedSeq(sm, rt, rv.region, rv.offset).sameElements(
+      new UnsafeIndexedSeq(sm, rt, rv2.region, rv2.offset)
     ))
   }
 
@@ -414,8 +414,8 @@ class StagedConstructorSuite {
 
     assertEq(rv.pretty(rt), rv2.pretty(rt))
     assertEq(
-      new UnsafeRow(rt, rv.region, rv.offset),
-      new UnsafeRow(rt, rv2.region, rv2.offset),
+      new UnsafeRow(sm, rt, rv.region, rv.offset),
+      new UnsafeRow(sm, rt, rv2.region, rv2.offset),
     )
   }
 
@@ -451,8 +451,8 @@ class StagedConstructorSuite {
     }
 
     assertEq(rv.pretty(rt), rv2.pretty(rt))
-    assert(new UnsafeIndexedSeq(rt, rv.region, rv.offset).sameElements(
-      new UnsafeIndexedSeq(rt, rv2.region, rv2.offset)
+    assert(new UnsafeIndexedSeq(sm, rt, rv.region, rv.offset).sameElements(
+      new UnsafeIndexedSeq(sm, rt, rv2.region, rv2.offset)
     ))
   }
 
@@ -524,7 +524,7 @@ class StagedConstructorSuite {
           }
 
         intercept[RuntimeException] {
-          SafeRow(ptype, invalidPtr)
+          SafeRow(sm, ptype, invalidPtr)
         }
       }
 
@@ -545,7 +545,7 @@ class StagedConstructorSuite {
               }
             }
 
-          SafeRow(t, validPtr)
+          SafeRow(sm, t, validPtr)
         }
 
       copy == a
@@ -575,13 +575,13 @@ class StagedConstructorSuite {
     ctx.r.pool.scopedRegion { r =>
       val rvb = new RegionValueBuilder(sm, r)
       val v1 = t2.unstagedStoreJavaObject(sm, value, r)
-      assert(SafeRow.read(t2, v1) == value)
+      assert(SafeRow.read(sm, t2, v1) == value)
 
       rvb.clear()
       rvb.start(t1)
       rvb.addRegionValue(t2, r, v1)
       val v2 = rvb.end()
-      assert(SafeRow.read(t1, v2) == value)
+      assert(SafeRow.read(sm, t1, v2) == value)
     }
   }
 
@@ -612,7 +612,7 @@ class StagedConstructorSuite {
     val valueT2 = t2.types(0)
     ctx.r.pool.scopedRegion { r =>
       val v1 = valueT2.unstagedStoreJavaObject(sm, value, r)
-      assert(SafeRow.read(valueT2, v1) == value)
+      assert(SafeRow.read(sm, valueT2, v1) == value)
 
       val f1 = EmitFunctionBuilder[Long](ctx, "stagedCopy1")
       f1.emitWithBuilder { cb =>
@@ -625,7 +625,7 @@ class StagedConstructorSuite {
         ).a
       }
       val cp1 = f1.resultWithIndex()(ctx.theHailClassLoader, ctx.fs, ctx.taskContext, r)()
-      assert(SafeRow.read(t2, cp1) == RowSeq(value))
+      assert(SafeRow.read(sm, t2, cp1) == RowSeq(value))
 
       val f2 = EmitFunctionBuilder[Long](ctx, "stagedCopy2")
       f2.emitWithBuilder { cb =>
@@ -638,7 +638,7 @@ class StagedConstructorSuite {
         ).a
       }
       val cp2 = f2.resultWithIndex()(ctx.theHailClassLoader, ctx.fs, ctx.taskContext, r)()
-      assert(SafeRow.read(t1, cp2) == RowSeq(value))
+      assert(SafeRow.read(sm, t1, cp2) == RowSeq(value))
     }
   }
 }

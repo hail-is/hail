@@ -176,7 +176,7 @@ class IndexReader(
       is.seek(offset)
       assert(internalDecoder.readByte() == 1)
       rv.setOffset(internalDecoder.readRegionValue(region))
-      val node = InternalNode(SafeRow(internalPType, rv))
+      val node = InternalNode(SafeRow(sm, internalPType, rv))
       cache.put(offset, node)
       region.clear()
       node
@@ -192,7 +192,7 @@ class IndexReader(
       is.seek(offset)
       assert(leafDecoder.readByte() == 0)
       rv.setOffset(leafDecoder.readRegionValue(region))
-      val node = LeafNode(SafeRow(leafPType, rv))
+      val node = LeafNode(SafeRow(sm, leafPType, rv))
       cache.put(offset, node)
       region.clear()
       node
