@@ -396,12 +396,14 @@ gcloud compute ssh --zone "us-central1-a" "<VM-NAME>" --project "<PROJECT>"
 - Edit `$HAIL/letsencrypt/subdomains.txt` to include just the services you plan
   to use in this deployment, e.g. `auth`, `batch` and `batch-driver`.
 
-- Deploy unmanaged resources by running
+- Add the default compute account as a reader on the `hail` artifact registry
 
-> [!WARNING]
-> If using Google Artifact Registry, the kubernetes system user (called something like `<ID>-compute@developer.gserviceaccount.com`)
-> will need to be granted read permission on the registry:
-> `gcloud artifacts repositories add-iam-policy-binding hail --location=us-central1 --member=serviceAccount:<ID>-compute@developer.gserviceaccount.com --role="roles/artifactregistry.reader"`
+  ```
+  ID=$(gcloud projects describe hail-vdc-chrisl --format="value(projectNumber)")
+  gcloud artifacts repositories add-iam-policy-binding hail --location=us-central1 --member=serviceAccount:$ID-compute@developer.gserviceaccount.com --role="roles/artifactregistry.reader"
+  ```
+
+- Deploy unmanaged resources by running
 
   ```
   ./bootstrap.sh deploy_unmanaged
