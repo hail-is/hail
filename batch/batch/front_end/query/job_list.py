@@ -3,7 +3,7 @@ import math
 import re
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple, Union
+from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple, Union, cast
 
 from ...exceptions import QueryError
 from .query import JobState
@@ -53,12 +53,15 @@ class JobListLimits:
     query_time_limit_ms: int = 10_000
 
 
+LeafValue = Union[None, str, int, float, Tuple[str, ...], Tuple[int, ...]]
+
+
 @dataclass(frozen=True)
 class Leaf:
     field: str
     op: str
     # Normalized: times are ms, `in` values are a tuple, `exists` has None.
-    value: Any
+    value: LeafValue
     key: Optional[str] = None
 
 
@@ -375,11 +378,13 @@ def job_id_bounds(node: Optional[FilterNode]) -> Tuple[int, int]:
     for leaf in top:
         if leaf.field != 'job_id':
             continue
-        v = leaf.value
+        if leaf.op == 'in':
+            vs = cast(Tuple[int, ...], leaf.value)
+            lo, hi = max(lo, min(vs)), min(hi, max(vs))
+            continue
+        v = cast(int, leaf.value)
         if leaf.op == '=':
             lo, hi = max(lo, v), min(hi, v)
-        elif leaf.op == 'in':
-            lo, hi = max(lo, min(v)), min(hi, max(v))
         elif leaf.op == '<':
             hi = min(hi, v - 1)
         elif leaf.op == '<=':

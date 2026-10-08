@@ -9,6 +9,7 @@ from aiohttp import web
 from batch.exceptions import QueryError
 from batch.front_end import job_list_api
 from batch.front_end.query.job_list import (
+    _FIELDS,
     BACKWARD,
     BOUNDARY,
     FORWARD,
@@ -26,6 +27,7 @@ from batch.front_end.query.job_list import (
     cut_parent_edges,
     end_page,
     job_id_bounds,
+    leaves,
     narrow_range,
     parse_filter,
     parse_include,
@@ -573,16 +575,22 @@ def _all_leaves_filters() -> List[str]:
         leaf('exit_code', '!=', -77778),
         leaf('exit_code', 'in', [-77779, -77780]),
         *[leaf('cost', op, 12345.678) for op in ('<', '<=', '>', '>=')],
-        *[leaf('start_time', op, '2031-07-05T01:02:03.004Z') for op in ('<', '>=')],
-        *[leaf('end_time', op, 1940979723005) for op in ('<=', '>')],
-        *[leaf('duration', op, 86400017) for op in ('<', '>')],
-        *[leaf('latest_attempt_duration', op, 86400019) for op in ('<=', '>=')],
+        *[leaf('start_time', op, '2031-07-05T01:02:03.004Z') for op in ('<', '<=', '>', '>=')],
+        *[leaf('end_time', op, 1940979723005) for op in ('<', '<=', '>', '>=')],
+        *[leaf('duration', op, 86400017) for op in ('<', '<=', '>', '>=')],
+        *[leaf('latest_attempt_duration', op, 86400019) for op in ('<', '<=', '>', '>=')],
     ]
     return [
         f({'and': per_field}),
         f({'or': per_field}),
         f({'and': [{'or': per_field[:20]}, {'or': per_field[20:]}]}),
     ]
+
+
+def test_all_leaves_filters_cover_every_field_and_op():
+    # So a new field or operator can't skip the values-only-in-args checks below.
+    used = {(lf.field, lf.op) for raw in _all_leaves_filters() for lf in leaves(parse_filter(raw, WIDE))}
+    assert used == {(field, op) for field, (ops, _) in _FIELDS.items() for op in ops}
 
 
 ALL_INCLUDES = parse_include(','.join(['start_time', 'end_time', 'latest_attempt_duration', 'exit_code', 'cost']))
