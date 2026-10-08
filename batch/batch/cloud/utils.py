@@ -41,6 +41,8 @@ def _query_storage_url_prefix(subfolder_envvar: str) -> str:
 
     if cloud == 'gcp':
         assert GoogleStorageAsyncFS.valid_url(url_prefix)
+    elif cloud == 'aws':
+        assert S3AsyncFS.valid_url(url_prefix)
     else:
         assert cloud == 'azure'
         assert AzureAsyncFS.valid_url(url_prefix)
