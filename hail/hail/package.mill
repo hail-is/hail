@@ -76,6 +76,7 @@ object `package` extends HailScalaModule:
       `breeze` :: "2.1.0",
       `blas` :: "3.0.4",
       `arpack` :: "3.0.4",
+      `arrow-vector` :: "18.3.0",
       `avro` :: "1.12.1",
       `commons-codec` :: "1.19.0",
       `commons-io` :: "2.21.0",
