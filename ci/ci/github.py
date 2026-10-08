@@ -230,11 +230,11 @@ MergeResult = Literal['merged', 'pending', 'failed']
 
 class PendingMerge(NamedTuple):
     pr_number: int
-    uuid: str
+    # None if GitHub reported the merge as already in flight without telling us its uuid
+    uuid: Optional[str]
 
 
 def _async_merge_url(repo: str, pr_number: int) -> str:
-    # The async merge endpoint is the only one that supports GitHub-native stacked PRs.
     return f'/repos/{repo}/pulls/{pr_number}/merge-async'
 
 
@@ -827,7 +827,6 @@ mkdir -p {shq(repo_dir)}
         )
 
     async def merge(self, gh) -> Tuple[MergeResult, Optional[str]]:
-        """Returns the merge result and, if it is still pending, the uuid of the async merge request."""
         url = _async_merge_url(self.target_branch.branch.repo.short_str(), self.number)
         try:
             response = await gh.put(
@@ -993,8 +992,8 @@ class WatchedBranch(Code):
         self.n_running_batches: int = 0
 
         self.merge_candidate: Optional[PR] = None
-        # A merge GitHub accepted but has not finished. No other PR may be merged until it finishes, since
-        # the other PRs' builds have not been tested against it.
+
+        # Remember an async merge that was requested but not (observed to be) completed yet
         self.pending_merge: Optional[PendingMerge] = None
 
     def prs_in_merge_priority_order(self) -> Iterable[PR]:
@@ -1090,13 +1089,18 @@ class WatchedBranch(Code):
                     self._target_merged()
                     return
                 if result == 'pending':
-                    if uuid is not None:
-                        self.pending_merge = PendingMerge(pr.number, uuid)
+                    self.pending_merge = PendingMerge(pr.number, uuid)
                     return
 
     async def _check_pending_merge(self, gh) -> MergeResult:
         assert self.pending_merge is not None
         pr_number, uuid = self.pending_merge
+        if uuid is None:
+            # Without a uuid we can't poll, so re-request the merge: a 409 means it is still in flight.
+            pr = self.prs[pr_number]
+            result, uuid = await pr.merge(gh)
+            self.pending_merge = PendingMerge(pr_number, uuid) if result == 'pending' else None
+            return result
         url = f'{_async_merge_url(self.branch.repo.short_str(), pr_number)}/{uuid}'
         try:
             response = await gh.getitem(url, extra_headers=GITHUB_ASYNC_MERGE_HEADERS)
@@ -1154,8 +1158,7 @@ class WatchedBranch(Code):
         self.prs = new_prs
 
         if self.pending_merge is not None and self.pending_merge.pr_number not in new_prs:
-            # A PR is closed in the same step as it is merged, so its merge is no longer in flight. The
-            # target sha above may predate that merge, so forget it and fetch it again before merging more.
+            # the target sha fetched above may predate this PR's merge, so refetch it
             log.info(f'pending merge {self.branch.short_str()} {self.pending_merge.pr_number} no longer open')
             self.pending_merge = None
             self._target_merged()
