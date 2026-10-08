@@ -1,11 +1,18 @@
+# pyright: strict
+# gear's Transaction and BatchFormatVersion aren't fully typed; Unknown values from them are still reported where used.
+# pyright: reportUnknownMemberType=false
+# Statement.sql checks its argument's type at runtime too.
+# pyright: reportUnnecessaryIsInstance=false
 import json
 import time
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence, Tuple
+from decimal import Decimal
+from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence, Set, Tuple, cast
 
 import pymysql
+from typing_extensions import LiteralString
 
-from gear import Database
+from gear import Database, Transaction
 
 from ...batch_format_version import BatchFormatVersion
 from ...exceptions import QueryError
@@ -16,6 +23,7 @@ from .job_list import (
     JobListLimits,
     JobListParams,
     Leaf,
+    LeafValue,
     Or,
     PageEnd,
     cut_parent_edges,
@@ -28,7 +36,7 @@ from .job_list import (
 
 MYSQL_QUERY_TIMEOUT = 3024
 
-TERMINAL_STATES = ('Cancelled', 'Error', 'Failed', 'Success')
+TERMINAL_STATES: Tuple[LiteralString, ...] = ('Cancelled', 'Error', 'Failed', 'Success')
 
 
 class JobListTimeout(Exception):
@@ -43,23 +51,33 @@ class JobGroupNotFound(Exception):
 class Statement:
     """One SQL statement: everything after its first ``SELECT``, its args, and its table aliases.
 
-    User input only ever goes in ``args``; ``body`` is built from fixed text.
+    User input only ever goes in ``args``; ``body`` is built from fixed text, which ``LiteralString`` has pyright check.
     """
 
     name: str
-    body: str
-    args: Tuple[Any, ...]
-    aliases: Mapping[str, str] = field(default_factory=dict)
+    body: LiteralString
+    args: Tuple[object, ...]
+    aliases: Mapping[str, str] = field(default_factory=dict[str, str])
 
     def sql(self, time_limit_ms: int) -> str:
         # MySQL can't take a placeholder in a hint, and 0 would mean no limit.
         if not isinstance(time_limit_ms, int) or isinstance(time_limit_ms, bool) or time_limit_ms < 1:
             raise ValueError(f'bad time limit {time_limit_ms!r}')
-        return f'SELECT /*+ MAX_EXECUTION_TIME({time_limit_ms}) */ {self.body}'
+        return f'SELECT /*+ MAX_EXECUTION_TIME({cast(LiteralString, str(time_limit_ms))}) */ {self.body}'
 
 
-def _placeholders(n: int) -> str:
-    return ', '.join(['%s'] * n)
+def _placeholders(n: int) -> LiteralString:
+    placeholder: List[LiteralString] = ['%s']
+    return ', '.join(placeholder * n)
+
+
+def _exists(table: LiteralString, alias: LiteralString, where: LiteralString) -> LiteralString:
+    # The one place a subquery's SELECT is written, so it's the one place a SQL-string scanner needs reviewing.
+    return f'EXISTS (SELECT 1 FROM {table} AS {alias}\n  WHERE {where})'
+
+
+def _same_job(alias: LiteralString) -> LiteralString:
+    return f'{alias}.batch_id = jobs.batch_id AND {alias}.job_id = jobs.job_id'
 
 
 def escape_like(s: str) -> str:
@@ -105,15 +123,16 @@ WHERE batch_id = %s AND n_jobs > 0
 def direct_group_range_statement(batch_id: int, job_group_ids: Sequence[int]) -> Statement:
     # One lookup per group: MySQL resolves each MIN/MAX from the ends of the index, which it can't do for an IN
     # list. The hint guarantees that plan; another index also starts (batch_id, job_group_id).
-    one = """
+    one: LiteralString = """
 MIN(job_id) AS min_job_id, MAX(job_id) AS max_job_id
 FROM jobs FORCE INDEX (jobs_batch_id_job_group_id)
 WHERE batch_id = %s AND job_group_id = %s
 """
-    args: List[Any] = []
+    args: List[object] = []
     for job_group_id in job_group_ids:
         args.extend((batch_id, job_group_id))
-    return Statement('job_list_direct_group_range', ' UNION ALL SELECT '.join([one] * len(job_group_ids)), tuple(args))
+    ones: List[LiteralString] = [one] * len(job_group_ids)
+    return Statement('job_list_direct_group_range', ' UNION ALL SELECT '.join(ones), tuple(args))
 
 
 def staged_pending_jobs_statement(batch_id: int, job_group_ids: Sequence[int]) -> Statement:
@@ -164,11 +183,11 @@ WHERE anc.batch_id = %s AND anc.ancestor_id IN ({_placeholders(len(job_group_ids
 
 # The jobs query
 
-_COMMITTED_JOIN = """
+_COMMITTED_JOIN: LiteralString = """
 INNER JOIN batch_updates
   ON batch_updates.batch_id = jobs.batch_id AND batch_updates.update_id = jobs.update_id"""
 
-_FRAGMENTS = {
+_FRAGMENTS: Dict[str, LiteralString] = {
     'name': """
 LEFT JOIN job_attributes AS name_attr
   ON name_attr.batch_id = jobs.batch_id AND name_attr.job_id = jobs.job_id AND name_attr.`key` = 'name'""",
@@ -198,13 +217,15 @@ _FRAGMENT_ALIASES = {
     'cost': {'job_usage': 'aggregated_job_resources_v3', 'cost_resources': 'resources'},
 }
 
-_TERMINAL_SQL = f"jobs.state IN ({', '.join(repr(s) for s in TERMINAL_STATES)})"
-_END_TIME_SQL = f'IF({_TERMINAL_SQL}, attempt_summary.latest_attempt_end, NULL)'
-_LATEST_ATTEMPT_DURATION_SQL = '(attempt_summary.latest_attempt_end - attempt_summary.latest_attempt_start)'
-_EXIT_CODE_JSON = "JSON_EXTRACT(jobs.status, '$[0]')"
+_TERMINAL_SQL: LiteralString = 'jobs.state IN (' + ', '.join("'" + s + "'" for s in TERMINAL_STATES) + ')'
+_END_TIME_SQL: LiteralString = f'IF({_TERMINAL_SQL}, attempt_summary.latest_attempt_end, NULL)'
+_LATEST_ATTEMPT_DURATION_SQL: LiteralString = (
+    '(attempt_summary.latest_attempt_end - attempt_summary.latest_attempt_start)'
+)
+_EXIT_CODE_JSON: LiteralString = "JSON_EXTRACT(jobs.status, '$[0]')"
 
 # field -> (SQL expression, fragment it needs)
-_COLUMNS: Dict[str, Tuple[str, Optional[str]]] = {
+_COLUMNS: Dict[str, Tuple[LiteralString, Optional[str]]] = {
     'job_id': ('jobs.job_id', None),
     'state': ('jobs.state', None),
     'instance_collection': ('jobs.inst_coll', None),
@@ -225,18 +246,18 @@ _INCLUDE_FRAGMENTS = {
     'cost': 'cost',
 }
 
-_SQL_OPS = {'=': '=', '!=': '<>', '<': '<', '<=': '<=', '>': '>', '>=': '>='}
+_SQL_OPS: Dict[str, LiteralString] = {'=': '=', '!=': '<>', '<': '<', '<=': '<=', '>': '>', '>=': '>='}
 
 
 class _FilterCompiler:
     def __init__(self):
-        self.args: List[Any] = []
+        self.args: List[object] = []
         self.fragments: List[str] = []
         self.aliases: Dict[str, str] = {}
         self._n_aliases = 0
 
-    def _alias(self, prefix: str, table: str) -> str:
-        alias = f'{prefix}_{self._n_aliases}'
+    def _alias(self, prefix: LiteralString, table: str) -> LiteralString:
+        alias = f'{prefix}_{cast(LiteralString, str(self._n_aliases))}'
         self._n_aliases += 1
         self.aliases[alias] = table
         return alias
@@ -245,45 +266,44 @@ class _FilterCompiler:
         if fragment is not None and fragment not in self.fragments:
             self.fragments.append(fragment)
 
-    def _compare(self, expr: str, op: str, value: Any) -> str:
+    def _compare(self, expr: LiteralString, op: str, value: LeafValue) -> LiteralString:
         if op == 'in':
+            assert isinstance(value, tuple)
             self.args.extend(value)
             return f'{expr} IN ({_placeholders(len(value))})'
         if op in ('contains', 'not_contains'):
+            assert isinstance(value, str)
             self.args.append(f'%{escape_like(value)}%')
             return f'{expr} {"LIKE" if op == "contains" else "NOT LIKE"} %s'
         self.args.append(value)
         return f'{expr} {_SQL_OPS[op]} %s'
 
-    def node(self, node: FilterNode) -> str:
+    def node(self, node: FilterNode) -> LiteralString:
         if isinstance(node, And):
             return '(' + ' AND '.join(self.node(c) for c in node.children) + ')'
         if isinstance(node, Or):
             return '(' + ' OR '.join(self.node(c) for c in node.children) + ')'
         return self.leaf(node)
 
-    def leaf(self, leaf: Leaf) -> str:
+    def leaf(self, leaf: Leaf) -> LiteralString:
         if leaf.field == 'attribute':
             a = self._alias('attr', 'job_attributes')
             self.args.append(leaf.key)
             cond = '' if leaf.op == 'exists' else ' AND ' + self._compare(f'{a}.value', leaf.op, leaf.value)
-            return f"""EXISTS (SELECT 1 FROM job_attributes AS {a}
-  WHERE {a}.batch_id = jobs.batch_id AND {a}.job_id = jobs.job_id AND {a}.`key` = %s{cond})"""
+            return _exists('job_attributes', a, f'{_same_job(a)} AND {a}.`key` = %s{cond}')
         if leaf.field == 'text':
             a = self._alias('text_attr', 'job_attributes')
             t = self._alias('text_att', 'attempts')
             key_cond = self._compare(f'{a}.`key`', leaf.op, leaf.value)
             value_cond = self._compare(f'{a}.value', leaf.op, leaf.value)
             instance_cond = self._compare(f'{t}.instance_name', leaf.op, leaf.value)
-            return f"""(EXISTS (SELECT 1 FROM job_attributes AS {a}
-  WHERE {a}.batch_id = jobs.batch_id AND {a}.job_id = jobs.job_id AND ({key_cond} OR {value_cond}))
- OR EXISTS (SELECT 1 FROM attempts AS {t}
-  WHERE {t}.batch_id = jobs.batch_id AND {t}.job_id = jobs.job_id AND {instance_cond}))"""
+            attr_exists = _exists('job_attributes', a, f'{_same_job(a)} AND ({key_cond} OR {value_cond})')
+            attempt_exists = _exists('attempts', t, f'{_same_job(t)} AND {instance_cond}')
+            return f'({attr_exists}\n OR {attempt_exists})'
         if leaf.field == 'instance':
             t = self._alias('inst_att', 'attempts')
             cond = self._compare(f'{t}.instance_name', leaf.op, leaf.value)
-            return f"""EXISTS (SELECT 1 FROM attempts AS {t}
-  WHERE {t}.batch_id = jobs.batch_id AND {t}.job_id = jobs.job_id AND {cond})"""
+            return _exists('attempts', t, f'{_same_job(t)} AND {cond}')
         expr, fragment = _COLUMNS[leaf.field]
         self._need(fragment)
         cond = self._compare(expr, leaf.op, leaf.value)
@@ -305,19 +325,24 @@ def _jobs_from_where(
     group_filter: Optional[GroupFilter],
     filter_: Optional[FilterNode],
     display_fragments: Sequence[str],
-) -> Tuple[str, List[Any], Dict[str, str]]:
+) -> Tuple[LiteralString, List[object], Dict[str, str]]:
     """FROM through WHERE, shared by the jobs query and the count."""
-    conditions = ['jobs.batch_id = %s', 'jobs.job_id BETWEEN %s AND %s', 'batch_updates.committed']
-    args: List[Any] = [batch_id, lo, hi]
+    conditions: List[LiteralString] = ['jobs.batch_id = %s', 'jobs.job_id BETWEEN %s AND %s', 'batch_updates.committed']
+    args: List[object] = [batch_id, lo, hi]
     aliases: Dict[str, str] = {}
 
     if group_filter is not None:
         ids = group_filter.job_group_ids
         if group_filter.recursive:
             # A semi-join, not a JOIN: with overlapping groups a JOIN would return a job more than once.
-            conditions.append(f"""EXISTS (SELECT 1 FROM job_group_self_and_ancestors AS grp
-  WHERE grp.batch_id = jobs.batch_id AND grp.job_group_id = jobs.job_group_id
-    AND grp.ancestor_id IN ({_placeholders(len(ids))}))""")
+            conditions.append(
+                _exists(
+                    'job_group_self_and_ancestors',
+                    'grp',
+                    'grp.batch_id = jobs.batch_id AND grp.job_group_id = jobs.job_group_id'
+                    f'\n    AND grp.ancestor_id IN ({_placeholders(len(ids))})',
+                )
+            )
             aliases['grp'] = 'job_group_self_and_ancestors'
         else:
             conditions.append(f'jobs.job_group_id IN ({_placeholders(len(ids))})')
@@ -357,13 +382,13 @@ def jobs_statement(
     display = ['name'] + [_INCLUDE_FRAGMENTS[i] for i in include if i in _INCLUDE_FRAGMENTS]
     from_where, args, aliases = _jobs_from_where(batch_id, lo, hi, group_filter, filter_, display)
 
-    columns = ['jobs.job_id', 'jobs.job_group_id', 'jobs.state', 'name_attr.value AS name']
+    columns: List[LiteralString] = ['jobs.job_id', 'jobs.job_group_id', 'jobs.state', 'name_attr.value AS name']
     if 'attempt_summary' in display:
-        columns += [
+        columns.extend([
             'attempt_summary.start_time AS start_time',
             f'{_END_TIME_SQL} AS end_time',
             f'{_LATEST_ATTEMPT_DURATION_SQL} AS latest_attempt_duration',
-        ]
+        ])
     if 'exit_code' in include:
         columns.append('jobs.status')
     if 'cost' in include:
@@ -436,15 +461,48 @@ LIMIT %s
 # Running a request
 
 
+# Rows are object, not Any, so a value read back can't reach SQL text without pyright noticing.
+Row = Mapping[str, object]
+
+
+def _opt_int(row: Row, key: str) -> Optional[int]:
+    v = row[key]
+    # SUM comes back as a Decimal.
+    if isinstance(v, Decimal) and v == v.to_integral_value():
+        return int(v)
+    assert v is None or isinstance(v, int), (key, v)
+    return v
+
+
+def _int(row: Row, key: str) -> int:
+    v = _opt_int(row, key)
+    assert v is not None, key
+    return v
+
+
+def _opt_float(row: Row, key: str) -> Optional[float]:
+    v = row[key]
+    if v is None:
+        return None
+    assert isinstance(v, (int, float, Decimal)), (key, v)
+    return float(v)
+
+
+def _opt_str(row: Row, key: str) -> Optional[str]:
+    v = row[key]
+    assert v is None or isinstance(v, str), (key, v)
+    return v
+
+
 class _Runner:
     """Runs a request's statements in one transaction against one deadline."""
 
-    def __init__(self, tx, time_limit_ms: int, clock: Callable[[], float]):
+    def __init__(self, tx: Transaction, time_limit_ms: int, clock: Callable[[], float]):
         self._tx = tx
         self._clock = clock
         self._end = clock() + time_limit_ms / 1000
 
-    async def all(self, stmt: Statement) -> List[Dict[str, Any]]:
+    async def all(self, stmt: Statement) -> List[Row]:
         remaining_ms = int((self._end - self._clock()) * 1000)
         if remaining_ms < 1:
             raise JobListTimeout()
@@ -457,15 +515,15 @@ class _Runner:
                 raise JobListTimeout() from e
             raise
 
-    async def one(self, stmt: Statement) -> Dict[str, Any]:
+    async def one(self, stmt: Statement) -> Row:
         rows = await self.all(stmt)
         assert len(rows) == 1, (stmt.name, rows)
         return rows[0]
 
 
-def _hull(rows: Sequence[Mapping[str, Any]]) -> Tuple[Optional[int], Optional[int]]:
-    mins = [r['min_job_id'] for r in rows if r['min_job_id'] is not None]
-    maxes = [r['max_job_id'] for r in rows if r['max_job_id'] is not None]
+def _hull(rows: Sequence[Row]) -> Tuple[Optional[int], Optional[int]]:
+    mins = [v for r in rows if (v := _opt_int(r, 'min_job_id')) is not None]
+    maxes = [v for r in rows if (v := _opt_int(r, 'max_job_id')) is not None]
     return (min(mins) if mins else None, max(maxes) if maxes else None)
 
 
@@ -473,15 +531,15 @@ async def _recursive_range(
     run: _Runner,
     batch_id: int,
     job_group_ids: Sequence[int],
-    groups: Sequence[Mapping[str, Any]],
+    groups: Sequence[Row],
     limits: JobListLimits,
 ) -> Optional[Tuple[Optional[int], Optional[int]]]:
     """The groups' range including sub-groups, or None if looking it up could be too expensive."""
-    committed = sum(g['n_jobs'] for g in groups)
+    committed = sum(_int(g, 'n_jobs') for g in groups)
     if committed > limits.group_range_lookup_max_jobs:
         return None
     staged = await run.one(staged_pending_jobs_statement(batch_id, job_group_ids))
-    if committed + int(staged['n_jobs']) > limits.group_range_lookup_max_jobs:
+    if committed + _int(staged, 'n_jobs') > limits.group_range_lookup_max_jobs:
         return None
     # The jobs gate doesn't bound this: sub-groups can be empty, and most of the lookup's cost is per sub-group.
     subgroups = await run.all(subgroups_statement(batch_id, job_group_ids, limits.group_range_lookup_max_subgroups + 1))
@@ -494,7 +552,7 @@ async def _total_jobs(
     run: _Runner,
     batch_id: int,
     params: JobListParams,
-    groups: Sequence[Mapping[str, Any]],
+    groups: Sequence[Row],
     group_filter: Optional[GroupFilter],
     range_min: Optional[int],
     range_max: Optional[int],
@@ -509,21 +567,21 @@ async def _total_jobs(
             row = await run.one(count_statement(batch_id, range_min, range_max, group_filter, params.filter))
         except JobListTimeout:
             return None
-        return row['n']
+        return _int(row, 'n')
     if params.filter is None and params.recursive and len(params.job_group_ids) == 1:
-        return groups[0]['batch_n_jobs'] if root_recursive else groups[0]['n_jobs']
+        return _int(groups[0], 'batch_n_jobs' if root_recursive else 'n_jobs')
     return None
 
 
 def _job_json(
-    row: Mapping[str, Any],
-    include: set,
+    row: Row,
+    include: Set[str],
     format_version: BatchFormatVersion,
-    attempts: Mapping[int, List[Dict[str, Any]]],
+    attempts: Mapping[int, List[Dict[str, object]]],
     parent_ids: Mapping[int, List[int]],
     first_truncated: bool,
 ) -> Dict[str, Any]:
-    job_id = row['job_id']
+    job_id = _int(row, 'job_id')
     return {
         'job_id': job_id,
         'job_group_id': row['job_group_id'],
@@ -532,8 +590,8 @@ def _job_json(
         'start_time': row['start_time'] if 'start_time' in include else None,
         'end_time': row['end_time'] if 'end_time' in include else None,
         'latest_attempt_duration': row['latest_attempt_duration'] if 'latest_attempt_duration' in include else None,
-        'exit_code': _exit_code(format_version, row['status']) if 'exit_code' in include else None,
-        'cost': float(row['cost']) if 'cost' in include and row['cost'] is not None else None,
+        'exit_code': _exit_code(format_version, _opt_str(row, 'status')) if 'exit_code' in include else None,
+        'cost': _opt_float(row, 'cost') if 'cost' in include else None,
         'attempts': attempts.get(job_id, []) if 'attempts' in include else None,
         'parent_ids': parent_ids.get(job_id, []) if 'parent_ids' in include else None,
         # Only a lone over-budget job is ever truncated, so it's the page's only row.
@@ -564,15 +622,16 @@ async def get_job_list(
         groups = await run.all(groups_statement(batch_id, params.job_group_ids))
         if len(groups) != len(params.job_group_ids):
             raise JobGroupNotFound()
-        format_version = BatchFormatVersion(groups[0]['format_version'])
+        format_version = BatchFormatVersion(_int(groups[0], 'format_version'))
         if format_version.has_full_status_in_db() and any(leaf.field == 'exit_code' for leaf in filter_leaves):
             raise QueryError('filter: exit_code is not supported for this batch')
 
         # Metadata before rows: an update committing mid-request then only makes the response more conservative.
         batch_range = await run.one(batch_range_statement(batch_id))
-        batch_min, batch_max = batch_range['min_job_id'], batch_range['max_job_id']
-        if batch_range['min_pending_job_id'] is not None:
-            stable_below_job_id = batch_range['min_pending_job_id']
+        batch_min, batch_max = _opt_int(batch_range, 'min_job_id'), _opt_int(batch_range, 'max_job_id')
+        min_pending_job_id = _opt_int(batch_range, 'min_pending_job_id')
+        if min_pending_job_id is not None:
+            stable_below_job_id = min_pending_job_id
         elif batch_max is not None:
             stable_below_job_id = batch_max + 1
         else:
@@ -590,7 +649,7 @@ async def get_job_list(
 
         range_min, range_max = narrow_range(range_min, range_max, job_id_bounds(params.filter))
 
-        rows: List[Dict[str, Any]] = []
+        rows: List[Row] = []
         page_end: PageEnd
         parent_ids: Dict[int, List[int]] = {}
         first_truncated = False
@@ -616,7 +675,7 @@ async def get_job_list(
                     )
                 )
                 rows = found[: params.limit]
-                page_ids = [r['job_id'] for r in rows]
+                page_ids = [_int(r, 'job_id') for r in rows]
                 n_kept = len(rows)
                 if 'parent_ids' in include and rows:
                     edge_rows = await run.all(
@@ -625,19 +684,21 @@ async def get_job_list(
                         )
                     )
                     edges = cut_parent_edges(
-                        page_ids, [(r['job_id'], r['parent_id']) for r in edge_rows], limits.parent_edge_page_max
+                        page_ids,
+                        [(_int(r, 'job_id'), _int(r, 'parent_id')) for r in edge_rows],
+                        limits.parent_edge_page_max,
                     )
                     n_kept, parent_ids, first_truncated = edges.n_kept, edges.parent_ids, edges.first_truncated
                 page_end = end_page(plan, page_ids, params.limit, len(found) > params.limit, n_kept)
                 rows = rows[:n_kept]
 
-        rows.sort(key=lambda r: r['job_id'])
-        job_ids = [r['job_id'] for r in rows]
+        rows.sort(key=lambda r: _int(r, 'job_id'))
+        job_ids = [_int(r, 'job_id') for r in rows]
 
-        attempts: Dict[int, List[Dict[str, Any]]] = {}
+        attempts: Dict[int, List[Dict[str, object]]] = {}
         if 'attempts' in include and job_ids:
             for a in await run.all(attempts_statement(batch_id, job_ids)):
-                attempts.setdefault(a['job_id'], []).append({
+                attempts.setdefault(_int(a, 'job_id'), []).append({
                     'attempt_id': a['attempt_id'],
                     'instance_name': a['instance_name'],
                     'start_time': a['start_time'],
@@ -649,9 +710,9 @@ async def get_job_list(
                 job_attempts.sort(key=lambda a: (a['start_time'] is None, a['start_time'], a['attempt_id']))
             if 'attempts.cost_per_hour' in include:
                 rates = {
-                    (r['job_id'], r['attempt_id']): float(r['cost_per_hour'])
+                    (_int(r, 'job_id'), r['attempt_id']): rate
                     for r in await run.all(cost_per_hour_statement(batch_id, job_ids))
-                    if r['cost_per_hour'] is not None
+                    if (rate := _opt_float(r, 'cost_per_hour')) is not None
                 }
                 for job_id, job_attempts in attempts.items():
                     for a in job_attempts:
