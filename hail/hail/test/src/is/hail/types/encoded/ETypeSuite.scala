@@ -113,7 +113,7 @@ class ETypeSuite {
         ctx.r,
         new MemoryInputBuffer(buffer),
       )
-    SafeRow.read(outPType, result)
+    SafeRow.read(ctx.stateManager, outPType, result)
   }
 
   def assertEqualEncodeDecode(

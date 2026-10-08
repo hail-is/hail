@@ -87,7 +87,7 @@ class EmitStreamSuite {
         if (off == 0L)
           null
         else
-          SafeRow.read(arrayType, off).asInstanceOf[IndexedSeq[Any]]
+          SafeRow.read(ctx.stateManager, arrayType, off).asInstanceOf[IndexedSeq[Any]]
       }
   }
 
@@ -944,7 +944,11 @@ class EmitStreamSuite {
       )
 
       assert(
-        SafeRow.read(pt, f(ctx.theHailClassLoader, ctx.fs, ctx.taskContext, r)(r, input)) == RowSeq(
+        SafeRow.read(
+          ctx.stateManager,
+          pt,
+          f(ctx.theHailClassLoader, ctx.fs, ctx.taskContext, r)(r, input),
+        ) == RowSeq(
           null
         )
       )

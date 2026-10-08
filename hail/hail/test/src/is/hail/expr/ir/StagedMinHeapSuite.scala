@@ -90,7 +90,9 @@ class StagedMinHeapSuite {
       ctx.r.pool.scopedRegion { r =>
         xs.foreach(heap.push)
         val ptr = heap.toArray(r)
-        SafeIndexedSeq(PCanonicalArray(PInt32Required), ptr).asInstanceOf[IndexedSeq[Int]]
+        SafeIndexedSeq(ctx.stateManager, PCanonicalArray(PInt32Required), ptr).asInstanceOf[
+          IndexedSeq[Int]
+        ]
       }
     }
 

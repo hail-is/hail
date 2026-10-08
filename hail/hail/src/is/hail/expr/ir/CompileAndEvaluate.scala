@@ -24,7 +24,7 @@ object CompileAndEvaluate {
     TimedBlock.enter {
       _apply(ctx, ir, lower) match {
         case Left(()) => ().asInstanceOf[T]
-        case Right((t, off)) => SafeRow(t, off).getAs[T](0)
+        case Right((t, off)) => SafeRow(ctx.stateManager, t, off).getAs[T](0)
       }
     }
 
@@ -36,7 +36,10 @@ object CompileAndEvaluate {
         ir.typ match {
           case _ if pt.isFieldMissing(addr, 0) => NA(ir.typ)
           case TInt32 | TInt64 | TFloat32 | TFloat64 | TBoolean | TString =>
-            Literal.coerce(ir.typ, SafeRow.read(pt, addr).asInstanceOf[Row].get(0))
+            Literal.coerce(
+              ir.typ,
+              SafeRow.read(ctx.stateManager, pt, addr).asInstanceOf[Row].get(0),
+            )
           case _ => EncodedLiteral.fromPTypeAndAddress(pt.types(0), pt.loadField(addr, 0), ctx)
         }
     }

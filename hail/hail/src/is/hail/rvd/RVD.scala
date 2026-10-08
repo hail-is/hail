@@ -75,13 +75,15 @@ class RVD(
   // Exporting
 
   def toRows: RDD[Row] = {
+    val sm = partitioner.sm
     val localRowType = rowPType
-    map((_, _, ptr) => SafeRow(localRowType, ptr))
+    map((_, _, ptr) => SafeRow(sm, localRowType, ptr))
   }
 
   def toUnsafeRows: RDD[UnsafeRow] = {
+    val sm = partitioner.sm
     val localRowPType = rowPType
-    map((_, ctx, ptr) => new UnsafeRow(localRowPType, ctx.region, ptr))
+    map((_, ctx, ptr) => new UnsafeRow(sm, localRowPType, ctx.region, ptr))
   }
 
   def stabilize(ctx: ExecuteContext, enc: AbstractTypedCodecSpec): RDD[Array[Byte]] = {
@@ -100,12 +102,13 @@ class RVD(
     val makeEnc = enc.buildEncoder(ctx, rowPType)
     val kFieldIdx = typ.copy(key = key).kFieldIdx
 
+    val sm = ctx.stateManager
     val localRowPType = rowPType
     crdd.cmapPartitions { (hcl, ctx, it) =>
       val encoder = new ByteArrayEncoder(hcl, makeEnc)
       TaskContext.get().addTaskCompletionListener[Unit](_ => encoder.close()): Unit
       it.map { ptr =>
-        val keys: Any = SafeRow.selectFields(localRowPType, ctx.r, ptr)(kFieldIdx)
+        val keys: Any = SafeRow.selectFields(sm, localRowPType, ctx.r, ptr)(kFieldIdx)
         val bytes = encoder.regionValueToBytes(ctx.r, ptr)
         (keys, bytes)
       }
@@ -184,7 +187,7 @@ class RVD(
       crdd.cmapPartitionsWithIndex { case (i, _, ctx, it) =>
         val regionForWriting = ctx.freshRegion() // This one gets cleaned up when context is freed.
         val prevK = WritableRegionValue(stateManager, localType.kType, regionForWriting)
-        val kUR = new UnsafeRow(localKPType)
+        val kUR = new UnsafeRow(stateManager, localKPType)
 
         new Iterator[Long] {
           var first = true
@@ -262,15 +265,16 @@ class RVD(
     if (shuffle) {
       val newType = typ.copy(key = newPartitioner.kType.fieldNames)
 
+      val sm = ctx.stateManager
       val localRowPType = rowPType
-      val kOrdering = PartitionBoundOrdering(ctx.stateManager, newType.kType.virtualType)
+      val kOrdering = PartitionBoundOrdering(sm, newType.kType.virtualType)
 
       val partBc = newPartitioner.broadcast(crdd.sparkContext)
       val enc = TypedCodecSpec(ctx, rowPType, BufferSpec.wireSpec)
 
       val filtered: RVD = if (filter) filterWithContext[(UnsafeRow, SelectFieldsRow)](
         { case (_, _, _) =>
-          val ur = new UnsafeRow(localRowPType, null, 0)
+          val ur = new UnsafeRow(sm, localRowPType, null, 0)
           val key = new SelectFieldsRow(ur, newType.kFieldIdx)
           (ur, key)
         },
@@ -651,13 +655,14 @@ class RVD(
 
   def filterOutIntervals(intervals: RVDPartitioner): RVD = {
     val intervalsBc = intervals.broadcast(sparkContext)
+    val sm = partitioner.sm
     val kType = typ.kType
     val kPType = kType
     val kRowFieldIdx = typ.kFieldIdx
     val rowPType = typ.rowType
 
     filterWithContext[UnsafeRow](
-      (_, _, _) => new UnsafeRow(kPType),
+      (_, _, _) => new UnsafeRow(sm, kPType),
       { case (kUR, _, ctx, ptr) =>
         ctx.rvb.start(kType)
         ctx.rvb.selectRegionValue(rowPType, kRowFieldIdx, ctx.r, ptr)
@@ -669,11 +674,12 @@ class RVD(
 
   def filterToIntervals(intervals: RVDPartitioner): RVD = {
     val intervalsBc = intervals.broadcast(sparkContext)
+    val sm = partitioner.sm
     val localRowPType = rowPType
     val kRowFieldIdx = typ.kFieldIdx
 
     val pred: (RVDContext, Long) => Boolean = (ctx: RVDContext, ptr: Long) => {
-      val ur = new UnsafeRow(localRowPType, ctx.r, ptr)
+      val ur = new UnsafeRow(sm, localRowPType, ctx.r, ptr)
       val key = RowSeq.fromSeq(
         kRowFieldIdx.map(i => ur.get(i))
       )
@@ -798,7 +804,7 @@ class RVD(
     execCtx.r.pool.scopedRegion { region =>
       RegionValue.fromBytes(execCtx.theHailClassLoader, dec, region, encodedData.iterator)
         .map { ptr =>
-          val row = SafeRow(pType, ptr)
+          val row = SafeRow(execCtx.stateManager, pType, ptr)
           region.clear()
           row
         }.toFastSeq
@@ -1004,7 +1010,7 @@ class RVD(
       val encoder = new ByteArrayEncoder(hcl, makeEnc)
       TaskContext.get().addTaskCompletionListener[Unit](_ => encoder.close()): Unit
       it.flatMap { ptr =>
-        val r = SafeRow(rightTyp.rowType, ptr)
+        val r = SafeRow(sm, rightTyp.rowType, ptr)
         val interval = r.getAs[Interval](rightTyp.kFieldIdx(0))
         if (interval != null) {
           val wrappedInterval = interval.copy(
@@ -1419,11 +1425,13 @@ object RVD extends Logging {
     }
 
     val fsBc = execCtx.fsBc
+    val sm = execCtx.stateManager
     val partF = {
       (originIdx: Int, originPartIdx: Int, it: Iterator[Element[Long]]) =>
         ContextRDD.inCtx { (hcl, ctx) =>
           val fullPath = paths(originIdx)
           val fileData = RichContextRDDRegionValue.writeSplitRegion(
+            sm,
             fsBc.value,
             fullPath,
             localTyp,

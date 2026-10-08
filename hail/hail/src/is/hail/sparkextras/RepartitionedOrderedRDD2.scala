@@ -78,7 +78,7 @@ class RepartitionedOrderedRDD2 private (
         )
         private[this] var pulled: Boolean = false
         private[this] var current: Long = _
-        private[this] val ur = new UnsafeRow(typ.rowType)
+        private[this] val ur = new UnsafeRow(sm, typ.rowType)
         private[this] val key = new SelectFieldsRow(ur, typ.kFieldIdx)
 
         // drop left elements at iterator allocation to avoid extra control flow in hasNext()

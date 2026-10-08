@@ -39,7 +39,7 @@ abstract class PhysicalTestUtils extends Logging {
           srcAddress,
           deepCopy = deepCopy,
         )
-        val copy = UnsafeRow.read(destType, region, copyOff)
+        val copy = UnsafeRow.read(ctx.stateManager, destType, region, copyOff)
 
         logger.info(s"Copied value: $copy, Source value: $sourceValue")
 
@@ -99,7 +99,7 @@ abstract class PhysicalTestUtils extends Logging {
       try {
         val f = fb.result()(ctx.theHailClassLoader)
         val copyOff = f(region, srcAddress)
-        UnsafeRow.read(destType, region, copyOff)
+        UnsafeRow.read(ctx.stateManager, destType, region, copyOff)
       } catch {
         case e: HailException =>
           if (expectRuntimeError) {

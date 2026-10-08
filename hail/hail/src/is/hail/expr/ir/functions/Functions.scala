@@ -308,6 +308,14 @@ object RegistryHelpers {
     assert(value != null)
     ptype.unstagedStoreJavaObject(HailStateManager(rgs), value, r)
   }
+
+  def unsafeReadAnyRef(rgs: Map[String, ReferenceGenome], t: PType, region: Region, offset: Long)
+    : AnyRef =
+    UnsafeRow.readAnyRef(HailStateManager(rgs), t, region, offset)
+
+  def safeReadAnyRef(rgs: Map[String, ReferenceGenome], t: PType, region: Region, offset: Long)
+    : AnyRef =
+    SafeRow.readAnyRef(HailStateManager(rgs), t, region, offset)
 }
 
 abstract class RegistryFunctions {
@@ -348,10 +356,20 @@ abstract class RegistryFunctions {
       case _: SLocus => sc.asLocus.getLocusObj(cb)
       case t =>
         val pt = PType.canonical(t.storageType())
+        def registerReferenceGenomes(typ: Type): Unit = typ match {
+          case TLocus(rg) => cb.emb.ecb.getReferenceGenome(rg): Unit
+          case TNDArray(elementType, _) => registerReferenceGenomes(elementType)
+          case _ => typ.children.foreach(registerReferenceGenomes)
+        }
+        registerReferenceGenomes(pt.virtualType)
         val addr = pt.store(cb, r, sc, deepCopy = false)
-        cb.memoize(Code.invokeScalaObject3[PType, Region, Long, AnyRef](
-          if (safe) SafeRow.getClass else UnsafeRow.getClass,
-          "readAnyRef",
+        cb.memoize(Code.invokeScalaObject4[Map[
+          String,
+          ReferenceGenome,
+        ], PType, Region, Long, AnyRef](
+          RegistryHelpers.getClass,
+          if (safe) "safeReadAnyRef" else "unsafeReadAnyRef",
+          cb.emb.ecb.emodb.referenceGenomeMap,
           cb.emb.getPType(pt),
           r,
           addr,

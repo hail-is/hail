@@ -49,7 +49,9 @@ final case class PCanonicalLocus(rgName: String, required: Boolean = false) exte
 
   private[physical] def contigAddr(address: Long): Long = representation.loadField(address, 0)
 
-  override def contig(address: Long): String = contigType.loadString(contigAddr(address))
+  override def contig(sm: HailStateManager, address: Long): String =
+    contigType.loadString(contigAddr(address))
+
   override def position(address: Long): Int = Region.loadInt(representation.fieldOffset(address, 1))
 
   lazy val contigType: PCanonicalString =

@@ -808,7 +808,7 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) extends Logg
         ConstantValue(
           ctx.r.getPool().scopedRegion { r =>
             val (pt, addr) = codec.decodeArrays(ctx, codec.encodedVirtualType, arrays.ba, ctx.r)
-            SafeRow.read(pt, addr)
+            SafeRow.read(ctx.stateManager, pt, addr)
           },
           x.typ,
         )

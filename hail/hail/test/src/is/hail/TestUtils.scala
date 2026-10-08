@@ -222,7 +222,7 @@ object TestUtils extends Logging {
 
             ctx.scopedExecution { (hcl, fs, tc, r) =>
               val off = f(hcl, fs, tc, r)(r, argsOff, aggOff)
-              SafeRow(resultType2.asInstanceOf[PBaseStruct], off).get(0)
+              SafeRow(ctx.stateManager, resultType2.asInstanceOf[PBaseStruct], off).get(0)
             }
           }
         }
@@ -256,7 +256,7 @@ object TestUtils extends Logging {
             val argsOff = rvb.end()
             ctx.scopedExecution { (hcl, fs, tc, r) =>
               val resultOff = f(hcl, fs, tc, r)(r, argsOff)
-              SafeRow(resultType2.asInstanceOf[PBaseStruct], resultOff).get(0)
+              SafeRow(ctx.stateManager, resultType2.asInstanceOf[PBaseStruct], resultOff).get(0)
             }
           }
         }

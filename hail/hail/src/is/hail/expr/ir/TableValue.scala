@@ -348,6 +348,7 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
       exportTypes(file, fs, fields.map(f => (f.name, f.typ)).toArray)
     }
 
+    val sm = ctx.stateManager
     val localSignature = rvd.rowPType
     val localTypes = fields.map(_.typ)
 
@@ -356,7 +357,7 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
       val sb = new StringBuilder()
 
       it.map { ptr =>
-        val ur = new UnsafeRow(localSignature, ctx.r, ptr)
+        val ur = new UnsafeRow(sm, localSignature, ctx.r, ptr)
         sb.clear()
         localTypes.indices.foreachBetween { i =>
           sb ++= TableAnnotationImpex.exportAnnotation(ur.get(i), localTypes(i))
@@ -881,7 +882,7 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
           val f = makeKeyF(hcl, fsBc.value, tc, partRegion)
           ptr: Long => {
             val keyOff = f(ctx.region, ptr, globals)
-            SafeRow.read(localKeyPType, keyOff).asInstanceOf[Row]
+            SafeRow.read(sm, localKeyPType, keyOff).asInstanceOf[Row]
           }
         }
         val makeAgg = { () =>

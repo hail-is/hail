@@ -37,17 +37,19 @@ object LinearRegressionAggregator {
   )
 
   def computeResult(region: Region, xtyPtr: Long, xtxPtr: Long, k0: Int): Long = {
-    val xty = DenseVector(UnsafeRow.readArray(vector, null, xtyPtr)
+    // The state type holds only float64 arrays, so no reference genome is needed.
+    val sm = HailStateManager(Map.empty)
+    val xty = DenseVector(UnsafeRow.readArray(sm, vector, null, xtyPtr)
       .asInstanceOf[IndexedSeq[Double]].toArray[Double])
     val k = xty.length
     val xtx = DenseMatrix(
       k,
       k,
-      UnsafeRow.readArray(vector, null, xtxPtr)
+      UnsafeRow.readArray(sm, vector, null, xtxPtr)
         .asInstanceOf[IndexedSeq[Double]].toArray[Double],
     )
 
-    val rvb = new RegionValueBuilder(HailStateManager(Map.empty), region)
+    val rvb = new RegionValueBuilder(sm, region)
     rvb.start(resultPType)
     rvb.startStruct()
 

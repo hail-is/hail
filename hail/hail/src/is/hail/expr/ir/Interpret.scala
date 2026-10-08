@@ -87,7 +87,7 @@ object Interpret extends Logging {
       case x @ EncodedLiteral(codec, value) =>
         ctx.r.getPool().scopedRegion { r =>
           val (pt, addr) = codec.decodeArrays(ctx, x.typ, value.ba, ctx.r)
-          SafeRow.read(pt, addr)
+          SafeRow.read(ctx.stateManager, pt, addr)
         }
       case Void() => ()
       case Cast(v, t) =>
@@ -920,6 +920,7 @@ object Interpret extends Logging {
           try {
             val resultOffset = f(region, offset)
             SafeRow(
+              ctx.stateManager,
               rt.asInstanceOf[PTypeReferenceSingleCodeType].pt.asInstanceOf[PTuple],
               resultOffset,
             ).get(0)
@@ -981,7 +982,7 @@ object Interpret extends Logging {
 
           // TODO Is this right? where does wrapped run?
           ctx.scopedExecution((hcl, fs, htc, r) =>
-            SafeRow(rt, f(hcl, fs, htc, r)(r, globalsOffset))
+            SafeRow(ctx.stateManager, rt, f(hcl, fs, htc, r)(r, globalsOffset))
           )
         } else {
           val spec = BufferSpec.blockedUncompressed
@@ -1109,7 +1110,7 @@ object Interpret extends Logging {
             val resF = f(ctx.theHailClassLoader, fsBc.value, ctx.taskContext, r)
             resF.setAggState(rv.region, rv.offset)
             val resAddr = resF(r, globalsOffset)
-            val res = SafeRow(rTyp, resAddr)
+            val res = SafeRow(ctx.stateManager, rTyp, resAddr)
             resF.storeAggsToRegion()
             rv.region.invalidate()
             res
