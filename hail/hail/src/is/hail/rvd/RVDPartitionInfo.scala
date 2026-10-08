@@ -105,7 +105,7 @@ object RVDPartitionInfo extends Logging {
         i += 1
       }
 
-      val safe: RegionValue => Any = SafeRow(kPType, _)
+      val safe: RegionValue => Any = SafeRow(sm, kPType, _)
 
       RVDPartitionInfo(
         partitionIndex,

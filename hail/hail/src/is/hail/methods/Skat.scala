@@ -346,6 +346,7 @@ case class Skat(
 
     val n = completeColIdx.length
     val completeColIdxBc = ctx.backend.broadcast(completeColIdx)
+    val sm = ctx.stateManager
 
     /* I believe no `boundary` is needed here because `mapPartitions` calls `run` which calls
      * `cleanupRegions`. */
@@ -361,7 +362,7 @@ case class Skat(
               fatal(s"Row weights must be non-negative, got $weight")
             val key = Annotation.copy(
               keyType.virtualType,
-              UnsafeRow.read(keyType, ctx.r, fullRowType.loadField(ptr, keyIndex)),
+              UnsafeRow.read(sm, keyType, ctx.r, fullRowType.loadField(ptr, keyIndex)),
             )
             val data = new Array[Double](n)
 
