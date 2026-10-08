@@ -121,6 +121,7 @@ update-hail-ubuntu:
 .PHONY: update-gateways-envoy
 update-gateways-envoy:
 	python3 update-envoy.py
+	NAMESPACE=default $(MAKE) -C docker/third-party copy
 	$(MAKE) -C gateway deploy
 	$(MAKE) -C internal-gateway deploy
 	kubectl rollout status deployment gateway-deployment
