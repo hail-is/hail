@@ -1,4 +1,4 @@
-from typing import Union
+from typing import Any, Union
 
 from aiohttp import web
 
@@ -45,7 +45,7 @@ class ClosedBillingProjectError(BatchUserError):
 
 
 class InvalidBillingLimitError(BatchUserError):
-    def __init__(self, billing_limit: Union[str, float, int]):
+    def __init__(self, billing_limit: Any):
         super().__init__(f'Invalid billing_limit {billing_limit}.', 'error')
 
     def http_response(self):
