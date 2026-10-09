@@ -1255,6 +1255,7 @@ steps:
       export HAIL_DOCTEST_DATA_DIR=$(realpath ./data)
       export HAIL_TEST_STORAGE_URI={{ global.test_storage_uri }}/{{ token }}
       export PYSPARK_SUBMIT_ARGS="--driver-memory 6g pyspark-shell"
+      export HAIL_DEV_USE_UNSTABLE_ENCODINGS=1
 
       python3 -m pytest \
               --color=yes \
