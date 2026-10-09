@@ -2,7 +2,6 @@ package is.hail.types.encoded
 
 import is.hail.ParameterizedTest
 import is.hail.TestUtils._
-import is.hail.scalacheck._
 import is.hail.annotations.{Annotation, Region, RowSeq, SafeNDArray, SafeRow}
 import is.hail.asm4s._
 import is.hail.asm4s.implicits.valueToRichCodeRegion
@@ -11,6 +10,7 @@ import is.hail.collection.FastSeq
 import is.hail.expr.ir.EmitFunctionBuilder
 import is.hail.io._
 import is.hail.rvd.AbstractRVDSpec
+import is.hail.scalacheck._
 import is.hail.types.physical._
 import is.hail.types.physical.LocusRepresentations._
 import is.hail.types.physical.stypes.concrete.{SCanonicalLocusPointer, SPackedLocus}

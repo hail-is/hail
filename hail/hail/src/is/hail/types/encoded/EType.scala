@@ -399,9 +399,9 @@ object EType extends Logging {
         required = rinterval.required,
       )
     case t: TArray
-        if (ctx.flags.lookup(
+        if (ctx.flags.isDefined(
           EType.Flags.UseUnstableEncodings
-        ).isDefined && t.elementType.isInstanceOf[TBaseStruct] && t.elementType.asInstanceOf[
+        ) && t.elementType.isInstanceOf[TBaseStruct] && t.elementType.asInstanceOf[
           TBaseStruct
         ].fields.forall(fld => EStructOfArrays.supportsFieldType(fld.typ))) =>
       EStructOfArrays.fromTypeAndRequiredness(t, tcoerce[RIterable](r))
