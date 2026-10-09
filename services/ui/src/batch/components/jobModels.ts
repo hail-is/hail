@@ -15,6 +15,7 @@ export interface ContainerStatus {
 }
 
 export type JobStatus = {
+  attempt_id?: string;
   container_statuses?: {
     input?: ContainerStatus | null;
     main?: ContainerStatus | null;
