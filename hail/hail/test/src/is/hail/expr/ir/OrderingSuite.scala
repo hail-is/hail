@@ -57,17 +57,8 @@ class OrderingSuite {
     r: Region,
     sortOrder: SortOrder = Ascending,
   )(implicit ctx: ExecuteContext
-  ): AsmFunction3[Region, Long, Long, op.ReturnType] = {
-    implicit val x = op.rtti
-    val fb = EmitFunctionBuilder[Region, Long, Long, op.ReturnType](ctx, "lifted")
-    fb.emitWithBuilder { cb =>
-      val cv1 = t.loadCheapSCode(cb, fb.getCodeParam[Long](2))
-      val cv2 = t.loadCheapSCode(cb, fb.getCodeParam[Long](3))
-      fb.ecb.getOrderingFunction(cv1.st, cv2.st, op)
-        .apply(cb, EmitValue.present(cv1), EmitValue.present(cv2))
-    }
-    fb.resultWithIndex()(ctx.theHailClassLoader, ctx.fs, ctx.taskContext, r)
-  }
+  ): AsmFunction3[Region, Long, Long, op.ReturnType] =
+    getStagedOrderingFunction(t, t, op, r)
 
   @Test def testMissingNonequalComparisons(implicit ctx: ExecuteContext): Unit = {
     val pool = ctx.r.pool
@@ -709,5 +700,74 @@ class OrderingSuite {
     assertEvalSame(ApplyComparisonOp(GT, In(0, t), In(1, t)), args)
     assertEvalSame(ApplyComparisonOp(GTEQ, In(0, t), In(1, t)), args)
     assertEvalSame(ApplyComparisonOp(Compare, In(0, t), In(1, t)), args)
+  }
+
+  def getStagedOrderingFunction(
+    t1: PType,
+    t2: PType,
+    op: CodeOrdering.Op,
+    r: Region,
+  )(implicit ctx: ExecuteContext
+  ): AsmFunction3[Region, Long, Long, op.ReturnType] = {
+    implicit val x = op.rtti
+    val fb = EmitFunctionBuilder[Region, Long, Long, op.ReturnType](ctx, "lifted")
+    fb.emitWithBuilder { cb =>
+      val cv1 = t1.loadCheapSCode(cb, fb.getCodeParam[Long](2))
+      val cv2 = t2.loadCheapSCode(cb, fb.getCodeParam[Long](3))
+      fb.ecb.getOrderingFunction(cv1.st, cv2.st, op)
+        .apply(cb, EmitValue.present(cv1), EmitValue.present(cv2))
+    }
+    fb.resultWithIndex()(ctx.theHailClassLoader, ctx.fs, ctx.taskContext, r)
+  }
+
+  // Compiled orderings between loci of any pair of representations, at top level and nested,
+  // agree with the virtual type's ordering.
+  @Test def testLocusRepresentationOrderings(implicit ctx: ExecuteContext): Unit = {
+    val nestings = ArraySeq[PLocus => PType](
+      identity,
+      l => PCanonicalStruct(true, "l" -> l, "i" -> PInt32()),
+      l => PCanonicalArray(l, true),
+      l => PCanonicalInterval(l, true),
+    )
+
+    for (rg <- LocusRepresentations.references)
+      LocusRepresentations.withReference(rg) { implicit ctx =>
+        val representations = ArraySeq(PCanonicalLocus(rg.name, true), PPackedLocus(rg.name, true))
+        for {
+          nest <- nestings
+          lt <- representations.map(nest)
+          rt <- representations.map(nest)
+        } ctx.r.pool.scopedRegion { r =>
+          val t = lt.virtualType
+          val ord = t.ordering(sm)
+          val compare = getStagedOrderingFunction(lt, rt, CodeOrdering.Compare(), r)
+          val less = getStagedOrderingFunction(lt, rt, CodeOrdering.Lt(), r)
+          val equiv = getStagedOrderingFunction(lt, rt, CodeOrdering.Equiv(), r)
+          // PInterval's unsafe ordering assumes both sides share its layout
+          val unsafeOrd = lt match {
+            case _: PInterval => None
+            case _ => Some(lt.unsafeOrdering(sm, rt))
+          }
+          val genValue = genVal(ctx, lt)
+
+          check(forAll(genValue, genValue) { (a, b) =>
+            val clue = s"$lt vs $rt: $a, $b"
+            for ((x, y) <- ArraySeq((a, b), (a, a))) {
+              val xOff = lt.unstagedStoreJavaObject(sm, x, r)
+              val yOff = rt.unstagedStoreJavaObject(sm, y, r)
+              assert(
+                math.signum(compare(r, xOff, yOff)) == math.signum(ord.compare(x, y)),
+                clue,
+              )
+              assert(less(r, xOff, yOff) == ord.lt(x, y), clue)
+              assert(equiv(r, xOff, yOff) == ord.equiv(x, y), clue)
+              unsafeOrd.foreach { u =>
+                assert(math.signum(u.compare(xOff, yOff)) == math.signum(ord.compare(x, y)), clue)
+              }
+            }
+            true
+          })
+        }
+      }
   }
 }
