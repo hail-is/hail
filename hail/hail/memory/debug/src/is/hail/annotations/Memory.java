@@ -8,6 +8,8 @@ import java.util.TreeMap;
 
 @SuppressWarnings("sunapi")
 public class Memory {
+    public static final boolean IS_DEBUG = true;
+
     private static final Unsafe unsafe;
 
     private static final TreeMap<Long, Long> blocks;
