@@ -3178,6 +3178,58 @@ steps:
       - hail_ubuntu_image
       - gpu_image
   - kind: runImage
+    name: test_batch_db
+    numSplits: 1
+    image:
+      valueFrom: batch_image.image
+    script: |
+      set -ex
+
+      hail-pip-install -r /io/dev-requirements.txt
+
+      # Install and start MySQL ad-hoc — not baked into the batch image.
+      hail-apt-get-install mysql-server
+      mysqld --user=root --daemonize --log-error=/tmp/mysqld.log
+      until mysqladmin --user=root ping --silent; do sleep 1; done
+      # Ubuntu's root uses auth_socket, which refuses the fixture's TCP login. IDENTIFIED BY alone keeps the plugin.
+      mysql --user=root -e "ALTER USER 'root'@'localhost' IDENTIFIED WITH caching_sha2_password BY 'pw'; FLUSH PRIVILEGES;"
+
+      # The db fixture applies the batch migrations listed in build.yaml, relative to this root.
+      export HAIL_TEST_REPO_ROOT=/io/repo
+
+      cd /io
+      python3 -m pytest \
+              --log-cli-level=INFO \
+              -s \
+              -r A \
+              -vv \
+              --instafail \
+              --durations=50 \
+              --timeout=120 \
+              /io/test/test_db_framework.py
+    inputs:
+      - from: /repo/batch/test
+        to: /io/test
+      - from: /repo/hail/python/dev/pinned-requirements.txt
+        to: /io/dev-requirements.txt
+      - from: /repo/build.yaml
+        to: /io/repo/build.yaml
+      - from: /repo/ci/create_local_database.py
+        to: /io/repo/ci/create_local_database.py
+      - from: /repo/ci/create_database.py
+        to: /io/repo/ci/create_database.py
+      - from: /repo/batch/sql
+        to: /io/repo/batch/sql
+    timeout: 900
+    scopes:
+      - test
+      - dev
+    clouds:
+      - gcp
+    dependsOn:
+      - merge_code
+      - batch_image
+  - kind: runImage
     name: test_batch_job_private_machines
     scopes:
       - test
