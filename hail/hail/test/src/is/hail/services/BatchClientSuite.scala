@@ -10,7 +10,7 @@ import is.hail.utils._
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 
-import java.nio.file.Path
+import java.nio.file.{Files, Path}
 
 import org.junit.jupiter.api.{AfterAll, BeforeAll, BeforeEach, Test, TestInfo}
 import org.scalatest.matchers.should.Matchers.convertToAnyShouldWrapper
@@ -23,10 +23,15 @@ class BatchClientSuite {
 
   @BeforeAll
   def createClientAndBatch(): Unit = {
+    val keyPath = Path.of("/test-gsa-key/key.json")
+    org.junit.jupiter.api.Assumptions.assumeTrue(
+      Files.exists(keyPath),
+      "Service Account key must exist for batch client tests.",
+    )
     client =
       BatchClient(
         DeployConfig.default,
-        CloudCredentials(Some(Path.of("/test-gsa-key/key.json"))),
+        CloudCredentials(Some(keyPath)),
       )
 
     batchId =
@@ -55,7 +60,7 @@ class BatchClientSuite {
 
   @AfterAll
   def closeClient(): Unit =
-    client.close()
+    if (client != null) client.close()
 
   @Test
   def testCancelAfterNFailures(): Unit = {
