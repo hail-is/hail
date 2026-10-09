@@ -2137,69 +2137,14 @@ paths:
                 type: object
   '/billing_limits':
     get:
-      summary: "Billing limits page (UI)"
-      description: "Render the billing limits page, or (dev only) its supporting jinja context"
+      summary: "Legacy billing limits page (UI)"
+      description: "Redirects to the billing projects page, where limits are now shown and edited."
       operationId: getBillingLimitsUI
       tags:
         - UI Support
-      parameters:
-        - name: x-hail-return-jinja-context
-          in: header
-          description: "Do not render, and instead return the jinja context json."
-          required: false
-          schema:
-            type: boolean
-            default: false
-            example: true
       responses:
-        '200':
-          description: "Successfully retrieved the billing limits page."
-          content:
-            application/json:
-              schema:
-                type: object
-  '/billing_limits/{billing_project}/edit':
-    post:
-      summary: Edit billing limits
-      description: Edit billing limits for a billing project
-      tags: [Billing]
-      parameters:
-        - name: billing_project
-          in: path
-          required: true
-          schema:
-            type: string
-          description: Billing project identifier
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                limit:
-                  type: number
-                  description: New billing limit
-      responses:
-        '200':
-          description: Billing limit updated successfully
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  billing_project:
-                    type: string
-                    description: Billing project identifier
-                  limit:
-                    type: number
-                    description: Updated billing limit
-        '401':
-          description: Unauthorized
-        '403':
-          description: Forbidden - requires developer privileges
-        '404':
-          description: Billing project not found
+        '302':
+          description: "Redirect to /billing_projects."
   '/billing_projects':
     get:
       summary: "Billing projects page (UI)"
@@ -2223,43 +2168,17 @@ paths:
             application/json:
               schema:
                 type: object
-  '/billing_projects/create':
-    post:
-      summary: Create billing project
-      description: Create a new billing project
-      tags: [Billing]
-      parameters:
-        - name: billing_project
-          in: path
-          required: true
-          schema:
-            type: string
-          description: Billing project identifier
-      responses:
-        '200':
-          description: Billing project created successfully
-          content:
-            application/json:
-              schema:
-                type: string
-                description: Created billing project identifier
-        '401':
-          description: Unauthorized
-        '403':
-          description: Forbidden - requires developer privileges
-        '409':
-          description: Billing project already exists
-  '/billing_projects/{billing_project}/users/add':
-    post:
-      summary: "Add user to billing project element (UI)"
-      description: "Add a user to a billing project and return rendered result HTML, or (dev only) its supporting jinja context"
-      operationId: addUserToBillingProjectUI
+  '/billing_projects/{billing_project}':
+    get:
+      summary: "Billing project detail page (UI)"
+      description: "Render the billing project detail page, or (dev only) its supporting jinja context"
+      operationId: getBillingProjectDetailUI
       tags:
         - Billing Projects
       parameters:
         - name: billing_project
           in: path
-          description: "The ID of the billing project."
+          description: "The name of the billing project."
           required: true
           schema:
             type: string
@@ -2273,31 +2192,19 @@ paths:
             example: true
       responses:
         '200':
-          description: "Successfully added the user to the billing project."
+          description: "Successfully retrieved the billing project detail page."
           content:
             application/json:
               schema:
                 type: object
-  '/billing_projects/{billing_project}/users/{user}/remove':
-    post:
-      summary: "Remove user from billing project element (UI)"
-      description: "Remove a user from a billing project and return rendered result HTML, or (dev only) its supporting jinja context"
-      operationId: removeUserFromBillingProjectUI
+  '/billing/quotes':
+    get:
+      summary: "Quotes list page (UI)"
+      description: "Render the quotes list page, or (dev only) its supporting jinja context"
+      operationId: getQuotesUI
       tags:
-        - Billing Projects
+        - Quotes
       parameters:
-        - name: billing_project
-          in: path
-          description: "The ID of the billing project."
-          required: true
-          schema:
-            type: string
-        - name: user
-          in: path
-          description: "The username of the user."
-          required: true
-          schema:
-            type: string
         - name: x-hail-return-jinja-context
           in: header
           description: "Do not render, and instead return the jinja context json."
@@ -2308,22 +2215,22 @@ paths:
             example: true
       responses:
         '200':
-          description: "Successfully removed the user from the billing project."
+          description: "Successfully retrieved the quotes list page."
           content:
             application/json:
               schema:
                 type: object
-  '/billing_projects/{billing_project}/close':
-    post:
-      summary: "Close billing project element (UI)"
-      description: "Close a billing project and return rendered result HTML, or (dev only) its supporting jinja context"
-      operationId: closeBillingProjectUI
+  '/billing/quotes/{name}':
+    get:
+      summary: "Quote detail page (UI)"
+      description: "Render the quote detail page, or (dev only) its supporting jinja context"
+      operationId: getQuoteDetailUI
       tags:
-        - Billing Projects
+        - Quotes
       parameters:
-        - name: billing_project
+        - name: name
           in: path
-          description: "The ID of the billing project."
+          description: "The name of the quote."
           required: true
           schema:
             type: string
@@ -2337,36 +2244,7 @@ paths:
             example: true
       responses:
         '200':
-          description: "Successfully closed the billing project."
-          content:
-            application/json:
-              schema:
-                type: object
-  '/billing_projects/{billing_project}/reopen':
-    post:
-      summary: "Reopen billing project element (UI)"
-      description: "Reopen a billing project and return rendered result HTML, or (dev only) its supporting jinja context"
-      operationId: reopenBillingProjectUI
-      tags:
-        - Billing Projects
-      parameters:
-        - name: billing_project
-          in: path
-          description: "The ID of the billing project."
-          required: true
-          schema:
-            type: string
-        - name: x-hail-return-jinja-context
-          in: header
-          description: "Do not render, and instead return the jinja context json."
-          required: false
-          schema:
-            type: boolean
-            default: false
-            example: true
-      responses:
-        '200':
-          description: "Successfully reopened the billing project."
+          description: "Successfully retrieved the quote detail page."
           content:
             application/json:
               schema:

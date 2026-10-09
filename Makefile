@@ -232,6 +232,12 @@ batch/batch/front_end/static/compiled-js/batch.js: services/ui/dist/.built
 
 batch-image: batch/batch/front_end/static/compiled-js/batch.js
 
+batch/batch/front_end/static/compiled-js/billing.js: services/ui/dist/.built
+	mkdir -p $(@D)
+	cp services/ui/dist/batch/billing.js $@
+
+batch-image: batch/batch/front_end/static/compiled-js/billing.js
+
 batch/batch/driver/static/compiled-js/index.js: services/ui/dist/.built
 	mkdir -p $(@D)
 	cp services/ui/dist/batch_driver/index.js $@
@@ -342,6 +348,7 @@ run-dev-proxy: ci/ci/static/compiled-js/flaky_tests.js \
     ci/ci/static/compiled-js/pr.js \
     batch/batch/front_end/static/compiled-js/job.js \
     batch/batch/front_end/static/compiled-js/batch.js \
+    batch/batch/front_end/static/compiled-js/billing.js \
     batch/batch/driver/static/compiled-js/index.js \
     monitoring/monitoring/static/compiled-js/index.js \
     auth/auth/static/compiled-js/index.js \
@@ -368,7 +375,7 @@ ui-js-watch-pr: services/ui/node_modules/.package-lock.json
 
 .PHONY: ui-js-watch-batch
 ui-js-watch-batch: services/ui/node_modules/.package-lock.json
-	cd services/ui && npx esbuild src/batch/job.tsx src/batch/batch.tsx --bundle --jsx=automatic --format=esm --outdir=../../batch/batch/front_end/static/compiled-js --minify --watch=forever
+	cd services/ui && npx esbuild src/batch/job.tsx src/batch/batch.tsx src/batch/billing.tsx --bundle --jsx=automatic --format=esm --outdir=../../batch/batch/front_end/static/compiled-js --minify --watch=forever
 
 .PHONY: ui-js-watch-batch-driver
 ui-js-watch-batch-driver: services/ui/node_modules/.package-lock.json
