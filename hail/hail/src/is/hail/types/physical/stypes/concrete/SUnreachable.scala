@@ -152,7 +152,9 @@ class SUnreachableLocusValue(override val st: SUnreachableLocus)
 
   override def contig(cb: EmitCodeBuilder): SStringValue = SUnreachableString.sv
 
-  override def contigLong(cb: EmitCodeBuilder): Value[Long] = const(0)
+  override def contigIdx(cb: EmitCodeBuilder): Value[Int] = const(0)
+
+  override def packed(cb: EmitCodeBuilder): Value[Long] = const(0L)
 
   override def structRepr(cb: EmitCodeBuilder): SBaseStructValue = SUnreachableStruct(TStruct(
     "contig" -> TString,

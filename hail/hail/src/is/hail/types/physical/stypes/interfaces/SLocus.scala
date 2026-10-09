@@ -20,9 +20,11 @@ trait SLocusValue extends SValue {
 
   def contig(cb: EmitCodeBuilder): SStringValue
 
-  def contigLong(cb: EmitCodeBuilder): Value[Long]
+  def contigIdx(cb: EmitCodeBuilder): Value[Int]
 
   def position(cb: EmitCodeBuilder): Value[Int]
+
+  def packed(cb: EmitCodeBuilder): Value[Long]
 
   def getLocusObj(cb: EmitCodeBuilder): Value[Locus] =
     cb.memoize(Code.invokeStatic2[Locus, String, Int, Locus](
@@ -39,14 +41,6 @@ trait SLocusValue extends SValue {
   override def sizeToStoreInBytes(cb: EmitCodeBuilder): SInt64Value =
     structRepr(cb).sizeToStoreInBytes(cb)
 
-  override def prefixCode(cb: EmitCodeBuilder, pc: Value[PrefixCoder]): Unit = {
-    val rgCode = cb.emb.getReferenceGenome(st.rg)
-    val locusObject = getLocusObj(cb)
-    val globalPos =
-      cb.memoize(rgCode.invoke[Locus, Long](
-        "locusToGlobalPos",
-        locusObject,
-      ))
-    pc.encodeLong(cb, globalPos)
-  }
+  override def prefixCode(cb: EmitCodeBuilder, pc: Value[PrefixCoder]): Unit =
+    pc.encodeLong(cb, packed(cb))
 }
