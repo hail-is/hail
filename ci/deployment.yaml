@@ -135,6 +135,11 @@ spec:
            - name: ssl-config-ci
              mountPath: /ssl-config
              readOnly: true
+{% if global.cloud == "aws" %}
+           - name: ci-tokens
+             mountPath: /user-tokens
+             readOnly: true
+{% endif %}
           livenessProbe:
             tcpSocket:
               port: 5000
@@ -174,6 +179,12 @@ spec:
          secret:
            optional: false
            secretName: ssl-config-ci
+{% if global.cloud == "aws" %}
+       - name: ci-tokens
+         secret:
+           optional: false
+           secretName: ci-tokens
+{% endif %}
 ---
 apiVersion: v1
 kind: Service

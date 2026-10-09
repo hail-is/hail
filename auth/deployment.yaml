@@ -115,6 +115,11 @@ spec:
           - name: ssl-config-auth-driver
             mountPath: /ssl-config
             readOnly: true
+{% if global.cloud == "aws" %}
+          - name: auth-tokens
+            mountPath: /user-tokens
+            readOnly: true
+{% endif %}
          ports:
           - containerPort: 443
       volumes:
@@ -136,6 +141,12 @@ spec:
        - name: ssl-config-auth-driver
          secret:
            secretName: ssl-config-auth-driver
+{% if global.cloud == "aws" %}
+       - name: auth-tokens
+         secret:
+           optional: false
+           secretName: auth-tokens
+{% endif %}
 ---
 apiVersion: apps/v1
 kind: Deployment
