@@ -19,6 +19,8 @@ trait ValueVisitor {
 
   def visitBinary(b: Array[Byte]): Unit
 
+  def visitPackedLocus(contigIdx: Int, position: Int): Unit
+
   def enterStruct(t: PStruct): Unit
 
   def enterField(f: PField): Unit
@@ -68,6 +70,10 @@ final class PrettyVisitor extends ValueVisitor {
 
   @inline override def visitString(s: String): Unit =
     sb.append(s)
+
+  // no reference genome is available here to name the contig
+  @inline override def visitPackedLocus(contigIdx: Int, position: Int): Unit =
+    sb += '#' ++= contigIdx.toString += ':' ++= position.toString: Unit
 
   @inline override def enterStruct(t: PStruct): Unit =
     sb.append("{")
