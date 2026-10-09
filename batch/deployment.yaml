@@ -509,6 +509,11 @@ spec:
          - name: ssl-config-batch
            mountPath: /ssl-config
            readOnly: true
+{% if global.cloud == "aws" %}
+         - name: batch-tokens
+           mountPath: /user-tokens
+           readOnly: true
+{% endif %}
         readinessProbe:
           tcpSocket:
             port: 443
@@ -534,6 +539,12 @@ spec:
          secret:
            optional: false
            secretName: ssl-config-batch
+{% if global.cloud == "aws" %}
+       - name: batch-tokens
+         secret:
+           optional: false
+           secretName: batch-tokens
+{% endif %}
 {% if deploy %}
 ---
 apiVersion: autoscaling/v2
