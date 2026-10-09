@@ -5,8 +5,8 @@ import is.hail.asm4s.{coerce => _, _}
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
 import is.hail.expr.ir.{
-  EmitClassBuilder, EmitCodeBuilder, EmitFunctionBuilder, EmitMethodBuilder, IRParser, ParamType,
-  PunctuationToken, TokenIterator,
+  EmitClassBuilder, EmitCodeBuilder, EmitFunctionBuilder, EmitMethodBuilder, FunctionWithReferences,
+  IRParser, ParamType, PunctuationToken, TokenIterator,
 }
 import is.hail.io._
 import is.hail.types._
@@ -14,6 +14,7 @@ import is.hail.types.physical._
 import is.hail.types.physical.stypes.{SType, SValue}
 import is.hail.types.virtual._
 import is.hail.utils._
+import is.hail.variant.ReferenceGenome
 
 import scala.collection.immutable.ArraySeq
 
@@ -207,16 +208,45 @@ object EType extends Logging {
 
   val cacheCapacity = 256
 
-  protected val encoderCache =
-    new util.LinkedHashMap[(EType, PType), (HailClassLoader) => EncoderAsmFunction](
-      cacheCapacity,
-      0.75f,
-      true,
-    ) {
-      override def removeEldestEntry(
-        eldest: Entry[(EType, PType), (HailClassLoader) => EncoderAsmFunction]
-      ): Boolean = size() > cacheCapacity
+  /* Unstaged codecs that convert between locus representations need the reference genomes of the
+   * loci they encode or decode. The caches outlive sessions, whose reference genomes may differ, so
+   * they are keyed on those reference genomes too. */
+  private def referenceGenomes(ctx: ExecuteContext, t: Type): IndexedSeq[ReferenceGenome] = {
+    def rgs(t: Type): Iterator[String] = t match {
+      case t: TLocus => Iterator.single(t.rg)
+      case _ => t.children.iterator.flatMap(rgs)
     }
+    ArraySeq.from(rgs(t).distinct.flatMap(ctx.references.get)).sortBy(_.name)
+  }
+
+  private def resultWithReferenceGenomes[F](fb: EmitFunctionBuilder[F]): HailClassLoader => F =
+    if (!fb.ecb.emodb.hasReferences) fb.result()
+    else {
+      fb.ecb.makeAddReferenceGenomes(heal = false)
+      val rgs = fb.ecb.emodb.referenceGenomes().toArray
+      val f = fb.result()
+      hcl => {
+        val compiled = f(hcl)
+        compiled.asInstanceOf[FunctionWithReferences].addReferenceGenomes(rgs)
+        compiled
+      }
+    }
+
+  protected val encoderCache = new util.LinkedHashMap[
+    (EType, PType, IndexedSeq[ReferenceGenome]),
+    (HailClassLoader) => EncoderAsmFunction,
+  ](
+    cacheCapacity,
+    0.75f,
+    true,
+  ) {
+    override def removeEldestEntry(
+      eldest: Entry[
+        (EType, PType, IndexedSeq[ReferenceGenome]),
+        (HailClassLoader) => EncoderAsmFunction,
+      ]
+    ): Boolean = size() > cacheCapacity
+  }
 
   protected var encoderCacheHits: Long = 0L
   protected var encoderCacheMisses: Long = 0L
@@ -224,7 +254,7 @@ object EType extends Logging {
   // The 'entry point' for building an encoder from an EType and a PType
   def buildEncoder(ctx: ExecuteContext, et: EType, pt: PType)
     : (HailClassLoader) => EncoderAsmFunction = {
-    val k = (et, pt)
+    val k = (et, pt, referenceGenomes(ctx, pt.virtualType))
     if (encoderCache.containsKey(k)) {
       encoderCacheHits += 1
       logger.info(s"encoder cache hit")
@@ -249,29 +279,34 @@ object EType extends Logging {
         val f = et.buildEncoder(pc.st, mb.ecb)
         f(cb, pc, out)
       }
-      val func = fb.result()
+      val func = resultWithReferenceGenomes(fb)
       encoderCache.put(k, func)
       func
     }
   }
 
-  protected val decoderCache =
-    new util.LinkedHashMap[(EType, Type), (PType, (HailClassLoader) => DecoderAsmFunction)](
-      cacheCapacity,
-      0.75f,
-      true,
-    ) {
-      override def removeEldestEntry(
-        eldest: Entry[(EType, Type), (PType, (HailClassLoader) => DecoderAsmFunction)]
-      ): Boolean = size() > cacheCapacity
-    }
+  protected val decoderCache = new util.LinkedHashMap[
+    (EType, Type, IndexedSeq[ReferenceGenome]),
+    (PType, (HailClassLoader) => DecoderAsmFunction),
+  ](
+    cacheCapacity,
+    0.75f,
+    true,
+  ) {
+    override def removeEldestEntry(
+      eldest: Entry[
+        (EType, Type, IndexedSeq[ReferenceGenome]),
+        (PType, (HailClassLoader) => DecoderAsmFunction),
+      ]
+    ): Boolean = size() > cacheCapacity
+  }
 
   protected var decoderCacheHits: Long = 0L
   protected var decoderCacheMisses: Long = 0L
 
   def buildDecoderToRegionValue(ctx: ExecuteContext, et: EType, t: Type)
     : (PType, (HailClassLoader) => DecoderAsmFunction) = {
-    val k = (et, t)
+    val k = (et, t, referenceGenomes(ctx, t))
     if (decoderCache.containsKey(k)) {
       decoderCacheHits += 1
       logger.info(s"decoder cache hit")
@@ -298,7 +333,7 @@ object EType extends Logging {
         pt.store(cb, region, pc, false)
       }
 
-      val r = (pt, fb.result())
+      val r = (pt, resultWithReferenceGenomes(fb))
       decoderCache.put(k, r)
       r
     }
@@ -333,6 +368,8 @@ object EType extends Logging {
     case TBoolean => EBoolean(r.required)
     case TBinary => EBinary(r.required)
     case TString => EBinary(r.required)
+    case TLocus(_) if ctx.flags.isDefined(EType.Flags.UseUnstableEncodings) =>
+      EVarint(r.required)
     case TLocus(_) =>
       EBaseStruct(
         ArraySeq(
@@ -362,9 +399,9 @@ object EType extends Logging {
         required = rinterval.required,
       )
     case t: TArray
-        if (ctx.flags.lookup(
+        if (ctx.flags.isDefined(
           EType.Flags.UseUnstableEncodings
-        ).isDefined && t.elementType.isInstanceOf[TBaseStruct] && t.elementType.asInstanceOf[
+        ) && t.elementType.isInstanceOf[TBaseStruct] && t.elementType.asInstanceOf[
           TBaseStruct
         ].fields.forall(fld => EStructOfArrays.supportsFieldType(fld.typ))) =>
       EStructOfArrays.fromTypeAndRequiredness(t, tcoerce[RIterable](r))
