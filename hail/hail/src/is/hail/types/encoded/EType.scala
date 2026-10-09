@@ -361,7 +361,7 @@ object EType extends Logging {
         ),
         required = rinterval.required,
       )
-    case t: TIterable
+    case t: TArray
         if (ctx.flags.lookup(
           EType.Flags.UseUnstableEncodings
         ).isDefined && t.elementType.isInstanceOf[TBaseStruct] && t.elementType.asInstanceOf[
