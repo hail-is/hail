@@ -333,6 +333,8 @@ object EType extends Logging {
     case TBoolean => EBoolean(r.required)
     case TBinary => EBinary(r.required)
     case TString => EBinary(r.required)
+    case TLocus(_) if ctx.flags.isDefined(EType.Flags.UseUnstableEncodings) =>
+      EVarint(r.required)
     case TLocus(_) =>
       EBaseStruct(
         ArraySeq(

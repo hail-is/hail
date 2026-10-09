@@ -13,7 +13,9 @@ import is.hail.io._
 import is.hail.rvd.AbstractRVDSpec
 import is.hail.types.physical._
 import is.hail.types.physical.LocusRepresentations._
+import is.hail.types.physical.stypes.concrete.{SCanonicalLocusPointer, SPackedLocus}
 import is.hail.types.virtual._
+import is.hail.variant.ReferenceGenome
 
 import scala.collection.immutable.ArraySeq
 
@@ -365,9 +367,8 @@ class ETypeSuite {
         assertEqualEncodeDecode(pt, EType.defaultFromPType(ctx, pt), pt, a)
     }
 
-  // Under the default (struct) encoding, loci of either representation, nested anywhere, decode
-  // and store into either representation.
-  @Test def testLocusRepresentationsEncodeDecode(implicit ctx: ExecuteContext): Unit =
+  // Loci of either representation, nested anywhere, decode and store into either representation.
+  private def checkLocusRepresentationsEncodeDecode(implicit ctx: ExecuteContext): Unit =
     for (rg <- references)
       withReference(rg) { implicit ctx =>
         check(forAll(genPTypeValOn(ctx, rg)) { case (pt, a) =>
@@ -382,6 +383,85 @@ class ETypeSuite {
           true
         })
       }
+
+  @Test def testLocusRepresentationsEncodeDecode(implicit ctx: ExecuteContext): Unit =
+    checkLocusRepresentationsEncodeDecode
+
+  @Test def testLocusRepresentationsEncodeDecodeWithUnstableEncodings(implicit ctx: ExecuteContext)
+    : Unit =
+    withUnstableEncodings(checkLocusRepresentationsEncodeDecode(_))
+
+  private def structEncodedLocus(required: Boolean): EType =
+    EBaseStruct(
+      FastSeq(EField("contig", EBinaryRequired, 0), EField("position", EVarintRequired, 1)),
+      required,
+    )
+
+  @Test def testVarintDecodesLocusToPackedLocus(): Unit = {
+    val t = TLocus(ReferenceGenome.GRCh38)
+    for (et <- ArraySeq[EType](EVarintOptional, EVarintRequired))
+      assertEq(et.decodedSType(t), SPackedLocus(t.rg))
+
+    assertEq(
+      structEncodedLocus(required = true).decodedSType(t),
+      SCanonicalLocusPointer(PCanonicalLocus(t.rg, false)),
+    )
+  }
+
+  @Test def testVarintEncodedLocusRoundTrip(implicit ctx: ExecuteContext): Unit =
+    for (rg <- references)
+      withReference(rg) { implicit ctx =>
+        val representations =
+          ArraySeq[PType](PCanonicalLocus(rg.name, true), PPackedLocus(rg.name, true))
+        for {
+          in <- representations
+          out <- representations
+        } check(forAll(genLocus(rg))(l => encodeDecode(in, EVarintRequired, out, l) == l))
+      }
+
+  // The ETypes chosen for the loci in `t`, wherever they are nested.
+  private def locusETypes(t: Type, et: EType): Seq[EType] = (t, et) match {
+    case (_: TLocus, _) => Seq(et)
+    case (t: TInterval, et: EBaseStruct) =>
+      locusETypes(t.pointType, et.fields(0).typ) ++ locusETypes(t.pointType, et.fields(1).typ)
+    case (t: TIterable, et: EContainer) => locusETypes(t.elementType, et.elementType)
+    case (t: TBaseStruct, et: EBaseStruct) =>
+      t.types.toSeq.lazyZip(et.fields).flatMap((ft, f) => locusETypes(ft, f.typ))
+    case _ => Seq()
+  }
+
+  @Test def testUnstableEncodingsEncodeLociAsVarint(implicit ctx: ExecuteContext): Unit = {
+    val locus = PCanonicalLocus(ReferenceGenome.GRCh38, true)
+    val types = ArraySeq[PType](
+      locus,
+      PCanonicalLocus(ReferenceGenome.GRCh38, false),
+      PCanonicalInterval(locus, true),
+      PCanonicalArray(locus, true),
+      PCanonicalSet(locus, true),
+      PCanonicalDict(locus, locus, true),
+      PCanonicalStruct(
+        true,
+        "l" -> locus,
+        "rows" -> PCanonicalArray(PCanonicalStruct(true, "l" -> locus, "i" -> PInt32Required)),
+      ),
+      PCanonicalTuple(true, PCanonicalArray(PCanonicalInterval(locus))),
+    )
+
+    for {
+      pt <- types
+      in <- ArraySeq(pt, toPacked(pt))
+    } {
+      val stable = EType.defaultFromPType(ctx, in)
+      val unstable = withUnstableEncodings(EType.defaultFromPType(_, in))
+      val stableLoci = locusETypes(pt.virtualType, stable)
+      val unstableLoci = locusETypes(pt.virtualType, unstable)
+      assert(stableLoci.nonEmpty && stableLoci.size == unstableLoci.size, s"$in")
+      for ((s, u) <- stableLoci.lazyZip(unstableLoci)) {
+        assertEq(s, structEncodedLocus(s.required), s"$in")
+        assertEq(u, EVarint(s.required), s"$in")
+      }
+    }
+  }
 
   @Test def testPythonEncodingOfPackedLoci(implicit ctx: ExecuteContext): Unit =
     for (rg <- references)
