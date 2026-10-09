@@ -16,6 +16,7 @@ import is.hail.expr.ir.lowering.{
 }
 import is.hail.methods.{ForceCountTable, NPartitionsTable}
 import is.hail.rvd.RVDPartitioner
+import is.hail.types.physical.LocusRepresentations.{references, withReference}
 import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.variant.Locus
@@ -963,6 +964,74 @@ class TableIRSuite {
     val after = unoptimized(Interpret(read, _))
     assert(before.globals.javaValue == after.globals.javaValue)
     assert(before.rdd.collect().toFastSeq == after.rdd.collect().toFastSeq)
+  }
+
+  // Unstable encodings encode loci as integers, which decode to packed loci.
+  @Test def testNativeWriteReadLoci(implicit ctx: ExecuteContext): Unit = {
+    implicit val execStrats = ExecStrategy.lowering
+
+    def withUnstableEncodingsIf[A](
+      unstable: Boolean
+    )(
+      f: ExecuteContext => A
+    )(implicit ctx: ExecuteContext
+    ): A =
+      if (unstable) withUnstableEncodings(f) else f(ctx)
+
+    for (rg <- references)
+      withReference(rg) { implicit ctx =>
+        val tl = TLocus(rg.name)
+        val rowType = TStruct(
+          "locus" -> tl,
+          "interval" -> TInterval(tl),
+          "loci" -> TArray(tl),
+          "set" -> TSet(tl),
+          "dict" -> TDict(tl, TInt32),
+          "nested" -> TStruct("l" -> tl, "i" -> TInt32),
+        )
+        val globalType = TStruct("l" -> tl)
+
+        val loci = ArraySeq.tabulate(12)(i => Locus(rg.contigs(i % 3), 12 - i))
+        val rows = loci.zipWithIndex.map { case (l, i) =>
+          if (i == 5) RowSeq(l, null, null, null, null, null)
+          else RowSeq(
+            l,
+            Interval(l, Locus(l.contig, l.position + 1), true, i % 2 == 0),
+            FastSeq(l, null, loci(0)),
+            Set(l, loci(1)),
+            Map(l -> i, loci(2) -> -i),
+            RowSeq(l, i),
+          )
+        }
+        val global = RowSeq(loci(7))
+        val sortedRows = rows.sortBy { r =>
+          val l = r.getAs[Locus](0)
+          (rg.getContigIndex(l.contig), l.position)
+        }
+
+        val table = TableKeyBy(
+          TableParallelize(
+            Literal(
+              TStruct("rows" -> TArray(rowType), "global" -> globalType),
+              RowSeq(rows, global),
+            ),
+            Some(3),
+          ),
+          FastSeq("locus"),
+        )
+
+        for (writeUnstable <- FastSeq(false, true)) {
+          val path = ctx.createTmpPath("test-native-write-read-loci", "ht")
+          withUnstableEncodingsIf(writeUnstable) { implicit ctx =>
+            assertEvalsTo(TableWrite(table, TableNativeWriter(path, overwrite = true)), ())
+          }
+          for (readUnstable <- FastSeq(false, true))
+            withUnstableEncodingsIf(readUnstable) { implicit ctx =>
+              val read = TableIR.read(ctx.fs, path, requestedType = Some(table.typ))
+              assertEvalsTo(collect(read), RowSeq(sortedRows, global))
+            }
+        }
+      }
   }
 
   @Test def testWriteKeyDistinctness(implicit ctx: ExecuteContext): Unit = {

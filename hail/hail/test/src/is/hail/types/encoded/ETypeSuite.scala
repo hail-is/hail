@@ -15,7 +15,7 @@ import is.hail.types.physical._
 import is.hail.types.physical.LocusRepresentations._
 import is.hail.types.physical.stypes.concrete.{SCanonicalLocusPointer, SPackedLocus}
 import is.hail.types.virtual._
-import is.hail.variant.ReferenceGenome
+import is.hail.variant.{Locus, ReferenceGenome}
 
 import scala.collection.immutable.ArraySeq
 
@@ -406,6 +406,43 @@ class ETypeSuite {
       structEncodedLocus(required = true).decodedSType(t),
       SCanonicalLocusPointer(PCanonicalLocus(t.rg, false)),
     )
+  }
+
+  private def unstagedEncodeDecode(ctx: ExecuteContext, pt: PType, et: EType, a: Annotation)
+    : Annotation = {
+    val codec = TypedCodecSpec(et, pt.virtualType, BufferSpec.wireSpec)
+    val bytes =
+      codec.encodeValue(ctx, pt, pt.unstagedStoreJavaObject(ctx.stateManager, a, ctx.r))
+    val (decodedPType, addr) = codec.decode(ctx, pt.virtualType, bytes, ctx.r)
+    SafeRow.read(ctx.stateManager, decodedPType, addr)
+  }
+
+  // Unstaged codecs convert between locus representations, which needs reference genomes.
+  @Test def testUnstagedCodecsConvertLocusRepresentations(implicit ctx: ExecuteContext): Unit =
+    for (rg <- references)
+      withReference(rg) { implicit ctx =>
+        for {
+          locus <- ArraySeq[PType](PCanonicalLocus(rg.name, true), PPackedLocus(rg.name, true))
+          pt <- ArraySeq(locus, PCanonicalStruct(true, "l" -> locus), PCanonicalArray(locus, true))
+          et <- ArraySeq(
+            withUnstableEncodings(EType.defaultFromPType(_, pt)),
+            EType.fromPythonTypeEncoding(pt.virtualType),
+          )
+        } check(forAll(genVal(ctx, pt))(a => unstagedEncodeDecode(ctx, pt, et, a) == a))
+      }
+
+  // Unstaged codecs are cached across sessions, whose reference genomes may differ.
+  @Test def testUnstagedCodecsUseTheSessionReferenceGenome(implicit ctx: ExecuteContext): Unit = {
+    val reordered = ReferenceGenome(
+      customReference.name,
+      ArraySeq("a", "b", "c"),
+      Map("a" -> 100, "b" -> 2000, "c" -> 30000),
+    )
+    val l = Locus("a", 5)
+    for (rg <- ArraySeq(customReference, reordered))
+      withReference(rg) { implicit ctx =>
+        assertEq(unstagedEncodeDecode(ctx, PCanonicalLocus(rg.name, true), EVarintRequired, l), l)
+      }
   }
 
   @Test def testVarintEncodedLocusRoundTrip(implicit ctx: ExecuteContext): Unit =
