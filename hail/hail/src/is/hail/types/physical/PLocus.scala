@@ -10,7 +10,7 @@ abstract class PLocus extends PType {
 
   def rg: String
 
-  def contig(value: Long): String
+  def contig(sm: HailStateManager, value: Long): String
 
   def contigType: PString
 

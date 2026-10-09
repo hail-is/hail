@@ -461,8 +461,8 @@ class PNDArraySuite extends PhysicalTestUtils {
     val pNd = PCanonicalNDArray(PFloat64Required, 2, true)
     val ndAddr1 = pNd.unstagedStoreJavaObject(ctx.stateManager, x, region = region1)
     val ndAddr2 = pNd.copyFromAddress(ctx.stateManager, region2, pNd, ndAddr1, true)
-    val unsafe1 = UnsafeRow.read(pNd, region1, ndAddr1)
-    val unsafe2 = UnsafeRow.read(pNd, region2, ndAddr2)
+    val unsafe1 = UnsafeRow.read(ctx.stateManager, pNd, region1, ndAddr1)
+    val unsafe2 = UnsafeRow.read(ctx.stateManager, pNd, region2, ndAddr2)
     // Deep copy same ptype just increments reference count, doesn't change the address.
     val dataAddr1 = Region.loadAddress(pNd.representation.loadField(ndAddr1, 2))
     val dataAddr2 = Region.loadAddress(pNd.representation.loadField(ndAddr2, 2))
@@ -498,9 +498,9 @@ class PNDArraySuite extends PhysicalTestUtils {
       annotationNDOfStructs,
       region = region1,
     )
-    val unsafe5 = UnsafeRow.read(pNDOfStructs1, region1, addr5)
+    val unsafe5 = UnsafeRow.read(ctx.stateManager, pNDOfStructs1, region1, addr5)
     val addr6 = pNDOfStructs2.copyFromAddress(ctx.stateManager, region2, pNDOfStructs1, addr5, true)
-    val unsafe6 = UnsafeRow.read(pNDOfStructs2, region2, addr6)
+    val unsafe6 = UnsafeRow.read(ctx.stateManager, pNDOfStructs2, region2, addr6)
     assert(unsafe5 == unsafe6)
   }
 }

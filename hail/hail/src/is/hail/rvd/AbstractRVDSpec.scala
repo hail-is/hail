@@ -84,7 +84,10 @@ object AbstractRVDSpec {
     val (part0Count, bytesWritten) =
       using(fs.create(partsPath + "/" + filePath)) { os =>
         using(RVDContext.default(execCtx.r.pool)) { ctx =>
-          RichContextRDDRegionValue.writeRowsPartition(codecSpec.buildEncoder(execCtx, rowType))(
+          RichContextRDDRegionValue.writeRowsPartition(
+            execCtx.stateManager,
+            codecSpec.buildEncoder(execCtx, rowType),
+          )(
             execCtx.theHailClassLoader,
             ctx,
             rows.iterator.map { a =>

@@ -118,7 +118,7 @@ class Aggregators2Suite {
           init.newAggState(aggRegion)
           init(region, argOff)
           res.setAggState(aggRegion, init.getAggOffset())
-          val result = SafeRow(rt, res(region)).get(0)
+          val result = SafeRow(ctx.stateManager, rt, res(region)).get(0)
           assert(resultType.virtualType.valuesSimilar(result, v))
         }
       }
@@ -150,7 +150,7 @@ class Aggregators2Suite {
         combOp(region)
         val res = resF(ctx.theHailClassLoader, ctx.fs, ctx.taskContext, region)
         res.setAggState(aggRegion, combOp.getAggOffset())
-        val double = SafeRow(rt, res(region))
+        val double = SafeRow(ctx.stateManager, rt, res(region))
         transformResult match {
           case Some(f) =>
             assert(

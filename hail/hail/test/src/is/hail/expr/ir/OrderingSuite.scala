@@ -496,7 +496,7 @@ class OrderingSuite {
           )
         )
 
-        val asArray = SafeIndexedSeq(pArray, soff)
+        val asArray = SafeIndexedSeq(ctx.stateManager, pArray, soff)
 
         val f = fb.resultWithIndex()(ctx.theHailClassLoader, ctx.fs, ctx.taskContext, region)
         val i = f(region, soff, eoff)
@@ -554,7 +554,9 @@ class OrderingSuite {
         )
 
         val asArray =
-          SafeIndexedSeq(PCanonicalArray(pDict.elementType), soff).map(_.asInstanceOf[Row])
+          SafeIndexedSeq(ctx.stateManager, PCanonicalArray(pDict.elementType), soff).map(
+            _.asInstanceOf[Row]
+          )
 
         val f = fb.resultWithIndex()(ctx.theHailClassLoader, ctx.fs, ctx.taskContext, region)
         val i = f(region, soff, eoff)
