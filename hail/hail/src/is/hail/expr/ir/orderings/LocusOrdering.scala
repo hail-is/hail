@@ -3,7 +3,7 @@ package is.hail.expr.ir.orderings
 import is.hail.asm4s.{Code, Value}
 import is.hail.expr.ir.{EmitClassBuilder, EmitCodeBuilder}
 import is.hail.types.physical.stypes.SValue
-import is.hail.types.physical.stypes.concrete.SCanonicalLocusPointer
+import is.hail.types.physical.stypes.concrete.{SCanonicalLocusPointer, SPackedLocus}
 import is.hail.types.physical.stypes.interfaces.{SLocus, SLocusValue}
 
 object LocusOrdering {
@@ -52,6 +52,24 @@ object LocusOrdering {
             )
             ret
           }
+        }
+
+      // packed vs packed, and mixed representations: compare packed integers on both sides
+      case (SPackedLocus(_), SPackedLocus(_)) |
+          (SPackedLocus(_), SCanonicalLocusPointer(_)) |
+          (SCanonicalLocusPointer(_), SPackedLocus(_)) =>
+        new CodeOrderingCompareConsistentWithOthers {
+          override val type1: SLocus = t1
+          override val type2: SLocus = t2
+
+          require(t1.rg == t2.rg)
+
+          override def _compareNonnull(cb: EmitCodeBuilder, lhs: SValue, rhs: SValue): Value[Int] =
+            cb.memoize(Code.invokeStatic2[java.lang.Long, Long, Long, Int](
+              "compare",
+              lhs.asLocus.packed(cb),
+              rhs.asLocus.packed(cb),
+            ))
         }
     }
   }

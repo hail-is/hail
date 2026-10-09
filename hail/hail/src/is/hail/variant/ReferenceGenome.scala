@@ -185,6 +185,8 @@ case class ReferenceGenome(
 
   def getContigIndex(contig: String): Int = contigsIndex.get(contig)
 
+  def getContig(contigIdx: Int): String = contigs(contigIdx)
+
   def contigLength(contig: String): Int = {
     val r = jLengths.get(contig)
     if (r == null)
