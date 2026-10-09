@@ -340,6 +340,12 @@ or construct it manually via the gcloud CLI. It will look something like:
 gcloud compute ssh --zone "us-central1-a" "<VM-NAME>" --project "<PROJECT>"
 ```
 
+Before doing anything else on the VM, switch to the root user:
+
+```
+sudo su -
+```
+
 ##### Prerequisites
 
 - If necessary, install `gke-gcloud-auth-plugin`:
@@ -453,6 +459,11 @@ Troubleshooting:
 
 > [!NOTE]
 > Troubleshooting this step:
+> [ Comment from 2026 ]
+> This should now be resolved by a change in bootstrap.py but it was too late to test for real. So
+> the comment below is left for context, just in case.
+>
+> [ Comment from 2024 ]
 > When I ran this step (perhaps because I had to log in and out of my cloud VM a couple of times), the
 > hailctl command was not properly authenticating and the create_initial_user step failed. To make it work, I had to:
 >   - Edit the $HAIL/build.yaml file
