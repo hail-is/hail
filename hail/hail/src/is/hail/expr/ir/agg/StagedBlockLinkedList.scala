@@ -242,7 +242,19 @@ class StagedBlockLinkedList(val elemType: PType, val kb: EmitClassBuilder[_]) {
     val r = desF.getCodeParam[Region](1)
     val ib = desF.getCodeParam[InputBuffer](2)
     val dec = bufferEType.buildDecoder(bufferType.virtualType, desF.ecb)
-    desF.voidWithBuilder(cb => cb.while_(ib.readBoolean(), appendShallow(cb, r, dec(cb, r, ib))))
+    desF.voidWithBuilder { cb =>
+      cb.while_(
+        ib.readBoolean(), {
+          val decoded = dec(cb, r, ib)
+          // A decoded buffer can only become a node buffer if it has the buffer's layout. It may
+          // not, for example when loci are integer-encoded and decode to packed loci.
+          val buf =
+            if (decoded.st.storageType().setRequired(true) == bufferType) decoded
+            else bufferType.loadCheapSCode(cb, bufferType.store(cb, r, decoded, deepCopy = false))
+          appendShallow(cb, r, buf)
+        },
+      )
+    }
     cb.invokeVoid(desF, cb.this_, region, inputBuffer)
   }
 

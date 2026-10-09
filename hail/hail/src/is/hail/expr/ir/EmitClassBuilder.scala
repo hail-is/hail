@@ -764,7 +764,10 @@ final class EmitClassBuilder[C](val emodb: EmitModuleBuilder, val cb: ClassBuild
     mb.voidWithBuilder(cb => cb.assign(_taskContext, mb.getCodeParam[HailTaskContext](1)))
   }
 
-  def makeAddReferenceGenomes(): Unit = {
+  /** With `heal = false`, the reference genomes' liftovers and sequences are not restored, which
+    * needs no FS. Use it only for functions that need neither.
+    */
+  def makeAddReferenceGenomes(heal: Boolean = true): Unit = {
     cb.addInterface(typeInfo[FunctionWithReferences].iname)
     val mb = newEmitMethod(
       "addReferenceGenomes",
@@ -784,7 +787,8 @@ final class EmitClassBuilder[C](val emodb: EmitModuleBuilder, val cb: ClassBuild
         ),
       )
       for ((fld, i) <- rgFields.zipWithIndex) {
-        cb += rgs(i).invoke[String, FS, Unit]("heal", ctx.localTmpdir, getFS)
+        if (heal)
+          cb += rgs(i).invoke[String, FS, Unit]("heal", ctx.localTmpdir, getFS)
         cb.assign(fld, rgs(i))
       }
 
@@ -819,9 +823,6 @@ final class EmitClassBuilder[C](val emodb: EmitModuleBuilder, val cb: ClassBuild
       makeAddTaskContext()
 
       val hasLiterals: Boolean = emodb.hasLiterals
-      val hasReferences: Boolean = emodb.hasReferences
-      if (hasReferences)
-        makeAddReferenceGenomes()
 
       val objects = makeAddObjects()
 
@@ -830,6 +831,11 @@ final class EmitClassBuilder[C](val emodb: EmitModuleBuilder, val cb: ClassBuild
       else
         // if there are no literals, there might not be a HailContext
         null
+
+      // after encodeLiterals, whose decoder may use reference genomes
+      val hasReferences: Boolean = emodb.hasReferences
+      if (hasReferences)
+        makeAddReferenceGenomes()
 
       val references: Array[ReferenceGenome] = if (hasReferences)
         emodb.referenceGenomes().toArray
@@ -864,10 +870,11 @@ final class EmitClassBuilder[C](val emodb: EmitModuleBuilder, val cb: ClassBuild
             f.asInstanceOf[FunctionWithBackend].setBackend(backend)
           if (objects != null)
             f.asInstanceOf[FunctionWithObjects].setObjects(objects)
-          if (hasLiterals)
-            f.asInstanceOf[FunctionWithLiterals].addAndDecodeLiterals(literalsBc.value)
+          // Decoding literals may convert between locus representations, which needs references.
           if (hasReferences)
             f.asInstanceOf[FunctionWithReferences].addReferenceGenomes(references)
+          if (hasLiterals)
+            f.asInstanceOf[FunctionWithLiterals].addAndDecodeLiterals(literalsBc.value)
           if (nSerializedAggs != 0)
             f.asInstanceOf[FunctionWithAggRegion].setNumSerialized(nSerializedAggs)
           f
