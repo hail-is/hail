@@ -108,11 +108,12 @@ async def record_event(db: Database, event: CIEvent, **fields) -> None:
 async def cleanup_old_events(db: Database) -> None:
     while True:
         n_deleted = await db.execute_update(
-            f"""
+            """
 DELETE FROM ci_events
-WHERE time < UTC_TIMESTAMP(3) - INTERVAL {EVENT_RETENTION_DAYS} DAY
-LIMIT {_CLEANUP_BATCH_SIZE}
-"""
+WHERE time < UTC_TIMESTAMP(3) - INTERVAL %s DAY
+LIMIT %s
+""",
+            (EVENT_RETENTION_DAYS, _CLEANUP_BATCH_SIZE),
         )
         if n_deleted < _CLEANUP_BATCH_SIZE:
             return
