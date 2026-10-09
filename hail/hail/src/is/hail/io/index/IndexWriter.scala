@@ -13,6 +13,7 @@ import is.hail.io._
 import is.hail.io.fs.FS
 import is.hail.rvd.AbstractRVDSpec
 import is.hail.types
+import is.hail.types.encoded.EType
 import is.hail.types.physical.{PCanonicalArray, PCanonicalStruct, PType}
 import is.hail.types.physical.stypes.SValue
 import is.hail.types.physical.stypes.concrete.{SBaseStructPointer, SBaseStructPointerSettable}
@@ -384,8 +385,9 @@ object StagedIndexWriter {
     cb: EmitClassBuilder[_],
     branchingFactor: Int = IndexWriter.DEFAULT_BRANCHING_FACTOR,
     annotationType: PType = +PCanonicalStruct(),
+    nodeETypes: Option[(EType, EType)] = None,
   ): StagedIndexWriter =
-    new StagedIndexWriter(branchingFactor, IndexType(keyType, annotationType), cb)
+    new StagedIndexWriter(branchingFactor, IndexType(keyType, annotationType), cb, nodeETypes)
 }
 
 case class IndexType(key: PType, annotation: PType)
@@ -394,8 +396,16 @@ class StagedIndexWriter(
   branchingFactor: Int,
   typ: IndexType,
   cb: EmitClassBuilder[_],
+  // (leaf, internal node) encodings. When absent, they are chosen from the node types and the
+  // context's flags; pass them when the reader does not record them and so expects fixed ones.
+  nodeETypes: Option[(EType, EType)] = None,
 ) {
   require(branchingFactor > 1)
+
+  private val (leafEType, internalNodeEType) = nodeETypes.getOrElse((
+    EType.defaultFromPType(cb.ctx, LeafNodeBuilder.typ(typ.key, typ.annotation)),
+    EType.defaultFromPType(cb.ctx, InternalNodeBuilder.typ(typ.key, typ.annotation)),
+  ))
 
   private val elementIdx = cb.genFieldThisRef[Long]()
   private val ob = cb.genFieldThisRef[OutputBuffer]()
@@ -404,7 +414,7 @@ class StagedIndexWriter(
     new StagedIndexWriterUtils(cb.genFieldThisRef[IndexWriterUtils]())
 
   private val leafBuilder =
-    new StagedLeafNodeBuilder(branchingFactor, typ.key, typ.annotation, cb.fieldBuilder)
+    new StagedLeafNodeBuilder(branchingFactor, typ.key, typ.annotation, leafEType, cb.fieldBuilder)
 
   private val writeInternalNode: EmitMethodBuilder[_] =
     cb.defineEmitMethod(
@@ -413,9 +423,21 @@ class StagedIndexWriter(
       UnitInfo,
     ) { m =>
       val internalBuilder =
-        new StagedInternalNodeBuilder(branchingFactor, typ.key, typ.annotation, m.localBuilder)
+        new StagedInternalNodeBuilder(
+          branchingFactor,
+          typ.key,
+          typ.annotation,
+          internalNodeEType,
+          m.localBuilder,
+        )
       val parentBuilder =
-        new StagedInternalNodeBuilder(branchingFactor, typ.key, typ.annotation, m.localBuilder)
+        new StagedInternalNodeBuilder(
+          branchingFactor,
+          typ.key,
+          typ.annotation,
+          internalNodeEType,
+          m.localBuilder,
+        )
 
       val level = m.getCodeParam[Int](1)
       val isRoot = m.getCodeParam[Boolean](2)
@@ -457,7 +479,13 @@ class StagedIndexWriter(
   private val writeLeafNode: EmitMethodBuilder[_] =
     cb.defineEmitMethod(genName("m", "writeLeafNode"), FastSeq(), UnitInfo) { m =>
       val parentBuilder =
-        new StagedInternalNodeBuilder(branchingFactor, typ.key, typ.annotation, m.localBuilder)
+        new StagedInternalNodeBuilder(
+          branchingFactor,
+          typ.key,
+          typ.annotation,
+          internalNodeEType,
+          m.localBuilder,
+        )
       m.voidWithBuilder { cb =>
         val idxOff = cb.newLocal[Long]("indexOff")
         cb.assign(idxOff, utils.bytesWritten)
@@ -533,7 +561,13 @@ class StagedIndexWriter(
       attributes,
     )
     val internalBuilder =
-      new StagedInternalNodeBuilder(branchingFactor, typ.key, typ.annotation, cb.localBuilder)
+      new StagedInternalNodeBuilder(
+        branchingFactor,
+        typ.key,
+        typ.annotation,
+        internalNodeEType,
+        cb.localBuilder,
+      )
     cb.assign(elementIdx, 0L)
     utils.create(cb, path, cb.emb.getFS, metadata)
     cb.assign(ob, IndexWriter.spec.buildCodeOutputBuffer(utils.os))

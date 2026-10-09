@@ -13,7 +13,7 @@ import is.hail.expr.ir.lowering.LowerMatrixIR
 import is.hail.expr.ir.streams.StreamUtils
 import is.hail.io._
 import is.hail.io.fs.SeekableDataInputStream
-import is.hail.io.index.{StagedIndexReader, StagedIndexWriter}
+import is.hail.io.index.{IndexWriter, StagedIndexReader, StagedIndexWriter}
 import is.hail.lir
 import is.hail.rvd.AbstractIndexSpec
 import is.hail.types.{RStruct, TypeWithRequiredness}
@@ -888,10 +888,14 @@ object BGENFunctions extends RegistryFunctions {
           rowPType,
         )
 
+        // BGEN index metadata does not record encodings; readers rebuild them from the version.
+        val indexSpec = BgenSettings.getIndexSpec(IndexWriter.version, rg)
         val iw = StagedIndexWriter.withDefaults(
           settings.indexKeyType,
           mb.ecb,
           annotationType = +PCanonicalStruct(),
+          nodeETypes =
+            Some((indexSpec.leafCodec.encodedType, indexSpec.internalNodeCodec.encodedType)),
         )
         iw.init(
           cb,
