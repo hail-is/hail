@@ -54,6 +54,9 @@ final case class PCanonicalLocus(rgName: String, required: Boolean = false) exte
 
   override def position(address: Long): Int = Region.loadInt(representation.fieldOffset(address, 1))
 
+  override def packed(sm: HailStateManager, address: Long): Long =
+    PLocus.pack(sm.referenceGenomes(rgName).getContigIndex(contig(sm, address)), position(address))
+
   lazy val contigType: PCanonicalString =
     representation.field("contig").typ.asInstanceOf[PCanonicalString]
 
@@ -102,6 +105,8 @@ final case class PCanonicalLocus(rgName: String, required: Boolean = false) exte
           srcAddress,
           deepCopy,
         )
+      case pt: PPackedLocus =>
+        unstagedStoreLocus(sm, addr, pt.contig(sm, srcAddress), pt.position(srcAddress), region)
     }
 
   override def containsPointers: Boolean = representation.containsPointers
@@ -116,6 +121,10 @@ final case class PCanonicalLocus(rgName: String, required: Boolean = false) exte
     srcPType match {
       case pt: PCanonicalLocus =>
         representation._copyFromAddress(sm, region, pt.representation, srcAddress, deepCopy)
+      case pt: PPackedLocus =>
+        val addr = representation.allocate(region)
+        unstagedStoreAtAddress(sm, addr, region, pt, srcAddress, deepCopy)
+        addr
     }
 
   override def sType: SCanonicalLocusPointer = SCanonicalLocusPointer(setRequired(false))

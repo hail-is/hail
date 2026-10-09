@@ -409,6 +409,11 @@ object IRParser {
         val rg = identifier(it)
         punctuation(it, ")")
         PCanonicalLocus(rg, req)
+      case "PPackedLocus" =>
+        punctuation(it, "(")
+        val rg = identifier(it)
+        punctuation(it, ")")
+        PPackedLocus(rg, req)
       case "PCCall" => PCanonicalCall(req)
       case "PCArray" =>
         punctuation(it, "[")
