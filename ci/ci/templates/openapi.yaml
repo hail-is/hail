@@ -31,6 +31,8 @@ tags:
     description: "Web UI pages and related helpers"
   - name: Flaky Tests
     description: "Endpoints for the flaky test dashboard"
+  - name: Events
+    description: "Log of decisions and actions taken by CI and by developers through CI"
 
 components:
   schemas:
@@ -259,6 +261,118 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/RetriedTest'
+        cursor:
+          type: integer
+          format: int64
+          nullable: true
+          description: "ID of the last row; pass as `cursor` to fetch the next page. Null when has_more is false."
+        has_more:
+          type: boolean
+          description: "Whether more rows exist beyond this page"
+
+    CIEvent:
+      type: object
+      required: [id, time, event, target_branch, pr_number, username, batch_id, source_sha, target_sha, previous_sha, namespace, service, merge_uuid, message]
+      properties:
+        id:
+          type: integer
+          format: int64
+          description: "Auto-increment primary key; increases with time"
+        time:
+          type: string
+          format: date-time
+          description: "When the event was recorded"
+        event:
+          type: string
+          enum:
+            - merge_requested
+            - merge_pending
+            - merge_succeeded
+            - merge_failed
+            - merge_expired
+            - merge_cleared
+            - merge_restored
+            - build_requested
+            - build_started
+            - build_start_failed
+            - build_cancelled
+            - retry_requested
+            - sha_authorized
+            - frozen
+            - unfrozen
+            - dev_deploy_requested
+            - update_triggered
+            - target_moved
+            - deploy_started
+            - deploy_start_failed
+            - deploy_finished
+            - deploy_failure_alerted
+            - deploy_status_failed
+            - reviewer_assigned
+            - reviewer_assign_failed
+            - status_post_failed
+            - ci_started
+            - update_failed
+            - namespace_created
+            - namespace_deleted
+            - service_added
+            - service_edited
+            - service_deleted
+            - namespace_expired_cleanup
+        target_branch:
+          type: string
+          nullable: true
+          description: "Fully-qualified watched branch (e.g. hail-is/hail:main); null for branch-independent events"
+        pr_number:
+          type: integer
+          nullable: true
+          description: "PR number; null for branch-level events"
+        username:
+          type: string
+          nullable: true
+          description: "Who triggered the event; null when CI acted on its own"
+        batch_id:
+          type: integer
+          format: int64
+          nullable: true
+          description: "Related batch"
+        source_sha:
+          type: string
+          nullable: true
+          description: "PR source SHA, or the SHA an event refers to (e.g. sha_authorized)"
+        target_sha:
+          type: string
+          nullable: true
+          description: "Target branch SHA"
+        previous_sha:
+          type: string
+          nullable: true
+          description: "Previous target branch SHA (target_moved)"
+        namespace:
+          type: string
+          nullable: true
+          description: "Namespace (namespace and service events)"
+        service:
+          type: string
+          nullable: true
+          description: "Service (service events)"
+        merge_uuid:
+          type: string
+          nullable: true
+          description: "GitHub async merge request id"
+        message:
+          type: string
+          nullable: true
+          description: "Human-readable summary and free-form detail such as error output"
+
+    CIEventsResponse:
+      type: object
+      required: [rows, cursor, has_more]
+      properties:
+        rows:
+          type: array
+          items:
+            $ref: '#/components/schemas/CIEvent'
         cursor:
           type: integer
           format: int64
@@ -957,6 +1071,61 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/RetriedTestsResponse'
+        '400':
+          description: "Invalid query parameter"
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden - requires developer privileges
+
+  /api/v1alpha/events:
+    get:
+      summary: List CI events
+      description: >
+        Returns CI events sorted by id DESC (most recent first), with cursor-based pagination
+        and optional filters. Events are kept for 90 days.
+      tags: [Events]
+      parameters:
+        - name: target_branch
+          in: query
+          required: false
+          description: "Fully-qualified watched branch, e.g. hail-is/hail:main"
+          schema:
+            type: string
+        - name: pr
+          in: query
+          required: false
+          description: "PR number"
+          schema:
+            type: integer
+        - name: event
+          in: query
+          required: false
+          description: "Event type"
+          schema:
+            type: string
+        - name: cursor
+          in: query
+          required: false
+          description: "Pagination cursor — the `id` of the last row from the previous page."
+          schema:
+            type: integer
+            format: int64
+        - name: limit
+          in: query
+          required: false
+          description: "Maximum rows to return. Capped at 500."
+          schema:
+            type: integer
+            default: 100
+            maximum: 500
+      responses:
+        '200':
+          description: "Events retrieved successfully"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CIEventsResponse'
         '400':
           description: "Invalid query parameter"
         '401':
