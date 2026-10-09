@@ -348,4 +348,16 @@ class ETypeSuite {
 
     assertEqualEncodeDecode(toEncode, etype, toDecode, data)
   }
+
+  @Test def testUnstableEncodingsOfContainersOfStructs(implicit ctx: ExecuteContext): Unit =
+    withUnstableEncodings { implicit ctx =>
+      val elt = PCanonicalStruct(false, "a" -> PInt32Optional, "b" -> PFloat64Optional)
+      val cases = ArraySeq[(PType, Annotation)](
+        PCanonicalArray(elt) -> FastSeq(RowSeq(1, 2.0), null, RowSeq(3, null)),
+        PCanonicalSet(elt) -> Set(RowSeq(1, 2.0), null, RowSeq(3, null)),
+        PCanonicalDict(PInt32Optional, PFloat64Optional) -> Map(1 -> 2.0, 3 -> null),
+      )
+      for ((pt, a) <- cases)
+        assertEqualEncodeDecode(pt, EType.defaultFromPType(ctx, pt), pt, a)
+    }
 }

@@ -15,6 +15,7 @@ import is.hail.expr.ir.lowering.{Compilable, LowererUnsupportedOperation}
 import is.hail.expr.ir.lowering.Optimize.Flags.Optimize
 import is.hail.io.vcf.MatrixVCFReader
 import is.hail.linalg.DenseMatrix
+import is.hail.types.encoded.EType.Flags.UseUnstableEncodings
 import is.hail.types.physical.{PBaseStruct, PCanonicalArray, PType}
 import is.hail.types.physical.stypes.PTypeReferenceSingleCodeType
 import is.hail.types.virtual._
@@ -116,6 +117,9 @@ object TestUtils extends Logging {
 
   def unoptimized[A](f: ExecuteContext => A)(implicit ctx: ExecuteContext): A =
     ctx.local(flags = ctx.flags - Optimize)(f)
+
+  def withUnstableEncodings[A](f: ExecuteContext => A)(implicit ctx: ExecuteContext): A =
+    ctx.local(flags = ctx.flags + (UseUnstableEncodings -> "1"))(f)
 
   def loweredExecute(
     x: IR,
