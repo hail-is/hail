@@ -4,7 +4,7 @@ aiodns==2.0.0
     # via -r hail/python/hailtop/requirements.txt
 aiohappyeyeballs==2.7.1
     # via aiohttp
-aiohttp==3.14.3
+aiohttp==3.14.4
     # via -r hail/python/hailtop/requirements.txt
 aiosignal==1.4.0
     # via aiohttp
@@ -28,9 +28,9 @@ azure-mgmt-storage==20.1.0
     # via -r hail/python/hailtop/requirements.txt
 azure-storage-blob==12.31.0
     # via -r hail/python/hailtop/requirements.txt
-boto3==1.43.107
+boto3==1.43.110
     # via -r hail/python/hailtop/requirements.txt
-botocore==1.43.107
+botocore==1.43.110
     # via
     #   -r hail/python/hailtop/requirements.txt
     #   boto3
@@ -63,7 +63,7 @@ frozenlist==1.8.0
     #   -r hail/python/hailtop/requirements.txt
     #   aiohttp
     #   aiosignal
-google-auth==2.59.1
+google-auth==2.61.0
     # via
     #   -r hail/python/hailtop/requirements.txt
     #   google-auth-oauthlib
@@ -103,7 +103,7 @@ nest-asyncio==1.6.0
     # via -r hail/python/hailtop/requirements.txt
 oauthlib==4.0.0
     # via requests-oauthlib
-orjson==3.12.0
+orjson==3.13.0
     # via -r hail/python/hailtop/requirements.txt
 propcache==0.5.4
     # via
@@ -113,9 +113,9 @@ pyasn1==0.6.4
     # via pyasn1-modules
 pyasn1-modules==0.4.2
     # via google-auth
-pycares==5.0.1
+pycares==5.1.0
     # via aiodns
-pycparser==3.0
+pycparser==3.1
     # via cffi
 pygments==2.21.0
     # via rich
