@@ -12,8 +12,6 @@ abstract class PLocus extends PType {
 
   def contig(sm: HailStateManager, value: Long): String
 
-  def contigType: PString
-
   def position(value: Code[Long]): Code[Int]
 
   def position(value: Long): Int
