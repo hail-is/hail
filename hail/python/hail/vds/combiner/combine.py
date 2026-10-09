@@ -16,8 +16,8 @@ from hail.typecheck import oneof, sequenceof, typecheck
 
 from ..variant_dataset import VariantDataset
 
-_transform_variant_function_map: Dict[Tuple[HailType, Tuple[str, ...]], Function] = {}
-_transform_reference_fuction_map: Dict[Tuple[HailType, Tuple[str, ...]], Function] = {}
+_transform_variant_function_map: Dict[Tuple[HailType, Tuple[str, ...], bool], Function] = {}
+_transform_reference_fuction_map: Dict[Tuple[HailType, Tuple[str, ...], bool], Function] = {}
 _merge_function_map: Dict[Tuple[HailType, HailType], Function] = {}
 
 
@@ -119,7 +119,7 @@ def make_variants_matrix_table(
     mt = localize(mt)
     mt = mt.filter(hl.is_missing(mt.info.END))
 
-    transform_row = _transform_variant_function_map.get((mt.row.dtype, info_key))
+    transform_row = _transform_variant_function_map.get((mt.row.dtype, info_key, save_filters))
     if transform_row is None or not hl.current_backend()._is_registered_ir_function_name(transform_row._name):
         transform_row = hl.experimental.define_function(
             lambda row: hl.rbind(
@@ -136,7 +136,7 @@ def make_variants_matrix_table(
             ),
             mt.row.dtype,
         )
-        _transform_variant_function_map[mt.row.dtype, info_key] = transform_row
+        _transform_variant_function_map[mt.row.dtype, info_key, save_filters] = transform_row
     return unlocalize(Table(TableMapRows(mt._tir, Apply(transform_row._name, transform_row._ret_type, mt.row._ir))))
 
 
@@ -152,7 +152,7 @@ def make_reference_stream(stream, entry_to_keep: Collection[str], save_filters: 
     entry_key = tuple(sorted(entry_to_keep))  # hashable stable value
 
     row_type = stream.dtype.element_type
-    transform_row = _transform_reference_fuction_map.get((row_type, entry_key))
+    transform_row = _transform_reference_fuction_map.get((row_type, entry_key, save_filters))
     if transform_row is None or not hl.current_backend()._is_registered_ir_function_name(transform_row._name):
         transform_row = hl.experimental.define_function(
             lambda row: hl.struct(
@@ -161,14 +161,19 @@ def make_reference_stream(stream, entry_to_keep: Collection[str], save_filters: 
             ),
             row_type,
         )
-        _transform_reference_fuction_map[row_type, entry_key] = transform_row
+        _transform_reference_fuction_map[row_type, entry_key, save_filters] = transform_row
 
-    return stream.map(
-        lambda row: hl.struct(
-            locus=row.locus,
-            __entries=row.__entries.map(lambda e: make_ref_entry_struct(e, entry_to_keep, save_filters, row)),
+    from hail.utils.java import Env
+
+    uid = Env.get_uid()
+    map_ir = hl.ir.ToArray(
+        hl.ir.StreamMap(
+            hl.ir.ToStream(stream._ir),
+            uid,
+            Apply(transform_row._name, transform_row._ret_type, hl.ir.Ref(uid, type=row_type)),
         )
     )
+    return construct_expr(map_ir, map_ir.typ, stream._indices, stream._aggregations)
 
 
 def make_variant_stream(stream, info_to_keep, save_filters):
@@ -182,7 +187,7 @@ def make_variant_stream(stream, info_to_keep, save_filters):
 
     row_type = stream.dtype.element_type
 
-    transform_row = _transform_variant_function_map.get((row_type, info_key))
+    transform_row = _transform_variant_function_map.get((row_type, info_key, save_filters))
     if transform_row is None or not hl.current_backend()._is_registered_ir_function_name(transform_row._name):
         transform_row = hl.experimental.define_function(
             lambda row: hl.rbind(
@@ -199,7 +204,7 @@ def make_variant_stream(stream, info_to_keep, save_filters):
             ),
             row_type,
         )
-        _transform_variant_function_map[row_type, info_key] = transform_row
+        _transform_variant_function_map[row_type, info_key, save_filters] = transform_row
 
     from hail.utils.java import Env
 
@@ -221,7 +226,7 @@ def make_reference_matrix_table(
     entry_key = tuple(sorted(entry_to_keep))  # hashable stable value
 
     mt = localize(mt).key_by('locus')
-    transform_row = _transform_reference_fuction_map.get((mt.row.dtype, entry_key))
+    transform_row = _transform_reference_fuction_map.get((mt.row.dtype, entry_key, save_filters))
     if transform_row is None or not hl.current_backend()._is_registered_ir_function_name(transform_row._name):
         transform_row = hl.experimental.define_function(
             lambda row: hl.struct(
@@ -230,7 +235,7 @@ def make_reference_matrix_table(
             ),
             mt.row.dtype,
         )
-        _transform_reference_fuction_map[mt.row.dtype, entry_key] = transform_row
+        _transform_reference_fuction_map[mt.row.dtype, entry_key, save_filters] = transform_row
 
     return unlocalize(Table(TableMapRows(mt._tir, Apply(transform_row._name, transform_row._ret_type, mt.row._ir))))
 
@@ -341,10 +346,6 @@ def combine_variant_datasets(vdss: List[VariantDataset]) -> VariantDataset:
 
     variants = combine_gvcfs(no_variant_key)
     return VariantDataset(reference, variants._key_rows_by_assert_sorted('locus', 'alleles'))
-
-
-_transform_rows_function_map: Dict[Tuple[HailType], Function] = {}
-_merge_function_map: Dict[Tuple[HailType, HailType], Function] = {}
 
 
 @typecheck(string=expr_str, has_non_ref=expr_bool)
