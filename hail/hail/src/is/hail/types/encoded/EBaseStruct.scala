@@ -155,6 +155,20 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
     region: Value[Region],
     addr: Value[Long],
     in: Value[InputBuffer],
+  ): Unit = pt match {
+    case t: PPackedLocus =>
+      val decoded = _buildDecoder(cb, t.virtualType, region, in)
+      t.storeAtAddress(cb, addr, region, decoded, deepCopy = false)
+    case _ =>
+      _buildInplaceStructDecoder(cb, pt, region, addr, in)
+  }
+
+  private def _buildInplaceStructDecoder(
+    cb: EmitCodeBuilder,
+    pt: PType,
+    region: Value[Region],
+    addr: Value[Long],
+    in: Value[InputBuffer],
   ): Unit = {
     val structType: PBaseStruct = pt match {
       case t: PCanonicalLocus => t.representation
