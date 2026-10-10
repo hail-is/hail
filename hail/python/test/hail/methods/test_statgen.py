@@ -705,6 +705,25 @@ class Tests(unittest.TestCase):
             ValueError, lambda: hl._linear_regression_rows_nd(y=[[mt.col_1]], x=mt.x, covariates=[1], weights=mt.col_2)
         )
 
+    @test_timeout(3 * 60)
+    def test_linear_regression_nd_insufficient_degrees_of_freedom(self):
+        # 2 samples, intercept and x => 0 degrees of freedom. The Spark
+        # implementation raises here; the nd implementation used to silently
+        # return NaN standard errors and p-values.
+        mt = hl.utils.range_matrix_table(5, 2)
+        mt = mt.annotate_cols(y=hl.float64(mt.col_idx))
+        mt = mt.annotate_entries(x=hl.float64(mt.row_idx + mt.col_idx))
+
+        with self.assertRaisesRegex(hl.utils.HailUserError, "insufficient degrees of freedom"):
+            hl._linear_regression_rows_nd(y=mt.y, x=mt.x, covariates=[1.0]).collect()
+
+        # 3 samples => 1 degree of freedom, which is fine.
+        mt = hl.utils.range_matrix_table(5, 3)
+        mt = mt.annotate_cols(y=hl.float64(mt.col_idx))
+        mt = mt.annotate_entries(x=hl.float64(mt.row_idx * mt.col_idx))
+        ht = hl._linear_regression_rows_nd(y=mt.y, x=mt.x, covariates=[1.0])
+        assert ht.count() == 5
+
     # comparing to R:
     # x = c(0, 1, 0, 0, 0, 1, 0, 0, 0, 0)
     # y = c(0, 0, 1, 1, 1, 1, 0, 0, 1, 1)
