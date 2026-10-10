@@ -73,6 +73,7 @@ setup(
         'hail.backend': ['hail-all-spark.jar'],
         'hailtop': ['py.typed'],
         'hailtop.hailctl': ['deploy.yaml'],
+        'hailtop.hailctl.emr': ['resources/*'],
     },
     classifiers=[
         "Programming Language :: Python :: 3",
