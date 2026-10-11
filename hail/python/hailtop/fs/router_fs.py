@@ -264,8 +264,11 @@ class RouterFS(FS):
         return async_to_blocking(self._async_is_dir(path))
 
     def stat(self, path: str) -> FileListEntry:
-        maybe_sb_and_t, is_dir = async_to_blocking(
-            asyncio.gather(self._size_bytes_and_time_modified_or_none(path), self._async_is_dir(path))
+        return async_to_blocking(self._async_stat(path))
+
+    async def _async_stat(self, path: str) -> FileListEntry:
+        maybe_sb_and_t, is_dir = await asyncio.gather(
+            self._size_bytes_and_time_modified_or_none(path), self._async_is_dir(path)
         )
         if maybe_sb_and_t is None:
             if not is_dir:

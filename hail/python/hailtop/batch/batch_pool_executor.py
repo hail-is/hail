@@ -427,7 +427,10 @@ with open(\\"{j.ofile}\\", \\"wb\\") as out:
                 except Exception:
                     pass
 
-            async_to_blocking(asyncio.gather(*[ignore_exceptions(f) for f in self.futures]))
+            async def wait_for_all():
+                await asyncio.gather(*[ignore_exceptions(f) for f in self.futures])
+
+            async_to_blocking(wait_for_all())
         if self.finished_future_count == len(self.futures):
             self._cleanup()
         self._shutdown = True
