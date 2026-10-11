@@ -2,7 +2,7 @@ import asyncio
 import subprocess
 from typing import List, Tuple
 
-from .utils import async_to_blocking
+from ..hail_event_loop import async_to_blocking
 
 
 class CalledProcessError(Exception):
