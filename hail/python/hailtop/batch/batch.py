@@ -619,6 +619,9 @@ class Batch:
             where `identifier` is the identifier of the file in the
             :class:`.ResourceGroup` map.
         """
+        async_to_blocking(self._async_write_output(resource, dest))
+
+    async def _async_write_output(self, resource: _resource.Resource, dest: Union[str, os.PathLike]) -> None:
         from hailtop.batch.backend import LocalBackend  # pylint: disable=import-outside-toplevel
 
         if not isinstance(resource, _resource.Resource):
@@ -653,7 +656,7 @@ class Batch:
             if dest_scheme == '':
                 dest = os.path.abspath(os.path.expanduser(dest))
 
-        async_to_blocking(self._backend.validate_file(dest, self.requester_pays_project))
+        await self._backend.validate_file(dest, self.requester_pays_project)
 
         resource._add_output_path(dest)
 
