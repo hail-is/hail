@@ -289,7 +289,6 @@ nbsphinx==0.9.8
     # via -r hail/python/dev/requirements.txt
 nest-asyncio==1.6.0
     # via
-    #   -c hail/python/dev/../pinned-requirements.txt
     #   ipykernel
     #   jupyter-client
     #   nbclassic

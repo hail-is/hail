@@ -169,10 +169,6 @@ multidict==6.9.1
     #   yarl
 narwhals==2.26.0
     # via bokeh
-nest-asyncio==1.6.0
-    # via
-    #   -c hail/python/hailtop/pinned-requirements.txt
-    #   -r hail/python/hailtop/requirements.txt
 numpy==2.5.3
     # via
     #   -r hail/python/requirements.txt
