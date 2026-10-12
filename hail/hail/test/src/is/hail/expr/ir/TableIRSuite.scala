@@ -16,6 +16,7 @@ import is.hail.expr.ir.lowering.{
 }
 import is.hail.methods.{ForceCountTable, NPartitionsTable}
 import is.hail.rvd.RVDPartitioner
+import is.hail.types.physical.{PCanonicalLocus, PInterval}
 import is.hail.types.physical.LocusRepresentations.{references, withReference}
 import is.hail.types.virtual._
 import is.hail.utils._
@@ -1381,6 +1382,68 @@ class TableIRSuite {
       ),
     )
   }
+
+  // The RVD interval join shuffles the right side through a codec, so under unstable encodings its
+  // loci reach the join packed even when they started canonical.
+  @Test def testTableIntervalJoinLociUnstableEncodings(implicit ctx: ExecuteContext): Unit =
+    for (rg <- references)
+      withReference(rg) { implicit ctx =>
+        val tl = TLocus(rg.name)
+        val Seq(c0, c1, c2) = rg.contigs.take(3)
+
+        val left = TableKeyBy(
+          TableParallelize(Literal(
+            TStruct("rows" -> TArray(TStruct("locus" -> tl)), "global" -> TStruct.empty),
+            RowSeq(
+              FastSeq(
+                Locus(c2, 2),
+                Locus(c0, 5),
+                Locus(c1, 8),
+                Locus(c0, 1),
+                Locus(c1, 3),
+              ).map(RowSeq(_)),
+              RowSeq(),
+            ),
+          )),
+          FastSeq("locus"),
+        )
+
+        val right = TableKeyBy(
+          TableParallelize(Literal(
+            TStruct(
+              "rows" -> TArray(TStruct("interval" -> TInterval(tl), "b" -> TInt32)),
+              "global" -> TStruct.empty,
+            ),
+            RowSeq(
+              FastSeq(
+                RowSeq(Interval(Locus(c0, 1), Locus(c0, 5), true, false), 0),
+                RowSeq(Interval(Locus(c1, 4), Locus(c2, 3), true, true), 1),
+              ),
+              RowSeq(),
+            ),
+          )),
+          FastSeq("interval"),
+        )
+
+        val leftTV = ExecuteRelational(ctx, left).asTableValue(ctx)
+        val rightTV = ExecuteRelational(ctx, right).asTableValue(ctx)
+        val rightPointType =
+          rightTV.rvd.rowPType.fieldType("interval").asInstanceOf[PInterval].pointType
+        assert(rightPointType.isInstanceOf[PCanonicalLocus], rightPointType)
+
+        val matches = FastSeq(0, null, null, 1, 1)
+        val loci = FastSeq(Locus(c0, 1), Locus(c0, 5), Locus(c1, 3), Locus(c1, 8), Locus(c2, 2))
+        for (product <- FastSeq(false, true)) {
+          val joined = withUnstableEncodings { uctx =>
+            leftTV.copy(ctx = uctx).intervalJoin(rightTV, "rights", product).rdd.collect()
+          }
+          val expected = loci.lazyZip(matches).map { (l, b) =>
+            val right = if (b == null) null else RowSeq(b)
+            RowSeq(l, if (!product) right else if (b == null) FastSeq() else FastSeq(right))
+          }
+          assert(joined.toFastSeq == expected, s"product = $product")
+        }
+      }
 
   @Test def testTableKeyByAndAggregate(implicit ctx: ExecuteContext): Unit = {
     val tir: TableIR = TableRead.native(ctx.fs, getTestResource("three_key.ht"))
