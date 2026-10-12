@@ -109,10 +109,13 @@ class KeyedRVD(val rvd: RVD, val key: Int) {
     checkLeftIntervalJoinCompatability(right)
 
     val lTyp = virtType
-    val rTyp = right.virtType
+    val rKey = right.virtType.key
 
     rvd.intervalAlignAndZipPartitions(executeContext, right.rvd) {
       t: PStruct =>
+        // the right rows were shuffled through a codec, so they are laid out as `t`, which may
+        // differ from `right.rvd.rowPType`
+        val rTyp = RVDType(t, rKey)
         val (newTyp, f) = joiner(t)
 
         (
@@ -135,10 +138,13 @@ class KeyedRVD(val rvd: RVD, val key: Int) {
     checkLeftIntervalJoinCompatability(right)
 
     val lTyp = virtType
-    val rTyp = right.virtType
+    val rKey = right.virtType.key
 
     rvd.intervalAlignAndZipPartitions(executeContext, right.rvd) {
       t: PStruct =>
+        // the right rows were shuffled through a codec, so they are laid out as `t`, which may
+        // differ from `right.rvd.rowPType`
+        val rTyp = RVDType(t, rKey)
         val (newTyp, f) = joiner(t)
 
         (
