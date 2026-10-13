@@ -129,7 +129,7 @@ def get_cloud_credentials_scoped_for_hail(credentials_file: Optional[str] = None
         return GoogleCredentials.default_credentials(scopes=scopes, anonymous_ok=False)
 
     if spec.idp == IdentityProvider.AMAZON:
-        #TODO: replace with proper AWS auth flow
+        # TODO: replace with proper AWS auth flow
         return None
 
     assert spec.idp == IdentityProvider.MICROSOFT
