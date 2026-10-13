@@ -183,7 +183,12 @@ case class ReferenceGenome(
     Locus(contig, (idx - globalPosContigStarts(contig) + 1).toInt)
   }
 
-  def getContigIndex(contig: String): Int = contigsIndex.get(contig)
+  def getContigIndex(contig: String): Int = {
+    val idx = contigsIndex.get(contig)
+    if (idx == null)
+      fatal(s"Contig '$contig' is not in the reference genome '$name'.")
+    idx.intValue()
+  }
 
   def getContig(contigIdx: Int): String = contigs(contigIdx)
 

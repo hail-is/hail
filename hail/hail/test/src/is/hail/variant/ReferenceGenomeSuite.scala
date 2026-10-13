@@ -57,6 +57,12 @@ class ReferenceGenomeSuite {
     assertTrue(!nonParYLocus38.forall(grch38.inYPar))
   }
 
+  @Test def testContigIndex(): Unit = {
+    val rg = ReferenceGenome("test", ArraySeq("a", "b", "c"), Map("a" -> 25, "b" -> 15, "c" -> 10))
+    assertEq(rg.contigs.map(rg.getContigIndex), ArraySeq(0, 1, 2))
+    interceptFatal("Contig 'd' is not in the reference genome 'test'")(rg.getContigIndex("d"))
+  }
+
   @Test def testAssertions(): Unit = {
     interceptFatal("Must have at least one contig in the reference genome.")(
       ReferenceGenome("test", ArraySeq.empty[String], Map.empty[String, Int])
