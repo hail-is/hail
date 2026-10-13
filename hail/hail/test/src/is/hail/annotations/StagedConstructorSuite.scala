@@ -509,6 +509,11 @@ class StagedConstructorSuite {
   }
 
   @Test def testShallowCopyOfPointersFailsAcrossRegions(implicit ctx: ExecuteContext): Unit = {
+    org.junit.jupiter.api.Assumptions.assumeTrue(
+      is.hail.annotations.Memory.IS_DEBUG,
+      "memory access test only works if debug memory is enabled",
+    )
+
     val ptype = PCanonicalStruct(required = true, "a" -> PCanonicalArray(PInt32()))
     val value = genVal(ctx, ptype).sample.get
     val ShallowCopy = emitCopy(ctx, ptype, deepCopy = false)
