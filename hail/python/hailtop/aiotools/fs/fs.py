@@ -8,7 +8,6 @@ from typing import (
     AsyncIterator,
     Awaitable,
     Callable,
-    Generic,
     List,
     Optional,
     Set,
