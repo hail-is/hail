@@ -977,7 +977,7 @@ class TableIRSuite {
       f: ExecuteContext => A
     )(implicit ctx: ExecuteContext
     ): A =
-      if (unstable) withUnstableEncodings(f) else f(ctx)
+      if (unstable) withUnstableEncodings(f) else withStableEncodings(f)
 
     for (rg <- references)
       withReference(rg) { implicit ctx =>
@@ -1388,60 +1388,62 @@ class TableIRSuite {
   @Test def testTableIntervalJoinLociUnstableEncodings(implicit ctx: ExecuteContext): Unit =
     for (rg <- references)
       withReference(rg) { implicit ctx =>
-        val tl = TLocus(rg.name)
-        val Seq(c0, c1, c2) = rg.contigs.take(3)
+        withStableEncodings { implicit ctx =>
+          val tl = TLocus(rg.name)
+          val Seq(c0, c1, c2) = rg.contigs.take(3)
 
-        val left = TableKeyBy(
-          TableParallelize(Literal(
-            TStruct("rows" -> TArray(TStruct("locus" -> tl)), "global" -> TStruct.empty),
-            RowSeq(
-              FastSeq(
-                Locus(c2, 2),
-                Locus(c0, 5),
-                Locus(c1, 8),
-                Locus(c0, 1),
-                Locus(c1, 3),
-              ).map(RowSeq(_)),
-              RowSeq(),
-            ),
-          )),
-          FastSeq("locus"),
-        )
-
-        val right = TableKeyBy(
-          TableParallelize(Literal(
-            TStruct(
-              "rows" -> TArray(TStruct("interval" -> TInterval(tl), "b" -> TInt32)),
-              "global" -> TStruct.empty,
-            ),
-            RowSeq(
-              FastSeq(
-                RowSeq(Interval(Locus(c0, 1), Locus(c0, 5), true, false), 0),
-                RowSeq(Interval(Locus(c1, 4), Locus(c2, 3), true, true), 1),
+          val left = TableKeyBy(
+            TableParallelize(Literal(
+              TStruct("rows" -> TArray(TStruct("locus" -> tl)), "global" -> TStruct.empty),
+              RowSeq(
+                FastSeq(
+                  Locus(c2, 2),
+                  Locus(c0, 5),
+                  Locus(c1, 8),
+                  Locus(c0, 1),
+                  Locus(c1, 3),
+                ).map(RowSeq(_)),
+                RowSeq(),
               ),
-              RowSeq(),
-            ),
-          )),
-          FastSeq("interval"),
-        )
+            )),
+            FastSeq("locus"),
+          )
 
-        val leftTV = ExecuteRelational(ctx, left).asTableValue(ctx)
-        val rightTV = ExecuteRelational(ctx, right).asTableValue(ctx)
-        val rightPointType =
-          rightTV.rvd.rowPType.fieldType("interval").asInstanceOf[PInterval].pointType
-        assert(rightPointType.isInstanceOf[PCanonicalLocus], rightPointType)
+          val right = TableKeyBy(
+            TableParallelize(Literal(
+              TStruct(
+                "rows" -> TArray(TStruct("interval" -> TInterval(tl), "b" -> TInt32)),
+                "global" -> TStruct.empty,
+              ),
+              RowSeq(
+                FastSeq(
+                  RowSeq(Interval(Locus(c0, 1), Locus(c0, 5), true, false), 0),
+                  RowSeq(Interval(Locus(c1, 4), Locus(c2, 3), true, true), 1),
+                ),
+                RowSeq(),
+              ),
+            )),
+            FastSeq("interval"),
+          )
 
-        val matches = FastSeq(0, null, null, 1, 1)
-        val loci = FastSeq(Locus(c0, 1), Locus(c0, 5), Locus(c1, 3), Locus(c1, 8), Locus(c2, 2))
-        for (product <- FastSeq(false, true)) {
-          val joined = withUnstableEncodings { uctx =>
-            leftTV.copy(ctx = uctx).intervalJoin(rightTV, "rights", product).rdd.collect()
+          val leftTV = ExecuteRelational(ctx, left).asTableValue(ctx)
+          val rightTV = ExecuteRelational(ctx, right).asTableValue(ctx)
+          val rightPointType =
+            rightTV.rvd.rowPType.fieldType("interval").asInstanceOf[PInterval].pointType
+          assert(rightPointType.isInstanceOf[PCanonicalLocus], rightPointType)
+
+          val matches = FastSeq(0, null, null, 1, 1)
+          val loci = FastSeq(Locus(c0, 1), Locus(c0, 5), Locus(c1, 3), Locus(c1, 8), Locus(c2, 2))
+          for (product <- FastSeq(false, true)) {
+            val joined = withUnstableEncodings { uctx =>
+              leftTV.copy(ctx = uctx).intervalJoin(rightTV, "rights", product).rdd.collect()
+            }
+            val expected = loci.lazyZip(matches).map { (l, b) =>
+              val right = if (b == null) null else RowSeq(b)
+              RowSeq(l, if (!product) right else if (b == null) FastSeq() else FastSeq(right))
+            }
+            assert(joined.toFastSeq == expected, s"product = $product")
           }
-          val expected = loci.lazyZip(matches).map { (l, b) =>
-            val right = if (b == null) null else RowSeq(b)
-            RowSeq(l, if (!product) right else if (b == null) FastSeq() else FastSeq(right))
-          }
-          assert(joined.toFastSeq == expected, s"product = $product")
         }
       }
 

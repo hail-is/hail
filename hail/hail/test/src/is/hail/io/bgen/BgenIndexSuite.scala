@@ -38,13 +38,15 @@ class BgenIndexSuite {
   // (BgenSettings.getIndexSpec). index_bgen must write that encoding whatever the flags say.
   @Test def testIndexReadableRegardlessOfUnstableEncodings(implicit ctx: ExecuteContext): Unit = {
     val stableIdx = ctx.createTmpPath("test-bgen-index-stable", "idx2")
-    indexBgen(stableIdx)
-    val expected = readRows(stableIdx)
+    val expected = withStableEncodings { implicit ctx =>
+      indexBgen(stableIdx)
+      readRows(stableIdx)
+    }
 
     val unstableIdx = ctx.createTmpPath("test-bgen-index-unstable", "idx2")
     withUnstableEncodings(implicit ctx => indexBgen(unstableIdx))
 
-    assert(readRows(unstableIdx) == expected)
+    withStableEncodings(implicit ctx => assert(readRows(unstableIdx) == expected))
     withUnstableEncodings(implicit ctx => assert(readRows(unstableIdx) == expected))
   }
 }

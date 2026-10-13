@@ -121,6 +121,10 @@ object TestUtils extends Logging {
   def withUnstableEncodings[A](f: ExecuteContext => A)(implicit ctx: ExecuteContext): A =
     ctx.local(flags = ctx.flags + (UseUnstableEncodings -> "1"))(f)
 
+  // Tests may run with unstable encodings on for the whole run, so stable baselines must say so.
+  def withStableEncodings[A](f: ExecuteContext => A)(implicit ctx: ExecuteContext): A =
+    ctx.local(flags = ctx.flags + (UseUnstableEncodings -> null))(f)
+
   def loweredExecute(
     x: IR,
     env: Env[(Any, Type)],
