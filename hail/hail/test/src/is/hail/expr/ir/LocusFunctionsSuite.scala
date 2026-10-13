@@ -7,6 +7,7 @@ import is.hail.annotations.RowSeq
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
 import is.hail.expr.ir.defs.{Apply, ErrorIDs, False, I32, I64, MakeArray, MakeTuple, NA, Str, True}
+import is.hail.types.physical.LocusRepresentations.{customReference, withReference}
 import is.hail.types.virtual._
 import is.hail.utils.Interval
 import is.hail.variant.{Locus, ReferenceGenome}
@@ -79,6 +80,20 @@ class LocusFunctionsSuite {
       grch38.globalPosToLocus(globalPosition),
     )
   }
+
+  @Test def contigIdx(implicit ctx: ExecuteContext): Unit =
+    for {
+      (rg, contigs, expected) <- FastSeq(
+        (grch38, FastSeq("chr22", "chr1", "chr22", "chr22"), RowSeq(21, 0, 21, 21)),
+        (customReference, FastSeq("a", "c", "a", "b"), RowSeq(1, 0, 1, 2)),
+      )
+    } withReference(rg) { implicit ctx =>
+      val tl = TLocus(rg.name)
+      val ir = MakeTuple.ordered(contigs.map { c =>
+        invoke("contig_idx", TInt32, invoke("Locus", tl, Str(c), I32(1)))
+      })
+      assertEvalsTo(ir, expected)
+    }
 
   @Test def testMultipleReferenceGenomes(implicit ctx: ExecuteContext): Unit = {
     implicit val execStrats = ExecStrategy.compileOnly

@@ -134,10 +134,7 @@ object LocusFunctions extends RegistryFunctions {
 
     registerSCode1("contig_idx", tlocus("T"), TInt32, (_: Type, x: SType) => SInt32) {
       case (_, cb, _, locus: SLocusValue, _) =>
-        primitive(cb.memoize(cb.emb.getReferenceGenome(locus.st.rg).invoke[String, Int](
-          "getContigIndex",
-          locus.contig(cb).loadString(cb),
-        )))
+        primitive(locus.contigIdx(cb))
     }
 
     registerSCode1("position", tlocus("T"), TInt32, (_: Type, x: SType) => SInt32) {
