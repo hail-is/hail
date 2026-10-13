@@ -27,7 +27,6 @@ from hailtop.aiotools.fs import (
 from hailtop.utils import OnlineBoundedGather2, TransientError, retry_transient_errors, secret_alnum_string
 
 from ...common.session import BaseSession
-from ..credentials import GoogleCredentials
 from ..user_config import GCSRequesterPaysConfiguration, get_gcs_requester_pays_configuration
 from .base_client import GoogleBaseClient
 
