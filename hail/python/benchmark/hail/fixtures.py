@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 import hail as hl
+from benchmark.hail.utils import check_locus_encoding, multi_contig_table, native_path
 from hail.utils.misc import maybe
 from hailtop.utils import async_to_blocking, retry_transient_errors
 
@@ -257,15 +258,44 @@ def profile25_vcf(resource_dir):
 
 @pytest.fixture(scope='session')
 def profile25_mt(resource_dir, profile25_vcf):
-    path = resource_dir / 'profile.mt'
+    path = native_path(resource_dir, 'profile.mt')
     mt = hl.import_vcf(str(profile25_vcf), min_partitions=16)
     mt.write(str(path), overwrite=True)
+    check_locus_encoding(path / 'rows')
+    return path
+
+
+@pytest.fixture(scope='session')
+def profile25_rows_scrambled(resource_dir, profile25_mt):
+    # The rows of profile25, unkeyed and in an order unrelated to locus order. An
+    # unkeyed read of profile25_mt is not enough: the optimizer sees that it is
+    # sorted, so a later sort or contig filter is elided or uses the index.
+    path = native_path(resource_dir, 'profile_rows_scrambled.ht')
+    ht = hl.read_matrix_table(str(profile25_mt)).rows()
+    ht = ht.annotate(_r=hl.rand_unif(0, 1)).order_by('_r').drop('_r')
+    ht.write(str(path), overwrite=True)
+    check_locus_encoding(path)
+    return path
+
+
+MULTI_CONTIG_N_ROWS = 10_000_000
+MULTI_CONTIG_N_PARTITIONS = 16
+MULTI_CONTIG_SWITCH_RATES = ['sorted', 0.001, 0.5, 1.0]
+
+
+@pytest.fixture(scope='session', params=MULTI_CONTIG_SWITCH_RATES)
+def multi_contig_ht(resource_dir, request):
+    contig_switch_rate = request.param
+    path = native_path(resource_dir, f'multi_contig_{contig_switch_rate}.ht')
+    if not path.exists():
+        multi_contig_table(MULTI_CONTIG_N_ROWS, contig_switch_rate, MULTI_CONTIG_N_PARTITIONS).write(str(path))
+    check_locus_encoding(path)
     return path
 
 
 @pytest.fixture(scope='session')
 def gnomad_dp_sim(resource_dir):
-    path = resource_dir / 'gnomad_dp_simulation.mt'
+    path = native_path(resource_dir, 'gnomad_dp_simulation.mt')
     mt = hl.utils.range_matrix_table(n_rows=250_000, n_cols=1_000, n_partitions=32)
     mt = mt.annotate_entries(x=hl.int(hl.rand_unif(0, 4.5) ** 3))
     mt.write(str(path), overwrite=True)
@@ -290,8 +320,8 @@ def random_doubles_tsv(resource_dir):
 
 
 @pytest.fixture(scope='session')
-def random_doubles_mt(random_doubles_tsv):
-    path = random_doubles_tsv.parent / 'random_doubles_mt.mt'
+def random_doubles_mt(resource_dir, random_doubles_tsv):
+    path = native_path(resource_dir, random_doubles_tsv.parent.relative_to(resource_dir) / 'random_doubles_mt.mt')
     mt = hl.import_matrix_table(
         str(random_doubles_tsv),
         row_key="row_idx",
@@ -307,19 +337,20 @@ def many_ints_tsv(resource_dir):
     return localize(resource_dir / 'many_ints_table' / 'many_ints_table.tsv.bgz')
 
 
-def ht_from_tsv(tsv, types):
+def ht_from_tsv(resource_dir, tsv, types):
     stem = tsv
     for _ in tsv.suffixes:
         stem = tsv.stem
 
-    ht_path = tsv.parent / (stem + '.ht')
+    ht_path = native_path(resource_dir, tsv.parent.relative_to(resource_dir) / (stem + '.ht'))
     hl.import_table(str(tsv), types=types).write(str(ht_path), overwrite=True)
     return ht_path
 
 
 @pytest.fixture(scope='session')
-def many_ints_ht(many_ints_tsv):
+def many_ints_ht(resource_dir, many_ints_tsv):
     return ht_from_tsv(
+        resource_dir,
         many_ints_tsv,
         {'idx': 'int', **{f'i{i}': 'int' for i in range(5)}, **{f'array{i}': 'array<int>' for i in range(2)}},
     )
@@ -331,22 +362,23 @@ def many_strings_tsv(resource_dir):
 
 
 @pytest.fixture(scope='session')
-def many_strings_ht(many_strings_tsv):
-    return ht_from_tsv(many_strings_tsv, types={})
+def many_strings_ht(resource_dir, many_strings_tsv):
+    return ht_from_tsv(resource_dir, many_strings_tsv, types={})
 
 
 @pytest.fixture(scope='session')
 def balding_nichols_5k_5k(resource_dir):
-    path = resource_dir / 'balding_nichols_5k_5k.mt'
+    path = native_path(resource_dir, 'balding_nichols_5k_5k.mt')
     if not path.exists():
         hl.balding_nichols_model(n_populations=5, n_variants=5000, n_samples=5000, n_partitions=16).write(str(path))
+    check_locus_encoding(path / 'rows')
     return path
 
 
 @pytest.fixture(scope='session', params=[10, 100, 1_000])
 def many_partitions_ht(resource_dir, request):
     n_partitions = request.param
-    path = resource_dir / f'table_10M_par_{n_partitions}.ht'
+    path = native_path(resource_dir, f'table_10M_par_{n_partitions}.ht')
     if not path.exists():
         hl.utils.range_table(10_000_000, n_partitions).write(str(path))
 
