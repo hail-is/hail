@@ -131,6 +131,294 @@
   - { slowdown: 1.2, instances: 10, iterations:  5 }
 
 
+- item: benchmark/hail/benchmark_locus.py::test_filter_contig_eq
+  # placeholder: not yet calibrated
+  burn-in-iterations: 2
+  mean: null
+  cv: null
+  config:
+  - { slowdown: 1.2, instances: 10, iterations: 10 }
+
+
+- item: benchmark/hail/benchmark_locus.py::test_filter_contig_eq_multi_contig[0.001]
+  # placeholder: not yet calibrated
+  burn-in-iterations: 2
+  mean: null
+  cv: null
+  config:
+  - { slowdown: 1.2, instances: 10, iterations: 10 }
+
+
+- item: benchmark/hail/benchmark_locus.py::test_filter_contig_eq_multi_contig[0.5]
+  # placeholder: not yet calibrated
+  burn-in-iterations: 2
+  mean: null
+  cv: null
+  config:
+  - { slowdown: 1.2, instances: 10, iterations: 10 }
+
+
+- item: benchmark/hail/benchmark_locus.py::test_filter_contig_eq_multi_contig[1.0]
+  # placeholder: not yet calibrated
+  burn-in-iterations: 2
+  mean: null
+  cv: null
+  config:
+  - { slowdown: 1.2, instances: 10, iterations: 10 }
+
+
+- item: benchmark/hail/benchmark_locus.py::test_filter_contig_eq_multi_contig[sorted]
+  # placeholder: not yet calibrated
+  burn-in-iterations: 2
+  mean: null
+  cv: null
+  config:
+  - { slowdown: 1.2, instances: 10, iterations: 10 }
+
+
+- item: benchmark/hail/benchmark_locus.py::test_filter_intervals_many
+  # placeholder: not yet calibrated
+  burn-in-iterations: 2
+  mean: null
+  cv: null
+  config:
+  - { slowdown: 1.2, instances: 10, iterations: 10 }
+
+
+- item: benchmark/hail/benchmark_locus.py::test_group_by_contig
+  # placeholder: not yet calibrated
+  burn-in-iterations: 2
+  mean: null
+  cv: null
+  config:
+  - { slowdown: 1.2, instances: 10, iterations: 10 }
+
+
+- item: benchmark/hail/benchmark_locus.py::test_group_by_contig_multi_contig[0.001]
+  # placeholder: not yet calibrated
+  burn-in-iterations: 2
+  mean: null
+  cv: null
+  config:
+  - { slowdown: 1.2, instances: 10, iterations: 10 }
+
+
+- item: benchmark/hail/benchmark_locus.py::test_group_by_contig_multi_contig[0.5]
+  # placeholder: not yet calibrated
+  burn-in-iterations: 2
+  mean: null
+  cv: null
+  config:
+  - { slowdown: 1.2, instances: 10, iterations: 10 }
+
+
+- item: benchmark/hail/benchmark_locus.py::test_group_by_contig_multi_contig[1.0]
+  # placeholder: not yet calibrated
+  burn-in-iterations: 2
+  mean: null
+  cv: null
+  config:
+  - { slowdown: 1.2, instances: 10, iterations: 10 }
+
+
+- item: benchmark/hail/benchmark_locus.py::test_group_by_contig_multi_contig[sorted]
+  # placeholder: not yet calibrated
+  burn-in-iterations: 2
+  mean: null
+  cv: null
+  config:
+  - { slowdown: 1.2, instances: 10, iterations: 10 }
+
+
+- item: benchmark/hail/benchmark_locus.py::test_interval_join_locus
+  # placeholder: not yet calibrated
+  burn-in-iterations: 2
+  mean: null
+  cv: null
+  config:
+  - { slowdown: 1.2, instances: 10, iterations: 10 }
+
+
+- item: benchmark/hail/benchmark_locus.py::test_join_locus_keyed
+  # placeholder: not yet calibrated
+  burn-in-iterations: 2
+  mean: null
+  cv: null
+  config:
+  - { slowdown: 1.2, instances: 10, iterations: 10 }
+
+
+- item: benchmark/hail/benchmark_locus.py::test_key_by_locus
+  # placeholder: not yet calibrated
+  burn-in-iterations: 2
+  mean: null
+  cv: null
+  config:
+  - { slowdown: 1.2, instances: 10, iterations: 10 }
+
+
+- item: benchmark/hail/benchmark_locus.py::test_key_by_locus_multi_contig[0.001]
+  # placeholder: not yet calibrated
+  burn-in-iterations: 2
+  mean: null
+  cv: null
+  config:
+  - { slowdown: 1.2, instances: 10, iterations: 10 }
+
+
+- item: benchmark/hail/benchmark_locus.py::test_key_by_locus_multi_contig[0.5]
+  # placeholder: not yet calibrated
+  burn-in-iterations: 2
+  mean: null
+  cv: null
+  config:
+  - { slowdown: 1.2, instances: 10, iterations: 10 }
+
+
+- item: benchmark/hail/benchmark_locus.py::test_key_by_locus_multi_contig[1.0]
+  # placeholder: not yet calibrated
+  burn-in-iterations: 2
+  mean: null
+  cv: null
+  config:
+  - { slowdown: 1.2, instances: 10, iterations: 10 }
+
+
+- item: benchmark/hail/benchmark_locus.py::test_key_by_locus_multi_contig[sorted]
+  # placeholder: not yet calibrated
+  burn-in-iterations: 2
+  mean: null
+  cv: null
+  config:
+  - { slowdown: 1.2, instances: 10, iterations: 10 }
+
+
+- item: benchmark/hail/benchmark_locus.py::test_order_by_locus
+  # placeholder: not yet calibrated
+  burn-in-iterations: 2
+  mean: null
+  cv: null
+  config:
+  - { slowdown: 1.2, instances: 10, iterations: 10 }
+
+
+- item: benchmark/hail/benchmark_locus.py::test_order_by_locus_multi_contig[0.001]
+  # placeholder: not yet calibrated
+  burn-in-iterations: 2
+  mean: null
+  cv: null
+  config:
+  - { slowdown: 1.2, instances: 10, iterations: 10 }
+
+
+- item: benchmark/hail/benchmark_locus.py::test_order_by_locus_multi_contig[0.5]
+  # placeholder: not yet calibrated
+  burn-in-iterations: 2
+  mean: null
+  cv: null
+  config:
+  - { slowdown: 1.2, instances: 10, iterations: 10 }
+
+
+- item: benchmark/hail/benchmark_locus.py::test_order_by_locus_multi_contig[1.0]
+  # placeholder: not yet calibrated
+  burn-in-iterations: 2
+  mean: null
+  cv: null
+  config:
+  - { slowdown: 1.2, instances: 10, iterations: 10 }
+
+
+- item: benchmark/hail/benchmark_locus.py::test_order_by_locus_multi_contig[sorted]
+  # placeholder: not yet calibrated
+  burn-in-iterations: 2
+  mean: null
+  cv: null
+  config:
+  - { slowdown: 1.2, instances: 10, iterations: 10 }
+
+
+- item: benchmark/hail/benchmark_locus.py::test_read_force_count_multi_contig[0.001]
+  # placeholder: not yet calibrated
+  burn-in-iterations: 2
+  mean: null
+  cv: null
+  config:
+  - { slowdown: 1.2, instances: 10, iterations: 10 }
+
+
+- item: benchmark/hail/benchmark_locus.py::test_read_force_count_multi_contig[0.5]
+  # placeholder: not yet calibrated
+  burn-in-iterations: 2
+  mean: null
+  cv: null
+  config:
+  - { slowdown: 1.2, instances: 10, iterations: 10 }
+
+
+- item: benchmark/hail/benchmark_locus.py::test_read_force_count_multi_contig[1.0]
+  # placeholder: not yet calibrated
+  burn-in-iterations: 2
+  mean: null
+  cv: null
+  config:
+  - { slowdown: 1.2, instances: 10, iterations: 10 }
+
+
+- item: benchmark/hail/benchmark_locus.py::test_read_force_count_multi_contig[sorted]
+  # placeholder: not yet calibrated
+  burn-in-iterations: 2
+  mean: null
+  cv: null
+  config:
+  - { slowdown: 1.2, instances: 10, iterations: 10 }
+
+
+- item: benchmark/hail/benchmark_locus.py::test_write_multi_contig[0.001]
+  # placeholder: not yet calibrated
+  burn-in-iterations: 2
+  mean: null
+  cv: null
+  config:
+  - { slowdown: 1.2, instances: 10, iterations: 10 }
+
+
+- item: benchmark/hail/benchmark_locus.py::test_write_multi_contig[0.5]
+  # placeholder: not yet calibrated
+  burn-in-iterations: 2
+  mean: null
+  cv: null
+  config:
+  - { slowdown: 1.2, instances: 10, iterations: 10 }
+
+
+- item: benchmark/hail/benchmark_locus.py::test_write_multi_contig[1.0]
+  # placeholder: not yet calibrated
+  burn-in-iterations: 2
+  mean: null
+  cv: null
+  config:
+  - { slowdown: 1.2, instances: 10, iterations: 10 }
+
+
+- item: benchmark/hail/benchmark_locus.py::test_write_multi_contig[sorted]
+  # placeholder: not yet calibrated
+  burn-in-iterations: 2
+  mean: null
+  cv: null
+  config:
+  - { slowdown: 1.2, instances: 10, iterations: 10 }
+
+
+- item: benchmark/hail/benchmark_locus.py::test_write_profile_rows
+  # placeholder: not yet calibrated
+  burn-in-iterations: 2
+  mean: null
+  cv: null
+  config:
+  - { slowdown: 1.2, instances: 10, iterations: 10 }
+
+
 - item: benchmark/hail/benchmark_matrix_table.py::test_export_range_matrix_table_col_p100
   burn-in-iterations: 15
   mean: 0.255

@@ -6,9 +6,78 @@ import timeit
 import traceback
 from contextlib import contextmanager
 from pathlib import Path
-from typing import NoReturn
+from typing import Dict, NoReturn, Union
+
+from py4j.java_gateway import JavaClass
 
 import hail as hl
+from hail.utils.java import Env
+
+
+def use_unstable_encodings() -> bool:
+    return hl._get_flags('use_unstable_encodings')['use_unstable_encodings'] is not None
+
+
+def native_path(resource_dir: Path, relpath: Union[str, Path]) -> Path:
+    """Path under `resource_dir` for a native file written by a fixture.
+
+    Files written with unstable encodings are encoded differently (for example,
+    loci decode as packed), so they live in their own tree and a run never reuses
+    a file written under the other setting.
+    """
+    if use_unstable_encodings():
+        return resource_dir / 'unstable_encodings' / relpath
+    return resource_dir / relpath
+
+
+GRCH38_CONTIGS = [f'chr{i}' for i in range(1, 23)] + ['chrX', 'chrY']
+
+
+def multi_contig_table(n_rows: int, contig_switch_rate: Union[str, float], n_partitions: int) -> hl.Table:
+    """An unkeyed table of `n_rows` GRCh38 loci whose contig changes between
+    consecutive rows at `contig_switch_rate`.
+
+    Rows cycle through the contigs in runs of `1 / contig_switch_rate` rows. The
+    rows of each contig get positions 1, 2, ... in row order. With 'sorted', each
+    contig is one run, so the loci are in sorted order.
+    """
+    n_contigs = len(GRCH38_CONTIGS)
+    if contig_switch_rate == 'sorted':
+        run_length = -(-n_rows // n_contigs)  # ceil(n_rows / n_contigs)
+    else:
+        run_length = round(1 / contig_switch_rate)
+
+    ht = hl.utils.range_table(n_rows, n_partitions)
+    contig = hl.literal(GRCH38_CONTIGS)[(ht.idx // run_length) % n_contigs]
+    position = (ht.idx // (run_length * n_contigs)) * run_length + ht.idx % run_length + 1
+    return ht.select(locus=hl.locus(contig, position, reference_genome='GRCh38')).key_by()
+
+
+def decoded_row_ptypes(table_path: Union[str, Path]) -> Dict[str, str]:
+    """The JVM physical type (class name) each top-level row field of the native
+    table at `table_path` decodes to, e.g. `{'locus': 'PPackedLocus'}`."""
+    backend = Env.py4j_backend('decoded_row_ptypes')
+    spec = backend.hail_package().rvd.AbstractRVDSpec.read(backend._jbackend.pyFs(), f'{table_path}/rows')
+    fields = spec.typedCodecSpec().decodedPType().fields()
+    return {(f := fields.apply(i)).name(): f.typ().getClass().getSimpleName() for i in range(fields.size())}
+
+
+def packed_loci_supported() -> bool:
+    """Whether this version of hail has packed loci. Versions without them write
+    canonical loci whatever use_unstable_encodings says."""
+    physical = Env.py4j_backend('packed_loci_supported').hail_package().types.physical
+    return isinstance(physical.PPackedLocus, JavaClass)
+
+
+def check_locus_encoding(table_path: Union[str, Path]) -> None:
+    """Assert that the loci of the native table at `table_path` decode the way the
+    active backend writes them, so a benchmark never measures loci encoded under
+    the other setting of use_unstable_encodings."""
+    expected = 'PPackedLocus' if packed_loci_supported() and use_unstable_encodings() else 'PCanonicalLocus'
+    loci = {name: ptype for name, ptype in decoded_row_ptypes(table_path).items() if ptype.endswith('Locus')}
+    assert loci and all(ptype == expected for ptype in loci.values()), (
+        f'{table_path}: expected {expected} loci, found {loci}'
+    )
 
 
 def init_hail_for_benchmarks(config):
