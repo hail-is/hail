@@ -8,6 +8,7 @@ import is.hail.types.physical.{PCanonicalLocus, PType}
 import is.hail.types.physical.stypes.{SSettable, SType, SValue}
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.virtual.Type
+import is.hail.variant.{ContigIndexCache, ReferenceGenome}
 
 final case class SCanonicalLocusPointer(pType: PCanonicalLocus) extends SLocus {
   require(!pType.required)
@@ -83,11 +84,19 @@ class SCanonicalLocusPointerValue(
   override def contig(cb: EmitCodeBuilder): SStringValue =
     pt.contigType.loadCheapSCode(cb, _contig).asString
 
-  override def contigIdx(cb: EmitCodeBuilder): Value[Int] =
-    cb.memoize(cb.emb.getReferenceGenome(st.rg).invoke[String, Int](
-      "getContigIndex",
-      contig(cb).loadString(cb),
+  // Compares the contig's bytes in place against the last contig seen, so runs of loci on one
+  // contig load no String.
+  override def contigIdx(cb: EmitCodeBuilder): Value[Int] = {
+    val cache = cb.emb.getOrDefineLazyField[ContigIndexCache](
+      Code.newInstance[ContigIndexCache, ReferenceGenome](cb.emb.getReferenceGenome(st.rg)),
+      ("contig_index_cache", st.rg),
+    )
+    cb.memoize(cache.invoke[Long, Int, Int](
+      "contigIndex",
+      pt.contigType.binaryRepresentation.bytesAddress(_contig),
+      pt.contigType.loadLength(_contig),
     ))
+  }
 
   override def position(cb: EmitCodeBuilder): Value[Int] = _position
 
