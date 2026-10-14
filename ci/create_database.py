@@ -3,7 +3,6 @@ import base64
 import json
 import os
 import sys
-import traceback
 from shlex import quote as shq
 from typing import Optional
 
@@ -91,66 +90,8 @@ async def async_main():
     global create_database_config
     create_database_config = json.load(sys.stdin)
 
-    if create_database_config['scope'] == 'test':
-        await _create_and_migrate_test_database()
-    else:
-        await _create_and_migrate()
-
-
-async def _create_and_migrate_test_database(max_attempts: int = 3):
-    # The test DB pod can be preempted mid-migration. MySQL DDL can't be rolled back, so a partially
-    # applied migration can't be resumed; instead, start over from an empty database.
-    initial_env = dict(os.environ)
-    for attempt in range(1, max_attempts + 1):
-        try:
-            if attempt > 1:
-                await _drop_test_database()
-            await _create_and_migrate()
-            return
-        except Exception:
-            if attempt == max_attempts:
-                raise
-            print(f'attempt {attempt} of {max_attempts} failed, dropping database and retrying', flush=True)
-            traceback.print_exc()
-            # _apply_migrations points HAIL_DATABASE_CONFIG_FILE at the per-database admin config, which can't create
-            # users, so _create_database would fail on a retry.
-            os.environ.clear()
-            os.environ.update(initial_env)
-            await asyncio.sleep(30)
-
-
-async def _drop_test_database():
-    assert create_database_config
-    scope = create_database_config['scope']
-    namespace = create_database_config['namespace']
-    database_name = create_database_config['database_name']
-    _name = create_database_config['_name']
-
-    with open('/sql-config/sql-config.json', 'r', encoding='utf-8') as f:
-        server_config = SQLConfig.from_json(f.read())
-
-    assert scope == 'test', scope
-    assert namespace != 'default', namespace
-    assert server_config.host == f'db.{namespace}.svc.cluster.local', server_config.host
-    assert _name != database_name and f'-{database_name}-' in _name, _name
-
-    print(f'dropping database {_name} on {server_config.host}', flush=True)
-    db = Database()
-    await db.async_init(config_file='/sql-config/sql-config.json')
-    try:
-        await db.just_execute(f'DROP DATABASE IF EXISTS `{_name}`')
-    finally:
-        await db.async_close()
-
-
-async def _create_and_migrate():
-    assert create_database_config
     await _create_database()
-    await _apply_migrations()
 
-
-async def _apply_migrations():
-    assert create_database_config
     namespace = create_database_config['namespace']
     scope = create_database_config['scope']
     cloud = create_database_config['cloud']
