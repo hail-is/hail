@@ -328,6 +328,9 @@ object LowerMatrixIR extends Logging {
                 val newBody = go(0, builder)
                 Block(newBindings.result(), newBody)
 
+              case StreamAggScan(a, name, query) =>
+                StreamAggScan(lift(a, builder), name, query)
+
               case _ =>
                 MapIR(lift(_, builder))(ir)
             }
@@ -496,8 +499,10 @@ object LowerMatrixIR extends Logging {
             val newBody = go(0, scanBindings, aggBindings)
             Block(newBindings.result().reverse, newBody)
 
-          case x: StreamAgg => x
-          case x: StreamAggScan => x
+          case StreamAgg(a, name, query) =>
+            StreamAgg(lift(a, scanBindings, aggBindings), name, query)
+          case StreamAggScan(a, name, query) =>
+            StreamAggScan(lift(a, scanBindings, aggBindings), name, query)
 
           case _ =>
             MapIR(lift(_, scanBindings, aggBindings))(ir)
