@@ -1,13 +1,19 @@
 package is.hail.variant
 
 import is.hail.TestUtils._
-import is.hail.annotations.UnsafeRow
+import is.hail.annotations.{Region, SafeRow, UnsafeRow}
+import is.hail.asm4s.{classInfo, AsmFunction2RegionLongLong, LongInfo}
 import is.hail.backend.{ExecuteContext, HailStateManager}
-import is.hail.expr.ir.EmitFunctionBuilder
-import is.hail.io.reference.{FASTAReader, FASTAReaderConfig, IndexedFastaSequenceFile, LiftOver}
+import is.hail.collection.FastSeq
+import is.hail.expr.ir.{freshName, invoke, Compile, EmitFunctionBuilder, SingleCodeEmitParamType}
+import is.hail.expr.ir.defs.{F64, GetTupleElement, MakeTuple, Ref}
+import is.hail.io.reference.{FASTAReader, FASTAReaderConfig, IndexedFastaSequenceFile, Liftover}
 import is.hail.scalacheck.{genLocus, genNonMissing}
-import is.hail.types.physical.{PCanonicalStruct, PPackedLocus}
-import is.hail.types.virtual.{TInterval, TLocus}
+import is.hail.types.physical.{
+  PBaseStruct, PCanonicalLocus, PCanonicalStruct, PCanonicalTuple, PPackedLocus,
+}
+import is.hail.types.physical.stypes.PTypeReferenceSingleCodeType
+import is.hail.types.virtual.{TBoolean, TInterval, TLocus, TStruct}
 import is.hail.utils._
 
 import scala.collection.immutable.ArraySeq
@@ -264,35 +270,34 @@ class ReferenceGenomeSuite {
     }
   }
 
-  @Test def testSerializeWithLiftoverOnFB(implicit ctx: ExecuteContext): Unit =
-    ctx.local(references = ReferenceGenome.builtinReferences()) { ctx =>
-      val grch37 = ctx.references(ReferenceGenome.GRCh37)
-      val liftoverFile = getTestResource("grch37_to_grch38_chr20.over.chain.gz")
+  private def liftoverGRCh37ToGRCh38(implicit ctx: ExecuteContext): Liftover =
+    Liftover(
+      ctx.fs,
+      ctx.references(ReferenceGenome.GRCh37),
+      ctx.references(ReferenceGenome.GRCh38),
+      getTestResource("grch37_to_grch38_chr20.over.chain.gz"),
+    )
 
-      grch37.addLiftover(ctx.references("GRCh38"), LiftOver(ctx.fs, liftoverFile))
-
-      val fb =
-        EmitFunctionBuilder[String, Locus, Double, (Locus, Boolean)](ctx, "serialize_with_liftover")
-      val rgfield = fb.getReferenceGenome(grch37.name)
-      fb.emit(rgfield.invoke[String, Locus, Double, (Locus, Boolean)](
-        "liftoverLocus",
-        fb.getCodeParam[String](1),
-        fb.getCodeParam[Locus](2),
-        fb.getCodeParam[Double](3),
+  @Test def testSerializeWithLiftoverOnFB(implicit ctx: ExecuteContext): Unit = {
+    val liftover = liftoverGRCh37ToGRCh38
+    ctx.local(liftovers = Map(liftover.key -> liftover)) { ctx =>
+      val fb = EmitFunctionBuilder[Locus, Double, (Locus, Boolean)](ctx, "serialize_with_liftover")
+      fb.emit(fb.getLiftover(ReferenceGenome.GRCh37, ReferenceGenome.GRCh38).invoke[
+        Locus,
+        Double,
+        (Locus, Boolean),
+      ](
+        "queryLocus",
+        fb.getCodeParam[Locus](1),
+        fb.getCodeParam[Double](2),
       ))
 
       ctx.scopedExecution { (cl, fs, tc, r) =>
         val f = fb.resultWithIndex()(cl, fs, tc, r)
-        assertEq(
-          f("GRCh38", Locus("20", 60001), 0.95),
-          grch37.liftoverLocus(
-            "GRCh38",
-            Locus("20", 60001),
-            0.95,
-          ),
-        )
+        assertEq(f(Locus("20", 60001), 0.95), (Locus("chr20", 79360), false))
       }
     }
+  }
 
   private def serialize(o: AnyRef): Array[Byte] = {
     val bytes = new ByteArrayOutputStream()
@@ -335,14 +340,54 @@ class ReferenceGenomeSuite {
     assertTrue(!result.inXPar(Locus("chrX", 6)))
   }
 
-  @Test def testLiftoverAndSequenceSurviveRoundTrip(implicit ctx: ExecuteContext): Unit = {
-    val references = ReferenceGenome.builtinReferences()
-    val grch37 = references(ReferenceGenome.GRCh37)
-    grch37.addLiftover(
-      references(ReferenceGenome.GRCh38),
-      LiftOver(ctx.fs, getTestResource("grch37_to_grch38_chr20.over.chain.gz")),
-    )
+  // Compiled reaches Spark and Batch tasks by Java serialization, and each task instantiates it
+  // with its own FS. The session also holds a liftover from the same source genome whose chain file
+  // is gone: code that does not use it must neither ship nor restore it.
+  @Test def testLiftoverSurvivesCompiledRoundTrip(implicit ctx: ExecuteContext): Unit = {
+    val used = liftoverGRCh37ToGRCh38
+    val test38 = ctx.references(ReferenceGenome.GRCh38).copy(name = "test38")
+    val goneChain = ctx.createTmpPath("liftover", "over.chain.gz")
+    ctx.fs.copy(getTestResource("grch37_to_grch38_chr20.over.chain.gz"), goneChain)
+    val unused = Liftover(ctx.fs, ctx.references(ReferenceGenome.GRCh37), test38, goneChain)
+    ctx.fs.delete(goneChain, recursive = false)
 
+    ctx.local(
+      references = ctx.references + (test38.name -> test38),
+      liftovers = Map(used.key -> used, unused.key -> unused),
+    ) { ctx =>
+      val argsPType = PCanonicalTuple(true, PCanonicalLocus(ReferenceGenome.GRCh37, true))
+      val args = Ref(freshName(), argsPType.virtualType)
+      val lifted = invoke(
+        "liftoverLocus",
+        TStruct("result" -> TLocus(ReferenceGenome.GRCh38), "is_negative_strand" -> TBoolean),
+        GetTupleElement(args, 0),
+        F64(0.95),
+      )
+      val (Some(PTypeReferenceSingleCodeType(rt: PBaseStruct)), compiled) =
+        Compile[AsmFunction2RegionLongLong](
+          ctx,
+          FastSeq(
+            args.name -> SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(argsPType))
+          ),
+          FastSeq(classInfo[Region], LongInfo),
+          LongInfo,
+          MakeTuple.ordered(FastSeq(lifted)),
+        ): @unchecked
+
+      val shipped = roundTrip(compiled)
+      ctx.scopedExecution { (hcl, fs, tc, r) =>
+        val argsOff =
+          argsPType.unstagedStoreJavaObject(ctx.stateManager, Row(Locus("20", 60001)), r)
+        val off = shipped(hcl, fs, tc, r)(r, argsOff)
+        assertEq(
+          SafeRow(ctx.stateManager, rt, off).get(0),
+          Row(Locus("chr20", 79360), false),
+        )
+      }
+    }
+  }
+
+  @Test def testSequenceSurvivesRoundTrip(implicit ctx: ExecuteContext): Unit = {
     // Qualified for the same reason as in testFasta.
     val custom =
       ReferenceGenome("test", ArraySeq("a", "b", "c"), Map("a" -> 25, "b" -> 15, "c" -> 10))
@@ -352,18 +397,9 @@ class ReferenceGenomeSuite {
       ctx.fs.makeQualified(getTestResource("fake_reference.fasta.fai")),
     ))
 
-    val sm = roundTrip(HailStateManager(references + (custom.name -> custom)))
+    val sm = roundTrip(HailStateManager(Map(custom.name -> custom)))
     sm.referenceGenomes.values.foreach(_.heal(ctx.localTmpdir, ctx.fs))
 
-    val locus = Locus("20", 60001)
-    assertEq(
-      sm.referenceGenomes(ReferenceGenome.GRCh37).liftoverLocus(
-        ReferenceGenome.GRCh38,
-        locus,
-        0.95,
-      ),
-      grch37.liftoverLocus(ReferenceGenome.GRCh38, locus, 0.95),
-    )
     assertEq(sm.referenceGenomes(custom.name).getSequence("c", 5, 10, 10), "GGATCCGTGC")
   }
 

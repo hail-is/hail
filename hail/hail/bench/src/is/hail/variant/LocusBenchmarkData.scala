@@ -112,6 +112,7 @@ object LocusBenchmarkData {
       localTmpdir = "file:///tmp",
       backend = null,
       references = references,
+      liftovers = Map.empty,
       fs = null,
       r = Region(pool = RegionPool()),
       tempFileManager = new OwningTempFileManager(null),

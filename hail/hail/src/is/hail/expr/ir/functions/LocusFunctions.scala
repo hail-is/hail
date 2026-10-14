@@ -635,9 +635,8 @@ object LocusFunctions extends RegistryFunctions {
             val locusObj = loc.getLocusObj(cb)
             val lifted = cb.newLocal[(Locus, Boolean)](
               "lifterover_locus_ lifted",
-              rgCode(cb.emb, srcRG).invoke[String, Locus, Double, (Locus, Boolean)](
-                "liftoverLocus",
-                destRG,
+              cb.emb.getLiftover(srcRG, destRG).invoke[Locus, Double, (Locus, Boolean)](
+                "queryLocus",
                 locusObj,
                 minMatch.asDouble.value,
               ),
@@ -708,9 +707,8 @@ object LocusFunctions extends RegistryFunctions {
             val intervalObj = Code.checkcast[Interval](svalueToJavaValue(cb, r, interval))
             val lifted = cb.newLocal[(Interval, Boolean)](
               "liftover_locus_interval_lifted",
-              rgCode(cb.emb, srcRG).invoke[String, Interval, Double, (Interval, Boolean)](
-                "liftoverLocusInterval",
-                destRG,
+              cb.emb.getLiftover(srcRG, destRG).invoke[Interval, Double, (Interval, Boolean)](
+                "queryInterval",
                 intervalObj,
                 minMatch.asDouble.value,
               ),
