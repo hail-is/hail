@@ -20,7 +20,8 @@ You need `hailctl` (from the repo's virtualenv), `jq`, and the `READ_CI` permiss
 
 `GET /api/v1alpha/retried_tests` defaults to the last 14 days, so pass `after`. It returns at most 500 rows per page;
 follow `cursor` while `has_more` is true. The full parameter list is in CI's spec
-(`hailctl curl default ci /openapi.yaml`).
+(`hailctl curl default ci /openapi.yaml`). The commands below write and read files in the current directory, so
+start in a scratch directory (e.g. `mkdir -p /tmp/flaky && cd /tmp/flaky`).
 
 ```bash
 AFTER=$(date -u -v-30d +%Y-%m-%dT%H:%M:%SZ)   # GNU date: date -u -d '30 days ago' +%Y-%m-%dT%H:%M:%SZ
@@ -33,8 +34,8 @@ while :; do
 done
 ```
 
-Each row has `batch_id`, `job_id`, `job_name`, `state`, `exit_code`, `pr_number`, `source_branch`, `source_sha`,
-`retried_by` and `retried_at`.
+Each row has `id`, `batch_id`, `job_id`, `job_name`, `state`, `exit_code`, `pr_number`, `target_branch`,
+`source_branch`, `source_sha`, `retried_by` and `retried_at`.
 
 **Done when** the loop exits with `has_more` false and `retried_tests.jsonl` holds one row per line.
 
@@ -70,7 +71,19 @@ Reading the table:
   preemption, image pull) or the job hit its timeout. Timeouts are a common cause of flakiness, so check the job's
   error for `timed out after` before blaming infrastructure.
 - **Setup and cleanup steps** (`*_database`, `create_*`, `deploy_*`, `delete_*`, `cancel_*`) failing often usually
-  indicate the test namespace itself was unhealthy, which then shows up as failures in many tests.
+  indicate the test namespace itself was unhealthy, which then shows up as failures in many tests. To see which
+  failures happened together, group the rows by batch:
+
+  ```bash
+  jq -r '"\(.batch_id) PR#\(.pr_number) \(.job_name)"' retried_tests.jsonl \
+    | awk '{k=$1" "$2; a[k]=a[k]" "$3; n[k]++} END {for (k in a) if (n[k]>1) print n[k], k ":" a[k]}' \
+    | sort -rn | head -20
+  ```
+
+  Cleanup steps (`cancel_all_running_test_batches`, `delete_test_billing_projects`) often top the ranking because
+  they run even after something upstream broke the namespace. When the grouping shows them failing alongside setup
+  or service failures, investigate that upstream cause first. They can still be flaky in their own right, so check
+  any runs where they failed on their own.
 
 **Done when** you have a shortlist of candidates: tests that are high or spiking, and spread across several PRs.
 
@@ -79,10 +92,23 @@ Reading the table:
 For each candidate, take a handful of its rows and inspect those runs:
 
 ```bash
-hailctl batch job BATCH_ID JOB_ID                     # state, timing, worker, exit code
-hailctl batch log BATCH_ID JOB_ID --container main    # the test's output
-hailctl batch jobs BATCH_ID --state bad               # what else failed in the same batch
+# What else failed in the same batch
+hailctl batch jobs BATCH_ID --state bad -o json | jq -c '.[] | {job_id, name, state, exit_code}'
+
+# The test's output: the failure summary lines are the quickest way in
+# pytest (Python tests)
+hailctl batch log BATCH_ID JOB_ID --container main | grep -E '^(FAILED|ERROR) '
+# Scala/JVM tests (test_hail_java_*, test_hail_scala_*): strip ANSI colour codes first
+hailctl batch log BATCH_ID JOB_ID --container main | sed 's/\x1b\[[0-9;]*m//g' | grep -E '\] Test is\.hail\..* failed:|tests failed'
+
+# For `Error`-state jobs: the infrastructure error, e.g. "timed out"
+hailctl batch job BATCH_ID JOB_ID -o json | jq '.[0].status.container_statuses.main | {short_error, error}'
 ```
+
+`hailctl batch job` without `-o json` prints the job's full status and spec as YAML, including cost breakdowns, which
+is long but has everything (timing, worker, exit code). If a summary grep finds nothing, the log may be from a
+different test runner or contain colour codes; strip them with `sed 's/\x1b\[[0-9;]*m//g'` and look at the end of
+the log directly.
 
 Look for patterns across the runs:
 - **The same error or assertion every time:** compare the end of the `main` log, or the pytest short summary.
