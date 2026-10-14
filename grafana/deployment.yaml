@@ -120,8 +120,6 @@ metadata:
   name: grafana
   labels:
     app: grafana
-  annotations:
-    "cluster-autoscaler.kubernetes.io/safe-to-evict": "true"
 spec:
   selector:
     matchLabels:
@@ -132,6 +130,8 @@ spec:
     metadata:
       labels:
         app: grafana
+      annotations:
+        "cluster-autoscaler.kubernetes.io/safe-to-evict": "true"
     spec:
       priorityClassName: auxiliary
 {% if deploy %}

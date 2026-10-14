@@ -271,6 +271,10 @@ spec:
     metadata:
       labels:
         app: prometheus
+{% if deploy %}
+      annotations:
+        "cluster-autoscaler.kubernetes.io/safe-to-evict": "false"
+{% endif %}
     spec:
       serviceAccountName: prometheus
 {% if deploy %}
