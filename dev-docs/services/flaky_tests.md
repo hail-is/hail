@@ -25,7 +25,7 @@ You need `hailctl` (from the repo's virtualenv), `jq`, and the `READ_CI` permiss
 `GET /api/v1alpha/retried_tests` defaults to the last 14 days, so pass `after`. It returns at most 500 rows per page;
 follow `cursor` while `has_more` is true. The full parameter list is in CI's spec
 (`hailctl curl default ci /openapi.yaml`). The commands below write and read files in the current directory, so
-start in a scratch directory (e.g. `mkdir -p /tmp/flaky && cd /tmp/flaky`).
+start in a scratch directory.
 
 ```bash
 AFTER=$(date -u -v-30d +%Y-%m-%dT%H:%M:%SZ)   # GNU date: date -u -d '30 days ago' +%Y-%m-%dT%H:%M:%SZ
@@ -88,7 +88,16 @@ Reading the table:
   Cleanup steps (`cancel_all_running_test_batches`, `delete_test_billing_projects`) often top the ranking because
   they run even after something upstream broke the namespace. When the grouping shows them failing alongside setup
   or service failures, investigate that upstream cause first. They can still be flaky in their own right, so check
-  any runs where they failed on their own.
+  any runs where they failed on their own. To see how much of each job's failure count is likely fallout, count its
+  rows in batches where a setup step also failed:
+
+  ```bash
+  jq -s -r '
+    (map(select(.job_name | test("_database$|^create_|^deploy_"))) | map(.batch_id) | unique) as $broken
+    | group_by(.job_name)[]
+    | "\(.[0].job_name)  \(map(select(.batch_id as $b | $broken | index($b))) | length)/\(length) alongside a setup failure"
+  ' retried_tests.jsonl
+  ```
 - **Failures that were alone in their batch** can't be fallout from something else breaking in the same build. Which
   view is most revealing varies from one investigation to the next, so this is worth trying alongside the ranking
   and the batch grouping rather than instead of them:
@@ -114,7 +123,8 @@ Where to find a signature:
 - **`Failed` runs:** the test's log (`hailctl batch log BATCH_ID JOB_ID --container main`). Strip ANSI colour codes
   first (`sed 's/\x1b\[[0-9;]*m//g'`). For pytest, the test ID is on the `FAILED path::test` summary line and the
   cause on the first `E   ` line (the summary line truncates it). For Scala/JVM tests, look for
-  `Test is.hail... failed:` lines.
+  `Test is.hail... failed:` lines. For other jobs (setup steps and scripts), the cause is usually the last line of
+  the log, often the final line of a Python traceback.
 - **`Error` runs:** the job's status (`hailctl batch job BATCH_ID JOB_ID -o json`). The cause is usually the last line
   of a container's `error`, e.g. `timed out after 300s`; note the `worker` too, since a single bad worker shows up
   as a cluster. If `worker` is null the job never got a container, and the batch-driver's reason is in the top-level
@@ -129,10 +139,11 @@ while read -r B J NAME STATE; do
   if [ "$STATE" = Error ]; then
     SIG=$(hailctl batch job "$B" "$J" -o json | jq -r "$ERROR_SIG")
   else
-    SIG=$(hailctl batch log "$B" "$J" --container main | sed 's/\x1b\[[0-9;]*m//g' \
-      | grep -E '^E +[^ ]|\] Test is\.hail\..* failed:|^(FAILED|ERROR) ' | head -3 | tr '\n' ' ')
+    LOG=$(hailctl batch log "$B" "$J" --container main | sed 's/\x1b\[[0-9;]*m//g')
+    SIG=$(echo "$LOG" | grep -E '^E +[^ ]|\] Test is\.hail\..* failed:|^(FAILED|ERROR) ' | head -3 | tr '\n' ' ')
+    [ -n "$SIG" ] || SIG=$(echo "$LOG" | grep -v '^[[:space:]]*$' | tail -1)
   fi
-  echo "$B/$J $NAME $STATE: ${SIG:-(no summary line found; read the log)}"
+  echo "$B/$J $NAME $STATE: ${SIG:-(empty log)}"
 done
 ```
 
@@ -167,7 +178,8 @@ Weigh each finding by its cost to the team, using what you already have:
 
 Present the ranked findings, each drafted as a work item, then stop and ask whoever requested the sweep what to do
 next: which findings to file (e.g. as GitHub issues), which to pick up now, and which to drop. Leave filing issues and
-starting fixes until they have chosen.
+starting fixes until they have chosen. Logs can contain credentials (e.g. test database passwords), so redact them
+from anything that will be posted publicly.
 
 Draft each work item with:
 - **What:** the test or step, and its signature.
@@ -181,3 +193,15 @@ Draft each work item with:
 
 If a fix is obvious from the evidence (e.g. a timeout clearly too tight), suggest it in the work item, but leave
 confirming it to whoever picks it up. Prefer fixing the root cause (infrastructure or test design) over adding retries.
+
+Also list the classes of failure you chose not to shortlist, with a rough count and the reason for each: for example
+failures confined to a single PR, one-off infrastructure blips, fallout already explained by another finding, or
+problems already being fixed in an open PR. This lets the requester check that nothing important was set aside.
+
+### 6. Suggest improvements for the next sweep
+
+In the same report, suggest a few ways to make the next sweep faster or more accurate: changes to this runbook, or to
+the tooling and data behind it (e.g. a missing API field, CLI command or dashboard view). Write for a capable runner:
+offer the insight or hint that would have changed how this sweep went, and leave the mechanics to them. When the
+improvement is a small, concrete change with a big payoff (e.g. one extra pattern in a grep that would have caught a
+whole class of failures), suggest the exact change.
