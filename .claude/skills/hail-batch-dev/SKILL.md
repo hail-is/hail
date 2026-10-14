@@ -6,6 +6,14 @@ You are helping a Hail service engineer investigate Hail Batch infrastructure or
 
 **For end-user batch investigation (logs, job status, writing scripts), also invoke `/hail-batch`.**
 
+## Vetted runbooks
+
+Read the matching runbook before starting one of these tasks, and follow it. These have been checked step by step against production; other docs in `dev-docs/` may be out of date.
+
+| Task | Runbook | Last verified |
+|---|---|---|
+| Finding flaky CI tests and why they fail | `dev-docs/services/flaky_tests.md` | 2026-10-14 |
+
 ## Running hailctl commands
 
 `hailctl` is likely in a virtual environment — if it isn't found, look for one and activate it. Once activated, it stays active for the session.
@@ -103,21 +111,16 @@ make -C <service> deploy NAMESPACE=<my-namespace>   # e.g. make -C batch deploy 
 
 ## Direct API access with hailctl curl
 
-For raw API calls not covered by `hailctl batch` subcommands, use `hailctl curl` — it handles auth automatically:
+Prefer a native `hailctl` command when one exists. When it doesn't, `hailctl curl` calls any service endpoint and handles auth for you:
 
 ```bash
 # hailctl curl NAMESPACE SERVICE PATH [curl args]
-hailctl curl default batch /api/v1alpha/batches/1234
-hailctl curl my-namespace batch /api/v1alpha/billing_projects
-
-# Pass extra curl flags after the path
-hailctl curl default batch /api/v1alpha/batches -X GET
-hailctl curl default batch /api/v1alpha/batches/1234 -o output.json
+hailctl curl default ci /openapi.yaml -s -o ci-openapi.yaml   # extra curl flags go after the path
 ```
 
-### Discovering available endpoints
+### Discovering endpoints
 
-Each service exposes an OpenAPI spec. Fetch it to see all available endpoints before reaching for `hailctl curl`:
+Each service publishes an OpenAPI spec, which is the authoritative list of its endpoints (prefer it over any list in documentation):
 
 ```bash
 hailctl curl default batch /openapi.yaml
@@ -127,9 +130,11 @@ hailctl curl default batch-driver /openapi.yaml
 hailctl curl default monitoring /openapi.yaml
 ```
 
-The spec is the authoritative source — prefer it over any cached list of endpoints in documentation.
+Specs list mutating operations (`POST`, `DELETE`, ...) right next to read-only ones. `hailctl curl` sends a GET by default; make any other call only with the user's explicit go-ahead.
 
-**When adding a new endpoint**, update `openapi.yaml` in the same PR. The spec lives alongside the service code (e.g. `batch/openapi.yaml`).
+If you find yourself making the same `hailctl curl` call repeatedly, it may be worth adding a native command (see *Enhancing the hailctl CLI* below).
+
+**When adding a new endpoint**, update the service's `openapi.yaml` in the same PR. The specs are Jinja templates next to each service's other templates (e.g. `batch/batch/front_end/templates/openapi.yaml`, `ci/ci/templates/openapi.yaml`).
 
 **When an endpoint doesn't match the spec** (wrong path, missing params, incorrect response shape), fix the spec too — a drift between implementation and spec is a bug.
 
@@ -137,23 +142,15 @@ The spec is the authoritative source — prefer it over any cached list of endpo
 
 The `hailctl batch` CLI works against any namespace via `HAIL_DEFAULT_NAMESPACE`. Prefer it for inspection — see `/hail-batch` for the full command reference.
 
-For listing jobs within a batch, `hailctl curl` is often better than the Python client because the response is paginated and curl makes it easy to inspect pages and compose with `jq`:
+To list jobs within a batch, use `hailctl batch jobs` — it pages through results for you:
 
 ```bash
-# First page of jobs
-hailctl curl default batch /api/v1alpha/batches/BATCH_ID/jobs
-
-# Filter to failed jobs
-hailctl curl default batch "/api/v1alpha/batches/BATCH_ID/jobs?q=state%3DFailed"
-
-# Next page (use last_job_id from previous response)
-hailctl curl default batch "/api/v1alpha/batches/BATCH_ID/jobs?last_job_id=42"
-
-# Pipe through jq for readability
-hailctl curl default batch /api/v1alpha/batches/BATCH_ID/jobs | jq '.jobs[] | {job_id, state, exit_code}'
+hailctl batch jobs BATCH_ID --state bad              # failed or errored jobs
+hailctl batch jobs BATCH_ID --state live --limit 0   # everything still pending/running
+hailctl batch jobs BATCH_ID --name test_batch_db -o json | jq '.[] | {job_id, state, exit_code}'
 ```
 
-The response contains `jobs` (array) and `last_job_id` (present if more pages remain). Repeat with `?last_job_id=<value>` to page through.
+If you need the raw API, use `/api/v2alpha/.../jobs` (what the CLI uses). Its `q` filter takes newline-separated terms like `state=bad` or `exit_code=1`. Don't send that syntax to the v1alpha endpoints: v1 reads `key=value` as a job *attribute* match, so `state=failed` silently returns no jobs (v1 wants a bare word like `failed`).
 
 For anything the CLI can't reach (job attempts, raw DB state, worker-level details), drop into the Python client:
 
@@ -291,7 +288,7 @@ CI submits batches to the `ci` billing project. To investigate a CI build failur
 
 ## Enhancing the hailctl CLI
 
-If you hit a gap in the CLI during an investigation (e.g. there's no `hailctl batch jobs BATCH_ID` to list jobs within a batch — you currently need the Python client or `hailctl curl` for that), it may be worth adding the missing command. The CLI lives in `hail/python/hailtop/hailctl/` and is straightforward to extend.
+If you hit a gap in the CLI during an investigation (something you can only reach through the Python client or `hailctl curl`), it may be worth adding the missing command. The CLI lives in `hail/python/hailtop/hailctl/` and is straightforward to extend.
 
 That said, CLI additions should be a **separate PR** from whatever you're currently working on — note it as a follow-up rather than doing it now.
 
