@@ -3,12 +3,14 @@ package is.hail.variant
 import is.hail.TestUtils._
 import is.hail.backend.{ExecuteContext, HailStateManager}
 import is.hail.expr.ir.EmitFunctionBuilder
-import is.hail.io.reference.{FASTAReader, FASTAReaderConfig, LiftOver}
+import is.hail.io.reference.{FASTAReader, FASTAReaderConfig, IndexedFastaSequenceFile, LiftOver}
 import is.hail.scalacheck.{genLocus, genNonMissing}
 import is.hail.types.virtual.{TInterval, TLocus}
 import is.hail.utils._
 
 import scala.collection.immutable.ArraySeq
+
+import java.io.{ByteArrayInputStream, ByteArrayOutputStream, ObjectInputStream, ObjectOutputStream}
 
 import htsjdk.samtools.reference.ReferenceSequenceFileFactory
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -282,4 +284,77 @@ class ReferenceGenomeSuite {
         )
       }
     }
+
+  private def serialize(o: AnyRef): Array[Byte] = {
+    val bytes = new ByteArrayOutputStream()
+    using(new ObjectOutputStream(bytes))(_.writeObject(o))
+    bytes.toByteArray
+  }
+
+  private def roundTrip[A <: AnyRef](a: A): A =
+    using(new ObjectInputStream(new ByteArrayInputStream(serialize(a))))(_.readObject())
+      .asInstanceOf[A]
+
+  // Batch deserializes every closure in every task, so this bounds the per-task cost of shipping
+  // a state manager there.
+  @Test def testBuiltinReferencesSerializeSmall(): Unit = {
+    val size = serialize(HailStateManager(ReferenceGenome.builtinReferences())).length
+    assertTrue(size < 2048, s"serialized size $size")
+  }
+
+  @Test def testBuiltinLayoutResolvesToTheCache(): Unit = {
+    val grch38 = ReferenceGenome.builtinReferences()(ReferenceGenome.GRCh38)
+    assertTrue(roundTrip(grch38).layout eq ReferenceGenomeLayout.builtins(ReferenceGenome.GRCh38))
+  }
+
+  // A builtin is identified by identity with the cache, never by name.
+  @Test def testUserGenomeWithBuiltinNameSerializesInline(): Unit = {
+    val impostor = ReferenceGenome(
+      ReferenceGenome.GRCh38,
+      ArraySeq("chr2", "chr1", "chrX"),
+      Map("chr1" -> 10, "chr2" -> 20, "chrX" -> 30),
+      xContigs = Set("chrX"),
+      parInput = ArraySeq((Locus("chrX", 2), Locus("chrX", 5))),
+    )
+    val result = roundTrip(impostor)
+    assertTrue(result.layout ne ReferenceGenomeLayout.builtins(ReferenceGenome.GRCh38))
+    assertEq(result, impostor)
+    assertEq(result.contigs, ArraySeq("chr2", "chr1", "chrX"))
+    assertEq(result.getContigIndex("chr1"), 1)
+    assertEq(result.contigLength("chrX"), 30)
+    assertTrue(result.inXPar(Locus("chrX", 3)))
+    assertTrue(!result.inXPar(Locus("chrX", 6)))
+  }
+
+  @Test def testLiftoverAndSequenceSurviveRoundTrip(implicit ctx: ExecuteContext): Unit = {
+    val references = ReferenceGenome.builtinReferences()
+    val grch37 = references(ReferenceGenome.GRCh37)
+    grch37.addLiftover(
+      references(ReferenceGenome.GRCh38),
+      LiftOver(ctx.fs, getTestResource("grch37_to_grch38_chr20.over.chain.gz")),
+    )
+
+    // Qualified for the same reason as in testFasta.
+    val custom =
+      ReferenceGenome("test", ArraySeq("a", "b", "c"), Map("a" -> 25, "b" -> 15, "c" -> 10))
+    custom.addSequence(IndexedFastaSequenceFile(
+      ctx.fs,
+      ctx.fs.makeQualified(getTestResource("fake_reference.fasta")),
+      ctx.fs.makeQualified(getTestResource("fake_reference.fasta.fai")),
+    ))
+
+    val sm = roundTrip(HailStateManager(references + (custom.name -> custom)))
+    sm.referenceGenomes.values.foreach(_.heal(ctx.localTmpdir, ctx.fs))
+
+    val locus = Locus("20", 60001)
+    assertEq(
+      sm.referenceGenomes(ReferenceGenome.GRCh37).liftoverLocus(
+        ReferenceGenome.GRCh38,
+        locus,
+        0.95,
+      ),
+      grch37.liftoverLocus(ReferenceGenome.GRCh38, locus, 0.95),
+    )
+    assertEq(sm.referenceGenomes(custom.name).getSequence("c", 5, 10, 10), "GGATCCGTGC")
+  }
 }
