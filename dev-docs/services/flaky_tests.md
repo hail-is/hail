@@ -70,8 +70,8 @@ EOF
 Reading the table:
 - **Many distinct PRs** means the test is probably flaky. Many rows from **one PR** might mean that PR genuinely
   broke the test; treat with caution.
-- **A spike** (at least 3 in the last week, at 1.5x or more the rate of the 23 days before) points at a recent change in code, infrastructure or a
-  dependency. Check what merged around when it started.
+- **A spike** (at least 3 in the last week, at 1.5x or more the rate of the 23 days before) points at a recent
+  change in code, infrastructure or a dependency. Check what merged around when it started.
 - **`Error` rather than `Failed`** means the job didn't exit on its own: either the infrastructure failed (worker,
   preemption, image pull) or the job hit its timeout. Timeouts are a common cause of flakiness, so check the job's
   error for `timed out after` before blaming infrastructure.
@@ -178,12 +178,12 @@ Weigh each finding by its cost to the team, using what you already have:
 
 **Done when** you have a list of findings ordered by impact, each with its evidence and impact noted.
 
-### 5. Hand off: present the findings and ask what to do next
+### 5. Share the findings and agree next steps
 
-Present the ranked findings, each drafted as a work item, then stop and ask whoever requested the sweep what to do
-next: which findings to file (e.g. as GitHub issues), which to pick up now, and which to drop. Leave filing issues and
-starting fixes until they have chosen. Logs can contain credentials (e.g. test database passwords), so redact them
-from anything that will be posted publicly.
+Share the ranked findings, each drafted as a work item, with the team (or whoever asked for the sweep), and agree
+which to file (e.g. as GitHub issues), which to pick up now, and which to drop. File nothing and start no fixes until
+that is agreed. Logs can contain credentials (e.g. test database passwords), so redact them from anything that will
+be posted publicly.
 
 Draft each work item with:
 - **What:** the test or step, and its signature.
@@ -204,10 +204,7 @@ Also list the classes of failure you chose not to shortlist, with a rough count 
 failures confined to a single PR, one-off infrastructure blips, fallout already explained by another finding, or
 problems already being fixed in an open PR. This lets the requester check that nothing important was set aside.
 
-### 6. Suggest improvements for the next sweep
+### 6. Improve this runbook
 
-In the same report, suggest a few ways to make the next sweep faster or more accurate: changes to this runbook, or to
-the tooling and data behind it (e.g. a missing API field, CLI command or dashboard view). Write for a capable runner:
-offer the insight or hint that would have changed how this sweep went, and leave the mechanics to them. When the
-improvement is a small, concrete change with a big payoff (e.g. one extra pattern in a grep that would have caught a
-whole class of failures), suggest the exact change.
+If something would have made the sweep faster or more accurate, update this doc, or raise the gap in the tooling or
+data behind it (e.g. a missing API field, CLI command or dashboard view).

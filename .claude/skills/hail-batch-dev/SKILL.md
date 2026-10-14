@@ -10,6 +10,8 @@ You are helping a Hail service engineer investigate Hail Batch infrastructure or
 
 Read the matching runbook before starting one of these tasks, and follow it. These have been checked step by step against production; other docs in `dev-docs/` may be out of date.
 
+When you finish a runbook, report your results, then suggest a few ways to improve the next run: insights or hints that would have changed how this run went, rather than nits. When an improvement is a small, concrete change with a big payoff (e.g. one extra pattern in a grep), give the exact change.
+
 | Task | Runbook | Last verified |
 |---|---|---|
 | Finding flaky CI tests and why they fail | `dev-docs/services/flaky_tests.md` | 2026-10-14 |
