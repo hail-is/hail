@@ -290,6 +290,7 @@ def run_submit(args: Namespace) -> None:
         'HAIL_DEV_LOWER_ONLY': '1' if args.lower_only else None,
         'PYSPARK_SUBMIT_ARGS': '--driver-memory 6G pyspark-shell',
         'TMPDIR': '/io/tmp',
+        **dict(args.env),
     }
 
     random.shuffle(benchmarks)
@@ -339,6 +340,14 @@ def gt(x: int):
 
 nonnegative = gt(-1)
 nat = gt(0)
+
+
+def envvar(s: str) -> Tuple[str, str]:
+    name, sep, value = s.partition('=')
+    if not name or not sep:
+        raise ValueError(f'NAME=VALUE required, got {s}.')
+    return name, value
+
 
 if __name__ == '__main__':
     parser = ArgumentParser()
@@ -417,6 +426,13 @@ if __name__ == '__main__':
         help='fully-qualified benchmark name to skip. May be specified more than once.',
         action='append',
         default=None,
+    )
+    submit_p.add_argument(
+        '--env',
+        type=envvar,
+        help='environment variable to set in each benchmark job, as NAME=VALUE. May be specified more than once.',
+        action='append',
+        default=[],
     )
     submit_p.add_argument('--lower', action='store_true')
     submit_p.add_argument('--lower-only', action='store_true')

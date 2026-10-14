@@ -579,9 +579,13 @@ update-hail-repl: wheel
 
 HAIL_BENCHMARK_RESULTS_PREFIX ?= "gs://hail-benchmarks-2/$(USER)/$(HAIL_VERSION)"
 HAIL_DEV_IMAGE ?= ""
+# extra arguments to `benchmark_in_batch.py submit`, for example
+# HAIL_BENCHMARK_ARGS='--label flag-on --env HAIL_DEV_USE_UNSTABLE_ENCODINGS=1'
+HAIL_BENCHMARK_ARGS ?=
 .PHONY: benchmark
 benchmark:
 	$(HAIL_PYTHON3) scripts/benchmark_in_batch.py submit \
+		$(HAIL_BENCHMARK_ARGS) \
 		$(HAIL_DEV_IMAGE) \
 		$(HAIL_BENCHMARK_RESULTS_PREFIX) \
 		$(HAIL_VERSION)
