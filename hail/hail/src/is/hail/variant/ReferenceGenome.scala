@@ -9,7 +9,7 @@ import is.hail.expr.{
 import is.hail.expr.ir.RelationalSpec
 import is.hail.io.fs.FS
 import is.hail.io.reference.{
-  FASTAReader, FASTAReaderConfig, FastaSequenceIndex, IndexedFastaSequenceFile, LiftOver,
+  FASTAReader, FASTAReaderConfig, FastaSequenceIndex, IndexedFastaSequenceFile,
 }
 import is.hail.types._
 import is.hail.types.virtual.{TLocus, Type}
@@ -24,8 +24,8 @@ import java.io.{FileNotFoundException, InputStream}
 import org.json4s.{DefaultFormats, Extraction, Formats, JValue}
 import org.json4s.jackson.{JsonMethods, Serialization}
 
-/** A reference genome's [[ReferenceGenomeLayout]], together with the liftovers and reference
-  * sequence a session has attached to it.
+/** A reference genome's [[ReferenceGenomeLayout]], together with the reference sequence a session
+  * has attached to it.
   */
 class ReferenceGenome(val layout: ReferenceGenomeLayout) extends Serializable {
 
@@ -286,34 +286,7 @@ class ReferenceGenome(val layout: ReferenceGenomeLayout) extends Serializable {
     fastaReaderCfg = null
   }
 
-  private[this] val liftovers: mutable.Map[String, LiftOver] =
-    mutable.Map.empty
-
-  def addLiftover(destRef: ReferenceGenome, liftOver: LiftOver): Unit = {
-    if (name == destRef.name)
-      fatal(s"Destination reference genome cannot have the same name as this reference '$name'")
-    if (liftovers.contains(destRef.name))
-      fatal(
-        s"LiftOver already exists for source reference '$name' and destination reference '${destRef.name}'."
-      )
-
-    liftOver.checkChainFile(this, destRef)
-    liftovers += destRef.name -> liftOver
-  }
-
-  def removeLiftover(destRGName: String): Unit =
-    liftovers -= destRGName
-
-  def liftoverLocus(destRGName: String, l: Locus, minMatch: Double): (Locus, Boolean) =
-    liftovers(destRGName).queryLocus(l, minMatch)
-
-  def liftoverLocusInterval(destRGName: String, interval: Interval, minMatch: Double)
-    : (Interval, Boolean) =
-    liftovers(destRGName).queryInterval(interval, minMatch)
-
   def heal(tmpdir: String, fs: FS): Unit = synchronized {
-    liftovers.values.foreach(_.restore(fs))
-    // add sequence
     if (fastaFile != null) {
       fastaFile.restore(fs)
       val fastaPath = fs.parseUrl(fastaFile.path).toString

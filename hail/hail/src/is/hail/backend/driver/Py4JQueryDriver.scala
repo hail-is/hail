@@ -14,7 +14,7 @@ import is.hail.expr.ir.defs.{EncodedLiteral, GetFieldByIdx}
 import is.hail.expr.ir.functions.IRFunctionRegistry
 import is.hail.expr.ir.lowering.IrMetadata
 import is.hail.io.fs._
-import is.hail.io.reference.{IndexedFastaSequenceFile, LiftOver}
+import is.hail.io.reference.{IndexedFastaSequenceFile, Liftover}
 import is.hail.sparkextras.implicits._
 import is.hail.types.physical.PStruct
 import is.hail.types.virtual.{TArray, TInterval}
@@ -45,6 +45,7 @@ final class Py4JQueryDriver(backend: Backend) extends Closeable with Logging {
   private[this] val flags: HailFeatureFlags = HailFeatureFlags.fromEnv()
   private[this] val hcl = new HailClassLoader(getClass.getClassLoader)
   private[this] val references = mutable.Map(ReferenceGenome.builtinReferences().toSeq: _*)
+  private[this] val liftovers = mutable.Map.empty[(String, String), Liftover]
   private[this] val blockMatrixCache = mutable.Map[String, linalg.BlockMatrix]()
   private[this] val compiledCodeCache = new Cache[CompileCacheKey, CompiledFunction[_]](50)
   private[this] val irCache = mutable.Map[Int, BaseIR]()
@@ -273,16 +274,23 @@ final class Py4JQueryDriver(backend: Backend) extends Closeable with Logging {
   def pyRemoveReference(name: String): Unit =
     executor.run(removeReference(name))
 
+  // Compiled code holds the liftovers it uses, so adding or removing a liftover clears the compile
+  // cache. Removing a reference genome drops its liftovers without clearing it: Python refuses to
+  // lift over without a liftover, so a stale entry is never reached.
   def pyAddLiftover(name: String, chainFile: String, destRGName: String): Unit =
     executor.run {
-      references(name).addLiftover(
-        references(destRGName),
-        LiftOver(tmpFileManager.fs, chainFile),
+      Liftover.addFatalOnCollision(
+        liftovers,
+        Liftover(tmpFileManager.fs, references(name), references(destRGName), chainFile),
       )
+      compiledCodeCache.clear()
     }
 
   def pyRemoveLiftover(name: String, destRGName: String): Unit =
-    executor.run(references(name).removeLiftover(destRGName))
+    executor.run {
+      liftovers -= ((name, destRGName))
+      compiledCodeCache.clear()
+    }
 
   def parse_blockmatrix_ir(s: String): BlockMatrixIR =
     withExecuteContext(selfContainedExecution = false) { ctx =>
@@ -333,8 +341,11 @@ final class Py4JQueryDriver(backend: Backend) extends Closeable with Logging {
     IRFunctionRegistry.clearUserFunctions()
   }
 
-  private[this] def removeReference(name: String): Unit =
+  // A reference genome's liftovers go with it, as Python's do.
+  private[this] def removeReference(name: String): Unit = {
     references -= name
+    liftovers.filterInPlace { case ((source, _), _) => source != name }
+  }
 
   private[this] def withExecuteContext[T](
     selfContainedExecution: Boolean = true
@@ -349,6 +360,7 @@ final class Py4JQueryDriver(backend: Backend) extends Closeable with Logging {
           localTmpdir = localTmpdir,
           backend = backend,
           references = references.toMap,
+          liftovers = liftovers.toMap,
           fs = tmpFileManager.fs,
           tempFileManager =
             if (!selfContainedExecution) NonOwningTempFileManager(tmpFileManager)

@@ -10,6 +10,7 @@ import is.hail.expr.ir.defs.EncodedLiteral
 import is.hail.expr.ir.orderings.{CodeOrdering, StructOrdering}
 import is.hail.io.{BufferSpec, InputBuffer, TypedCodecSpec}
 import is.hail.io.fs.FS
+import is.hail.io.reference.Liftover
 import is.hail.types.VirtualTypeWithReq
 import is.hail.types.physical.{PCanonicalTuple, PType}
 import is.hail.types.physical.stypes._
@@ -62,6 +63,27 @@ class EmitModuleBuilder(val ctx: ExecuteContext, val modb: ModuleBuilder) {
 
   def referenceGenomeFields(): IndexedSeq[StaticFieldRef[ReferenceGenome]] =
     ArraySeq.sortedBy(rgContainers)(_._1).map(_._2)
+
+  private val liftoverContainers: mutable.Map[(String, String), StaticFieldRef[Liftover]] =
+    mutable.Map.empty
+
+  def hasLiftovers: Boolean = liftoverContainers.nonEmpty
+
+  /** The session's liftover from `source` to `dest`, which [[Compiled]] ships with this module. */
+  def getLiftover(source: String, dest: String): Value[Liftover] = {
+    if (!ctx.liftovers.contains((source, dest)))
+      fatal(s"No liftover from reference genome '$source' to '$dest' has been added.")
+    liftoverContainers.getOrElseUpdate(
+      (source, dest),
+      modb.genStaticField[Liftover](s"liftover_${source}_to_$dest"),
+    )
+  }
+
+  def liftovers(): IndexedSeq[Liftover] =
+    ArraySeq.sorted(liftoverContainers.keys).map(ctx.liftovers)
+
+  def liftoverFields(): IndexedSeq[StaticFieldRef[Liftover]] =
+    ArraySeq.sortedBy(liftoverContainers)(_._1).map(_._2)
 
   var _rgMapField: StaticFieldRef[Map[String, ReferenceGenome]] = null
 
@@ -125,6 +147,9 @@ trait WrappedEmitModuleBuilder {
     emodb.genEmitClass[C](baseName)
 
   def getReferenceGenome(rg: String): Value[ReferenceGenome] = emodb.getReferenceGenome(rg)
+
+  def getLiftover(source: String, dest: String): Value[Liftover] =
+    emodb.getLiftover(source, dest)
 }
 
 trait WrappedEmitClassBuilder[C] extends WrappedEmitModuleBuilder {
@@ -800,6 +825,20 @@ final class EmitClassBuilder[C](val emodb: EmitModuleBuilder, val cb: ClassBuild
     }
   }
 
+  def makeAddLiftovers(): Unit = {
+    cb.addInterface(typeInfo[FunctionWithLiftovers].iname)
+    val mb = newEmitMethod(
+      "addLiftovers",
+      FastSeq[ParamType](typeInfo[Array[Liftover]]),
+      typeInfo[Unit],
+    )
+    mb.voidWithBuilder { cb =>
+      val liftovers = mb.getCodeParam[Array[Liftover]](1)
+      for ((fld, i) <- emodb.liftoverFields().zipWithIndex)
+        cb.assign(fld, liftovers(i))
+    }
+  }
+
   lazy val threefryRandomEngine: Value[ThreefryRandomEngine] = {
     val rngField = genFieldThisRef[ThreefryRandomEngine]("threefry")
     cb.ctor.emitInit {
@@ -836,6 +875,12 @@ final class EmitClassBuilder[C](val emodb: EmitModuleBuilder, val cb: ClassBuild
       else
         null
 
+      val liftovers: Array[Liftover] = if (emodb.hasLiftovers) {
+        makeAddLiftovers()
+        emodb.liftovers().toArray
+      } else
+        null
+
       val nSerializedAggs = _nSerialized
 
       val useBackend = _backendField != null
@@ -868,6 +913,10 @@ final class EmitClassBuilder[C](val emodb: EmitModuleBuilder, val cb: ClassBuild
             f.asInstanceOf[FunctionWithLiterals].addAndDecodeLiterals(literalsBc.value)
           if (hasReferences)
             f.asInstanceOf[FunctionWithReferences].addReferenceGenomes(references)
+          if (liftovers != null) {
+            liftovers.foreach(_.restore(fs))
+            f.asInstanceOf[FunctionWithLiftovers].addLiftovers(liftovers)
+          }
           if (nSerializedAggs != 0)
             f.asInstanceOf[FunctionWithAggRegion].setNumSerialized(nSerializedAggs)
           f
@@ -1143,6 +1192,10 @@ trait FunctionWithTaskContext {
 
 trait FunctionWithReferences {
   def addReferenceGenomes(rgs: Array[ReferenceGenome]): Unit
+}
+
+trait FunctionWithLiftovers {
+  def addLiftovers(liftovers: Array[Liftover]): Unit
 }
 
 trait FunctionWithPartitionRegion {
