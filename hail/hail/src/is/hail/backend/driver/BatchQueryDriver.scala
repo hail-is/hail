@@ -10,7 +10,7 @@ import is.hail.collection.ImmutableMap
 import is.hail.collection.implicits.toRichIterable
 import is.hail.expr.ir.lowering.IrMetadata
 import is.hail.io.fs.{CloudStorageConfig, FS, RequesterPaysConfig, RouterFS}
-import is.hail.io.reference.{IndexedFastaSequenceFile, LiftOver}
+import is.hail.io.reference.{IndexedFastaSequenceFile, Liftover}
 import is.hail.services._
 import is.hail.services.oauth2.CloudCredentials
 import is.hail.types.virtual.Kinds._
@@ -18,6 +18,7 @@ import is.hail.utils._
 import is.hail.variant.ReferenceGenome
 
 import scala.annotation.switch
+import scala.collection.mutable
 
 import java.io.OutputStream
 import java.nio.charset.StandardCharsets
@@ -36,6 +37,7 @@ object BatchQueryDriver extends HttpLikeRpc with Logging {
     fs: FS,
     tmpdir: String,
     references: Map[String, ReferenceGenome],
+    liftovers: Map[(String, String), Liftover],
     outputUrl: String,
     action: Int,
     payload: JValue,
@@ -105,6 +107,7 @@ object BatchQueryDriver extends HttpLikeRpc with Logging {
           localTmpdir = "file:///tmp",
           backend = env.backend,
           references = env.references,
+          liftovers = env.liftovers,
           fs = env.fs,
           tempFileManager = new OwningTempFileManager(env.fs),
           theHailClassLoader = env.hcl,
@@ -175,9 +178,13 @@ object BatchQueryDriver extends HttpLikeRpc with Logging {
         rpcConfig.custom_references.map(ReferenceGenome.fromJSON),
       )
 
-    for ((sourceGenome, liftOversForSource) <- rpcConfig.liftovers)
-      for ((destGenome, chainFile) <- liftOversForSource)
-        references(sourceGenome).addLiftover(references(destGenome), LiftOver(fs, chainFile))
+    val liftovers = mutable.Map.empty[(String, String), Liftover]
+    for ((sourceGenome, liftoversForSource) <- rpcConfig.liftovers)
+      for ((destGenome, chainFile) <- liftoversForSource)
+        Liftover.addFatalOnCollision(
+          liftovers,
+          Liftover(fs, references(sourceGenome), references(destGenome), chainFile),
+        )
 
     for ((rg, seq) <- rpcConfig.sequences)
       references(rg).addSequence(IndexedFastaSequenceFile(fs, seq.fasta, seq.index))
@@ -204,6 +211,7 @@ object BatchQueryDriver extends HttpLikeRpc with Logging {
           fs,
           rpcConfig.tmp_dir,
           references,
+          liftovers.toMap,
           outputURL,
           action,
           payload,
