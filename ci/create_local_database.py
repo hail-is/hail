@@ -48,6 +48,8 @@ database = {database_name}
         for i, m in enumerate(migrations):
             await migrate(database_name, db, mysql_cnf.name, i, m)
 
+    await db.async_close()
+
 
 def read_migrations_from_build_yaml(service: str) -> List[dict]:
     with open('build.yaml', 'r', encoding='utf-8') as f:
