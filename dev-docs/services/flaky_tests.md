@@ -165,12 +165,16 @@ a cause, and the batch/job IDs that show it. Stop digging here; root-causing a f
 ### 4. Rank the findings
 
 Weigh each finding by its cost to the team, using what you already have:
-- **Retries caused:** how many rows it accounts for, and across how many PRs.
-- **Time lost:** a run that times out after an hour costs far more than one that fails in a minute (`duration` in
-  `hailctl batch job`).
+- **Retries caused:** how many retries it accounts for, and across how many PRs. This is the main cost: each retry
+  means a new CI batch (a whole build, or a tactical rebuild of the failed steps), and the PR waits for it. A flake
+  that fails within a minute still costs that whole rebuild, so judge it by its retries, not its own runtime.
+- **Time to failure:** a secondary cost. A job that runs for an hour before failing (`duration` in
+  `hailctl batch job`) delays the retry by that hour.
 - **Trend:** steady, spiking, or fading out (perhaps already fixed).
-- **Already tracked?** Search open PRs and issues for the test or step name (e.g. `gh pr list --search <name>`) so
-  the work item can link to them instead of duplicating effort.
+- **Already tracked?** Search issues and PRs, both open and closed, for the test or step name (e.g.
+  `gh search issues --repo hail-is/hail <name>` and `gh search prs --repo hail-is/hail <name>`). A fix merged last
+  week won't have cleared the earlier failures from the 30-day history, and an open issue or PR may already be
+  tracking the problem. Link them from the work item instead of duplicating effort.
 
 **Done when** you have a list of findings ordered by impact, each with its evidence and impact noted.
 
@@ -184,7 +188,9 @@ from anything that will be posted publicly.
 Draft each work item with:
 - **What:** the test or step, and its signature.
 - **Evidence:** the batch/job IDs, the PRs affected, and when it started.
-- **Impact:** retries caused and time lost.
+- **Impact:** retries caused, PRs affected, and any extra delay from slow failures.
+- **Already tracked:** related issues and PRs (open or closed, e.g. a recent fix), or a note that you searched and
+  found none.
 - **Hypothesis:** your best guess at the kind of problem (flaky test, timeout too tight, infrastructure, fallout from
   an upstream failure), and how confident you are.
 - **Starting points** for whoever picks it up: the test's source (`git grep <test name>`), its step in `build.yaml`
