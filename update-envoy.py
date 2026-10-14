@@ -6,19 +6,20 @@ import urllib.request
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).parent
-DEPLOYMENT_FILES = [
+ENVOY_IMAGE_FILES = [
     REPO_ROOT / 'gateway/deployment.yaml',
     REPO_ROOT / 'internal-gateway/deployment.yaml',
+    REPO_ROOT / 'docker/third-party/images.txt',
 ]
 ENVOY_IMAGE_RE = re.compile(r'envoyproxy/envoy:v(?P<series>\d+\.\d+)\.(?P<patch>\d+)')
 
 
 def current_envoy_version() -> tuple[str, str]:
-    """Return (series, full_version) parsed from the first deployment file that contains an envoy image tag."""
-    for f in DEPLOYMENT_FILES:
+    """Return (series, full_version) parsed from the first file that contains an envoy image tag."""
+    for f in ENVOY_IMAGE_FILES:
         if m := ENVOY_IMAGE_RE.search(f.read_text()):
             return m.group('series'), f"{m.group('series')}.{m.group('patch')}"
-    raise SystemExit('ERROR: Could not find envoy version in deployment files')
+    raise SystemExit('ERROR: Could not find envoy version in envoy image files')
 
 
 def latest_patch_release(series: str) -> str:
@@ -29,7 +30,6 @@ def latest_patch_release(series: str) -> str:
         headers={'Accept': 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28'},
     )
     with urllib.request.urlopen(req, timeout=30) as r:  # nosec B310
-
         releases = json.loads(r.read())
 
     series_re = re.compile(rf'^v{re.escape(series)}\.(\d+)$')
@@ -46,10 +46,10 @@ def latest_patch_release(series: str) -> str:
 
 
 def update_files(old_version: str, new_version: str) -> None:
-    """Replace the envoy image tag in all deployment files."""
+    """Replace the envoy image tag in all envoy image files."""
     old_image = f'envoyproxy/envoy:v{old_version}'
     new_image = f'envoyproxy/envoy:v{new_version}'
-    for f in DEPLOYMENT_FILES:
+    for f in ENVOY_IMAGE_FILES:
         updated = f.read_text().replace(old_image, new_image)
         f.write_text(updated)
         print(f'  Updated {f.relative_to(REPO_ROOT)}')

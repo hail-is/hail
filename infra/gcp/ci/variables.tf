@@ -28,9 +28,10 @@ variable "ci_email" {
   type = string
 }
 
-variable "container_registry_id" {
-  type = string
-}
+# TODO: Refactor to support GAR. GCR is replaced as of March 2025.
+# variable "container_registry_id" {
+#   type = string
+# }
 
 variable "github_context" {
   type = string

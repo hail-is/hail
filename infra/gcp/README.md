@@ -9,13 +9,12 @@ infrastructure.
 
    ```
    gcloud config set project <gcp-project-id>
-   gcloud config set compute/zone <gcp-zone>
    ```
 
 - Enable the GCP services needed by Hail:
 
    ```
-   gcloud services enable \
+    gcloud services enable \
        container.googleapis.com \
        compute.googleapis.com \
        cloudkms.googleapis.com \
@@ -30,18 +29,22 @@ infrastructure.
        iam.googleapis.com \
        artifactregistry.googleapis.com \
        cloudbilling.googleapis.com
+
+    gcloud config set compute/zone <gcp-zone>
    ```
 
-- Delete the default network if it exists. Enabling the networking
-  API creates it.
+- Delete the default network if it exists. Enabling the networking API creates it.
+  - Note: This didn't seem to happen 9/24/2026. No network needed to be deleted.
 
 - Determine a domain name for the deployment. We will use it now and register it with a DNS provider later.
 
-- Go to the Google Cloud console, API & Services.
-  - Configure the consent screen.
-    - You can probably leave most fields on the first page empty. Give it a sensible name and management email.
+- Go to the Google Cloud console / API & Services / OAuth consent screen
+  - Create a new app on the Overview tab.
+  - Configure the branding tab.
+    - Give it a sensible name and management email.
+  - Under Data Access
     - Add the scope: `../auth/userinfo.email`.
-  - Back in Credentials, create an OAuth client ID of type `Web application`. Authorize the redirect URIs:
+  - Under clients, create an OAuth client ID of type `Web application`. Authorize the redirect URIs:
     - `https://auth.<domain>/oauth2callback`
     - `http://127.0.0.1/oauth2callback`
   - Download the client secret as `/tmp/auth_oauth2_client_secret.json`.
@@ -65,7 +68,8 @@ export GCP_PROJECT=<gcp project name>
 
    ```
    # organization_domain is a string that is the domain of the organization
-   # E.g. "hail.is"
+   # E.g. "hail.is".
+   # Used during SSO to validate the user emails belong to this domain.
    organization_domain = "<domain>"
 
    # The GitHub organization hosting your Hail Batch repository, e.g. "hail-is".
@@ -101,11 +105,8 @@ export GCP_PROJECT=<gcp project name>
 
    gcp_location = "<gcp-region>"
 
+   # The domain name for the deployment (eg "hail.is", "sandbox.hail.is")
    domain = "<domain>"
-
-   # If set to true, pull the base ubuntu image from Artifact Registry.
-   # Otherwise, assumes GCR.
-   use_artifact_registry = true
 
    # Optional: Enable master authorized networks for GKE cluster security
    # If not set or set to false, the cluster will be accessible from anywhere
@@ -256,10 +257,10 @@ rm -rf .terraform terraform.lock.hcl terraform.tfstate terraform.tfstate.backup
 
    Register the predetermined `domain` with a DNS registry.
 
-   The IP address to use will be available in GCP cloud console under `Network Services -> Load balancing`.
-   Click through to the external load balancer and find its IP address.
+   The IP address will be created already in the global-config k8s secret. Use `source devbin/functions.sh` and 
+   `download-secret global-config` to download the secret. Then `cat contents/ip` to see the IP address.
 
-   Add two records with the same IP address:
+   Add two records pointing at the same IP address:
     - `<domain>`
     - `*.<domain>`
 
@@ -321,10 +322,15 @@ gcloud compute instances create bootstrap-vm \
     --provisioning-model=STANDARD \
     --service-account=<TERRAFORM-SERVICE-ACCOUNT> \
     --scopes=https://www.googleapis.com/auth/cloud-platform \
-    --create-disk=auto-delete=yes,boot=yes,device-name=instance-20240716-184710,image=projects/ubuntu-os-cloud/global/images/ubuntu-2404-noble-amd64-v20250606,mode=rw,size=200,type=projects/hail-vdc-dgoldste/zones/us-central1-a/diskTypes/pd-balanced
+    --create-disk=auto-delete=yes,boot=yes,device-name=instance-20240716-184710,image=projects/ubuntu-os-cloud/global/images/ubuntu-2404-noble-amd64-v20260918,mode=rw,size=200,type=projects/<PROJECT>/zones/us-central1-a/diskTypes/pd-balanced
 ```
 
 #### Cloud VM commands
+
+Temporarily allow SSH to the VM from the internet.
+```
+gcloud compute firewall-rules create allow-ssh-from-internet --allow=tcp:22 --source-ranges=<YOUR-IP-ADDRESS>/32
+```
 
 We assume the rest of the commands are run on the VM. You will need to connect to this instance with ssh.
 You can copy a `gcloud compute ssh` command to do this directly from the VM details page in the cloud console,
@@ -334,7 +340,24 @@ or construct it manually via the gcloud CLI. It will look something like:
 gcloud compute ssh --zone "us-central1-a" "<VM-NAME>" --project "<PROJECT>"
 ```
 
+Before doing anything else on the VM, switch to the root user:
+
+```
+sudo su -
+```
+
 ##### Prerequisites
+
+- Create a Python virtual environment and activate it on login. Ubuntu 24.04 won't allow `pip install`
+  into the system Python, and `install_bootstrap_dependencies.sh` (below) pip-installs into whichever
+  `python3` is active:
+
+  ```
+  apt install -y python3.12-venv
+  python3.12 -m venv ~/.venv
+  echo 'source ~/.venv/bin/activate' >> ~/.profile
+  source ~/.venv/bin/activate
+  ```
 
 - If necessary, install `gke-gcloud-auth-plugin`:
 
@@ -392,14 +415,12 @@ gcloud compute ssh --zone "us-central1-a" "<VM-NAME>" --project "<PROJECT>"
 
 - Deploy unmanaged resources by running
 
-> [!WARNING]
-> If using Google Artifact Registry, the kubernetes system user (called something like `<ID>-compute@developer.gserviceaccount.com`)
-> will need to be granted read permission on the registry:
-> `gcloud artifacts repositories add-iam-policy-binding hail --location=us-central1 --member=serviceAccount:<ID>-compute@developer.gserviceaccount.com --role="roles/artifactregistry.reader"`
-
   ```
   ./bootstrap.sh deploy_unmanaged
   ```
+
+  Note: Sometimes the letsencrypt step fails (unable to connect to the services). This might be transient. Comment out the other deploy_unmanaged steps in bootstrap_utils.sh and try again
+  before doing any deeper debugging.
 
 - Create the batch worker VM image. Run:
 
@@ -424,6 +445,12 @@ gcloud compute ssh --zone "us-central1-a" "<VM-NAME>" --project "<PROJECT>"
   ./bootstrap.sh bootstrap $GITHUB_ORGANIZATION/hail:<BRANCH> deploy_batch
   ```
 
+Troubleshooting:
+
+  - If the docker pull fails because it's missing `...:cache` images
+    - It might be because it's been a few days since the images were built and the local cache has expired.
+    - Workaround: manually add `cache` tags in the artifact registry to `hail-buildkit`, `ci-utils` and `batch-worker` images
+
 - Deploy the gateway: run `make -C $HAIL/gateway envoy-xds-config deploy NAMESPACE=default`.
 
 - Create the initial (developer) user.
@@ -436,6 +463,11 @@ gcloud compute ssh --zone "us-central1-a" "<VM-NAME>" --project "<PROJECT>"
 
 > [!NOTE]
 > Troubleshooting this step:
+> [ Comment from 2026 ]
+> This should now be resolved by a change in bootstrap.py but it was too late to test for real. So
+> the comment below is left for context, just in case.
+>
+> [ Comment from 2024 ]
 > When I ran this step (perhaps because I had to log in and out of my cloud VM a couple of times), the
 > hailctl command was not properly authenticating and the create_initial_user step failed. To make it work, I had to:
 >   - Edit the $HAIL/build.yaml file
@@ -448,3 +480,8 @@ gcloud compute ssh --zone "us-central1-a" "<VM-NAME>" --project "<PROJECT>"
 ## Remove the cloud VM
 
 - Once the deployment is complete, you can remove the cloud VM in the Google cloud console.
+- Remove the temporary firewall rule:
+
+```
+gcloud compute firewall-rules delete allow-ssh-from-internet
+```

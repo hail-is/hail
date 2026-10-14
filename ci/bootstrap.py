@@ -10,7 +10,7 @@ import kubernetes_asyncio.client
 import kubernetes_asyncio.config
 
 from ci.build import BuildConfiguration, Code
-from ci.environment import KUBERNETES_SERVER_URL, STORAGE_URI
+from ci.environment import DEFAULT_NAMESPACE, DOMAIN, KUBERNETES_SERVER_URL, STORAGE_URI
 from ci.github import clone_or_fetch_script
 from ci.utils import generate_token
 from gear import K8sCache
@@ -104,6 +104,11 @@ class LocalBatchBuilder:
 
         os.makedirs(f'{root}/shared')
 
+        # Mirror what the batch worker provides to every job: a deploy config and the identity provider.
+        os.makedirs(f'{root}/deploy-config')
+        with open(f'{root}/deploy-config/deploy-config.json', 'w', encoding='utf-8') as f:
+            json.dump({'location': 'external', 'default_namespace': DEFAULT_NAMESPACE, 'domain': DOMAIN}, f)
+
         prefix = f'{STORAGE_URI}/build/{batch_token}'
 
         for j in self._jobs:
@@ -145,8 +150,8 @@ class LocalBatchBuilder:
                     f'{job_root}/io:/io',
                     '--entrypoint',
                     '/usr/bin/env',
-                    'python3',
                     BATCH_WORKER_IMAGE,
+                    'python3',
                     '-m',
                     'hailtop.aiotools.copy',
                     json.dumps(None),
@@ -158,9 +163,14 @@ class LocalBatchBuilder:
                 input_ok = True
 
             if input_ok:
-                mount_options = ['-v', f'{job_root}/io:/io']
+                mount_options = ['-v', f'{job_root}/io:/io', '-v', f'{root}/deploy-config:/deploy-config']
 
-                env_options = ['-e', 'GOOGLE_APPLICATION_CREDENTIALS=/gsa-key/key.json']
+                env_options = [
+                    '-e',
+                    'GOOGLE_APPLICATION_CREDENTIALS=/gsa-key/key.json',
+                    '-e',
+                    'HAIL_IDENTITY_PROVIDER_JSON={"idp": "Google"}',
+                ]
                 if j._env:
                     for key, value in j._env.items():
                         env_options.extend(['-e', f'{key}={value}'])
@@ -285,8 +295,8 @@ users:
                         f'{job_root}/io:/io',
                         '--entrypoint',
                         '/usr/bin/env',
-                        'python3',
                         BATCH_WORKER_IMAGE,
+                        'python3',
                         '-m',
                         'hailtop.aiotools.copy',
                         json.dumps(None),
