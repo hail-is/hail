@@ -5,6 +5,10 @@ Runbook for finding flaky CI tests and working out why they fail.
 When someone clicks "retry" on a PR, CI records every `Failed` or `Error` job in that PR's batch to the
 `retried_tests` table. A test that keeps turning up there across many different PRs is probably flaky.
 
+The goal of a sweep is a **ranked list of findings**, each written up as a work item with its evidence. Working out
+the root cause of each finding and fixing it is downstream work, done per item. Keep the sweep itself broad and
+shallow: enough digging to tell findings apart and weigh them, no more.
+
 ## Quick look: the dashboard
 
 [ci.hail.is/flaky_tests](https://ci.hail.is/flaky_tests) (also under "Flaky Tests" in the CI menu) shows the same
@@ -39,7 +43,7 @@ Each row has `id`, `batch_id`, `job_id`, `job_name`, `state`, `exit_code`, `pr_n
 
 **Done when** the loop exits with `has_more` false and `retried_tests.jsonl` holds one row per line.
 
-### 2. Rank: consistently high, or recently spiking
+### 2. Triage by job: what is noisy, and what fails together
 
 ```bash
 python3 - retried_tests.jsonl <<'EOF'
@@ -93,74 +97,87 @@ Reading the table:
   jq -s -r 'group_by(.batch_id)[] | select(length==1) | .[0] | "\(.job_name) \(.state) batch=\(.batch_id) job=\(.job_id) PR#\(.pr_number)"' retried_tests.jsonl | sort
   ```
 
-**Done when** you have a shortlist of candidates: tests that are high or spiking, and spread across several PRs.
+Job names are not tests: one job can be a shard running many tests, and one failure can cascade into several jobs.
+This step only tells you where to look.
 
-### 3. Dig into individual runs
+**Done when** you have a shortlist of jobs worth a closer look (high, spiking, or spread across several PRs) and know
+which failures are likely fallout from something upstream.
 
-Start by printing a one-line **signature** for every run of a candidate. Seeing all the runs side by side shows
-patterns much more clearly than checking them one at a time. This loop is written for bash:
+### 3. Turn runs into findings
+
+A **signature** is a one-line summary of why a run failed: which test, and the cause (the failing assertion, the
+error, the timeout). Pulling a signature for every run of the shortlisted jobs, and grouping runs that share one,
+turns "this job fails a lot" into **findings**: a specific test or step, failing for a specific reason, in these runs.
+Seeing the runs side by side is what makes patterns visible; checking runs one at a time rarely does.
+
+Where to find a signature:
+- **`Failed` runs:** the test's log (`hailctl batch log BATCH_ID JOB_ID --container main`). Strip ANSI colour codes
+  first (`sed 's/\x1b\[[0-9;]*m//g'`). For pytest, the test ID is on the `FAILED path::test` summary line and the
+  cause on the first `E   ` line (the summary line truncates it). For Scala/JVM tests, look for
+  `Test is.hail... failed:` lines.
+- **`Error` runs:** the job's status (`hailctl batch job BATCH_ID JOB_ID -o json`). The cause is usually the last line
+  of a container's `error`, e.g. `timed out after 300s`; note the `worker` too, since a single bad worker shows up
+  as a cluster. If `worker` is null the job never got a container, and the batch-driver's reason is in the top-level
+  `status.error`. Treat these as infrastructure, not the test.
+
+For example, this bash loop prints a signature per run for one job (change the `select` to cover more):
 
 ```bash
-NAME=test_batch_invariants   # the candidate's job_name
 ERROR_SIG='.[0] | "worker=\(.status.worker) " + ((([.status.container_statuses // {} | to_entries[] | .value.error // empty] + [.status.error // empty]) | .[0] // "-") | split("\n") | map(select(length>0)) | last)'
-jq -r --arg n "$NAME" 'select(.job_name == $n) | "\(.batch_id) \(.job_id) \(.state)"' retried_tests.jsonl |
-while read -r B J STATE; do
+jq -r 'select(.job_name == "test_batch_1") | "\(.batch_id) \(.job_id) \(.job_name) \(.state)"' retried_tests.jsonl |
+while read -r B J NAME STATE; do
   if [ "$STATE" = Error ]; then
     SIG=$(hailctl batch job "$B" "$J" -o json | jq -r "$ERROR_SIG")
   else
     SIG=$(hailctl batch log "$B" "$J" --container main | sed 's/\x1b\[[0-9;]*m//g' \
-      | grep -m1 -E '^E +[^ ]|\] Test is\.hail\..* failed:|^(FAILED|ERROR) ')
+      | grep -E '^E +[^ ]|\] Test is\.hail\..* failed:|^(FAILED|ERROR) ' | head -3 | tr '\n' ' ')
   fi
-  echo "$B/$J $STATE: ${SIG:-(no summary line found; read the log)}"
+  echo "$B/$J $NAME $STATE: ${SIG:-(no summary line found; read the log)}"
 done
 ```
 
-What the signature shows:
-- **`Failed` runs:** the first failure line of the test's log, with ANSI colour codes stripped. For pytest that is
-  the first `E   ` line, which holds the actual assertion (the `FAILED` summary line truncates it). For Scala/JVM
-  tests it is the `Test is.hail... failed:` line.
-- **`Error` runs:** the worker, plus the last line of the error, e.g. `ContainerTimeoutError: timed out after 300s`.
-  Printing the worker makes a single bad worker (e.g. a full disk) easy to spot.
-- **`Error` runs with `worker=null`:** the job never got a container. The batch-driver failed to schedule it, and
-  the error comes from the driver, e.g. failing to read a Kubernetes secret for the test namespace. Treat these as
-  infrastructure problems, not as the test itself being flaky.
+When a run needs a closer look, `hailctl batch jobs BATCH_ID --state bad` shows what else failed in the same batch,
+and `hailctl batch job BATCH_ID JOB_ID` shows everything about one run (timing, worker, exit code, errors).
 
-Then drill into individual runs:
-
-```bash
-# What else failed in the same batch
-hailctl batch jobs BATCH_ID --state bad -o json | jq -c '.[] | {job_id, name, state, exit_code}'
-
-# The full log, with colour codes stripped
-hailctl batch log BATCH_ID JOB_ID --container main | sed 's/\x1b\[[0-9;]*m//g' | less
-
-# For pytest, the full assertion and traceback
-hailctl batch log BATCH_ID JOB_ID --container main | sed 's/\x1b\[[0-9;]*m//g' | grep -E '^E '
-```
-
-`hailctl batch job BATCH_ID JOB_ID` prints the job's full status and spec as YAML, including cost breakdowns, which
-is long but has everything (timing, worker, exit code, errors).
-
-Look for patterns across the runs:
-- **The same error or assertion every time:** compare the end of the `main` log, or the pytest short summary.
-- **Timeouts:** `Timeout (>Ns)` from pytest-timeout, or the step's `timeout:` in `build.yaml`.
+Patterns that separate findings:
+- **The same test and cause every time:** a flaky test, or a timeout that is too tight.
 - **Shared infrastructure:** the same worker or zone, or runs bunched in time (one bad hour hitting several PRs).
-- **Failing together:** several tests failing in the same batch suggests one upstream cause, such as a
+- **Failing together:** several jobs failing in the same batch suggests one upstream cause, such as a
   test-namespace service or database going down mid-build. Kubernetes events for a PR namespace are in Cloud Logging
   under `resource.labels.namespace_name="pr-<N>-default-<suffix>"` (the namespace is the batch's `namespace`
   attribute).
 - **Failed prerequisites:** a test whose setup step failed is not itself flaky.
 
-**Done when** each candidate has either a named pattern backed by specific batch/job IDs, or a note of which runs you
-checked and that no pattern emerged.
+**Done when** every shortlisted run has a signature, and the runs are grouped into findings: each one a test or step,
+a cause, and the batch/job IDs that show it. Stop digging here; root-causing a finding is part of its work item.
 
-### 4. Propose next steps
+### 4. Rank the findings
 
-Split the findings into:
-- **Fixes the evidence supports directly:** a timeout that is too tight, a missing retry on a known-transient error,
-  an ordering race in `build.yaml` (`dependsOn` / `after`), a resource request that is too small. Cite the batch/job
-  IDs that show the problem.
-- **Further investigations:** patterns that are suggestive but unconfirmed, and what data would confirm them (more
-  runs, logs, Cloud Logging queries, the batch database).
+Weigh each finding by its cost to the team, using what you already have:
+- **Retries caused:** how many rows it accounts for, and across how many PRs.
+- **Time lost:** a run that times out after an hour costs far more than one that fails in a minute (`duration` in
+  `hailctl batch job`).
+- **Trend:** steady, spiking, or fading out (perhaps already fixed).
+- **Already tracked?** Search open PRs and issues for the test or step name (e.g. `gh pr list --search <name>`) so
+  the work item can link to them instead of duplicating effort.
 
-Prefer fixing the root cause (infrastructure or test design) over adding retries.
+**Done when** you have a list of findings ordered by impact, each with its evidence and impact noted.
+
+### 5. Hand off: present the findings and ask what to do next
+
+Present the ranked findings, each drafted as a work item, then stop and ask whoever requested the sweep what to do
+next: which findings to file (e.g. as GitHub issues), which to pick up now, and which to drop. Leave filing issues and
+starting fixes until they have chosen.
+
+Draft each work item with:
+- **What:** the test or step, and its signature.
+- **Evidence:** the batch/job IDs, the PRs affected, and when it started.
+- **Impact:** retries caused and time lost.
+- **Hypothesis:** your best guess at the kind of problem (flaky test, timeout too tight, infrastructure, fallout from
+  an upstream failure), and how confident you are.
+- **Starting points** for whoever picks it up: the test's source (`git grep <test name>`), its step in `build.yaml`
+  (`timeout:`, `alwaysRun`, `dependsOn`), `git log` on the test, step or code around when the problem started, and
+  any related PRs or issues.
+
+If a fix is obvious from the evidence (e.g. a timeout clearly too tight), suggest it in the work item, but leave
+confirming it to whoever picks it up. Prefer fixing the root cause (infrastructure or test design) over adding retries.
