@@ -43,7 +43,7 @@ from requests.adapters import HTTPAdapter
 from typing_extensions import ParamSpec
 from urllib3.poolmanager import PoolManager
 
-from ..hail_event_loop import hail_event_loop
+from ..hail_event_loop import async_to_blocking
 from .time import time_msecs
 
 try:
@@ -172,20 +172,6 @@ def unzip(lst: Iterable[Tuple[T, U]]) -> Tuple[List[T], List[U]]:
         a.append(x)
         b.append(y)
     return a, b
-
-
-def async_to_blocking(coro: Awaitable[T]) -> T:
-    loop = hail_event_loop()
-    task = asyncio.ensure_future(coro)
-    try:
-        return loop.run_until_complete(task)
-    finally:
-        if task.done() and not task.cancelled():
-            exc = task.exception()
-            if exc:
-                raise exc
-        else:
-            task.cancel()
 
 
 def ait_to_blocking(ait: AsyncIterator[T]) -> Iterator[T]:

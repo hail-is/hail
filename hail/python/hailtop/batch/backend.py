@@ -111,15 +111,19 @@ class Backend(abc.ABC, Generic[RunningBatchType]):
         This method should be called after executing your batches at the
         end of your script.
         """
-        async_to_blocking(self.async_close())
+        if not self._closed:
+            async_to_blocking(self.async_close())
 
     async def async_close(self):
         if not self._closed:
             await self._async_close()
             self._closed = True
 
-    def __del__(self):
-        self.close()
+    def __del__(self, _is_finalizing=sys.is_finalizing):
+        # Once the interpreter is shutting down the Hail event loop has stopped, and exiting releases
+        # these resources anyway. `sys` is bound early because module globals may already be cleared.
+        if not self._closed and not _is_finalizing():
+            self.close()
 
     def __enter__(self: SelfType) -> SelfType:
         return self
