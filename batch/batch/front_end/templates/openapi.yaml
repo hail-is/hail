@@ -761,8 +761,7 @@ paths:
       description: |
         Returns a time-limited GCS signed URL for direct download of a job's container log.
         The URL is valid for 15 minutes from the time of issue. Range requests are supported,
-        so parallel download tools work correctly as long as all streams are initiated within
-        the validity window.
+        so parallel download tools such as `gcloud storage cp` work correctly.
         Only available for completed jobs (or a specific past attempt via attempt_id).
         Only available for GCP deployments using GCS logs.
         The signed URL is returned without first verifying the log file exists in GCS;
@@ -1084,10 +1083,11 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/BillingProjectResponse'
-  '/api/v1alpha/billing_projects/{billing_project}/create':
-    post:
-      summary: Create billing project
-      description: Create a new billing project
+    patch:
+      summary: Edit a billing project
+      description: >
+        Update a billing project's limit and/or description. Requires EDIT_BP_METADATA billing permission,
+        plus EDIT_BP_LIMIT to change the limit. The billing project must be open.
       tags: [Billing]
       parameters:
         - name: billing_project
@@ -1096,6 +1096,94 @@ paths:
           schema:
             type: string
           description: Billing project identifier
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                limit:
+                  type: number
+                  nullable: true
+                  description: >
+                    New spending limit in USD. Null (unlimited) is only allowed under the INTERNAL quote,
+                    and only for global billing managers.
+                description:
+                  type: string
+                  nullable: true
+                  maxLength: 1000
+                comment:
+                  type: string
+                  nullable: true
+                  maxLength: 1000
+                  description: Optional audit comment
+      responses:
+        '200':
+          description: Billing project updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  billing_project:
+                    type: string
+        '400':
+          description: >
+            Bad request (invalid limit, limit would exceed the quote's authorized_amount, unlimited limit outside
+            the INTERNAL quote, text too long, etc.)
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden - insufficient billing permissions, or the billing project is closed
+        '404':
+          description: Billing project not found
+  '/api/v1alpha/billing_projects/{billing_project}/create':
+    post:
+      summary: Create billing project
+      description: >
+        Create a new billing project under a quote. Requires CREATE_BP billing permission on the quote.
+        quote_name is required, except for legacy callers with the create_billing_projects system
+        permission (global billing managers and trial project creation), whose billing projects are
+        created under the INTERNAL quote when quote_name is omitted.
+      tags: [Billing]
+      parameters:
+        - name: billing_project
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Billing project identifier
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                quote_name:
+                  type: string
+                  description: Name of the quote to create the billing project under
+                limit:
+                  type: number
+                  nullable: true
+                  description: >
+                    Spending limit in USD. Null (unlimited) is only allowed under the INTERNAL quote,
+                    and only for global billing managers.
+                description:
+                  type: string
+                  nullable: true
+                initial_users:
+                  type: array
+                  items:
+                    type: string
+                  description: >
+                    Users to add as members at creation. Each must be an existing user, and names must be
+                    unique. Requires ADD_BP_MEMBER billing permission (currently global billing managers only).
+                comment:
+                  type: string
+                  nullable: true
+                  description: Optional audit comment
       responses:
         '200':
           description: Billing project created successfully
@@ -1104,10 +1192,16 @@ paths:
               schema:
                 type: string
                 description: Created billing project identifier
+        '400':
+          description: >
+            Bad request (missing quote_name, unknown quote, invalid limit, duplicate initial_users, closed quote,
+            limit would exceed the quote's authorized_amount, unlimited limit outside the INTERNAL quote, etc.)
         '401':
           description: Unauthorized
         '403':
-          description: Forbidden - requires developer privileges
+          description: >
+            Forbidden - insufficient billing permissions (including ADD_BP_MEMBER when initial_users is given),
+            or an initial user does not exist
         '409':
           description: Billing project already exists
   '/api/v1alpha/billing_projects/{billing_project}/users/{user}/add':
@@ -1140,7 +1234,9 @@ paths:
   '/api/v1alpha/billing_projects/{billing_project}/users/{user}/remove':
     post:
       summary: "Remove a user from a billing project"
-      description: "Remove a user from a billing project."
+      description: >
+        Remove a user from a billing project. Any member can remove themselves (leave the billing project);
+        removing another user requires MANAGE_BP_MEMBERS (global billing managers). The billing project must be open.
       operationId: removeUserFromBillingProject
       tags:
         - Billing Projects
@@ -1232,6 +1328,495 @@ paths:
           description: Forbidden - requires developer privileges
         '404':
           description: Billing project not found
+  '/api/v1alpha/billing_projects/{billing_project}/change_quote':
+    post:
+      summary: Move billing project to a different quote
+      description: >
+        Move a billing project to a different quote. The caller must have CHANGE_BP_QUOTE
+        permission on the source billing project's quote, and must also be a manager of
+        the destination quote.
+      tags: [Billing]
+      parameters:
+        - name: billing_project
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Billing project identifier
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [quote_name]
+              properties:
+                quote_name:
+                  type: string
+                  description: Name of the destination quote
+                comment:
+                  type: string
+                  description: Optional audit comment
+      responses:
+        '200':
+          description: Billing project moved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  billing_project:
+                    type: string
+                  quote_name:
+                    type: string
+        '400':
+          description: Bad request (unknown quote, limit would exceed destination quota, etc.)
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden - insufficient billing permissions
+        '404':
+          description: Billing project not found
+  '/api/v1alpha/billing_projects/{billing_project}/events':
+    get:
+      summary: Get billing project event log
+      description: >
+        Return the most recent 1000 events for a billing project. Requires VIEW_EVENTS
+        billing permission on the project's quote.
+      tags: [Billing]
+      parameters:
+        - name: billing_project
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Billing project identifier
+      responses:
+        '200':
+          description: List of billing project events
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: integer
+                    timestamp:
+                      type: integer
+                      description: Unix epoch milliseconds
+                    actor:
+                      type: string
+                    action:
+                      type: string
+                    target_user:
+                      type: string
+                      nullable: true
+                    detail:
+                      type: string
+                      nullable: true
+                    comment:
+                      type: string
+                      nullable: true
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden - insufficient billing permissions
+  '/api/v1alpha/quotes':
+    get:
+      summary: List quotes
+      description: >
+        List quotes visible to the caller. Global billing managers see all quotes;
+        other users see only quotes they manage.
+      tags: [Billing]
+      responses:
+        '200':
+          description: List of quotes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/QuoteSummary'
+        '401':
+          description: Unauthorized
+  '/api/v1alpha/quotes/{name}':
+    post:
+      summary: Create a quote
+      description: Create a new billing quote. Requires the create_quotes system permission.
+      tags: [Billing]
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Quote name (case-sensitive)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [cost_object, authorized_amount]
+              properties:
+                cost_object:
+                  type: string
+                  description: Cost object / account code for this quote
+                authorized_amount:
+                  type: number
+                  description: >
+                    Authorized spending amount in USD. Required: only the built-in INTERNAL
+                    quote may be unlimited.
+                pi_name:
+                  type: string
+                  nullable: true
+                pm_designee:
+                  type: string
+                  nullable: true
+                comment:
+                  type: string
+                  nullable: true
+                  description: Optional audit comment
+      responses:
+        '200':
+          description: Quote created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  name:
+                    type: string
+        '400':
+          description: Bad request (missing cost_object, missing or invalid authorized_amount)
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden - requires create_quotes permission
+        '409':
+          description: Quote already exists
+    get:
+      summary: Get a quote
+      description: >
+        Get full details of a quote including managers and billing projects.
+        Requires VIEW_QUOTE billing permission.
+      tags: [Billing]
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Quote name (case-sensitive)
+      responses:
+        '200':
+          description: Quote details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuoteDetail'
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden - insufficient billing permissions
+        '404':
+          description: Quote not found
+    patch:
+      summary: Edit a quote
+      description: >
+        Update mutable fields on a quote (cost_object, pi_name, pm_designee,
+        authorized_amount). Requires EDIT_QUOTE billing permission. Only the INTERNAL
+        quote may have an unlimited authorized_amount, and only global billing managers
+        may set it.
+      tags: [Billing]
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Quote name (case-sensitive)
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                cost_object:
+                  type: string
+                pi_name:
+                  type: string
+                  nullable: true
+                pm_designee:
+                  type: string
+                  nullable: true
+                authorized_amount:
+                  oneOf:
+                    - type: number
+                    - type: string
+                      enum: [unlimited]
+                  nullable: true
+                comment:
+                  type: string
+                  nullable: true
+      responses:
+        '200':
+          description: Quote updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  name:
+                    type: string
+        '400':
+          description: Bad request (e.g. new amount less than sum of BP limits)
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden - insufficient billing permissions
+        '404':
+          description: Quote not found
+  '/api/v1alpha/quotes/{name}/managers':
+    post:
+      summary: Add a quote manager
+      description: >
+        Add a user as a manager or owner of a quote. Requires MANAGE_MANAGERS
+        billing permission.
+      tags: [Billing]
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Quote name (case-sensitive)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [user]
+              properties:
+                user:
+                  type: string
+                  description: Username to add
+                role:
+                  type: string
+                  enum: [owner, manager]
+                  default: manager
+                  description: Role to assign
+                comment:
+                  type: string
+                  nullable: true
+      responses:
+        '200':
+          description: Manager added
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  quote:
+                    type: string
+                  user:
+                    type: string
+                  role:
+                    type: string
+        '400':
+          description: Bad request (missing user, invalid role)
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden - insufficient billing permissions
+        '404':
+          description: Quote not found
+        '409':
+          description: User is already a manager of this quote
+  '/api/v1alpha/quotes/{name}/managers/{user}':
+    delete:
+      summary: Remove a quote manager
+      description: Remove a user from the managers of a quote. Requires MANAGE_MANAGERS billing permission.
+      tags: [Billing]
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Quote name (case-sensitive)
+        - name: user
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Username to remove
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                comment:
+                  type: string
+                  nullable: true
+      responses:
+        '200':
+          description: Manager removed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  quote:
+                    type: string
+                  user:
+                    type: string
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden - insufficient billing permissions
+        '404':
+          description: Quote not found or user not a manager
+  '/api/v1alpha/quotes/{name}/events':
+    get:
+      summary: Get quote event log
+      description: >
+        Return the most recent 1000 events for a quote. Requires VIEW_EVENTS
+        billing permission.
+      tags: [Billing]
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Quote name (case-sensitive)
+      responses:
+        '200':
+          description: List of quote events
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: integer
+                    timestamp:
+                      type: integer
+                      description: Unix epoch milliseconds
+                    actor:
+                      type: string
+                    action:
+                      type: string
+                    target_user:
+                      type: string
+                      nullable: true
+                    target_project:
+                      type: string
+                      nullable: true
+                    detail:
+                      type: string
+                      nullable: true
+                    comment:
+                      type: string
+                      nullable: true
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden - insufficient billing permissions
+        '404':
+          description: Quote not found
+  '/api/v1alpha/quotes/{name}/close':
+    post:
+      summary: Close a quote
+      description: >
+        Close a quote. All billing projects under the quote must be closed or
+        moved to another quote first. Requires CLOSE_QUOTE billing permission
+        (global_bm or quote_owner).
+      tags: [Billing]
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Quote name (case-sensitive)
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                comment:
+                  type: string
+                  nullable: true
+      responses:
+        '200':
+          description: Quote closed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  name:
+                    type: string
+        '400':
+          description: Bad request (e.g. open billing projects still exist under the quote)
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden - insufficient billing permissions
+        '404':
+          description: Quote not found
+  '/api/v1alpha/quotes/{name}/reopen':
+    post:
+      summary: Reopen a closed quote
+      description: >
+        Reopen a quote that was previously closed. Requires CLOSE_QUOTE billing
+        permission (global_bm or quote_owner).
+      tags: [Billing]
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Quote name (case-sensitive)
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                comment:
+                  type: string
+                  nullable: true
+      responses:
+        '200':
+          description: Quote reopened
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  name:
+                    type: string
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden - insufficient billing permissions
+        '404':
+          description: Quote not found
   '/api/v1alpha/billing_limits/{billing_project}/edit':
     post:
       summary: Edit billing limits
@@ -2450,7 +3035,7 @@ components:
     BillingProjectResponse:
       type: object
       properties:
-        name:
+        billing_project:
           type: string
           description: "Name of the billing project"
         status:
@@ -2461,11 +3046,48 @@ components:
           type: array
           items:
             type: string
-          description: "List of users with access to this billing project"
+          description: "Usernames of the billing project's members"
+        user_roles:
+          type: array
+          items:
+            type: object
+            properties:
+              user:
+                type: string
+              roles:
+                type: array
+                items:
+                  type: string
+                description: >
+                  The user's roles relevant to this billing project, as "<billing_project>:member" or
+                  "<quote>:owner" / "<quote>:manager"
+          description: "Billing project members and the managers of its quote, with their roles"
         limit:
           type: number
           description: "Billing limit in dollars"
           nullable: true
+        quote_id:
+          type: integer
+        quote_name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        accrued_cost:
+          type: number
+          description: "Total cost accrued by the billing project, in dollars"
+        remaining:
+          type: number
+          nullable: true
+          description: "Limit minus accrued cost, or null if unlimited"
+        can_view_quote:
+          type: boolean
+          description: "Whether the caller can view the billing project's quote"
+        billing_role:
+          type: string
+          enum: ["global_bm", "quote_owner", "quote_manager", "bp_member"]
+          nullable: true
+          description: "The caller's billing role for this project (only present on the single-project endpoint)"
 
     BillingProjectListResponse:
       type: object
@@ -2892,3 +3514,80 @@ components:
         job_group_id:
           type: integer
           description: "ID of the created job group"
+
+    QuoteSummary:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        cost_object:
+          type: string
+        authorized_amount:
+          type: number
+          nullable: true
+          description: "Authorized spending in USD. Null (unlimited) only for the INTERNAL quote"
+        pi_name:
+          type: string
+          nullable: true
+        pm_designee:
+          type: string
+          nullable: true
+        time_created:
+          type: integer
+          description: "Unix epoch milliseconds"
+
+    QuoteDetail:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        billing_role:
+          type: string
+          enum: ["global_bm", "quote_owner", "quote_manager"]
+          description: "The caller's billing role for this quote"
+        cost_object:
+          type: string
+        authorized_amount:
+          type: number
+          nullable: true
+          description: "Authorized spending in USD. Null (unlimited) only for the INTERNAL quote"
+        pi_name:
+          type: string
+          nullable: true
+        pm_designee:
+          type: string
+          nullable: true
+        time_created:
+          type: integer
+          description: "Unix epoch milliseconds"
+        managers:
+          type: array
+          items:
+            type: object
+            properties:
+              user:
+                type: string
+              role:
+                type: string
+                enum: [owner, manager]
+        billing_projects:
+          type: array
+          items:
+            type: object
+            properties:
+              billing_project:
+                type: string
+              status:
+                type: string
+              limit:
+                type: number
+                nullable: true
+              accrued_cost:
+                type: number
+              remaining:
+                type: number
+                nullable: true
