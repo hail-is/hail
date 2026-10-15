@@ -10,7 +10,7 @@ import is.hail.collection.ImmutableMap
 import is.hail.collection.implicits.toRichIterable
 import is.hail.expr.ir.lowering.IrMetadata
 import is.hail.io.fs.{CloudStorageConfig, FS, RequesterPaysConfig, RouterFS}
-import is.hail.io.reference.{IndexedFastaSequenceFile, Liftover}
+import is.hail.io.reference.{Liftover, ReferenceSequence}
 import is.hail.services._
 import is.hail.services.oauth2.CloudCredentials
 import is.hail.types.virtual.Kinds._
@@ -38,6 +38,7 @@ object BatchQueryDriver extends HttpLikeRpc with Logging {
     tmpdir: String,
     references: Map[String, ReferenceGenome],
     liftovers: Map[(String, String), Liftover],
+    sequences: Map[String, ReferenceSequence],
     outputUrl: String,
     action: Int,
     payload: JValue,
@@ -108,6 +109,7 @@ object BatchQueryDriver extends HttpLikeRpc with Logging {
           backend = env.backend,
           references = env.references,
           liftovers = env.liftovers,
+          sequences = env.sequences,
           fs = env.fs,
           tempFileManager = new OwningTempFileManager(env.fs),
           theHailClassLoader = env.hcl,
@@ -186,8 +188,12 @@ object BatchQueryDriver extends HttpLikeRpc with Logging {
           Liftover(fs, references(sourceGenome), references(destGenome), chainFile),
         )
 
+    val sequences = mutable.Map.empty[String, ReferenceSequence]
     for ((rg, seq) <- rpcConfig.sequences)
-      references(rg).addSequence(IndexedFastaSequenceFile(fs, seq.fasta, seq.index))
+      ReferenceSequence.addFatalOnCollision(
+        sequences,
+        ReferenceSequence(fs, references(rg), seq.fasta, seq.index),
+      )
 
     val backend =
       new ServiceBackend(
@@ -212,6 +218,7 @@ object BatchQueryDriver extends HttpLikeRpc with Logging {
           rpcConfig.tmp_dir,
           references,
           liftovers.toMap,
+          sequences.toMap,
           outputURL,
           action,
           payload,

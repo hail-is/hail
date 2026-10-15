@@ -10,7 +10,7 @@ import is.hail.expr.ir.defs.EncodedLiteral
 import is.hail.expr.ir.orderings.{CodeOrdering, StructOrdering}
 import is.hail.io.{BufferSpec, InputBuffer, TypedCodecSpec}
 import is.hail.io.fs.FS
-import is.hail.io.reference.Liftover
+import is.hail.io.reference.{Liftover, ReferenceSequence}
 import is.hail.types.VirtualTypeWithReq
 import is.hail.types.physical.{PCanonicalTuple, PType}
 import is.hail.types.physical.stypes._
@@ -85,6 +85,27 @@ class EmitModuleBuilder(val ctx: ExecuteContext, val modb: ModuleBuilder) {
   def liftoverFields(): IndexedSeq[StaticFieldRef[Liftover]] =
     ArraySeq.sortedBy(liftoverContainers)(_._1).map(_._2)
 
+  private val sequenceContainers: mutable.Map[String, StaticFieldRef[ReferenceSequence]] =
+    mutable.Map.empty
+
+  def hasReferenceSequences: Boolean = sequenceContainers.nonEmpty
+
+  /** The session's reference sequence of `rg`, which [[Compiled]] ships with this module. */
+  def getReferenceSequence(rg: String): Value[ReferenceSequence] = {
+    if (!ctx.sequences.contains(rg))
+      fatal(s"FASTA file has not been loaded for reference genome '$rg'.")
+    sequenceContainers.getOrElseUpdate(
+      rg,
+      modb.genStaticField[ReferenceSequence](s"reference_sequence_$rg"),
+    )
+  }
+
+  def referenceSequences(): IndexedSeq[ReferenceSequence] =
+    ArraySeq.sorted(sequenceContainers.keys).map(ctx.sequences)
+
+  def referenceSequenceFields(): IndexedSeq[StaticFieldRef[ReferenceSequence]] =
+    ArraySeq.sortedBy(sequenceContainers)(_._1).map(_._2)
+
   var _rgMapField: StaticFieldRef[Map[String, ReferenceGenome]] = null
 
   def referenceGenomeMap: Value[Map[String, ReferenceGenome]] = {
@@ -150,6 +171,9 @@ trait WrappedEmitModuleBuilder {
 
   def getLiftover(source: String, dest: String): Value[Liftover] =
     emodb.getLiftover(source, dest)
+
+  def getReferenceSequence(rg: String): Value[ReferenceSequence] =
+    emodb.getReferenceSequence(rg)
 }
 
 trait WrappedEmitClassBuilder[C] extends WrappedEmitModuleBuilder {
@@ -808,10 +832,8 @@ final class EmitClassBuilder[C](val emodb: EmitModuleBuilder, val cb: ClassBuild
           rgs.length().toS,
         ),
       )
-      for ((fld, i) <- rgFields.zipWithIndex) {
-        cb += rgs(i).invoke[String, FS, Unit]("heal", ctx.localTmpdir, getFS)
+      for ((fld, i) <- rgFields.zipWithIndex)
         cb.assign(fld, rgs(i))
-      }
 
       Option(emodb._rgMapField).foreach { fld =>
         cb.assign(
@@ -836,6 +858,20 @@ final class EmitClassBuilder[C](val emodb: EmitModuleBuilder, val cb: ClassBuild
       val liftovers = mb.getCodeParam[Array[Liftover]](1)
       for ((fld, i) <- emodb.liftoverFields().zipWithIndex)
         cb.assign(fld, liftovers(i))
+    }
+  }
+
+  def makeAddReferenceSequences(): Unit = {
+    cb.addInterface(typeInfo[FunctionWithReferenceSequences].iname)
+    val mb = newEmitMethod(
+      "addReferenceSequences",
+      FastSeq[ParamType](typeInfo[Array[ReferenceSequence]]),
+      typeInfo[Unit],
+    )
+    mb.voidWithBuilder { cb =>
+      val sequences = mb.getCodeParam[Array[ReferenceSequence]](1)
+      for ((fld, i) <- emodb.referenceSequenceFields().zipWithIndex)
+        cb.assign(fld, sequences(i))
     }
   }
 
@@ -881,6 +917,14 @@ final class EmitClassBuilder[C](val emodb: EmitModuleBuilder, val cb: ClassBuild
       } else
         null
 
+      val sequences: Array[ReferenceSequence] = if (emodb.hasReferenceSequences) {
+        makeAddReferenceSequences()
+        emodb.referenceSequences().toArray
+      } else
+        null
+
+      val localTmpdir = ctx.localTmpdir
+
       val nSerializedAggs = _nSerialized
 
       val useBackend = _backendField != null
@@ -916,6 +960,10 @@ final class EmitClassBuilder[C](val emodb: EmitModuleBuilder, val cb: ClassBuild
           if (liftovers != null) {
             liftovers.foreach(_.restore(fs))
             f.asInstanceOf[FunctionWithLiftovers].addLiftovers(liftovers)
+          }
+          if (sequences != null) {
+            sequences.foreach(_.restore(localTmpdir, fs))
+            f.asInstanceOf[FunctionWithReferenceSequences].addReferenceSequences(sequences)
           }
           if (nSerializedAggs != 0)
             f.asInstanceOf[FunctionWithAggRegion].setNumSerialized(nSerializedAggs)
@@ -1196,6 +1244,10 @@ trait FunctionWithReferences {
 
 trait FunctionWithLiftovers {
   def addLiftovers(liftovers: Array[Liftover]): Unit
+}
+
+trait FunctionWithReferenceSequences {
+  def addReferenceSequences(sequences: Array[ReferenceSequence]): Unit
 }
 
 trait FunctionWithPartitionRegion {
