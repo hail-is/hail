@@ -222,7 +222,7 @@ object EType extends Logging {
   private def resultWithReferenceGenomes[F](fb: EmitFunctionBuilder[F]): HailClassLoader => F =
     if (!fb.ecb.emodb.hasReferences) fb.result()
     else {
-      fb.ecb.makeAddReferenceGenomes(heal = false)
+      fb.ecb.makeAddReferenceGenomes()
       val rgs = fb.ecb.emodb.referenceGenomes().toArray
       val f = fb.result()
       hcl => {

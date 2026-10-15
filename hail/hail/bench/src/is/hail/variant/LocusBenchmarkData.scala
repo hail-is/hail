@@ -113,6 +113,7 @@ object LocusBenchmarkData {
       backend = null,
       references = references,
       liftovers = Map.empty,
+      sequences = Map.empty,
       fs = null,
       r = Region(pool = RegionPool()),
       tempFileManager = new OwningTempFileManager(null),

@@ -6,14 +6,14 @@ import is.hail.asm4s.{classInfo, AsmFunction2RegionLongLong, LongInfo}
 import is.hail.backend.{ExecuteContext, HailStateManager}
 import is.hail.collection.FastSeq
 import is.hail.expr.ir.{freshName, invoke, Compile, EmitFunctionBuilder, SingleCodeEmitParamType}
-import is.hail.expr.ir.defs.{F64, GetTupleElement, MakeTuple, Ref}
-import is.hail.io.reference.{FASTAReader, FASTAReaderConfig, IndexedFastaSequenceFile, Liftover}
+import is.hail.expr.ir.defs.{F64, GetTupleElement, I32, MakeTuple, Ref}
+import is.hail.io.reference.{FASTAReader, FASTAReaderConfig, Liftover, ReferenceSequence}
 import is.hail.scalacheck.{genLocus, genNonMissing}
 import is.hail.types.physical.{
-  PBaseStruct, PCanonicalLocus, PCanonicalStruct, PCanonicalTuple, PPackedLocus,
+  PBaseStruct, PCanonicalLocus, PCanonicalString, PCanonicalStruct, PCanonicalTuple, PPackedLocus,
 }
 import is.hail.types.physical.stypes.PTypeReferenceSingleCodeType
-import is.hail.types.virtual.{TBoolean, TInterval, TLocus, TStruct}
+import is.hail.types.virtual.{TBoolean, TInterval, TLocus, TString, TStruct}
 import is.hail.utils._
 
 import scala.collection.immutable.ArraySeq
@@ -387,20 +387,81 @@ class ReferenceGenomeSuite {
     }
   }
 
-  @Test def testSequenceSurvivesRoundTrip(implicit ctx: ExecuteContext): Unit = {
-    // Qualified for the same reason as in testFasta.
-    val custom =
-      ReferenceGenome("test", ArraySeq("a", "b", "c"), Map("a" -> 25, "b" -> 15, "c" -> 10))
-    custom.addSequence(IndexedFastaSequenceFile(
+  // Qualified for the same reason as in testFasta.
+  private def fakeReferenceSequence(rg: ReferenceGenome)(implicit ctx: ExecuteContext)
+    : ReferenceSequence =
+    ReferenceSequence(
       ctx.fs,
+      rg,
       ctx.fs.makeQualified(getTestResource("fake_reference.fasta")),
       ctx.fs.makeQualified(getTestResource("fake_reference.fasta.fai")),
-    ))
+    )
 
-    val sm = roundTrip(HailStateManager(Map(custom.name -> custom)))
-    sm.referenceGenomes.values.foreach(_.heal(ctx.localTmpdir, ctx.fs))
+  private val fakeGenome: ReferenceGenome =
+    ReferenceGenome("test", ArraySeq("a", "b", "c"), Map("a" -> 25, "b" -> 15, "c" -> 10))
 
-    assertEq(sm.referenceGenomes(custom.name).getSequence("c", 5, 10, 10), "GGATCCGTGC")
+  @Test def testSequenceSurvivesRoundTrip(implicit ctx: ExecuteContext): Unit = {
+    val seq = roundTrip(fakeReferenceSequence(fakeGenome))
+    seq.restore(ctx.localTmpdir, ctx.fs)
+    assertEq(seq.lookup("c", 5, 10, 10), "GGATCCGTGC")
+  }
+
+  @Test def testSequenceMustMatchItsGenome(implicit ctx: ExecuteContext): Unit = {
+    val shorter = fakeGenome.copy(lengths = fakeGenome.lengths + ("c" -> 9))
+    interceptFatal("Contig sizes in FASTA")(fakeReferenceSequence(shorter))
+  }
+
+  // Compiled ships only the reference sequences it uses, and restores them with the task's FS. The
+  // session also holds a sequence for another genome, whose FASTA path must not be shipped.
+  @Test def testSequenceSurvivesCompiledRoundTrip(implicit ctx: ExecuteContext): Unit = {
+    val used = fakeReferenceSequence(fakeGenome)
+    val otherGenome = fakeGenome.copy(name = "other")
+    val otherFasta = ctx.createTmpPath("unused-sequence", "fasta")
+    ctx.fs.copy(getTestResource("fake_reference.fasta"), otherFasta)
+    val unused = ReferenceSequence(
+      ctx.fs,
+      otherGenome,
+      otherFasta,
+      getTestResource("fake_reference.fasta.fai"),
+    )
+
+    ctx.local(
+      references =
+        ctx.references + (fakeGenome.name -> fakeGenome) + (otherGenome.name -> otherGenome),
+      sequences = Map(fakeGenome.name -> used, otherGenome.name -> unused),
+    ) { ctx =>
+      val argsPType = PCanonicalTuple(true, PCanonicalString(true))
+      val args = Ref(freshName(), argsPType.virtualType)
+      val seq = invoke(
+        "getReferenceSequence",
+        TString,
+        FastSeq(TLocus(fakeGenome.name)),
+        GetTupleElement(args, 0),
+        I32(5),
+        I32(10),
+        I32(10),
+      )
+      val (Some(PTypeReferenceSingleCodeType(rt: PBaseStruct)), compiled) =
+        Compile[AsmFunction2RegionLongLong](
+          ctx,
+          FastSeq(
+            args.name -> SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(argsPType))
+          ),
+          FastSeq(classInfo[Region], LongInfo),
+          LongInfo,
+          MakeTuple.ordered(FastSeq(seq)),
+        ): @unchecked
+
+      val bytes = serialize(compiled)
+      assertTrue(!bytes.containsSlice(otherFasta.getBytes("UTF-8")))
+
+      val shipped = roundTrip(compiled)
+      ctx.scopedExecution { (hcl, fs, tc, r) =>
+        val argsOff = argsPType.unstagedStoreJavaObject(ctx.stateManager, Row("c"), r)
+        val off = shipped(hcl, fs, tc, r)(r, argsOff)
+        assertEq(SafeRow(ctx.stateManager, rt, off).get(0), "GGATCCGTGC")
+      }
+    }
   }
 
   // Unstaged reads of packed loci name the contig through the state manager a closure carries.

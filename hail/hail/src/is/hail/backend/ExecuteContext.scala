@@ -8,7 +8,7 @@ import is.hail.expr.ir.{BaseIR, CompileCache, Compiled}
 import is.hail.expr.ir.LoweredTableReader.LoweredTableReaderCoercer
 import is.hail.expr.ir.lowering.IrMetadata
 import is.hail.io.fs.FS
-import is.hail.io.reference.Liftover
+import is.hail.io.reference.{Liftover, ReferenceSequence}
 import is.hail.linalg.BlockMatrix
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
@@ -62,6 +62,7 @@ object ExecuteContext {
     backend: Backend,
     references: Map[String, ReferenceGenome],
     liftovers: Map[(String, String), Liftover],
+    sequences: Map[String, ReferenceSequence],
     fs: FS,
     tempFileManager: TempFileManager,
     theHailClassLoader: HailClassLoader,
@@ -82,6 +83,7 @@ object ExecuteContext {
           backend,
           references,
           liftovers,
+          sequences,
           fs,
           region,
           tempFileManager,
@@ -114,6 +116,7 @@ class ExecuteContext(
   val backend: Backend,
   val references: Map[String, ReferenceGenome],
   val liftovers: Map[(String, String), Liftover],
+  val sequences: Map[String, ReferenceSequence],
   val fs: FS,
   val r: Region,
   val tempFileManager: TempFileManager,
@@ -174,6 +177,7 @@ class ExecuteContext(
     backend: Backend = this.backend,
     references: Map[String, ReferenceGenome] = this.references,
     liftovers: Map[(String, String), Liftover] = this.liftovers,
+    sequences: Map[String, ReferenceSequence] = this.sequences,
     fs: FS = this.fs,
     r: Region = this.r,
     tempFileManager: TempFileManager = NonOwningTempFileManager(this.tempFileManager),
@@ -193,6 +197,7 @@ class ExecuteContext(
       backend,
       references,
       liftovers,
+      sequences,
       fs,
       r,
       tempFileManager,

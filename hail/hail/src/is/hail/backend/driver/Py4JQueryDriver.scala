@@ -14,7 +14,7 @@ import is.hail.expr.ir.defs.{EncodedLiteral, GetFieldByIdx}
 import is.hail.expr.ir.functions.IRFunctionRegistry
 import is.hail.expr.ir.lowering.IrMetadata
 import is.hail.io.fs._
-import is.hail.io.reference.{IndexedFastaSequenceFile, Liftover}
+import is.hail.io.reference.{Liftover, ReferenceSequence}
 import is.hail.sparkextras.implicits._
 import is.hail.types.physical.PStruct
 import is.hail.types.virtual.{TArray, TInterval}
@@ -46,6 +46,7 @@ final class Py4JQueryDriver(backend: Backend) extends Closeable with Logging {
   private[this] val hcl = new HailClassLoader(getClass.getClassLoader)
   private[this] val references = mutable.Map(ReferenceGenome.builtinReferences().toSeq: _*)
   private[this] val liftovers = mutable.Map.empty[(String, String), Liftover]
+  private[this] val sequences = mutable.Map.empty[String, ReferenceSequence]
   private[this] val blockMatrixCache = mutable.Map[String, linalg.BlockMatrix]()
   private[this] val compiledCodeCache = new Cache[CompileCacheKey, CompiledFunction[_]](50)
   private[this] val irCache = mutable.Map[Int, BaseIR]()
@@ -136,14 +137,24 @@ final class Py4JQueryDriver(backend: Backend) extends Closeable with Logging {
   def pyRemoveJavaIR(id: Int): Unit =
     executor.run(irCache -= id: Unit)
 
+  // Compiled code holds the reference sequences it uses, so adding or removing one clears the
+  // compile cache. As for liftovers, removing a reference genome drops its sequence without
+  // clearing it: Python refuses to read a sequence that has not been added.
   def pyAddSequence(name: String, fastaFile: String, indexFile: String): Unit =
     executor.run {
-      val seq = IndexedFastaSequenceFile(tmpFileManager.fs, fastaFile, indexFile)
-      references(name).addSequence(seq)
+      ReferenceSequence.addFatalOnCollision(
+        sequences,
+        ReferenceSequence(tmpFileManager.fs, references(name), fastaFile, indexFile),
+      )
+      compiledCodeCache.clear()
     }
 
   def pyRemoveSequence(name: String): Unit =
-    executor.run(references(name).removeSequence())
+    executor.run {
+      if (sequences.remove(name).isEmpty)
+        fatal(s"Reference genome '$name' does not have sequence loaded.")
+      compiledCodeCache.clear()
+    }
 
   def pyExportBlockMatrix(
     pathIn: String,
@@ -341,10 +352,11 @@ final class Py4JQueryDriver(backend: Backend) extends Closeable with Logging {
     IRFunctionRegistry.clearUserFunctions()
   }
 
-  // A reference genome's liftovers go with it, as Python's do.
+  // A reference genome's liftovers and sequence go with it, as Python's do.
   private[this] def removeReference(name: String): Unit = {
     references -= name
     liftovers.filterInPlace { case ((source, _), _) => source != name }
+    sequences -= name
   }
 
   private[this] def withExecuteContext[T](
@@ -361,6 +373,7 @@ final class Py4JQueryDriver(backend: Backend) extends Closeable with Logging {
           backend = backend,
           references = references.toMap,
           liftovers = liftovers.toMap,
+          sequences = sequences.toMap,
           fs = tmpFileManager.fs,
           tempFileManager =
             if (!selfContainedExecution) NonOwningTempFileManager(tmpFileManager)
