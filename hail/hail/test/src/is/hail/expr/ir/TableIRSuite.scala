@@ -59,8 +59,8 @@ class TableIRSuite {
     val path = ctx.createTmpPath("test-range-read", "ht")
     val write = TableWrite(original, TableNativeWriter(path, overwrite = true))
     assertEvalsTo(write, ())
-    val read = TableIR.read(ctx.fs, path, false, None)
-    val droppedRows = TableIR.read(ctx.fs, path, true, None)
+    val read = TableIR.read(ctx.fs, ctx.referenceGenomes, path, false, None)
+    val droppedRows = TableIR.read(ctx.fs, ctx.referenceGenomes, path, true, None)
 
     val uids = for {
       (partSize, partIndex) <- partition(10, 3).zipWithIndex
@@ -75,7 +75,8 @@ class TableIRSuite {
 
   @Test def testCountRead(implicit ctx: ExecuteContext): Unit = {
     implicit val execStrats = ExecStrategy.lowering
-    val tir: TableIR = TableRead.native(ctx.fs, getTestResource("three_key.ht"))
+    val tir: TableIR =
+      TableRead.native(ctx.fs, ctx.referenceGenomes, getTestResource("three_key.ht"))
     assertEvalsTo(TableCount(tir), 120L)
   }
 
@@ -682,7 +683,7 @@ class TableIRSuite {
 
   // Catches a bug in the partitioner created by the importer.
   @Test def testTableJoinOfImport(implicit ctx: ExecuteContext): Unit = {
-    val mnr = MatrixNativeReader(ctx.fs, getTestResource("sample.vcf.mt"))
+    val mnr = MatrixNativeReader(ctx.fs, ctx.referenceGenomes, getTestResource("sample.vcf.mt"))
     val mt2 = MatrixRead(mnr.fullMatrixType, false, false, mnr)
     val t2 = MatrixRowsTable(mt2)
     val mt = importVCF(getTestResource("sample.vcf"))
@@ -702,7 +703,11 @@ class TableIRSuite {
 
     def test(filterIntervals: Boolean, expectedNParts: Int): Unit = {
       val opts = NativeReaderOptions(FastSeq(i1), TLocus("GRCh37"), filterIntervals)
-      val tr = TableNativeReader(ctx.fs, TableNativeReaderParameters(path, Some(opts)))
+      val tr = TableNativeReader(
+        ctx.fs,
+        ctx.referenceGenomes,
+        TableNativeReaderParameters(path, Some(opts)),
+      )
       val tir = TableRead(tr.fullTypeWithoutUIDs, false, tr)
       val nParts = TableToValueApply(tir, NPartitionsTable())
       val count = TableToValueApply(tir, ForceCountTable())
@@ -960,7 +965,7 @@ class TableIRSuite {
     val path = ctx.createTmpPath("test-table-write", "ht")
     Interpret[Unit](ctx, TableWrite(table, TableNativeWriter(path)))
     val before = ExecuteRelational(ctx, table).asTableValue(ctx)
-    val read = TableIR.read(ctx.fs, path, requestedType = Some(table.typ))
+    val read = TableIR.read(ctx.fs, ctx.referenceGenomes, path, requestedType = Some(table.typ))
     assert(read.isDistinctlyKeyed)
     val after = unoptimized(Interpret(read, _))
     assert(before.globals.javaValue == after.globals.javaValue)
@@ -1028,7 +1033,8 @@ class TableIRSuite {
           }
           for (readUnstable <- FastSeq(false, true))
             withUnstableEncodingsIf(readUnstable) { implicit ctx =>
-              val read = TableIR.read(ctx.fs, path, requestedType = Some(table.typ))
+              val read =
+                TableIR.read(ctx.fs, ctx.referenceGenomes, path, requestedType = Some(table.typ))
               assertEvalsTo(collect(read), RowSeq(sortedRows, global))
             }
         }
@@ -1051,37 +1057,37 @@ class TableIRSuite {
     val keyedByConst = TableKeyBy(at, IndexedSeq("const"))
     val pathConst = ctx.createTmpPath("test-table-write-distinctness", "ht")
     Interpret[Unit](ctx, TableWrite(keyedByConst, TableNativeWriter(pathConst)))
-    val readConst = TableIR.read(ctx.fs, pathConst)
+    val readConst = TableIR.read(ctx.fs, ctx.referenceGenomes, pathConst)
     assert(!readConst.isDistinctlyKeyed)
 
     val keyedByHalf = TableKeyBy(at, IndexedSeq("half"))
     val pathHalf = ctx.createTmpPath("test-table-write-distinctness", "ht")
     Interpret[Unit](ctx, TableWrite(keyedByHalf, TableNativeWriter(pathHalf)))
-    val readHalf = TableIR.read(ctx.fs, pathHalf)
+    val readHalf = TableIR.read(ctx.fs, ctx.referenceGenomes, pathHalf)
     assert(!readHalf.isDistinctlyKeyed)
 
     val keyedByIdxAndHalf = TableKeyBy(at, IndexedSeq("idx", "half"))
     val pathIdxAndHalf = ctx.createTmpPath("test-table-write-distinctness", "ht")
     Interpret[Unit](ctx, TableWrite(keyedByIdxAndHalf, TableNativeWriter(pathIdxAndHalf)))
-    val readIdxAndHalf = TableIR.read(ctx.fs, pathIdxAndHalf)
+    val readIdxAndHalf = TableIR.read(ctx.fs, ctx.referenceGenomes, pathIdxAndHalf)
     assert(readIdxAndHalf.isDistinctlyKeyed)
 
     val keyedByOneRepeat = TableKeyBy(at, IndexedSeq("oneRepeat"))
     val pathOneRepeat = ctx.createTmpPath("test-table-write-distinctness", "ht")
     Interpret[Unit](ctx, TableWrite(keyedByOneRepeat, TableNativeWriter(pathOneRepeat)))
-    val readOneRepeat = TableIR.read(ctx.fs, pathOneRepeat)
+    val readOneRepeat = TableIR.read(ctx.fs, ctx.referenceGenomes, pathOneRepeat)
     assert(!readOneRepeat.isDistinctlyKeyed)
 
     val keyedByOneMissing = TableKeyBy(at, IndexedSeq("oneMissing"))
     val pathOneMissing = ctx.createTmpPath("test-table-write-distinctness", "ht")
     Interpret[Unit](ctx, TableWrite(keyedByOneMissing, TableNativeWriter(pathOneMissing)))
-    val readOneMissing = TableIR.read(ctx.fs, pathOneMissing)
+    val readOneMissing = TableIR.read(ctx.fs, ctx.referenceGenomes, pathOneMissing)
     assert(readOneMissing.isDistinctlyKeyed)
 
     val keyedByTwoMissing = TableKeyBy(at, IndexedSeq("twoMissing"))
     val pathTwoMissing = ctx.createTmpPath("test-table-write-distinctness", "ht")
     Interpret[Unit](ctx, TableWrite(keyedByTwoMissing, TableNativeWriter(pathTwoMissing)))
-    val readTwoMissing = TableIR.read(ctx.fs, pathTwoMissing)
+    val readTwoMissing = TableIR.read(ctx.fs, ctx.referenceGenomes, pathTwoMissing)
     assert(!readTwoMissing.isDistinctlyKeyed)
   }
 
@@ -1176,7 +1182,8 @@ class TableIRSuite {
 
   @Test def testTableAggregateByKey(implicit ctx: ExecuteContext): Unit = {
     implicit val execStrats = ExecStrategy.allRelational
-    var tir: TableIR = TableRead.native(ctx.fs, getTestResource("three_key.ht"))
+    var tir: TableIR =
+      TableRead.native(ctx.fs, ctx.referenceGenomes, getTestResource("three_key.ht"))
     tir = TableKeyBy(tir, FastSeq("x", "y"), true)
     tir = TableAggregateByKey(
       tir,
@@ -1198,7 +1205,8 @@ class TableIRSuite {
   }
 
   @Test def testTableDistinct(implicit ctx: ExecuteContext): Unit = {
-    val tir: TableIR = TableRead.native(ctx.fs, getTestResource("three_key.ht"))
+    val tir: TableIR =
+      TableRead.native(ctx.fs, ctx.referenceGenomes, getTestResource("three_key.ht"))
     val keyedByX = TableKeyBy(tir, FastSeq("x"), true)
     val distinctByX = TableDistinct(keyedByX)
     assertEvalsTo(TableCount(distinctByX), 8L)
@@ -1448,7 +1456,8 @@ class TableIRSuite {
       }
 
   @Test def testTableKeyByAndAggregate(implicit ctx: ExecuteContext): Unit = {
-    val tir: TableIR = TableRead.native(ctx.fs, getTestResource("three_key.ht"))
+    val tir: TableIR =
+      TableRead.native(ctx.fs, ctx.referenceGenomes, getTestResource("three_key.ht"))
     val unkeyed = TableKeyBy(tir, IndexedSeq[String]())
     val rowRef = Ref(TableIR.rowName, unkeyed.typ.rowType)
     val aggExpression = MakeStruct(FastSeq(
@@ -1635,7 +1644,7 @@ class TableIRSuite {
     val rowsPath = getTestResource("sample.vcf.mt/rows")
     val entriesPath = getTestResource("sample.vcf.mt/entries")
 
-    val mnr = MatrixNativeReader(ctx.fs, getTestResource("sample.vcf.mt"))
+    val mnr = MatrixNativeReader(ctx.fs, ctx.referenceGenomes, getTestResource("sample.vcf.mt"))
     val mnrSpec = mnr.spec
 
     val reader =

@@ -133,7 +133,7 @@ class ContigIndexCacheSuite {
         val expected = ArraySeq.tabulate(n) { i =>
           RowSeq(i, Locus(contigs(i), positions(i)), custom.getContigIndex(contigs(i)))
         }
-        val read = TableIR.read(ctx.fs, path, requestedType = Some(table.typ))
+        val read = TableIR.read(ctx.fs, ctx.referenceGenomes, path, requestedType = Some(table.typ))
         assertEvalsTo(collect(read), RowSeq(expected, RowSeq()))
       }
     }

@@ -4,24 +4,19 @@ import is.hail.annotations._
 import is.hail.backend.HailStateManager
 import is.hail.collection.implicits.toRichIterable
 import is.hail.expr.ir.IRParser
+import is.hail.types.TypeStringSerializer
 import is.hail.types.physical.{PInterval, PStruct}
 import is.hail.utils._
+import is.hail.variant.ReferenceGenomeEnv
 
 import scala.collection.immutable.ArraySeq
 
-import org.json4s.CustomSerializer
 import org.json4s.JsonAST.{JArray, JObject, JString, JValue}
 
-class RVDTypeSerializer extends CustomSerializer[RVDType](format =>
-      (
-        {
-          case JString(s) => IRParser.parseRVDType(s)
-        },
-        {
-          case rvdType: RVDType => JString(rvdType.toString)
-        },
-      )
-    )
+class RVDTypeSerializer(rgs: Option[ReferenceGenomeEnv])
+    extends TypeStringSerializer[RVDType](rgs, IRParser.parseRVDType, _.toString) {
+  def this(rgs: ReferenceGenomeEnv) = this(Some(rgs))
+}
 
 final case class RVDType(rowType: PStruct, key: IndexedSeq[String]) extends Serializable {
   require(rowType.required, rowType)

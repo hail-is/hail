@@ -321,6 +321,14 @@ class ReferenceGenomeSuite {
     assertTrue(roundTrip(grch38).layout eq ReferenceGenomeLayout.builtins(ReferenceGenome.GRCh38))
   }
 
+  @Test def testBuiltinsResolveToOneCachedGenome(): Unit =
+    for (name <- ReferenceGenome.hailReferences) {
+      val cached = ReferenceGenome.builtinReferences()(name)
+      assertTrue(ReferenceGenomeEnv.empty.resolve(name) eq cached)
+      assertTrue(ReferenceGenomeEnv(Map.empty).resolve(name) eq cached)
+      assertTrue(ReferenceGenome.builtinReferences()(name) eq cached)
+    }
+
   // A builtin is identified by identity with the cache, never by name.
   @Test def testUserGenomeWithBuiltinNameSerializesInline(): Unit = {
     val impostor = ReferenceGenome(

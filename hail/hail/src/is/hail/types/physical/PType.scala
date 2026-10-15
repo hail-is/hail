@@ -5,29 +5,32 @@ import is.hail.asm4s._
 import is.hail.backend.{ExecuteContext, HailStateManager}
 import is.hail.collection.{BooleanArrayBuilder, FastSeq, IntArrayBuilder}
 import is.hail.expr.ir._
-import is.hail.types.{tcoerce, Requiredness}
+import is.hail.types.{tcoerce, Requiredness, TypeStringSerializer}
 import is.hail.types.physical.stypes.{SType, SValue}
 import is.hail.types.physical.stypes.concrete.SRNGState
 import is.hail.types.virtual._
 import is.hail.utils._
+import is.hail.variant.ReferenceGenomeEnv
 
 import org.apache.spark.sql.Row
-import org.json4s.CustomSerializer
-import org.json4s.JsonAST.JString
 
-class PTypeSerializer extends CustomSerializer[PType](format =>
-      (
-        { case JString(s) => PType.canonical(IRParser.parsePType(s)) },
-        { case t: PType => JString(t.toString) },
-      )
-    )
+class PTypeSerializer(rgs: Option[ReferenceGenomeEnv])
+    extends TypeStringSerializer[PType](
+      rgs,
+      (s, rgs) => PType.canonical(IRParser.parsePType(s, rgs)),
+      _.toString,
+    ) {
+  def this(rgs: ReferenceGenomeEnv) = this(Some(rgs))
+}
 
-class PStructSerializer extends CustomSerializer[PStruct](format =>
-      (
-        { case JString(s) => tcoerce[PStruct](IRParser.parsePType(s)) },
-        { case t: PStruct => JString(t.toString) },
-      )
-    )
+class PStructSerializer(rgs: Option[ReferenceGenomeEnv])
+    extends TypeStringSerializer[PStruct](
+      rgs,
+      (s, rgs) => tcoerce[PStruct](IRParser.parsePType(s, rgs)),
+      _.toString,
+    ) {
+  def this(rgs: ReferenceGenomeEnv) = this(Some(rgs))
+}
 
 object PType {
 

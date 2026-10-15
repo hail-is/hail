@@ -15,10 +15,11 @@ import is.hail.types.physical._
 import is.hail.types.physical.LocusRepresentations._
 import is.hail.types.physical.stypes.concrete.{SCanonicalLocusPointer, SPackedLocus}
 import is.hail.types.virtual._
-import is.hail.variant.{Locus, ReferenceGenome}
+import is.hail.variant.{Locus, ReferenceGenome, ReferenceGenomeEnv}
 
 import scala.collection.immutable.ArraySeq
 
+import org.json4s.Formats
 import org.json4s.jackson.Serialization
 import org.junit.jupiter.api.Test
 import org.scalacheck.Prop.forAll
@@ -75,7 +76,7 @@ class ETypeSuite {
 
   @ParameterizedTest
   def testSerialization(etype: EType): Unit = {
-    implicit val formats = AbstractRVDSpec.formats
+    implicit val formats: Formats = AbstractRVDSpec.formats(ReferenceGenomeEnv.empty)
     val s = Serialization.write(etype)
     assertEq(Serialization.read[EType](s), etype)
   }

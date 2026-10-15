@@ -286,10 +286,15 @@ object ReferenceGenome {
   var CanFam3: String = "CanFam3"
   val hailReferences: Set[String] = Set(GRCh37, GRCh38, GRCm38, CanFam3)
 
-  def builtinReferences(): Map[String, ReferenceGenome] =
+  /** The builtin reference genomes, one per name, over the cached builtin layouts. Shared for the
+    * life of the Hail-jar classloader, which is safe because a reference genome is immutable.
+    */
+  private[variant] lazy val builtins: Map[String, ReferenceGenome] =
     ReferenceGenomeLayout.builtins.map { case (name, layout) =>
       name -> new ReferenceGenome(layout)
     }
+
+  def builtinReferences(): Map[String, ReferenceGenome] = builtins
 
   def read(is: InputStream): ReferenceGenome = {
     implicit val formats = DefaultFormats

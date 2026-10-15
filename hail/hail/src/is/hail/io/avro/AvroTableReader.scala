@@ -13,6 +13,7 @@ import is.hail.types.VirtualTypeWithReq
 import is.hail.types.physical.{PCanonicalStruct, PCanonicalTuple, PInt64Required}
 import is.hail.types.virtual._
 import is.hail.utils.plural
+import is.hail.variant.ReferenceGenomeEnv
 
 import scala.collection.immutable.ArraySeq
 
@@ -94,9 +95,9 @@ class AvroTableReader(
 }
 
 object AvroTableReader {
-  def fromJValue(jv: JValue): AvroTableReader = {
+  def fromJValue(jv: JValue, rgs: ReferenceGenomeEnv): AvroTableReader = {
     implicit val formats: Formats =
-      PartitionReader.formats + new UnsafeAvroTableReaderOptionsSerializer
+      PartitionReader.formats(rgs) + new UnsafeAvroTableReaderOptionsSerializer(rgs)
     val paths = (jv \ "paths").extract[IndexedSeq[String]]
     val partitionReader = (jv \ "partitionReader").extract[AvroPartitionReader]
     val unsafeOptions = (jv \ "unsafeOptions").extract[Option[UnsafeAvroTableReaderOptions]]

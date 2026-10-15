@@ -81,12 +81,12 @@ object IRFunctionRegistry {
   ): UserDefinedFnKey = {
     requireJavaIdentifier(name)
     val argNames = argNameStrs.map(Name)
-    val typeParameters = typeParamStrs.map(IRParser.parseType)
-    val valueParameterTypes = argTypeStrs.map(IRParser.parseType)
+    val typeParameters = typeParamStrs.map(IRParser.parseType(_, ctx.referenceGenomes))
+    val valueParameterTypes = argTypeStrs.map(IRParser.parseType(_, ctx.referenceGenomes))
     val refMap = BindingEnv.eval(argNames.zip(valueParameterTypes): _*)
     val body = IRParser.parse_value_ir(ctx, bodyStr, refMap)
 
-    val returnType = IRParser.parseType(returnTypeStr)
+    val returnType = IRParser.parseType(returnTypeStr, ctx.referenceGenomes)
     assert(body.typ == returnType)
 
     val key: UserDefinedFnKey = (name, (returnType, typeParameters, valueParameterTypes))

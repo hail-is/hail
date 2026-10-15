@@ -11,7 +11,7 @@ import is.hail.io.fs.FS
 import is.hail.io.reference.{Liftover, ReferenceSequence}
 import is.hail.linalg.BlockMatrix
 import is.hail.utils._
-import is.hail.variant.ReferenceGenome
+import is.hail.variant.{ReferenceGenome, ReferenceGenomeEnv}
 
 import scala.collection.mutable
 
@@ -141,6 +141,8 @@ class ExecuteContext(
     }
 
   val stateManager = HailStateManager(references)
+
+  val referenceGenomes: ReferenceGenomeEnv = ReferenceGenomeEnv(references)
 
   lazy val fsBc: BroadcastValue[FS] = backend.broadcast(fs)
 

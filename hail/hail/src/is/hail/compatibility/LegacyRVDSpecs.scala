@@ -13,16 +13,18 @@ import org.json4s.JValue
 
 case class IndexSpec private (
   relPath: String,
-  keyType: String,
-  annotationType: String,
+  keyType: LegacyEncodedType,
+  annotationType: LegacyEncodedType,
   offsetField: Option[String],
 ) {
   val baseSpec = LEB128BufferSpec(
     BlockingBufferSpec(32 * 1024, LZ4BlockBufferSpec(32 * 1024, new StreamBlockBufferSpec))
   )
 
-  val (keyVType, keyEType) = LegacyEncodedTypeParser.parseTypeAndEType(keyType)
-  val (annotationVType, annotationEType) = LegacyEncodedTypeParser.parseTypeAndEType(annotationType)
+  val keyVType = keyType.vType
+  val keyEType = keyType.eType
+  val annotationVType = annotationType.vType
+  val annotationEType = annotationType.eType
 
   val leafEType = EBaseStruct(FastSeq(
     EField("first_idx", EInt64Required, 0),
@@ -102,7 +104,8 @@ case class IndexSpec private (
 
 case class PackCodecSpec private (child: BufferSpec)
 
-case class LegacyRVDType(rowType: TStruct, rowEType: EType, key: IndexedSeq[String]) {
+/** An RVD type written in the legacy encoded type syntax, and the string it was parsed from. */
+case class LegacyRVDType(repr: String, rowType: TStruct, rowEType: EType, key: IndexedSeq[String]) {
   def keyType: TStruct = rowType.select(key)._1
 }
 
@@ -124,17 +127,15 @@ trait ShimRVDSpec extends AbstractRVDSpec {
 }
 
 case class IndexedRVDSpec private (
-  rvdType: String,
+  rvdType: LegacyRVDType,
   codecSpec: PackCodecSpec,
   indexSpec: IndexSpec,
   override val partFiles: IndexedSeq[String],
   jRangeBounds: JValue,
 ) extends ShimRVDSpec {
-  private val lRvdType = LegacyEncodedTypeParser.parseLegacyRVDType(rvdType)
-
   lazy val shim = IndexedRVDSpec2(
-    lRvdType.key,
-    TypedCodecSpec(lRvdType.rowEType.setRequired(true), lRvdType.rowType, codecSpec.child),
+    rvdType.key,
+    TypedCodecSpec(rvdType.rowEType.setRequired(true), rvdType.rowType, codecSpec.child),
     indexSpec.toIndexSpec2,
     partFiles,
     jRangeBounds,
@@ -143,11 +144,12 @@ case class IndexedRVDSpec private (
 }
 
 case class UnpartitionedRVDSpec private (
-  rowType: String,
+  rowType: LegacyEncodedType,
   codecSpec: PackCodecSpec,
   partFiles: IndexedSeq[String],
 ) extends AbstractRVDSpec {
-  private val (rowVType: TStruct, rowEType) = LegacyEncodedTypeParser.parseTypeAndEType(rowType)
+  private val rowVType = rowType.vType.asInstanceOf[TStruct]
+  private val rowEType = rowType.eType
 
   override def partitioner(sm: HailStateManager): RVDPartitioner =
     RVDPartitioner.unkeyed(sm, partFiles.length)
@@ -161,20 +163,18 @@ case class UnpartitionedRVDSpec private (
 }
 
 case class OrderedRVDSpec private (
-  rvdType: String,
+  rvdType: LegacyRVDType,
   codecSpec: PackCodecSpec,
   partFiles: IndexedSeq[String],
   jRangeBounds: JValue,
 ) extends AbstractRVDSpec {
-  private val lRvdType = LegacyEncodedTypeParser.parseLegacyRVDType(rvdType)
-
-  override def key: IndexedSeq[String] = lRvdType.key
+  override def key: IndexedSeq[String] = rvdType.key
 
   override def partitioner(sm: HailStateManager): RVDPartitioner = {
-    val rangeBoundsType = TArray(TInterval(lRvdType.keyType))
+    val rangeBoundsType = TArray(TInterval(rvdType.keyType))
     new RVDPartitioner(
       sm,
-      lRvdType.keyType,
+      rvdType.keyType,
       JSONAnnotationImpex.importAnnotation(
         jRangeBounds,
         rangeBoundsType,
@@ -184,7 +184,7 @@ case class OrderedRVDSpec private (
   }
 
   override def typedCodecSpec: AbstractTypedCodecSpec =
-    TypedCodecSpec(lRvdType.rowEType.setRequired(true), lRvdType.rowType, codecSpec.child)
+    TypedCodecSpec(rvdType.rowEType.setRequired(true), rvdType.rowType, codecSpec.child)
 
   val attrs: Map[String, String] = Map.empty
 }

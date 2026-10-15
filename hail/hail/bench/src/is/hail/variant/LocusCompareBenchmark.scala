@@ -40,7 +40,8 @@ class LocusCompareBenchmark {
 
   private def locusType(name: String): PType = name match {
     case "canonical" => PCanonicalLocus(ReferenceGenome.GRCh38)
-    case "packed" => IRParser.parsePType(s"PPackedLocus(${ReferenceGenome.GRCh38})")
+    case "packed" =>
+      IRParser.parsePType(s"PPackedLocus(${ReferenceGenome.GRCh38})", ReferenceGenomeEnv.empty)
   }
 
   @Setup(Level.Trial)
