@@ -364,6 +364,14 @@ def handle_public_access_error(fun):
 
 
 class AzureAsyncFS(AsyncFS):
+    """Async filesystem implementation for Azure Blob Storage.
+
+    This implementation accepts
+    ``https://<account>.blob.core.windows.net/<container>/<path>`` URLs,
+    including URLs with SAS token query strings. It owns Azure Blob service
+    clients keyed by account, container, and credential context.
+    """
+
     PATH_REGEX = re.compile('/(?P<container>[^/]+)(?P<name>.*)')
 
     def __init__(
