@@ -13,7 +13,7 @@ import is.hail.variant.ReferenceGenome
 import scala.collection.immutable.ArraySeq
 
 object ReferenceGenomeFunctions extends RegistryFunctions {
-  def rgCode(mb: EmitMethodBuilder[_], rg: String): Code[ReferenceGenome] =
+  def rgCode(mb: EmitMethodBuilder[_], rg: ReferenceGenome): Code[ReferenceGenome] =
     mb.getReferenceGenome(rg)
 
   override def registerAll(): Unit = {
@@ -65,7 +65,7 @@ object ReferenceGenomeFunctions extends RegistryFunctions {
           cb,
           r,
           st,
-          cb.emb.getReferenceSequence(typeParam.rg).invoke[String, Int, Int, Int, String](
+          cb.emb.getReferenceSequence(typeParam.rg.name).invoke[String, Int, Int, Int, String](
             "lookup",
             scontig,
             pos.asInt.value,

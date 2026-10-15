@@ -35,7 +35,7 @@ class ContigIndexBenchmark {
 
   private var ctx: ExecuteContext = _
   private var rg: ReferenceGenome = _
-  private val locusType = PCanonicalLocus(ReferenceGenome.GRCh38)
+  private var locusType: PCanonicalLocus = _
   private var arrayType: PCanonicalArray = _
   private var array: Long = _
   private var contigAddresses: Array[Long] = _
@@ -46,6 +46,7 @@ class ContigIndexBenchmark {
   def setup(): Unit = {
     ctx = newExecuteContext()
     rg = ctx.references(ReferenceGenome.GRCh38)
+    locusType = PCanonicalLocus(rg)
     val data = loci(rg, switchRate)
     val (pt, addr) = store(ctx, locusType, data, ctx.r)
     arrayType = pt

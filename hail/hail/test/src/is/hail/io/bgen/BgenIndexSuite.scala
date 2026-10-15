@@ -6,6 +6,7 @@ import is.hail.collection.FastSeq
 import is.hail.expr.ir.{invoke, Env, MatrixRead, MatrixRowsTable, TableKeyBy}
 import is.hail.expr.ir.defs.{False, I32, Literal, Str, TableCollect}
 import is.hail.types.virtual._
+import is.hail.variant.BuiltinLoci.tlocus
 
 import scala.collection.immutable.ArraySeq
 
@@ -19,7 +20,7 @@ class BgenIndexSuite {
       invoke(
         "index_bgen",
         TInt64,
-        ArraySeq(TLocus("GRCh37")),
+        ArraySeq(tlocus("GRCh37")),
         Str(bgen),
         Str(idx),
         Literal(TDict(TString, TString), Map("01" -> "1")),

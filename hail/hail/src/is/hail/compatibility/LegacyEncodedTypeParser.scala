@@ -43,7 +43,7 @@ object LegacyEncodedTypeParser {
       case "Float64" => (TFloat64, EFloat64(req))
       case "String" => (TString, EBinaryLegacyFullWidthIntegerLength(req))
       case "Locus" =>
-        val rg = reference_genome(rgs)(it).name
+        val rg = reference_genome(rgs)(it)
         (
           TLocus(rg),
           EBaseStruct(

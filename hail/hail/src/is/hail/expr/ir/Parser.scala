@@ -413,10 +413,10 @@ object IRParser {
       case "PCBinary" => PCanonicalBinary(req)
       case "PCString" => PCanonicalString(req)
       case "PCLocus" =>
-        val rg = reference_genome(rgs)(it).name
+        val rg = reference_genome(rgs)(it)
         PCanonicalLocus(rg, req)
       case "PPackedLocus" =>
-        val rg = reference_genome(rgs)(it).name
+        val rg = reference_genome(rgs)(it)
         PPackedLocus(rg, req)
       case "PCCall" => PCanonicalCall(req)
       case "PCArray" =>
@@ -495,7 +495,7 @@ object IRParser {
       case "Float64" => TFloat64
       case "String" => TString
       case "Locus" =>
-        val rg = reference_genome(rgs)(it).name
+        val rg = reference_genome(rgs)(it)
         TLocus(rg)
       case "Call" => TCall
       case "Stream" =>

@@ -9,8 +9,9 @@ import is.hail.types.physical.stypes.{SSettable, SType, SValue}
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives.{SInt32Value, SInt64Value}
 import is.hail.types.virtual.{TLocus, Type}
+import is.hail.variant.ReferenceGenome
 
-final case class SPackedLocus(rg: String) extends SLocus {
+final case class SPackedLocus(rg: ReferenceGenome) extends SLocus {
   override lazy val virtualType: TLocus = TLocus(rg)
 
   override def contigType: SString = SJavaString

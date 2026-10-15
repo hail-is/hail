@@ -5,20 +5,23 @@ import is.hail.collection.FastSeq
 import is.hail.expr.ir.IRParser
 import is.hail.rvd.{AbstractRVDSpec, RVDType, RVDTypeSerializer}
 import is.hail.types.physical._
+import is.hail.types.physical.LocusRepresentations
 import is.hail.types.physical.LocusRepresentations.customReference
 import is.hail.types.virtual._
 import is.hail.utils.deepestMessage
 import is.hail.variant.{ReferenceGenome, ReferenceGenomeEnv}
+import is.hail.variant.BuiltinLoci.{builtin, pcanonicalLocus, ppackedLocus, tlocus}
 
 import org.json4s.{DefaultFormats, Formats, MappingException}
 import org.json4s.jackson.Serialization
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
 class TypeParsingSuite {
 
-  private val rg = customReference.name
+  private val rg = customReference
 
-  private val inScope = ReferenceGenomeEnv(Map(rg -> customReference))
+  private val inScope = ReferenceGenomeEnv(Map(rg.name -> rg))
 
   private def typeFormats(rgs: ReferenceGenomeEnv): Formats =
     DefaultFormats +
@@ -54,16 +57,24 @@ class TypeParsingSuite {
 
   @Test def testBuiltinLocusTypesParseWithoutRegistry(): Unit =
     for (name <- ReferenceGenome.hailReferences) {
-      assertEq(IRParser.parseType(s"Locus($name)", ReferenceGenomeEnv.empty), TLocus(name))
+      val parsed = IRParser.parseType(s"Locus($name)", ReferenceGenomeEnv.empty)
+      assertEq(parsed, tlocus(name))
+      assertTrue(parsed.asInstanceOf[TLocus].rg eq builtin(name))
       assertEq(
         IRParser.parsePType(s"PCLocus($name)", ReferenceGenomeEnv.empty),
-        PCanonicalLocus(name),
+        pcanonicalLocus(name),
       )
       assertEq(
         IRParser.parsePType(s"+PPackedLocus($name)", ReferenceGenomeEnv.empty),
-        PPackedLocus(name, required = true),
+        ppackedLocus(name, required = true),
       )
     }
+
+  @Test def testParsedLocusTypesHoldTheReferenceGenomeInScope(): Unit = {
+    val parsed = IRParser.parsePType(rowPType.toString, inScope).asInstanceOf[PStruct]
+    for (t <- parsed.types)
+      assertTrue(LocusRepresentations.loci(t).forall(_.rg eq rg), s"$t")
+  }
 
   @Test def testVirtualTypesRoundTripWithUserDefinedReference(): Unit = {
     assertEq(IRParser.parseType(rowType.parsableString(), inScope), rowType)
@@ -108,10 +119,16 @@ class TypeParsingSuite {
   }
 
   @Test def testUserDefinedLocusOutOfScopeFails(): Unit = {
-    val notInScope = s"Reference genome '$rg' is not in scope"
-    interceptFatal(notInScope)(IRParser.parseType(s"Locus($rg)", ReferenceGenomeEnv.empty))
-    interceptFatal(notInScope)(IRParser.parsePType(s"PCLocus($rg)", ReferenceGenomeEnv.empty))
-    interceptFatal(notInScope)(IRParser.parsePType(s"PPackedLocus($rg)", ReferenceGenomeEnv.empty))
+    val notInScope = s"Reference genome '${rg.name}' is not in scope"
+    interceptFatal(notInScope)(IRParser.parseType(s"Locus(${rg.name})", ReferenceGenomeEnv.empty))
+    interceptFatal(notInScope)(IRParser.parsePType(
+      s"PCLocus(${rg.name})",
+      ReferenceGenomeEnv.empty,
+    ))
+    interceptFatal(notInScope)(IRParser.parsePType(
+      s"PPackedLocus(${rg.name})",
+      ReferenceGenomeEnv.empty,
+    ))
     interceptFatal(notInScope)(IRParser.parseTableType(
       tableType.toString,
       ReferenceGenomeEnv.empty,

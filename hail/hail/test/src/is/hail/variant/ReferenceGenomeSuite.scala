@@ -15,6 +15,7 @@ import is.hail.types.physical.{
 import is.hail.types.physical.stypes.PTypeReferenceSingleCodeType
 import is.hail.types.virtual.{TBoolean, TInterval, TLocus, TString, TStruct}
 import is.hail.utils._
+import is.hail.variant.BuiltinLoci.{builtin, pcanonicalLocus, ppackedLocus, tlocus}
 
 import scala.collection.immutable.ArraySeq
 
@@ -191,12 +192,12 @@ class ReferenceGenomeSuite {
         assertEq(fr.lookup(contig, pos, 0, 0), expected)
       })
 
-      check(forAll(genNonMissing(ctx, TInterval(TLocus(rg.name)))) {
+      check(forAll(genNonMissing(ctx, TInterval(TLocus(rg)))) {
         case i: Interval =>
           val start = i.start.asInstanceOf[Locus]
           val end = i.end.asInstanceOf[Locus]
 
-          val ordering = TLocus(rg.name).ordering(HailStateManager(Map(rg.name -> rg)))
+          val ordering = TLocus(rg).ordering(HailStateManager(Map(rg.name -> rg)))
 
           def getHtsjdkIntervalSequence: String = {
             val sb = new StringBuilder
@@ -262,7 +263,7 @@ class ReferenceGenomeSuite {
   @Test def testSerializeOnFB(implicit ctx: ExecuteContext): Unit = {
     val grch38 = ctx.references(ReferenceGenome.GRCh38)
     val fb = EmitFunctionBuilder[String, Boolean](ctx, "serialize_rg")
-    val rgfield = fb.getReferenceGenome(grch38.name)
+    val rgfield = fb.getReferenceGenome(grch38)
     fb.emit(rgfield.invoke[String, Boolean]("isValidContig", fb.getCodeParam[String](1)))
     ctx.scopedExecution { (cl, fs, tc, r) =>
       val f = fb.resultWithIndex()(cl, fs, tc, r)
@@ -385,11 +386,11 @@ class ReferenceGenomeSuite {
       references = ctx.references + (test38.name -> test38),
       liftovers = Map(used.key -> used, unused.key -> unused),
     ) { ctx =>
-      val argsPType = PCanonicalTuple(true, PCanonicalLocus(ReferenceGenome.GRCh37, true))
+      val argsPType = PCanonicalTuple(true, pcanonicalLocus(ReferenceGenome.GRCh37, true))
       val args = Ref(freshName(), argsPType.virtualType)
       val lifted = invoke(
         "liftoverLocus",
-        TStruct("result" -> TLocus(ReferenceGenome.GRCh38), "is_negative_strand" -> TBoolean),
+        TStruct("result" -> tlocus(ReferenceGenome.GRCh38), "is_negative_strand" -> TBoolean),
         GetTupleElement(args, 0),
         F64(0.95),
       )
@@ -465,7 +466,7 @@ class ReferenceGenomeSuite {
       val seq = invoke(
         "getReferenceSequence",
         TString,
-        FastSeq(TLocus(fakeGenome.name)),
+        FastSeq(TLocus(fakeGenome)),
         GetTupleElement(args, 0),
         I32(5),
         I32(10),
@@ -494,11 +495,83 @@ class ReferenceGenomeSuite {
     }
   }
 
-  // Unstaged reads of packed loci name the contig through the state manager a closure carries.
-  @Test def testPackedLocusNamesContigAfterRoundTrip(implicit ctx: ExecuteContext): Unit = {
-    val t = PCanonicalStruct(true, "l" -> PPackedLocus(ReferenceGenome.GRCh38, true))
-    val off = t.unstagedStoreJavaObject(ctx.stateManager, Row(Locus("chrX", 5)), ctx.r)
-    val sm = roundTrip(HailStateManager(ReferenceGenome.builtinReferences()))
-    assertEq(new UnsafeRow(sm, t, ctx.r, off).get(0), Locus("chrX", 5))
+  // Unstaged reads of packed loci name the contig through the reference genome the type carries,
+  // without a state manager that knows it.
+  @Test def testPackedLocusNamesContigAfterRoundTrip(implicit ctx: ExecuteContext): Unit =
+    for (rg <- ArraySeq(builtin(ReferenceGenome.GRCh38), fakeGenome)) {
+      val l = Locus(rg.contigs.last, 5)
+      val t = PCanonicalStruct(true, "l" -> PPackedLocus(rg, true))
+      val off = t.unstagedStoreJavaObject(ctx.stateManager, Row(l), ctx.r)
+      val noGenomes = HailStateManager(Map.empty)
+      assertEq(new UnsafeRow(noGenomes, roundTrip(t), ctx.r, off).get(0), l)
+    }
+
+  // Types reach tasks inside closures, so a type on a builtin reference genome must ship it as a
+  // tag: more cheaply than even the smallest user-defined genome, and within the bound on a state
+  // manager holding all the builtins.
+  @Test def testTypesOnBuiltinsSerializeSmall(): Unit = {
+    val smallest = ReferenceGenome("smallest", ArraySeq("1"), Map("1" -> 1))
+    for {
+      n <- ReferenceGenome.hailReferences
+      mk <- ArraySeq[ReferenceGenome => AnyRef](
+        TLocus(_),
+        PCanonicalLocus(_),
+        PPackedLocus(_),
+        PPackedLocus(_).sType,
+      )
+    } {
+      val size = serialize(mk(builtin(n))).length
+      val inlineSize = serialize(mk(smallest)).length
+      assertTrue(size < inlineSize, s"${mk(builtin(n))}: $size, inline: $inlineSize")
+    }
+
+    val all = TStruct(ReferenceGenome.hailReferences.toSeq.sorted.map(n => n -> tlocus(n)): _*)
+    val size = serialize(all).length
+    assertTrue(size < 2048, s"serialized size $size")
+  }
+
+  // Every locus type in a session points at the one reference genome, so a type ships it once, and
+  // its loci still share one reference genome after the round trip.
+  @Test def testTypeShipsItsReferenceGenomeOnce(): Unit = {
+    val rg = builtin(ReferenceGenome.GRCh38).copy(name = "user_defined")
+    val one = TStruct("l" -> TLocus(rg))
+    val many = TStruct((0 until 20).map(i => s"l$i" -> TLocus(rg)): _*)
+    val genomeSize = serialize(rg).length
+    assertTrue(
+      serialize(many).length < serialize(one).length + genomeSize / 2,
+      s"one: ${serialize(one).length}, many: ${serialize(many).length}, genome: $genomeSize",
+    )
+
+    val result = roundTrip(many)
+    assertEq(result, many)
+    val rgs = result.types.map(_.asInstanceOf[TLocus].rg)
+    assertTrue(rgs.forall(_ eq rgs.head))
+  }
+
+  // Locus types compare their reference genomes as reference genomes do: two copies of one layout
+  // that are distinct objects are equal, and a genome of the same name with another layout is not.
+  @Test def testLocusTypesCompareReferenceGenomes(): Unit = {
+    val a = fakeGenome
+    val b = fakeGenome.copy()
+    val other = fakeGenome.copy(lengths = fakeGenome.lengths + ("c" -> 11))
+    assertTrue(a ne b)
+
+    val types = ArraySeq[ReferenceGenome => AnyRef](
+      TLocus(_),
+      PCanonicalLocus(_, true),
+      PPackedLocus(_),
+      PPackedLocus(_).sType,
+      rg => PCanonicalLocus(rg).sType,
+    )
+    for (mk <- types) {
+      assertEq(mk(a), mk(b))
+      assertEq(mk(a).hashCode, mk(b).hashCode)
+      assertTrue(mk(a) != mk(other), s"${mk(a)}")
+    }
+
+    assertTrue(TLocus(a).unify(TLocus(b)))
+    assertTrue(TLocus(a).isIsomorphicTo(TLocus(b)))
+    assertTrue(!TLocus(a).unify(TLocus(other)))
+    assertTrue(!TLocus(a).isIsomorphicTo(TLocus(other)))
   }
 }

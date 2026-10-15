@@ -6,27 +6,25 @@ import is.hail.backend.HailStateManager
 import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.types.physical.stypes.SValue
 import is.hail.types.physical.stypes.concrete.{SPackedLocus, SPackedLocusValue}
-import is.hail.variant.Locus
+import is.hail.variant.{Locus, ReferenceGenome}
 
 /** A locus stored as a single packed integer, `(contig_index << 32) | position`, where the contig
-  * index is measured against the session's registered reference genome named `rgName`.
+  * index is measured against `rg`.
   */
-final case class PPackedLocus(rgName: String, required: Boolean = false)
+final case class PPackedLocus(rg: ReferenceGenome, required: Boolean = false)
     extends PLocus with PPrimitive {
-
-  override def rg: String = rgName
 
   override def byteSize: Long = 8
 
-  override def _asIdent = s"packed_locus_$rgName"
+  override def _asIdent = s"packed_locus_${rg.name}"
 
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean): Unit =
-    sb ++= "PPackedLocus(" ++= rgName += ')': Unit
+    sb ++= "PPackedLocus(" ++= rg.name += ')': Unit
 
   override def setRequired(required: Boolean): PPackedLocus =
-    if (required == this.required) this else PPackedLocus(rgName, required)
+    if (required == this.required) this else PPackedLocus(rg, required)
 
-  override def sType: SPackedLocus = SPackedLocus(rgName)
+  override def sType: SPackedLocus = SPackedLocus(rg)
 
   override def unsafeOrdering(sm: HailStateManager): UnsafeOrdering = new UnsafeOrdering {
     override def compare(o1: Long, o2: Long): Int =
@@ -36,7 +34,7 @@ final case class PPackedLocus(rgName: String, required: Boolean = false)
   def contigIdx(address: Long): Int = (Region.loadLong(address) >>> 32).toInt
 
   override def contig(sm: HailStateManager, address: Long): String =
-    sm.referenceGenomes(rgName).getContig(contigIdx(address))
+    rg.getContig(contigIdx(address))
 
   override def position(address: Long): Int = Region.loadLong(address).toInt
 
@@ -91,7 +89,7 @@ final case class PPackedLocus(rgName: String, required: Boolean = false)
   ): Unit =
     Region.storeLong(
       addr,
-      PLocus.pack(sm.referenceGenomes(rgName).getContigIndex(contig), position),
+      PLocus.pack(rg.getContigIndex(contig), position),
     )
 
   override def unstagedStoreJavaObjectAtAddress(

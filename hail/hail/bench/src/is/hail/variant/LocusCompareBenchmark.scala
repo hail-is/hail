@@ -2,8 +2,8 @@ package is.hail.variant
 
 import is.hail.asm4s._
 import is.hail.backend.ExecuteContext
-import is.hail.expr.ir.{EmitFunctionBuilder, IRParser}
-import is.hail.types.physical.{PCanonicalArray, PCanonicalLocus, PType}
+import is.hail.expr.ir.EmitFunctionBuilder
+import is.hail.types.physical.{PCanonicalArray, PCanonicalLocus, PPackedLocus, PType}
 import is.hail.variant.LocusBenchmarkData._
 
 import java.util.concurrent.TimeUnit
@@ -38,10 +38,9 @@ class LocusCompareBenchmark {
   private var right: Long = _
   private var countInOrder: AsmFunction2[Long, Long, Long] = _
 
-  private def locusType(name: String): PType = name match {
-    case "canonical" => PCanonicalLocus(ReferenceGenome.GRCh38)
-    case "packed" =>
-      IRParser.parsePType(s"PPackedLocus(${ReferenceGenome.GRCh38})", ReferenceGenomeEnv.empty)
+  private def locusType(name: String, rg: ReferenceGenome): PType = name match {
+    case "canonical" => PCanonicalLocus(rg)
+    case "packed" => PPackedLocus(rg)
   }
 
   @Setup(Level.Trial)
@@ -50,8 +49,8 @@ class LocusCompareBenchmark {
     val rg = ctx.references(ReferenceGenome.GRCh38)
     val data = loci(rg, switchRate)
     val Array(leftName, rightName) = representation.split('/')
-    val (leftType, leftAddr) = store(ctx, locusType(leftName), data, ctx.r)
-    val (rightType, rightAddr) = store(ctx, locusType(rightName), data, ctx.r)
+    val (leftType, leftAddr) = store(ctx, locusType(leftName, rg), data, ctx.r)
+    val (rightType, rightAddr) = store(ctx, locusType(rightName, rg), data, ctx.r)
     left = leftAddr
     right = rightAddr
     countInOrder = compile(leftType, rightType)

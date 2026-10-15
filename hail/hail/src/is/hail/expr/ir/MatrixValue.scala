@@ -216,7 +216,7 @@ case class MatrixValue(
       ReferenceGenome.exportReferences(
         fs,
         refPath,
-        ReferenceGenome.getReferences(t).map(ctx.references(_)),
+        ReferenceGenome.getReferences(t),
       )
     }
 

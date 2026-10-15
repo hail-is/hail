@@ -51,18 +51,24 @@ class EmitModuleBuilder(val ctx: ExecuteContext, val modb: ModuleBuilder) {
   def setFS(cb: EmitCodeBuilder, fs: Code[FS]): Unit = cb.assign(_staticFS, fs)
   def getFS: Value[FS] = _staticFS
 
-  private val rgContainers: mutable.Map[String, StaticFieldRef[ReferenceGenome]] = mutable.Map.empty
+  private val rgContainers: mutable.LinkedHashMap[ReferenceGenome, StaticFieldRef[
+    ReferenceGenome
+  ]] = mutable.LinkedHashMap.empty
 
   def hasReferences: Boolean = rgContainers.nonEmpty
 
-  def getReferenceGenome(rg: String): Value[ReferenceGenome] =
-    rgContainers.getOrElseUpdate(rg, modb.genStaticField[ReferenceGenome](s"reference_genome_$rg"))
+  /** A field holding `rg`, which [[Compiled]] ships with this module. */
+  def getReferenceGenome(rg: ReferenceGenome): Value[ReferenceGenome] =
+    rgContainers.getOrElseUpdate(
+      rg,
+      modb.genStaticField[ReferenceGenome](s"reference_genome_${rg.name}"),
+    )
 
   def referenceGenomes(): IndexedSeq[ReferenceGenome] =
-    ArraySeq.sortedBy(rgContainers.keys.map(ctx.references))(_.name)
+    ArraySeq.from(rgContainers.keys)
 
   def referenceGenomeFields(): IndexedSeq[StaticFieldRef[ReferenceGenome]] =
-    ArraySeq.sortedBy(rgContainers)(_._1).map(_._2)
+    ArraySeq.from(rgContainers.values)
 
   private val liftoverContainers: mutable.Map[(String, String), StaticFieldRef[Liftover]] =
     mutable.Map.empty
@@ -167,7 +173,8 @@ trait WrappedEmitModuleBuilder {
   def genEmitClass[C](baseName: String)(implicit cti: TypeInfo[C]): EmitClassBuilder[C] =
     emodb.genEmitClass[C](baseName)
 
-  def getReferenceGenome(rg: String): Value[ReferenceGenome] = emodb.getReferenceGenome(rg)
+  def getReferenceGenome(rg: ReferenceGenome): Value[ReferenceGenome] =
+    emodb.getReferenceGenome(rg)
 
   def getLiftover(source: String, dest: String): Value[Liftover] =
     emodb.getLiftover(source, dest)

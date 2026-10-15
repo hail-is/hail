@@ -19,28 +19,26 @@ object PCanonicalLocus {
     "position" -> PInt32(required = true),
   )
 
-  def schemaFromRG(rg: Option[String], required: Boolean = false): PType = rg match {
-    case Some(name) => PCanonicalLocus(name, required)
+  def schemaFromRG(rg: Option[ReferenceGenome], required: Boolean = false): PType = rg match {
+    case Some(rg) => PCanonicalLocus(rg, required)
     case None => representation(required)
   }
 }
 
-final case class PCanonicalLocus(rgName: String, required: Boolean = false) extends PLocus {
+final case class PCanonicalLocus(rg: ReferenceGenome, required: Boolean = false) extends PLocus {
 
   override def byteSize: Long = representation.byteSize
   override def alignment: Long = representation.alignment
 
   override def copiedType: PType = this
 
-  override def rg: String = rgName
-
-  override def _asIdent = s"locus_$rgName"
+  override def _asIdent = s"locus_${rg.name}"
 
   override def _pretty(sb: StringBuilder, indent: Call, compact: Boolean): Unit =
-    sb ++= "PCLocus(" ++= rgName += ')': Unit
+    sb ++= "PCLocus(" ++= rg.name += ')': Unit
 
   override def setRequired(required: Boolean): PCanonicalLocus =
-    if (required == this.required) this else PCanonicalLocus(this.rgName, required)
+    if (required == this.required) this else PCanonicalLocus(rg, required)
 
   val representation: PCanonicalStruct = PCanonicalLocus.representation(required)
 
@@ -55,7 +53,7 @@ final case class PCanonicalLocus(rgName: String, required: Boolean = false) exte
   override def position(address: Long): Int = Region.loadInt(representation.fieldOffset(address, 1))
 
   override def packed(sm: HailStateManager, address: Long): Long =
-    PLocus.pack(sm.referenceGenomes(rgName).getContigIndex(contig(sm, address)), position(address))
+    PLocus.pack(rg.getContigIndex(contig(sm, address)), position(address))
 
   lazy val contigType: PCanonicalString =
     representation.field("contig").typ.asInstanceOf[PCanonicalString]
@@ -67,7 +65,6 @@ final case class PCanonicalLocus(rgName: String, required: Boolean = false) exte
 
   // FIXME: Remove when representation of contig/position is a naturally-ordered Long
   override def unsafeOrdering(sm: HailStateManager): UnsafeOrdering = {
-    val localRg = sm.referenceGenomes(rgName)
     val binaryOrd = representation.fieldType("contig").unsafeOrdering(sm)
 
     new UnsafeOrdering {
@@ -82,7 +79,7 @@ final case class PCanonicalLocus(rgName: String, required: Boolean = false) exte
         } else {
           val contig1 = contigType.loadString(cOff1)
           val contig2 = contigType.loadString(cOff2)
-          localRg.compare(contig1, contig2)
+          rg.compare(contig1, contig2)
         }
       }
     }

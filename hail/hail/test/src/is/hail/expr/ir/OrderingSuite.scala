@@ -720,8 +720,9 @@ class OrderingSuite {
     fb.resultWithIndex()(ctx.theHailClassLoader, ctx.fs, ctx.taskContext, r)
   }
 
-  // Compiled orderings between loci of any pair of representations, at top level and nested,
-  // agree with the virtual type's ordering.
+  // Compiled orderings between loci of any pair of representations, at top level and nested, on the
+  // same reference genome or an equal copy of it, agree with the virtual type's ordering. The
+  // session does not hold the custom reference genome: locus types carry their own.
   @Test def testLocusRepresentationOrderings(implicit ctx: ExecuteContext): Unit = {
     val nestings = ArraySeq[PLocus => PType](
       identity,
@@ -730,44 +731,40 @@ class OrderingSuite {
       l => PCanonicalInterval(l, true),
     )
 
-    for (rg <- LocusRepresentations.references)
-      LocusRepresentations.withReference(rg) { implicit ctx =>
-        val representations = ArraySeq(PCanonicalLocus(rg.name, true), PPackedLocus(rg.name, true))
-        for {
-          nest <- nestings
-          lt <- representations.map(nest)
-          rt <- representations.map(nest)
-        } ctx.r.pool.scopedRegion { r =>
-          val t = lt.virtualType
-          val ord = t.ordering(sm)
-          val compare = getStagedOrderingFunction(lt, rt, CodeOrdering.Compare(), r)
-          val less = getStagedOrderingFunction(lt, rt, CodeOrdering.Lt(), r)
-          val equiv = getStagedOrderingFunction(lt, rt, CodeOrdering.Equiv(), r)
-          // PInterval's unsafe ordering assumes both sides share its layout
-          val unsafeOrd = lt match {
-            case _: PInterval => None
-            case _ => Some(lt.unsafeOrdering(sm, rt))
-          }
-          val genValue = genVal(ctx, lt)
-
-          check(forAll(genValue, genValue) { (a, b) =>
-            val clue = s"$lt vs $rt: $a, $b"
-            for ((x, y) <- ArraySeq((a, b), (a, a))) {
-              val xOff = lt.unstagedStoreJavaObject(sm, x, r)
-              val yOff = rt.unstagedStoreJavaObject(sm, y, r)
-              assert(
-                math.signum(compare(r, xOff, yOff)) == math.signum(ord.compare(x, y)),
-                clue,
-              )
-              assert(less(r, xOff, yOff) == ord.lt(x, y), clue)
-              assert(equiv(r, xOff, yOff) == ord.equiv(x, y), clue)
-              unsafeOrd.foreach { u =>
-                assert(math.signum(u.compare(xOff, yOff)) == math.signum(ord.compare(x, y)), clue)
-              }
-            }
-            true
-          })
-        }
+    for {
+      rg <- LocusRepresentations.references
+      nest <- nestings
+      (lt, rt) <- LocusRepresentations.representationPairs(nest(PCanonicalLocus(rg, true)), rg)
+    } ctx.r.pool.scopedRegion { r =>
+      val t = lt.virtualType
+      val ord = t.ordering(sm)
+      val compare = getStagedOrderingFunction(lt, rt, CodeOrdering.Compare(), r)
+      val less = getStagedOrderingFunction(lt, rt, CodeOrdering.Lt(), r)
+      val equiv = getStagedOrderingFunction(lt, rt, CodeOrdering.Equiv(), r)
+      // PInterval's unsafe ordering assumes both sides share its layout
+      val unsafeOrd = lt match {
+        case _: PInterval => None
+        case _ => Some(lt.unsafeOrdering(sm, rt))
       }
+      val genValue = genVal(ctx, lt)
+
+      check(forAll(genValue, genValue) { (a, b) =>
+        val clue = s"$lt vs $rt: $a, $b"
+        for ((x, y) <- ArraySeq((a, b), (a, a))) {
+          val xOff = lt.unstagedStoreJavaObject(sm, x, r)
+          val yOff = rt.unstagedStoreJavaObject(sm, y, r)
+          assert(
+            math.signum(compare(r, xOff, yOff)) == math.signum(ord.compare(x, y)),
+            clue,
+          )
+          assert(less(r, xOff, yOff) == ord.lt(x, y), clue)
+          assert(equiv(r, xOff, yOff) == ord.equiv(x, y), clue)
+          unsafeOrd.foreach { u =>
+            assert(math.signum(u.compare(xOff, yOff)) == math.signum(ord.compare(x, y)), clue)
+          }
+        }
+        true
+      })
+    }
   }
 }

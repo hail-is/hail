@@ -4,6 +4,7 @@ import is.hail.annotations.{Region, UnsafeOrdering}
 import is.hail.asm4s._
 import is.hail.backend.HailStateManager
 import is.hail.types.virtual.TLocus
+import is.hail.variant.ReferenceGenome
 
 object PLocus {
   def pack(contigIdx: Int, position: Int): Long =
@@ -13,7 +14,7 @@ object PLocus {
 abstract class PLocus extends PType {
   lazy val virtualType: TLocus = TLocus(rg)
 
-  def rg: String
+  def rg: ReferenceGenome
 
   def contig(sm: HailStateManager, value: Long): String
 

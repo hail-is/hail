@@ -77,15 +77,15 @@ class ContigIndexCacheSuite {
    * cache keyed on the address, or on a view of the region, instead of a copy of the bytes. */
   @Test def testRegionReuse(implicit ctx: ExecuteContext): Unit = {
     val rg = ctx.references(ReferenceGenome.GRCh38)
-    val pt = PCanonicalLocus(rg.name)
-    val f = compileCanonical(ctx, rg.name)((cb, l) => cb.memoize(l.contigIdx(cb).toL))
+    val pt = PCanonicalLocus(rg)
+    val f = compileCanonical(ctx, rg)((cb, l) => cb.memoize(l.contigIdx(cb).toL))
     ctx.r.pool.scopedRegion { r =>
-      val first = storeCanonical(ctx, rg.name, Locus("chr1", 1), r)
+      val first = storeCanonical(ctx, rg, Locus("chr1", 1), r)
       val firstContig = pt.representation.loadField(first, 0)
       assertEq(f(first), rg.getContigIndex("chr1").toLong)
 
       r.clear()
-      val second = storeCanonical(ctx, rg.name, Locus("chr2", 1), r)
+      val second = storeCanonical(ctx, rg, Locus("chr2", 1), r)
       assertEq(second, first)
       assertEq(pt.representation.loadField(second, 0), firstContig)
       assertEq(f(second), rg.getContigIndex("chr2").toLong)
@@ -94,8 +94,8 @@ class ContigIndexCacheSuite {
 
   @Test def testUnknownContigInGeneratedCode(implicit ctx: ExecuteContext): Unit = {
     val rg = ctx.references(ReferenceGenome.GRCh38)
-    val f = compileCanonical(ctx, rg.name)((cb, l) => cb.memoize(l.contigIdx(cb).toL))
-    def lookup(contig: String): Long = f(storeCanonical(ctx, rg.name, Locus(contig, 1), ctx.r))
+    val f = compileCanonical(ctx, rg)((cb, l) => cb.memoize(l.contigIdx(cb).toL))
+    def lookup(contig: String): Long = f(storeCanonical(ctx, rg, Locus(contig, 1), ctx.r))
 
     assertEq(lookup("chr1"), 0L)
     // "chrZ" has the cached contig's length, "chr" is a prefix of it.
@@ -153,14 +153,14 @@ object ContigIndexCacheSuite {
   def locusFromLiterals(contigs: IndexedSeq[String], positions: IndexedSeq[Int])(idx: IR): IR =
     invoke(
       "Locus",
-      TLocus(custom.name),
+      TLocus(custom),
       Literal(TArray(TString), contigs).at(idx),
       Literal(TArray(TInt32), positions).at(idx),
     )
 
   type LocusEmitter = (EmitCodeBuilder, SLocusValue) => Value[Long]
 
-  def storeCanonical(ctx: ExecuteContext, rg: String, l: Locus, r: Region): Long =
+  def storeCanonical(ctx: ExecuteContext, rg: ReferenceGenome, l: Locus, r: Region): Long =
     PCanonicalLocus(rg).unstagedStoreJavaObject(ctx.stateManager, l, r)
 
   /** Compiles `f` over a canonical locus, given its address. Each call of the result runs the same
@@ -168,7 +168,7 @@ object ContigIndexCacheSuite {
     */
   def compileCanonical(
     ctx: ExecuteContext,
-    rg: String,
+    rg: ReferenceGenome,
   )(
     f: LocusEmitter
   ): AsmFunction1[Long, Long] = {

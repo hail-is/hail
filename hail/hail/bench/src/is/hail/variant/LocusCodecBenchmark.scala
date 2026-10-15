@@ -65,12 +65,12 @@ class LocusCodecBenchmark {
     ctx = newExecuteContext()
     val rg = ctx.references(ReferenceGenome.GRCh38)
     val data = loci(rg, switchRate)
-    val (arrayType, addr) = store(ctx, PCanonicalLocus(rg.name), data, ctx.r)
+    val (arrayType, addr) = store(ctx, PCanonicalLocus(rg), data, ctx.r)
     array = addr
     val et = EArray(locusEType, required = true)
     encoder = EType.buildEncoder(ctx, et, arrayType)(ctx.theHailClassLoader)
     val (decodedArrayType, buildDecoder) =
-      EType.buildDecoderToRegionValue(ctx, et, TArray(TLocus(rg.name)))
+      EType.buildDecoderToRegionValue(ctx, et, TArray(TLocus(rg)))
     decoder = buildDecoder(ctx.theHailClassLoader)
     encodedOut = new ByteArrayOutputStream()
     decodeRegion = Region(pool = ctx.r.pool)

@@ -33,7 +33,7 @@ class SCanonicalLocusPointerSuite {
 
   def checkAgreesWithReference(rg: ReferenceGenome)(implicit ctx: ExecuteContext): Unit =
     ctx.local(references = ctx.references + (rg.name -> rg)) { ctx =>
-      val pt = PCanonicalLocus(rg.name)
+      val pt = PCanonicalLocus(rg)
       val contigIdx = compile[Int](ctx, pt)((cb, l) => l.contigIdx(cb))
       val packed = compile[Long](ctx, pt)((cb, l) => l.packed(cb))
 
@@ -67,7 +67,7 @@ class SCanonicalLocusPointerSuite {
   @Test def testPrefixCodePreservesLocusOrder(implicit ctx: ExecuteContext): Unit =
     check(forAll(referenceAndLoci) { case (rg, loci) =>
       ctx.local(references = ctx.references + (rg.name -> rg)) { ctx =>
-        val pt = PCanonicalLocus(rg.name)
+        val pt = PCanonicalLocus(rg)
         val prefixCode =
           compile[Array[Byte]](ctx, pt)((cb, l) =>
             l.prefixCode(cb).asInstanceOf[SJavaBytesValue].bytes

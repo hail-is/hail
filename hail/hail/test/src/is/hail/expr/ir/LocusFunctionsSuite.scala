@@ -10,7 +10,7 @@ import is.hail.expr.ir.defs.{Apply, ErrorIDs, False, I32, I64, MakeArray, MakeTu
 import is.hail.types.physical.LocusRepresentations.{customReference, withReference}
 import is.hail.types.virtual._
 import is.hail.utils.Interval
-import is.hail.variant.{Locus, ReferenceGenome}
+import is.hail.variant.{BuiltinLoci, Locus, ReferenceGenome}
 
 import org.junit.jupiter.api.Test
 
@@ -21,7 +21,7 @@ class LocusFunctionsSuite {
   private def grch38(implicit ctx: ExecuteContext): ReferenceGenome =
     ctx.references(ReferenceGenome.GRCh38)
 
-  private def tlocus(implicit ctx: ExecuteContext) = TLocus(grch38.name)
+  private def tlocus(implicit ctx: ExecuteContext) = TLocus(grch38)
 
   private def tvariant(implicit ctx: ExecuteContext) =
     TStruct("locus" -> tlocus, "alleles" -> TArray(TString))
@@ -88,7 +88,7 @@ class LocusFunctionsSuite {
         (customReference, FastSeq("a", "c", "a", "b"), RowSeq(1, 0, 1, 2)),
       )
     } withReference(rg) { implicit ctx =>
-      val tl = TLocus(rg.name)
+      val tl = TLocus(rg)
       val ir = MakeTuple.ordered(contigs.map { c =>
         invoke("contig_idx", TInt32, invoke("Locus", tl, Str(c), I32(1)))
       })
@@ -99,8 +99,8 @@ class LocusFunctionsSuite {
     implicit val execStrats = ExecStrategy.compileOnly
 
     val ir = MakeTuple.ordered(FastSeq(
-      invoke("Locus", TLocus(ReferenceGenome.GRCh37), Str("1"), I32(1)),
-      invoke("Locus", TLocus(ReferenceGenome.GRCh38), Str("chr1"), I32(1)),
+      invoke("Locus", BuiltinLoci.tlocus(ReferenceGenome.GRCh37), Str("1"), I32(1)),
+      invoke("Locus", BuiltinLoci.tlocus(ReferenceGenome.GRCh38), Str("chr1"), I32(1)),
     ))
 
     assertEvalsTo(
@@ -117,7 +117,7 @@ class LocusFunctionsSuite {
     val ir = MakeTuple.ordered(FastSeq(
       invoke(
         "LocusInterval",
-        TInterval(TLocus(grch38.name)),
+        TInterval(TLocus(grch38)),
         NA(TString),
         I32(1),
         I32(100),
@@ -127,7 +127,7 @@ class LocusFunctionsSuite {
       ),
       invoke(
         "LocusInterval",
-        TInterval(TLocus(grch38.name)),
+        TInterval(TLocus(grch38)),
         Str("chr1"),
         NA(TInt32),
         I32(100),
@@ -137,7 +137,7 @@ class LocusFunctionsSuite {
       ),
       invoke(
         "LocusInterval",
-        TInterval(TLocus(grch38.name)),
+        TInterval(TLocus(grch38)),
         Str("chr1"),
         I32(1),
         NA(TInt32),
@@ -147,7 +147,7 @@ class LocusFunctionsSuite {
       ),
       invoke(
         "LocusInterval",
-        TInterval(TLocus(grch38.name)),
+        TInterval(TLocus(grch38)),
         Str("chr1"),
         I32(1),
         I32(100),
@@ -157,7 +157,7 @@ class LocusFunctionsSuite {
       ),
       invoke(
         "LocusInterval",
-        TInterval(TLocus(grch38.name)),
+        TInterval(TLocus(grch38)),
         Str("chr1"),
         I32(1),
         I32(100),
@@ -167,7 +167,7 @@ class LocusFunctionsSuite {
       ),
       invoke(
         "LocusInterval",
-        TInterval(TLocus(grch38.name)),
+        TInterval(TLocus(grch38)),
         Str("chr1"),
         I32(1),
         I32(100),
@@ -177,7 +177,7 @@ class LocusFunctionsSuite {
       ),
       invoke(
         "LocusInterval",
-        TInterval(TLocus(grch38.name)),
+        TInterval(TLocus(grch38)),
         Str("chr1"),
         I32(-1),
         I32(0),
@@ -187,7 +187,7 @@ class LocusFunctionsSuite {
       ),
       invoke(
         "LocusInterval",
-        TInterval(TLocus(grch38.name)),
+        TInterval(TLocus(grch38)),
         Str("chr1"),
         I32(1),
         I32(100),

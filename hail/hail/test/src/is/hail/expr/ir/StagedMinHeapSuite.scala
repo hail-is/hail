@@ -188,7 +188,7 @@ class StagedMinHeapSuite {
   def stagedLocusCoercions(rg: ReferenceGenome): StagedCoercions[Locus] =
     new StagedCoercions[Locus] {
       override def ti: TypeInfo[Locus] = implicitly
-      override def sType: SType = PCanonicalLocus(rg.name, required = true).sType
+      override def sType: SType = PCanonicalLocus(rg, required = true).sType
 
       override def fromValue(cb: EmitCodeBuilder, region: Value[Region], a: Value[Locus]): SValue =
         LocusFunctions.emitLocus(cb, region, a, sType.storageType().asInstanceOf[PCanonicalLocus])

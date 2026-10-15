@@ -16,6 +16,7 @@ import is.hail.types.physical.LocusRepresentations._
 import is.hail.types.physical.stypes.concrete.{SCanonicalLocusPointer, SPackedLocus}
 import is.hail.types.virtual._
 import is.hail.variant.{Locus, ReferenceGenome, ReferenceGenomeEnv}
+import is.hail.variant.BuiltinLoci.{pcanonicalLocus, tlocus}
 
 import scala.collection.immutable.ArraySeq
 
@@ -306,7 +307,7 @@ class ETypeSuite {
       TArray(TInt64),
       TArray(TCall),
       TStruct("a" -> TInt32, "b" -> TInt64, "c" -> TCall),
-      TLocus("GRCh37"),
+      tlocus("GRCh37"),
       TInterval(TInt32),
       TDict(TInt32, TInt64),
       TSet(TInt32),
@@ -368,22 +369,18 @@ class ETypeSuite {
         assertEqualEncodeDecode(pt, EType.defaultFromPType(ctx, pt), pt, a)
     }
 
-  // Loci of either representation, nested anywhere, decode and store into either representation.
+  // Loci of either representation, nested anywhere, decode and store into either representation,
+  // on the same reference genome or an equal copy of it. The session does not hold the custom
+  // reference genome: locus types carry their own.
   private def checkLocusRepresentationsEncodeDecode(implicit ctx: ExecuteContext): Unit =
     for (rg <- references)
-      withReference(rg) { implicit ctx =>
-        check(forAll(genPTypeValOn(ctx, rg)) { case (pt, a) =>
-          val representations = ArraySeq(toCanonical(pt), toPacked(pt))
-          for {
-            in <- representations
-            out <- representations
-          } {
-            val et = EType.defaultFromPType(ctx, in)
-            assert(pt.virtualType.valuesSimilar(encodeDecode(in, et, out, a), a), s"$in -> $out")
-          }
-          true
-        })
-      }
+      check(forAll(genPTypeValOn(ctx, rg)) { case (pt, a) =>
+        for ((in, out) <- representationPairs(pt, rg)) {
+          val et = EType.defaultFromPType(ctx, in)
+          assert(pt.virtualType.valuesSimilar(encodeDecode(in, et, out, a), a), s"$in -> $out")
+        }
+        true
+      })
 
   @Test def testLocusRepresentationsEncodeDecode(implicit ctx: ExecuteContext): Unit =
     withStableEncodings(checkLocusRepresentationsEncodeDecode(_))
@@ -399,7 +396,7 @@ class ETypeSuite {
     )
 
   @Test def testVarintDecodesLocusToPackedLocus(): Unit = {
-    val t = TLocus(ReferenceGenome.GRCh38)
+    val t = tlocus(ReferenceGenome.GRCh38)
     for (et <- ArraySeq[EType](EVarintOptional, EVarintRequired))
       assertEq(et.decodedSType(t), SPackedLocus(t.rg))
 
@@ -420,20 +417,19 @@ class ETypeSuite {
 
   // Unstaged codecs convert between locus representations, which needs reference genomes.
   @Test def testUnstagedCodecsConvertLocusRepresentations(implicit ctx: ExecuteContext): Unit =
-    for (rg <- references)
-      withReference(rg) { implicit ctx =>
-        for {
-          locus <- ArraySeq[PType](PCanonicalLocus(rg.name, true), PPackedLocus(rg.name, true))
-          pt <- ArraySeq(locus, PCanonicalStruct(true, "l" -> locus), PCanonicalArray(locus, true))
-          et <- ArraySeq(
-            withUnstableEncodings(EType.defaultFromPType(_, pt)),
-            EType.fromPythonTypeEncoding(pt.virtualType),
-          )
-        } check(forAll(genVal(ctx, pt))(a => unstagedEncodeDecode(ctx, pt, et, a) == a))
-      }
+    for {
+      rg <- references
+      locus <- ArraySeq[PType](PCanonicalLocus(rg, true), PPackedLocus(rg, true))
+      pt <- ArraySeq(locus, PCanonicalStruct(true, "l" -> locus), PCanonicalArray(locus, true))
+      et <- ArraySeq(
+        withUnstableEncodings(EType.defaultFromPType(_, pt)),
+        EType.fromPythonTypeEncoding(pt.virtualType),
+      )
+    } check(forAll(genVal(ctx, pt))(a => unstagedEncodeDecode(ctx, pt, et, a) == a))
 
-  // Unstaged codecs are cached across sessions, whose reference genomes may differ.
-  @Test def testUnstagedCodecsUseTheSessionReferenceGenome(implicit ctx: ExecuteContext): Unit = {
+  // Unstaged codecs are cached across sessions, and two sessions may define different reference
+  // genomes with one name. The codecs use the reference genome of the type they are built for.
+  @Test def testUnstagedCodecsUseTheTypesReferenceGenome(implicit ctx: ExecuteContext): Unit = {
     val reordered = ReferenceGenome(
       customReference.name,
       ArraySeq("a", "b", "c"),
@@ -441,21 +437,14 @@ class ETypeSuite {
     )
     val l = Locus("a", 5)
     for (rg <- ArraySeq(customReference, reordered))
-      withReference(rg) { implicit ctx =>
-        assertEq(unstagedEncodeDecode(ctx, PCanonicalLocus(rg.name, true), EVarintRequired, l), l)
-      }
+      assertEq(unstagedEncodeDecode(ctx, PCanonicalLocus(rg, true), EVarintRequired, l), l)
   }
 
   @Test def testVarintEncodedLocusRoundTrip(implicit ctx: ExecuteContext): Unit =
-    for (rg <- references)
-      withReference(rg) { implicit ctx =>
-        val representations =
-          ArraySeq[PType](PCanonicalLocus(rg.name, true), PPackedLocus(rg.name, true))
-        for {
-          in <- representations
-          out <- representations
-        } check(forAll(genLocus(rg))(l => encodeDecode(in, EVarintRequired, out, l) == l))
-      }
+    for {
+      rg <- references
+      (in, out) <- representationPairs(PCanonicalLocus(rg, true), rg)
+    } check(forAll(genLocus(rg))(l => encodeDecode(in, EVarintRequired, out, l) == l))
 
   // The ETypes chosen for the loci in `t`, wherever they are nested.
   private def locusETypes(t: Type, et: EType): Seq[EType] = (t, et) match {
@@ -469,10 +458,10 @@ class ETypeSuite {
   }
 
   @Test def testUnstableEncodingsEncodeLociAsVarint(implicit ctx: ExecuteContext): Unit = {
-    val locus = PCanonicalLocus(ReferenceGenome.GRCh38, true)
+    val locus = pcanonicalLocus(ReferenceGenome.GRCh38, true)
     val types = ArraySeq[PType](
       locus,
-      PCanonicalLocus(ReferenceGenome.GRCh38, false),
+      pcanonicalLocus(ReferenceGenome.GRCh38, false),
       PCanonicalInterval(locus, true),
       PCanonicalArray(locus, true),
       PCanonicalSet(locus, true),
@@ -502,47 +491,45 @@ class ETypeSuite {
   }
 
   @Test def testPythonEncodingOfPackedLoci(implicit ctx: ExecuteContext): Unit =
-    for (rg <- references)
-      withReference(rg) { implicit ctx =>
-        val packed = PPackedLocus(rg.name, true)
-        val types = ArraySeq[PType](
-          packed,
-          PCanonicalStruct(true, "l" -> packed),
-          PCanonicalArray(packed, true),
-          PCanonicalInterval(packed, true),
-        )
-        for (pt <- types) {
-          val et = EType.fromPythonTypeEncoding(pt.virtualType)
-          check(forAll(genVal(ctx, pt))(a => encodeDecode(pt, et, toCanonical(pt), a) == a))
-        }
+    for (rg <- references) {
+      val packed = PPackedLocus(rg, true)
+      val types = ArraySeq[PType](
+        packed,
+        PCanonicalStruct(true, "l" -> packed),
+        PCanonicalArray(packed, true),
+        PCanonicalInterval(packed, true),
+      )
+      for (pt <- types) {
+        val et = EType.fromPythonTypeEncoding(pt.virtualType)
+        check(forAll(genVal(ctx, pt))(a => encodeDecode(pt, et, toCanonical(pt), a) == a))
       }
+    }
 
   @Test def testStructEncodedLocusDecodesInPlaceToPackedLocus(implicit ctx: ExecuteContext): Unit =
-    for (rg <- references)
-      withReference(rg) { implicit ctx =>
-        val canonical = PCanonicalLocus(rg.name, true)
-        val packed = PPackedLocus(rg.name, true)
-        val et = EType.defaultFromPType(ctx, canonical)
+    for (rg <- references) {
+      val canonical = PCanonicalLocus(rg, true)
+      val packed = PPackedLocus(rg, true)
+      val et = EType.defaultFromPType(ctx, canonical)
 
-        val fb = EmitFunctionBuilder[Region, InputBuffer, Long](ctx, "inplace")
-        fb.emitWithBuilder[Long] { cb =>
-          val region = fb.apply_method.getCodeParam[Region](1)
-          val in = fb.apply_method.getCodeParam[InputBuffer](2)
-          val addr = cb.memoize(region.allocate(packed.alignment, packed.byteSize))
-          et.buildInplaceDecoder(packed, fb.ecb)(cb, region, addr, in)
-          addr
-        }
-        val decode = fb.resultWithIndex()(ctx.theHailClassLoader, ctx.fs, ctx.taskContext, ctx.r)
-
-        check(forAll(genLocus(rg)) { l =>
-          val buffer = new MemoryBuffer
-          val ob = new MemoryOutputBuffer(buffer)
-          val enc = et.buildEncoder(ctx, canonical)(ob, ctx.theHailClassLoader)
-          enc.writeRegionValue(ctx.r, canonical.unstagedStoreJavaObject(ctx.stateManager, l, ctx.r))
-          enc.flush()
-          buffer.clearPos()
-          val addr = decode(ctx.r, new MemoryInputBuffer(buffer))
-          SafeRow.read(ctx.stateManager, packed, addr) == l
-        })
+      val fb = EmitFunctionBuilder[Region, InputBuffer, Long](ctx, "inplace")
+      fb.emitWithBuilder[Long] { cb =>
+        val region = fb.apply_method.getCodeParam[Region](1)
+        val in = fb.apply_method.getCodeParam[InputBuffer](2)
+        val addr = cb.memoize(region.allocate(packed.alignment, packed.byteSize))
+        et.buildInplaceDecoder(packed, fb.ecb)(cb, region, addr, in)
+        addr
       }
+      val decode = fb.resultWithIndex()(ctx.theHailClassLoader, ctx.fs, ctx.taskContext, ctx.r)
+
+      check(forAll(genLocus(rg)) { l =>
+        val buffer = new MemoryBuffer
+        val ob = new MemoryOutputBuffer(buffer)
+        val enc = et.buildEncoder(ctx, canonical)(ob, ctx.theHailClassLoader)
+        enc.writeRegionValue(ctx.r, canonical.unstagedStoreJavaObject(ctx.stateManager, l, ctx.r))
+        enc.flush()
+        buffer.clearPos()
+        val addr = decode(ctx.r, new MemoryInputBuffer(buffer))
+        SafeRow.read(ctx.stateManager, packed, addr) == l
+      })
+    }
 }

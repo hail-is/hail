@@ -21,6 +21,7 @@ import is.hail.types.physical.LocusRepresentations.{references, withReference}
 import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.variant.Locus
+import is.hail.variant.BuiltinLoci.tlocus
 
 import scala.collection.immutable.ArraySeq
 
@@ -702,7 +703,7 @@ class TableIRSuite {
     val i1 = Interval(RowSeq(Locus("20", 10200000)), RowSeq(Locus("20", 10500000)), true, true)
 
     def test(filterIntervals: Boolean, expectedNParts: Int): Unit = {
-      val opts = NativeReaderOptions(FastSeq(i1), TLocus("GRCh37"), filterIntervals)
+      val opts = NativeReaderOptions(FastSeq(i1), tlocus("GRCh37"), filterIntervals)
       val tr = TableNativeReader(
         ctx.fs,
         ctx.referenceGenomes,
@@ -986,7 +987,7 @@ class TableIRSuite {
 
     for (rg <- references)
       withReference(rg) { implicit ctx =>
-        val tl = TLocus(rg.name)
+        val tl = TLocus(rg)
         val rowType = TStruct(
           "locus" -> tl,
           "interval" -> TInterval(tl),
@@ -1397,7 +1398,7 @@ class TableIRSuite {
     for (rg <- references)
       withReference(rg) { implicit ctx =>
         withStableEncodings { implicit ctx =>
-          val tl = TLocus(rg.name)
+          val tl = TLocus(rg)
           val Seq(c0, c1, c2) = rg.contigs.take(3)
 
           val left = TableKeyBy(

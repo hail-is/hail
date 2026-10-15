@@ -9,6 +9,7 @@ import is.hail.types.physical.stypes._
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives.SInt64Value
 import is.hail.types.virtual._
+import is.hail.variant.ReferenceGenome
 
 object SUnreachable {
   def fromVirtualType(t: Type): SType = {
@@ -143,7 +144,7 @@ case class SUnreachableLocus(virtualType: TLocus) extends SUnreachable with SLoc
 
   override def contigType: SString = SUnreachableString
 
-  override def rg: String = virtualType.rg
+  override def rg: ReferenceGenome = virtualType.rg
 }
 
 class SUnreachableLocusValue(override val st: SUnreachableLocus)

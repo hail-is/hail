@@ -11,6 +11,7 @@ import is.hail.types.physical.LocusRepresentations._
 import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.variant.{ReferenceGenome, ReferenceGenomeEnv}
+import is.hail.variant.BuiltinLoci.{builtin, pcanonicalLocus}
 
 import scala.collection.immutable.ArraySeq
 
@@ -32,7 +33,7 @@ class PTypeSuite {
     PCanonicalCall(true),
     PCanonicalBinary(false),
     PCanonicalString(true),
-    PCanonicalLocus(ReferenceGenome.GRCh37, false),
+    pcanonicalLocus(ReferenceGenome.GRCh37, false),
     PCanonicalArray(PInt32Required, true),
     PCanonicalSet(PInt32Required, false),
     PCanonicalDict(PInt32Required, PCanonicalString(true), true),
@@ -86,7 +87,7 @@ class PTypeSuite {
 
   @Test def testPackedLocusParsesAsIRText(): Unit =
     for {
-      rg <- ArraySeq(ReferenceGenome.GRCh38, customReference.name)
+      rg <- ArraySeq(builtin(ReferenceGenome.GRCh38), customReference)
       pt <- ArraySeq[PType](
         PPackedLocus(rg),
         PPackedLocus(rg, required = true),
@@ -117,37 +118,39 @@ class PTypeSuite {
   }
 
   // Loci in either representation, nested anywhere, survive store, copy, deep copy and coercion
-  // into either representation, and read back as the original value.
+  // into either representation, on the same reference genome or an equal copy of it, and read back
+  // as the original value. The session does not hold the custom reference genome: locus types
+  // carry their own.
   @Test def testLocusRepresentationsRoundTrip(implicit ctx: ExecuteContext): Unit =
-    for (rg <- references)
-      withReference(rg) { ctx =>
-        val sm = ctx.stateManager
-        check(forAll(genPTypeValOn(ctx, rg)) { case (pt, a) =>
-          val representations = ArraySeq(toCanonical(pt), toPacked(pt))
-          for {
-            src <- representations
-            dst <- representations
-            deepCopy <- ArraySeq(false, true)
-          } ctx.r.pool.scopedRegion { r =>
-            def assertReadsBack(addr: Long, how: String): Unit = {
-              val clue = s"$how: $src -> $dst, deepCopy=$deepCopy"
-              val t = dst.virtualType
-              assert(t.valuesSimilar(SafeRow.read(sm, dst, addr), a), clue)
-              assert(t.valuesSimilar(UnsafeRow.read(sm, dst, r, addr), a), clue)
-            }
+    for (rg <- references) {
+      val sm = ctx.stateManager
+      check(forAll(genPTypeValOn(ctx, rg)) { case (pt, a) =>
+        for {
+          (src, dst) <- representationPairs(pt, rg)
+          deepCopy <- ArraySeq(false, true)
+        } ctx.r.pool.scopedRegion { r =>
+          assertEq(dst.virtualType, src.virtualType)
+          assertEq(dst.virtualType.hashCode, src.virtualType.hashCode)
 
-            val srcAddr = src.unstagedStoreJavaObject(sm, a, r)
-            assertReadsBack(dst.copyFromAddress(sm, r, src, srcAddr, deepCopy), "unstaged copy")
-            assertReadsBack(
-              compileStore(ctx, src, dst, deepCopy, coerce = false)(r, srcAddr),
-              "staged store",
-            )
-            assertReadsBack(
-              compileStore(ctx, src, dst, deepCopy, coerce = true)(r, srcAddr),
-              "staged coerce",
-            )
+          def assertReadsBack(addr: Long, how: String): Unit = {
+            val clue = s"$how: $src -> $dst, deepCopy=$deepCopy"
+            val t = dst.virtualType
+            assert(t.valuesSimilar(SafeRow.read(sm, dst, addr), a), clue)
+            assert(t.valuesSimilar(UnsafeRow.read(sm, dst, r, addr), a), clue)
           }
-          true
-        })
-      }
+
+          val srcAddr = src.unstagedStoreJavaObject(sm, a, r)
+          assertReadsBack(dst.copyFromAddress(sm, r, src, srcAddr, deepCopy), "unstaged copy")
+          assertReadsBack(
+            compileStore(ctx, src, dst, deepCopy, coerce = false)(r, srcAddr),
+            "staged store",
+          )
+          assertReadsBack(
+            compileStore(ctx, src, dst, deepCopy, coerce = true)(r, srcAddr),
+            "staged coerce",
+          )
+        }
+        true
+      })
+    }
 }
