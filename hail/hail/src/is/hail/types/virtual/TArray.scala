@@ -1,7 +1,6 @@
 package is.hail.types.virtual
 
 import is.hail.annotations.{Annotation, ExtendedOrdering}
-import is.hail.backend.HailStateManager
 
 import org.json4s.jackson.JsonMethods
 
@@ -42,8 +41,8 @@ final case class TArray(elementType: Type) extends TContainer {
 
   override def str(a: Annotation): String = JsonMethods.compact(export(a))
 
-  override def mkOrdering(sm: HailStateManager, missingEqual: Boolean): ExtendedOrdering =
-    ExtendedOrdering.iterableOrdering(elementType.ordering(sm), missingEqual)
+  override def mkOrdering(missingEqual: Boolean): ExtendedOrdering =
+    ExtendedOrdering.iterableOrdering(elementType.ordering, missingEqual)
 
   override def valueSubsetter(subtype: Type): Any => Any = {
     if (this == subtype)

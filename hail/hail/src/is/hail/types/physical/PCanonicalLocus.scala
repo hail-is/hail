@@ -59,8 +59,8 @@ final case class PCanonicalLocus(rg: ReferenceGenome, required: Boolean = false)
   lazy val positionType: PInt32 = representation.field("position").typ.asInstanceOf[PInt32]
 
   // FIXME: Remove when representation of contig/position is a naturally-ordered Long
-  override def unsafeOrdering(sm: HailStateManager): UnsafeOrdering = {
-    val binaryOrd = representation.fieldType("contig").unsafeOrdering(sm)
+  override def unsafeOrdering: UnsafeOrdering = {
+    val binaryOrd = representation.fieldType("contig").unsafeOrdering
 
     new UnsafeOrdering {
       override def compare(o1: Long, o2: Long): Int = {
