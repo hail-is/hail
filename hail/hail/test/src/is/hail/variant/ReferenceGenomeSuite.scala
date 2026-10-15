@@ -316,9 +316,9 @@ class ReferenceGenomeSuite {
     assertTrue(size < 2048, s"serialized size $size")
   }
 
-  @Test def testBuiltinLayoutResolvesToTheCache(): Unit = {
+  @Test def testBuiltinResolvesToTheCache(): Unit = {
     val grch38 = ReferenceGenome.builtinReferences()(ReferenceGenome.GRCh38)
-    assertTrue(roundTrip(grch38).layout eq ReferenceGenomeLayout.builtins(ReferenceGenome.GRCh38))
+    assertTrue(roundTrip(grch38) eq grch38)
   }
 
   @Test def testBuiltinsResolveToOneCachedGenome(): Unit =
@@ -328,6 +328,27 @@ class ReferenceGenomeSuite {
       assertTrue(ReferenceGenomeEnv(Map.empty).resolve(name) eq cached)
       assertTrue(ReferenceGenome.builtinReferences()(name) eq cached)
     }
+
+  @Test def testEqualityIsStructural(): Unit = {
+    def mk(lengths: Map[String, Int]): ReferenceGenome =
+      ReferenceGenome(
+        "test",
+        ArraySeq("1", "2", "X"),
+        lengths,
+        xContigs = Set("X"),
+        parInput = ArraySeq((Locus("X", 2), Locus("X", 5))),
+      )
+
+    val a = mk(Map("1" -> 10, "2" -> 20, "X" -> 30))
+    val b = mk(Map("1" -> 10, "2" -> 20, "X" -> 30))
+    val different = mk(Map("1" -> 10, "2" -> 21, "X" -> 30))
+
+    assertTrue(a ne b)
+    assertEq(a, b)
+    assertEq(a.hashCode, b.hashCode)
+    assertTrue(a != different)
+    assertTrue(different != a)
+  }
 
   // A builtin is identified by identity with the cache, never by name.
   @Test def testUserGenomeWithBuiltinNameSerializesInline(): Unit = {
@@ -339,7 +360,8 @@ class ReferenceGenomeSuite {
       parInput = ArraySeq((Locus("chrX", 2), Locus("chrX", 5))),
     )
     val result = roundTrip(impostor)
-    assertTrue(result.layout ne ReferenceGenomeLayout.builtins(ReferenceGenome.GRCh38))
+    assertTrue(result ne impostor)
+    assertTrue(result ne ReferenceGenome.builtinReferences()(ReferenceGenome.GRCh38))
     assertEq(result, impostor)
     assertEq(result.contigs, ArraySeq("chr2", "chr1", "chrX"))
     assertEq(result.getContigIndex("chr1"), 1)
