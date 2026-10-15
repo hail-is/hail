@@ -3459,16 +3459,21 @@ steps:
         -H "Authorization: token ${TOKEN}" \
         -d "{ \"name\" : \"$REPO_NAME\" }"
 
+      # Authenticate via header rather than a token in the URL: GitHub sometimes
+      # redirects freshly-created repos, and git drops URL credentials on redirect
+      set +x
+      git config --global http.https://github.com/.extraHeader \
+        "Authorization: Basic $(printf 'x-access-token:%s' "$TOKEN" | base64 -w0)"
+      set -x
+
       # checkout new ci repo
       # Repeated clones should happen in fresh directories so we mv to the final
       # destination on successful clone
-      set +x
       clone() {
-        tmp_dir=$(mktemp -d) && git clone https://$1@github.com/hail-ci-test/$2.git $tmp_dir && mv $tmp_dir $2
+        tmp_dir=$(mktemp -d) && git clone https://github.com/hail-ci-test/$1.git $tmp_dir && mv $tmp_dir $1
       }
       typeset -fx clone
-      retry clone $TOKEN $REPO_NAME
-      set -x
+      retry clone $REPO_NAME
       cd $REPO_NAME
 
       mkdir -p ./ci/test ./hail/
