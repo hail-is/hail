@@ -1,3 +1,4 @@
+import asyncio
 import os
 import re
 
@@ -130,6 +131,7 @@ _LOCAL_REACT_ROUTES: list[tuple[str, str, str, str, dict]] = [
     ('ci',           'GET', '/ci/swagger', 'swagger/index.html', {}),
     ('monitoring',   'GET', '/monitoring/swagger', 'swagger/index.html', {}),
     ('auth',         'GET', '/auth/swagger', 'swagger/index.html', {}),
+    ('batch',        'GET', '/batch/batches', 'batches_react.html', {}),
     ('batch',        'GET', '/batch/batches/{batch_id}', 'batch_react.html', {}),
     ('batch',        'GET', '/batch/batches/{batch_id}/jobs/{job_id}', 'job_react.html', {}),
 ]
@@ -284,6 +286,17 @@ async def _render_html(
 
 async def on_startup(app: web.Application) -> None:
     app[BC] = Session(credentials=hail_credentials())
+
+    # Local React pages derive user-scoped defaults from the rendered username (e.g. /batches'
+    # `user = <me>` query), so it has to match whoever the proxied API calls authenticate as.
+    async def _fetch_username() -> str:
+        async with await app[BC].get(deploy_config.external_url('auth', '/api/v1alpha/userinfo')) as resp:
+            return (await resp.json())['username']
+
+    try:
+        _FAKE_DEV_USERDATA['username'] = await asyncio.wait_for(_fetch_username(), timeout=10)
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        print(f'dev_proxy: could not look up username, falling back to {_FAKE_DEV_USERDATA["username"]!r}: {e}')
 
 
 async def on_cleanup(app: web.Application) -> None:
