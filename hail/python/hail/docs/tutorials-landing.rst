@@ -31,3 +31,4 @@ Hail Tutorials
         MatrixTable Tutorial <tutorials/07-matrixtable.ipynb>
         Plotting Tutorial<tutorials/08-plotting.ipynb>
         GGPlot Tutorial<tutorials/09-ggplot.ipynb>
+        Relatedness Test Tutorial<tutorials/10-relatedness-tests.ipynb>
