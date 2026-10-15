@@ -3198,6 +3198,7 @@ steps:
       export HAIL_TEST_REPO_ROOT=/io/repo
 
       cd /io
+      # Migrating takes ~2-3 min, so the per-test timeout excludes fixtures; the step timeout bounds setup.
       python3 -m pytest \
               --log-cli-level=INFO \
               -s \
@@ -3206,6 +3207,7 @@ steps:
               --instafail \
               --durations=50 \
               --timeout=120 \
+              -o timeout_func_only=true \
               /io/test/test_db_framework.py
     inputs:
       - from: /repo/batch/test
