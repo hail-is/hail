@@ -11,6 +11,7 @@ import is.hail.io._
 import is.hail.rvd.AbstractRVDSpec
 import is.hail.types.physical._
 import is.hail.types.virtual._
+import is.hail.variant.BuiltinLoci.tlocus
 import is.hail.variant.ReferenceGenomeEnv
 
 import scala.collection.immutable.ArraySeq
@@ -301,7 +302,7 @@ class ETypeSuite {
       TArray(TInt64),
       TArray(TCall),
       TStruct("a" -> TInt32, "b" -> TInt64, "c" -> TCall),
-      TLocus("GRCh37"),
+      tlocus("GRCh37"),
       TInterval(TInt32),
       TDict(TInt32, TInt64),
       TSet(TInt32),

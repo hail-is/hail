@@ -37,7 +37,7 @@ private[scalacheck] trait ArbitraryPTypeInstances {
     )
 
   implicit lazy val arbPCanonicalLocus: Arbitrary[PCanonicalLocus] =
-    liftA2(PCanonicalLocus(_, _), oneOf(ReferenceGenome.hailReferences), genIsRequired)
+    liftA2(PCanonicalLocus(_, _), oneOf(ReferenceGenome.builtinReferences().values), genIsRequired)
 
   implicit lazy val arbPCanonicalStruct: Arbitrary[PCanonicalStruct] =
     for {

@@ -7,10 +7,10 @@ import is.hail.io.PrefixCoder
 import is.hail.types.{RPrimitive, TypeWithRequiredness}
 import is.hail.types.physical.stypes.{SType, SValue}
 import is.hail.types.physical.stypes.primitives.{SInt32Value, SInt64Value}
-import is.hail.variant.Locus
+import is.hail.variant.{Locus, ReferenceGenome}
 
 trait SLocus extends SType {
-  def rg: String
+  def rg: ReferenceGenome
   def contigType: SString
   override def _typeWithRequiredness: TypeWithRequiredness = RPrimitive()
 }

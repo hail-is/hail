@@ -8,6 +8,7 @@ import is.hail.types.physical.{PCanonicalLocus, PType}
 import is.hail.types.physical.stypes.{SSettable, SType, SValue}
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.virtual.Type
+import is.hail.variant.ReferenceGenome
 
 final case class SCanonicalLocusPointer(pType: PCanonicalLocus) extends SLocus {
   require(!pType.required)
@@ -18,7 +19,7 @@ final case class SCanonicalLocusPointer(pType: PCanonicalLocus) extends SLocus {
 
   override def castRename(t: Type): SType = this
 
-  override def rg: String = pType.rg
+  override def rg: ReferenceGenome = pType.rg
 
   override def _coerceOrCopy(
     cb: EmitCodeBuilder,

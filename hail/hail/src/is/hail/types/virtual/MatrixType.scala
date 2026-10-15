@@ -7,7 +7,7 @@ import is.hail.expr.ir.lowering.LowerMatrixIR
 import is.hail.types.TypeStringSerializer
 import is.hail.types.physical.{PArray, PStruct}
 import is.hail.utils._
-import is.hail.variant.ReferenceGenomeEnv
+import is.hail.variant.{ReferenceGenome, ReferenceGenomeEnv}
 
 import scala.collection.immutable.ArraySeq
 
@@ -222,7 +222,7 @@ case class MatrixType(
   def requireColKeyString(): Unit =
     assert(colKeyStruct.types == ArraySeq(TString))
 
-  def referenceGenomeName: String = {
+  def referenceGenome: ReferenceGenome = {
     val firstKeyField = rowKeyStruct.types(0)
     firstKeyField.asInstanceOf[TLocus].rg
   }

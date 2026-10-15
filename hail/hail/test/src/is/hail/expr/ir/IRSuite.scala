@@ -25,7 +25,8 @@ import is.hail.types.physical.stypes.primitives.SInt32
 import is.hail.types.virtual._
 import is.hail.types.virtual.TIterable.elementType
 import is.hail.utils._
-import is.hail.variant.{Call2, Locus}
+import is.hail.variant.{Call2, Locus, ReferenceGenome}
+import is.hail.variant.BuiltinLoci.{builtin, tlocus}
 
 import scala.collection.immutable.ArraySeq
 import scala.collection.mutable
@@ -3362,7 +3363,7 @@ class IRSuite {
       invoke(
         "index_bgen",
         TInt64,
-        ArraySeq(TLocus("GRCh37")),
+        ArraySeq(tlocus("GRCh37")),
         Str(getTestResource("example.8bits.bgen")),
         Str(getTestResource("example.8bits.bgen.idx2")),
         Literal(TDict(TString, TString), Map("01" -> "1")),
@@ -3658,6 +3659,14 @@ class IRSuite {
         Begin(FastSeq()),
         RelationalWriter("path", overwrite = false, None),
       ),
+      WriteMetadata(
+        Begin(FastSeq()),
+        RelationalWriter(
+          "path",
+          overwrite = false,
+          Some("references" -> Set(builtin(ReferenceGenome.GRCh38))),
+        ),
+      ),
       ReadValue(
         Str("foo"),
         ETypeValueReader(TypedCodecSpec(
@@ -3808,7 +3817,7 @@ class IRSuite {
         invoke(
           "index_bgen",
           TInt64,
-          ArraySeq(TLocus("GRCh37")),
+          ArraySeq(tlocus("GRCh37")),
           Str(getTestResource("example.8bits.bgen")),
           Str(getTestResource("example.8bits.bgen.idx2")),
           Literal(TDict(TString, TString), Map("01" -> "1")),
@@ -3966,6 +3975,24 @@ class IRSuite {
     val s = Pretty.sexprStyle(x, elideLiterals = false)
     val x2 = IRParser.parse_value_ir(ctx, s, refMap)
     assert(x2 == x)
+  }
+
+  // A relational writer names the reference genomes it writes, as types do, and reads them back as
+  // the reference genomes in scope.
+  @Test def testRelationalWriterNamesItsReferenceGenomes(implicit ctx: ExecuteContext): Unit = {
+    val rg = builtin(ReferenceGenome.GRCh38).copy(name = "user_defined")
+    ctx.local(references = ctx.references + (rg.name -> rg)) { ctx =>
+      val x = WriteMetadata(
+        Begin(FastSeq()),
+        RelationalWriter("path", overwrite = false, Some("references" -> Set(rg))),
+      )
+      val s = Pretty.sexprStyle(x, elideLiterals = false)
+      assert(s.contains(rg.name) && !s.contains("chrX"), s.take(500))
+      val x2 = IRParser.parse_value_ir(ctx, s)
+      assert(x2 == x)
+      val RelationalWriter(_, _, Some((_, rgs))) = x2.asInstanceOf[WriteMetadata].writer: @unchecked
+      assert(rgs.forall(_ eq rg))
+    }
   }
 
   @ParameterizedTest
