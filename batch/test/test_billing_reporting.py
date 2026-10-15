@@ -6,7 +6,6 @@ Requires local MySQL (make local-mysql). The db fixture is provided by conftest.
 import datetime
 
 import pytest
-import pytest_asyncio
 
 from batch.billing_project_management import (
     add_billing_project_user,
@@ -19,23 +18,6 @@ from batch.billing_reporting import (
     query_billing_history,
     query_billing_projects_with_cost,
 )
-
-
-@pytest_asyncio.fixture(autouse=True)
-async def clean_tables(db):
-    yield
-    async with db.start() as tx:
-        await tx.just_execute('DELETE FROM aggregated_billing_project_user_resources_by_date_v3')
-        await tx.just_execute('DELETE FROM aggregated_billing_project_user_resources_v3')
-        await tx.just_execute('DELETE FROM resources')
-        await tx.just_execute('DELETE FROM batches')
-        await tx.just_execute('DELETE FROM billing_project_events')
-        await tx.just_execute('DELETE FROM billing_project_users')
-        await tx.just_execute('DELETE FROM billing_projects')
-        await tx.just_execute('DELETE FROM quote_managers')
-        await tx.just_execute('DELETE FROM quote_events')
-        await tx.just_execute("DELETE FROM quotes WHERE name != 'INTERNAL'")
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -78,76 +60,92 @@ _JAN15 = datetime.date(2026, 1, 15)
 # ---------------------------------------------------------------------------
 
 
-async def test_query_bp_users_bp_member(db):
-    await _make_bp(db, 'q-users-bpm', 'bp-users-bpm')
-    await add_billing_project_user(db, 'bp-users-bpm', 'luna', 'admin')
-    results = await query_billing_projects_with_cost(db, billing_project='bp-users-bpm')
+async def test_query_bp_users_bp_member(db, unique_name):
+    q_users_bpm = unique_name('q-users-bpm')
+    bp_users_bpm = unique_name('bp-users-bpm')
+    await _make_bp(db, q_users_bpm, bp_users_bpm)
+    await add_billing_project_user(db, bp_users_bpm, 'luna', 'admin')
+    results = await query_billing_projects_with_cost(db, billing_project=bp_users_bpm)
     assert len(results) == 1
     users = results[0]['user_roles']
     luna = next((u for u in users if u['user'] == 'luna'), None)
     assert luna is not None
-    assert 'bp-users-bpm:member' in luna['roles']
+    assert f'{bp_users_bpm}:member' in luna['roles']
 
 
-async def test_query_bp_users_quote_manager_appears_without_direct_membership(db):
-    await _make_bp(db, 'q-users-qm', 'bp-users-qm')
-    await add_quote_manager(db, 'q-users-qm', 'mars', 'owner', actor='admin')
-    results = await query_billing_projects_with_cost(db, billing_project='bp-users-qm')
+async def test_query_bp_users_quote_manager_appears_without_direct_membership(db, unique_name):
+    q_users_qm = unique_name('q-users-qm')
+    bp_users_qm = unique_name('bp-users-qm')
+    await _make_bp(db, q_users_qm, bp_users_qm)
+    await add_quote_manager(db, q_users_qm, 'mars', 'owner', actor='admin')
+    results = await query_billing_projects_with_cost(db, billing_project=bp_users_qm)
     assert len(results) == 1
     users = results[0]['user_roles']
     mars = next((u for u in users if u['user'] == 'mars'), None)
     assert mars is not None
-    assert 'q-users-qm:owner' in mars['roles']
+    assert f'{q_users_qm}:owner' in mars['roles']
 
 
-async def test_query_bp_users_dual_role(db):
-    await _make_bp(db, 'q-users-dual', 'bp-users-dual')
-    await add_quote_manager(db, 'q-users-dual', 'nova', 'manager', actor='admin')
-    await add_billing_project_user(db, 'bp-users-dual', 'nova', 'admin')
-    results = await query_billing_projects_with_cost(db, billing_project='bp-users-dual')
+async def test_query_bp_users_dual_role(db, unique_name):
+    q_users_dual = unique_name('q-users-dual')
+    bp_users_dual = unique_name('bp-users-dual')
+    await _make_bp(db, q_users_dual, bp_users_dual)
+    await add_quote_manager(db, q_users_dual, 'nova', 'manager', actor='admin')
+    await add_billing_project_user(db, bp_users_dual, 'nova', 'admin')
+    results = await query_billing_projects_with_cost(db, billing_project=bp_users_dual)
     assert len(results) == 1
     users = results[0]['user_roles']
     nova = next((u for u in users if u['user'] == 'nova'), None)
     assert nova is not None
-    assert 'bp-users-dual:member' in nova['roles']
-    assert 'q-users-dual:manager' in nova['roles']
+    assert f'{bp_users_dual}:member' in nova['roles']
+    assert f'{q_users_dual}:manager' in nova['roles']
 
 
-async def test_query_bp_users_is_member_names_only(db):
+async def test_query_bp_users_is_member_names_only(db, unique_name):
     # `users` keeps its pre-quotes shape: plain member usernames, without quote managers.
-    await _make_bp(db, 'q-users-names', 'bp-users-names')
-    await add_billing_project_user(db, 'bp-users-names', 'orion', 'admin')
-    await add_quote_manager(db, 'q-users-names', 'pax', 'owner', actor='admin')
-    results = await query_billing_projects_with_cost(db, billing_project='bp-users-names')
+    q_users_names = unique_name('q-users-names')
+    bp_users_names = unique_name('bp-users-names')
+    await _make_bp(db, q_users_names, bp_users_names)
+    await add_billing_project_user(db, bp_users_names, 'orion', 'admin')
+    await add_quote_manager(db, q_users_names, 'pax', 'owner', actor='admin')
+    results = await query_billing_projects_with_cost(db, billing_project=bp_users_names)
     assert results[0]['users'] == ['orion']
 
 
-async def test_query_bp_users_outsider_absent(db):
-    await _make_bp(db, 'q-users-out', 'bp-users-out')
-    results = await query_billing_projects_with_cost(db, billing_project='bp-users-out')
+async def test_query_bp_users_outsider_absent(db, unique_name):
+    q_users_out = unique_name('q-users-out')
+    bp_users_out = unique_name('bp-users-out')
+    await _make_bp(db, q_users_out, bp_users_out)
+    results = await query_billing_projects_with_cost(db, billing_project=bp_users_out)
     assert len(results) == 1
     users = results[0]['user_roles']
     assert not any(u['user'] == 'outsider' for u in users)
 
 
-async def test_can_view_quote_global_bm(db):
-    await _make_bp(db, 'q-cvq-gbm', 'bp-cvq-gbm')
-    results = await query_billing_projects_with_cost(db, billing_project='bp-cvq-gbm', quote_manager_user=None)
+async def test_can_view_quote_global_bm(db, unique_name):
+    q_cvq_gbm = unique_name('q-cvq-gbm')
+    bp_cvq_gbm = unique_name('bp-cvq-gbm')
+    await _make_bp(db, q_cvq_gbm, bp_cvq_gbm)
+    results = await query_billing_projects_with_cost(db, billing_project=bp_cvq_gbm, quote_manager_user=None)
     assert results[0]['can_view_quote'] is True
 
 
-async def test_can_view_quote_quote_manager(db):
-    await _make_bp(db, 'q-cvq-qm', 'bp-cvq-qm')
-    await add_quote_manager(db, 'q-cvq-qm', 'piuser', 'manager', actor='admin')
-    results = await query_billing_projects_with_cost(db, billing_project='bp-cvq-qm', quote_manager_user='piuser')
+async def test_can_view_quote_quote_manager(db, unique_name):
+    q_cvq_qm = unique_name('q-cvq-qm')
+    bp_cvq_qm = unique_name('bp-cvq-qm')
+    await _make_bp(db, q_cvq_qm, bp_cvq_qm)
+    await add_quote_manager(db, q_cvq_qm, 'piuser', 'manager', actor='admin')
+    results = await query_billing_projects_with_cost(db, billing_project=bp_cvq_qm, quote_manager_user='piuser')
     assert results[0]['can_view_quote'] is True
 
 
-async def test_can_view_quote_bp_member_only(db):
-    await _make_bp(db, 'q-cvq-bpm', 'bp-cvq-bpm')
-    await add_billing_project_user(db, 'bp-cvq-bpm', 'regular', 'admin')
+async def test_can_view_quote_bp_member_only(db, unique_name):
+    q_cvq_bpm = unique_name('q-cvq-bpm')
+    bp_cvq_bpm = unique_name('bp-cvq-bpm')
+    await _make_bp(db, q_cvq_bpm, bp_cvq_bpm)
+    await add_billing_project_user(db, bp_cvq_bpm, 'regular', 'admin')
     results = await query_billing_projects_with_cost(
-        db, user='regular', billing_project='bp-cvq-bpm', quote_manager_user='regular'
+        db, user='regular', billing_project=bp_cvq_bpm, quote_manager_user='regular'
     )
     assert results[0]['can_view_quote'] is False
 
@@ -157,23 +155,29 @@ async def test_can_view_quote_bp_member_only(db):
 # ---------------------------------------------------------------------------
 
 
-async def test_billing_history_global_bm_sees_all(db):
-    await _make_bp(db, 'q-hist-all', 'bp-hist-all')
-    resource_id = await _insert_resource(db, 'cpu', 0.01)
-    await _insert_spend(db, _JAN15, 'bp-hist-all', 'alice', resource_id, 100)
-    await _insert_spend(db, _JAN15, 'bp-hist-all', 'bob', resource_id, 200)
+async def test_billing_history_global_bm_sees_all(db, unique_name):
+    q_hist_all = unique_name('q-hist-all')
+    bp_hist_all = unique_name('bp-hist-all')
+    cpu = unique_name('cpu')
+    await _make_bp(db, q_hist_all, bp_hist_all)
+    resource_id = await _insert_resource(db, cpu, 0.01)
+    await _insert_spend(db, _JAN15, bp_hist_all, 'alice', resource_id, 100)
+    await _insert_spend(db, _JAN15, bp_hist_all, 'bob', resource_id, 200)
 
     rows = await query_billing_history(db, _JAN1, _JAN31, user=None, quote_manager_user=None)
-    users_seen = {r['user'] for r in rows if r['billing_project'] == 'bp-hist-all'}
+    users_seen = {r['user'] for r in rows if r['billing_project'] == bp_hist_all}
     assert 'alice' in users_seen
     assert 'bob' in users_seen
 
 
-async def test_billing_history_regular_user_sees_only_own_spend(db):
-    await _make_bp(db, 'q-hist-own', 'bp-hist-own')
-    resource_id = await _insert_resource(db, 'cpu-own', 0.01)
-    await _insert_spend(db, _JAN15, 'bp-hist-own', 'alice', resource_id, 100)
-    await _insert_spend(db, _JAN15, 'bp-hist-own', 'bob', resource_id, 200)
+async def test_billing_history_regular_user_sees_only_own_spend(db, unique_name):
+    q_hist_own = unique_name('q-hist-own')
+    bp_hist_own = unique_name('bp-hist-own')
+    cpu_own = unique_name('cpu-own')
+    await _make_bp(db, q_hist_own, bp_hist_own)
+    resource_id = await _insert_resource(db, cpu_own, 0.01)
+    await _insert_spend(db, _JAN15, bp_hist_own, 'alice', resource_id, 100)
+    await _insert_spend(db, _JAN15, bp_hist_own, 'bob', resource_id, 200)
 
     rows = await query_billing_history(db, _JAN1, _JAN31, user='alice', quote_manager_user=None)
     users_seen = {r['user'] for r in rows}
@@ -181,47 +185,59 @@ async def test_billing_history_regular_user_sees_only_own_spend(db):
     assert 'bob' not in users_seen
 
 
-async def test_billing_history_quote_manager_sees_all_spend_in_managed_quote(db):
-    await _make_bp(db, 'q-hist-qm', 'bp-hist-qm')
-    await add_quote_manager(db, 'q-hist-qm', 'manager', 'manager', actor='admin')
-    resource_id = await _insert_resource(db, 'cpu-qm', 0.01)
-    await _insert_spend(db, _JAN15, 'bp-hist-qm', 'alice', resource_id, 100)
-    await _insert_spend(db, _JAN15, 'bp-hist-qm', 'bob', resource_id, 200)
+async def test_billing_history_quote_manager_sees_all_spend_in_managed_quote(db, unique_name):
+    q_hist_qm = unique_name('q-hist-qm')
+    bp_hist_qm = unique_name('bp-hist-qm')
+    cpu_qm = unique_name('cpu-qm')
+    await _make_bp(db, q_hist_qm, bp_hist_qm)
+    await add_quote_manager(db, q_hist_qm, 'manager', 'manager', actor='admin')
+    resource_id = await _insert_resource(db, cpu_qm, 0.01)
+    await _insert_spend(db, _JAN15, bp_hist_qm, 'alice', resource_id, 100)
+    await _insert_spend(db, _JAN15, bp_hist_qm, 'bob', resource_id, 200)
 
     rows = await query_billing_history(db, _JAN1, _JAN31, user='manager', quote_manager_user='manager')
-    users_seen = {r['user'] for r in rows if r['billing_project'] == 'bp-hist-qm'}
+    users_seen = {r['user'] for r in rows if r['billing_project'] == bp_hist_qm}
     assert 'alice' in users_seen
     assert 'bob' in users_seen
 
 
-async def test_billing_history_quote_manager_also_sees_own_spend_in_other_projects(db):
-    await _make_bp(db, 'q-hist-other', 'bp-hist-other')
-    resource_id = await _insert_resource(db, 'cpu-other', 0.01)
-    await _insert_spend(db, _JAN15, 'bp-hist-other', 'manager', resource_id, 50)
+async def test_billing_history_quote_manager_also_sees_own_spend_in_other_projects(db, unique_name):
+    q_hist_other = unique_name('q-hist-other')
+    bp_hist_other = unique_name('bp-hist-other')
+    cpu_other = unique_name('cpu-other')
+    await _make_bp(db, q_hist_other, bp_hist_other)
+    resource_id = await _insert_resource(db, cpu_other, 0.01)
+    await _insert_spend(db, _JAN15, bp_hist_other, 'manager', resource_id, 50)
 
     rows = await query_billing_history(db, _JAN1, _JAN31, user='manager', quote_manager_user='manager')
     projects_seen = {r['billing_project'] for r in rows if r['user'] == 'manager'}
-    assert 'bp-hist-other' in projects_seen
+    assert bp_hist_other in projects_seen
 
 
-async def test_billing_history_non_manager_cannot_see_others_spend(db):
-    await _make_bp(db, 'q-hist-excl', 'bp-hist-excl')
-    resource_id = await _insert_resource(db, 'cpu-excl', 0.01)
-    await _insert_spend(db, _JAN15, 'bp-hist-excl', 'alice', resource_id, 100)
+async def test_billing_history_non_manager_cannot_see_others_spend(db, unique_name):
+    q_hist_excl = unique_name('q-hist-excl')
+    bp_hist_excl = unique_name('bp-hist-excl')
+    cpu_excl = unique_name('cpu-excl')
+    await _make_bp(db, q_hist_excl, bp_hist_excl)
+    resource_id = await _insert_resource(db, cpu_excl, 0.01)
+    await _insert_spend(db, _JAN15, bp_hist_excl, 'alice', resource_id, 100)
 
     rows = await query_billing_history(db, _JAN1, _JAN31, user='outsider', quote_manager_user=None)
-    users_seen = {r['user'] for r in rows if r['billing_project'] == 'bp-hist-excl'}
+    users_seen = {r['user'] for r in rows if r['billing_project'] == bp_hist_excl}
     assert 'alice' not in users_seen
 
 
-async def test_billing_history_date_filter_applied(db):
-    await _make_bp(db, 'q-hist-date', 'bp-hist-date')
-    resource_id = await _insert_resource(db, 'cpu-date', 0.01)
-    await _insert_spend(db, datetime.date(2025, 12, 31), 'bp-hist-date', 'alice', resource_id, 999)
-    await _insert_spend(db, _JAN15, 'bp-hist-date', 'alice', resource_id, 100)
+async def test_billing_history_date_filter_applied(db, unique_name):
+    q_hist_date = unique_name('q-hist-date')
+    bp_hist_date = unique_name('bp-hist-date')
+    cpu_date = unique_name('cpu-date')
+    await _make_bp(db, q_hist_date, bp_hist_date)
+    resource_id = await _insert_resource(db, cpu_date, 0.01)
+    await _insert_spend(db, datetime.date(2025, 12, 31), bp_hist_date, 'alice', resource_id, 999)
+    await _insert_spend(db, _JAN15, bp_hist_date, 'alice', resource_id, 100)
 
     rows = await query_billing_history(db, _JAN1, _JAN31, user='alice', quote_manager_user=None)
-    total = sum(r['cost'] for r in rows if r['billing_project'] == 'bp-hist-date')
+    total = sum(r['cost'] for r in rows if r['billing_project'] == bp_hist_date)
     assert pytest.approx(total, abs=0.01) == 100 * 0.01
 
 
@@ -230,11 +246,14 @@ async def test_billing_history_date_filter_applied(db):
 # ---------------------------------------------------------------------------
 
 
-async def test_billing_breakdown_regular_user_sees_only_own(db):
-    await _make_bp(db, 'q-brkdn-own', 'bp-brkdn-own')
-    resource_id = await _insert_resource(db, 'mem-own', 0.005)
-    await _insert_spend(db, _JAN15, 'bp-brkdn-own', 'alice', resource_id, 100)
-    await _insert_spend(db, _JAN15, 'bp-brkdn-own', 'bob', resource_id, 200)
+async def test_billing_breakdown_regular_user_sees_only_own(db, unique_name):
+    q_brkdn_own = unique_name('q-brkdn-own')
+    bp_brkdn_own = unique_name('bp-brkdn-own')
+    mem_own = unique_name('mem-own')
+    await _make_bp(db, q_brkdn_own, bp_brkdn_own)
+    resource_id = await _insert_resource(db, mem_own, 0.005)
+    await _insert_spend(db, _JAN15, bp_brkdn_own, 'alice', resource_id, 100)
+    await _insert_spend(db, _JAN15, bp_brkdn_own, 'bob', resource_id, 200)
 
     rows = await query_billing_breakdown(db, _JAN1, _JAN31, user='alice', quote_manager_user=None)
     users_seen = {r['user'] for r in rows}
@@ -242,14 +261,17 @@ async def test_billing_breakdown_regular_user_sees_only_own(db):
     assert 'bob' not in users_seen
 
 
-async def test_billing_breakdown_quote_manager_sees_all_in_quote(db):
-    await _make_bp(db, 'q-brkdn-qm', 'bp-brkdn-qm')
-    await add_quote_manager(db, 'q-brkdn-qm', 'mgr', 'manager', actor='admin')
-    resource_id = await _insert_resource(db, 'mem-qm', 0.005)
-    await _insert_spend(db, _JAN15, 'bp-brkdn-qm', 'alice', resource_id, 100)
-    await _insert_spend(db, _JAN15, 'bp-brkdn-qm', 'bob', resource_id, 200)
+async def test_billing_breakdown_quote_manager_sees_all_in_quote(db, unique_name):
+    q_brkdn_qm = unique_name('q-brkdn-qm')
+    bp_brkdn_qm = unique_name('bp-brkdn-qm')
+    mem_qm = unique_name('mem-qm')
+    await _make_bp(db, q_brkdn_qm, bp_brkdn_qm)
+    await add_quote_manager(db, q_brkdn_qm, 'mgr', 'manager', actor='admin')
+    resource_id = await _insert_resource(db, mem_qm, 0.005)
+    await _insert_spend(db, _JAN15, bp_brkdn_qm, 'alice', resource_id, 100)
+    await _insert_spend(db, _JAN15, bp_brkdn_qm, 'bob', resource_id, 200)
 
     rows = await query_billing_breakdown(db, _JAN1, _JAN31, user='mgr', quote_manager_user='mgr')
-    users_seen = {r['user'] for r in rows if r['billing_project'] == 'bp-brkdn-qm'}
+    users_seen = {r['user'] for r in rows if r['billing_project'] == bp_brkdn_qm}
     assert 'alice' in users_seen
     assert 'bob' in users_seen
