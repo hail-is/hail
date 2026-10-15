@@ -35,9 +35,6 @@ case class TLocus(rg: ReferenceGenome) extends Type {
 
   lazy val representation: TStruct = TLocus.representation
 
-  def locusOrdering: Ordering[Locus] =
-    rg.locusOrdering
-
   override def unify(concrete: Type): Boolean = concrete match {
     case TLocus(crg) => rg == crg
     case _ => false
