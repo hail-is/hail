@@ -631,9 +631,6 @@ object ReferenceGenome {
       parInput.asScala.to(ArraySeq),
     )
 
-  def getMapFromArray(arr: Array[ReferenceGenome]): Map[String, ReferenceGenome] =
-    arr.map(rg => (rg.name, rg)).toMap
-
   def addFatalOnCollision(
     existing: mutable.Map[String, ReferenceGenome],
     newReferences: Iterable[ReferenceGenome],
