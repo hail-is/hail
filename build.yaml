@@ -3454,8 +3454,7 @@ steps:
       echo creating $REPO_NAME...
       curl -XPOST \
         -i \
-        -sSL \
-        --fail-with-body \
+        -fsSL \
         https://api.github.com/orgs/hail-ci-test/repos \
         -H "Authorization: token ${TOKEN}" \
         -d "{ \"name\" : \"$REPO_NAME\" }"
