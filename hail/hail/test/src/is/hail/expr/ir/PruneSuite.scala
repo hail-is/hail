@@ -199,7 +199,7 @@ class PruneSuite {
   def mat(implicit ctx: ExecuteContext) = MatrixLiteral(
     ctx,
     mType,
-    RVD.empty(ctx, mType.canonicalTableType.canonicalRVDType),
+    RVD.empty(mType.canonicalTableType.canonicalRVDType),
     RowSeq(1, 1.0),
     FastSeq(RowSeq("1", 2, FastSeq(RowSeq(3)))),
   )

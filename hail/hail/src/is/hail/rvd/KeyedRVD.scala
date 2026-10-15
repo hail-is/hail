@@ -51,7 +51,6 @@ class KeyedRVD(val rvd: RVD, val key: Int) {
   ): RVD = {
     checkJoinCompatability(right)
 
-    val sm = ctx.stateManager
     val newPartitioner = {
       def leftPart = this.rvd.partitioner.strictify()
       def rightPart = right.rvd.partitioner.coarsen(key).extendKey(realType.kType.virtualType)
@@ -60,7 +59,6 @@ class KeyedRVD(val rvd: RVD, val key: Int) {
         case "right" => rightPart
         case "inner" => leftPart.intersect(rightPart)
         case "outer" => RVDPartitioner.generate(
-            sm,
             kType.fieldNames,
             realType.kType.virtualType,
             leftPart.rangeBounds ++ rightPart.rangeBounds,
@@ -198,7 +196,7 @@ class KeyedRVD(val rvd: RVD, val key: Int) {
 
     val ranges = this.rvd.partitioner.coarsenedRangeBounds(key) ++
       right.rvd.partitioner.coarsenedRangeBounds(key)
-    val newPartitioner = RVDPartitioner.generate(ctx.stateManager, virtType.key, kType, ranges)
+    val newPartitioner = RVDPartitioner.generate(virtType.key, kType, ranges)
 
     val repartitionedLeft = this.rvd.repartition(ctx, newPartitioner)
     val lType = this.virtType

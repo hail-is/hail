@@ -35,7 +35,6 @@ case class TableCalculateNewPartitions(
         FastSeq()
       else
         RVD.calculateKeyRanges(
-          ctx,
           rvd.typ,
           ki,
           nPartitions,

@@ -596,7 +596,7 @@ class MatrixBGENReader(
         val rangeBounds = ArraySeq.newBuilder[Interval]
         filePartitionInfo.zipWithIndex.foreach { case (file, fileIdx) =>
           val filePartitioner =
-            new RVDPartitioner(ctx.stateManager, tcoerce[TStruct](indexKeyType), file.intervals)
+            new RVDPartitioner(tcoerce[TStruct](indexKeyType), file.intervals)
 
           val filterKeyLen = t0.spec.table_type.key.length
           val strictShortKey = filePartitioner.coarsen(filterKeyLen).strictify()
@@ -608,12 +608,12 @@ class MatrixBGENReader(
         }
 
         val partitioner =
-          new RVDPartitioner(ctx.stateManager, tcoerce[TStruct](indexKeyType), rangeBounds.result())
+          new RVDPartitioner(tcoerce[TStruct](indexKeyType), rangeBounds.result())
 
         val reader = BgenPartitionReaderWithVariantFilter(
           filePartitionInfo.map(_.metadata).toArray,
           referenceGenome,
-          PartitionNativeIntervalReader(ctx.stateManager, v, t0.spec, "__dummy"),
+          PartitionNativeIntervalReader(v, t0.spec, "__dummy"),
         )
 
         TableStage(
@@ -626,7 +626,6 @@ class MatrixBGENReader(
 
       case None =>
         val partitioner = new RVDPartitioner(
-          ctx.stateManager,
           tcoerce[TStruct](indexKeyType),
           filePartitionInfo.flatMap(_.intervals),
         )

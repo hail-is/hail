@@ -2,7 +2,7 @@ package is.hail.io.vcf
 
 import is.hail.annotations._
 import is.hail.asm4s._
-import is.hail.backend.{BroadcastValue, ExecuteContext, HailStateManager}
+import is.hail.backend.{BroadcastValue, ExecuteContext}
 import is.hail.backend.spark.SparkBackend
 import is.hail.collection.{FastSeq, MissingArrayBuilder}
 import is.hail.collection.implicits.toRichIterable
@@ -1975,7 +1975,7 @@ class MatrixVCFReader(
 
   override def partitionCounts: Option[IndexedSeq[Long]] = None
 
-  def partitioner(sm: HailStateManager): Option[RVDPartitioner] =
+  def partitioner: Option[RVDPartitioner] =
     params.partitionsJSON.map { partitionsJSON =>
       val indexedPartitionsType = partitionsType.get
       val jv = JsonMethods.parse(partitionsJSON)
@@ -1994,7 +1994,6 @@ class MatrixVCFReader(
           )
       }
       new RVDPartitioner(
-        sm,
         Array("locus"),
         fullType.keyType,
         rangeBounds,
@@ -2023,7 +2022,7 @@ class MatrixVCFReader(
     val localNSamples = nCols
     val localFilterAndReplace = params.filterAndReplace
 
-    val part = partitioner(ctx.stateManager)
+    val part = partitioner
     val lines = part match {
       case Some(partitioner) =>
         GenericLines.readTabix(

@@ -245,7 +245,6 @@ object IRParser {
     val vJSON = JsonMethods.parse(string_literal(it))
     val rangeBounds = JSONAnnotationImpex.importAnnotation(vJSON, TArray(TInterval(keyType)))
     new RVDPartitioner(
-      ctx.stateManager,
       keyType,
       rangeBounds.asInstanceOf[IndexedSeq[Interval]],
     )

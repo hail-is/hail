@@ -17,7 +17,7 @@ import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives._
 import is.hail.types.virtual._
 import is.hail.utils._
-import is.hail.variant.{Locus, ReferenceGenome}
+import is.hail.variant.Locus
 
 import scala.collection.immutable.ArraySeq
 import scala.collection.mutable
@@ -293,18 +293,12 @@ object IRFunctionRegistry {
 }
 
 object RegistryHelpers {
-  def stupidUnwrapStruct(rgs: Map[String, ReferenceGenome], r: Region, value: Row, ptype: PType)
-    : Long = {
+  def stupidUnwrapStruct(r: Region, value: Row, ptype: PType): Long = {
     assert(value != null)
     ptype.unstagedStoreJavaObject(value, r)
   }
 
-  def stupidUnwrapArray(
-    rgs: Map[String, ReferenceGenome],
-    r: Region,
-    value: IndexedSeq[Annotation],
-    ptype: PType,
-  ): Long = {
+  def stupidUnwrapArray(r: Region, value: IndexedSeq[Annotation], ptype: PType): Long = {
     assert(value != null)
     ptype.unstagedStoreJavaObject(value, r)
   }
@@ -424,13 +418,9 @@ abstract class RegistryFunctions {
       case _: TBaseStruct =>
         val sst = st.asInstanceOf[SBaseStructPointer]
         val pt = sst.pType.asInstanceOf[PCanonicalBaseStruct]
-        val addr = cb.memoize(Code.invokeScalaObject4[Map[
-          String,
-          ReferenceGenome,
-        ], Region, Row, PType, Long](
+        val addr = cb.memoize(Code.invokeScalaObject3[Region, Row, PType, Long](
           RegistryHelpers.getClass,
           "stupidUnwrapStruct",
-          cb.emb.ecb.emodb.referenceGenomeMap,
           r.region,
           coerce[Row](value),
           cb.emb.ecb.getPType(pt),
@@ -442,13 +432,9 @@ abstract class RegistryFunctions {
       case TArray(_: TBaseStruct) =>
         val ast = st.asInstanceOf[SIndexablePointer]
         val pca = ast.pType.asInstanceOf[PCanonicalArray]
-        val array = cb.memoize(Code.invokeScalaObject4[Map[
-          String,
-          ReferenceGenome,
-        ], Region, IndexedSeq[Annotation], PType, Long](
+        val array = cb.memoize(Code.invokeScalaObject3[Region, IndexedSeq[Annotation], PType, Long](
           RegistryHelpers.getClass,
           "stupidUnwrapArray",
-          cb.emb.ecb.emodb.referenceGenomeMap,
           r.region,
           coerce[IndexedSeq[Annotation]](value),
           cb.emb.ecb.getPType(pca),

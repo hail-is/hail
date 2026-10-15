@@ -112,15 +112,6 @@ class EmitModuleBuilder(val ctx: ExecuteContext, val modb: ModuleBuilder) {
   def referenceSequenceFields(): IndexedSeq[StaticFieldRef[ReferenceSequence]] =
     ArraySeq.sortedBy(sequenceContainers)(_._1).map(_._2)
 
-  var _rgMapField: StaticFieldRef[Map[String, ReferenceGenome]] = null
-
-  def referenceGenomeMap: Value[Map[String, ReferenceGenome]] = {
-    if (_rgMapField == null) {
-      _rgMapField = modb.genStaticField[Map[String, ReferenceGenome]]("reference_genome_map")
-    }
-    _rgMapField
-  }
-
   def setObjects(cb: EmitCodeBuilder, objects: Code[Array[AnyRef]]): Unit =
     modb.setObjects(cb, objects)
 
@@ -841,16 +832,6 @@ final class EmitClassBuilder[C](val emodb: EmitModuleBuilder, val cb: ClassBuild
       )
       for ((fld, i) <- rgFields.zipWithIndex)
         cb.assign(fld, rgs(i))
-
-      Option(emodb._rgMapField).foreach { fld =>
-        cb.assign(
-          fld,
-          Code.invokeStatic1[ReferenceGenome, Array[ReferenceGenome], Map[String, ReferenceGenome]](
-            "getMapFromArray",
-            rgs,
-          ),
-        )
-      }
     }
   }
 
