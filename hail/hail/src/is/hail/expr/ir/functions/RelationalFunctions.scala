@@ -7,6 +7,7 @@ import is.hail.methods._
 import is.hail.types.{RTable, TypeWithRequiredness}
 import is.hail.types.virtual.{BlockMatrixType, MatrixType, TableType, Type}
 import is.hail.utils.Logging
+import is.hail.variant.ReferenceGenomeEnv
 
 import org.json4s.{Extraction, Formats, JValue, ShortTypeHints}
 import org.json4s.jackson.JsonMethods
@@ -63,8 +64,7 @@ abstract class TableToTableFunction {
 
   def requestType(requestedType: TableType, childBaseType: TableType): TableType = childBaseType
 
-  def toJValue: JValue =
-    Extraction.decompose(this)(RelationalFunctions.formats)
+  def toJValue: JValue = Extraction.decompose(this)(RelationalFunctions.formats)
 }
 
 abstract class TableToValueFunction {
@@ -109,40 +109,51 @@ abstract class BlockMatrixToValueFunction {
 }
 
 object RelationalFunctions extends Logging {
-  implicit val formats: Formats = RelationalSpec.formats + ShortTypeHints(
-    List(
-      classOf[LinearRegressionRowsSingle],
-      classOf[LinearRegressionRowsChained],
-      classOf[TableFilterPartitions],
-      classOf[MatrixFilterPartitions],
-      classOf[TableCalculateNewPartitions],
-      classOf[ForceCountTable],
-      classOf[ForceCountMatrixTable],
-      classOf[NPartitionsTable],
-      classOf[NPartitionsMatrixTable],
-      classOf[LogisticRegression],
-      classOf[PoissonRegression],
-      classOf[Skat],
-      classOf[LocalLDPrune],
-      classOf[MatrixExportEntriesByCol],
-      classOf[PCA],
-      classOf[VEP],
-      classOf[IBD],
-      classOf[Nirvana],
-      classOf[GetElement],
-      classOf[WrappedMatrixToTableFunction],
-      classOf[WrappedMatrixToValueFunction],
-      classOf[PCRelate],
-    ),
-    typeHintFieldName = "name",
-  )
+
+  /** Formats that read types, parsing them against `rgs`. */
+  def formats(rgs: ReferenceGenomeEnv): Formats = typeFormats(Some(rgs))
+
+  /** Formats that write types but cannot read them. */
+  def formats: Formats = writeOnlyFormats
+
+  private[this] lazy val writeOnlyFormats: Formats = typeFormats(None)
+
+  private def typeFormats(rgs: Option[ReferenceGenomeEnv]): Formats =
+    RelationalSpec.typeFormats(rgs) + ShortTypeHints(
+      List(
+        classOf[LinearRegressionRowsSingle],
+        classOf[LinearRegressionRowsChained],
+        classOf[TableFilterPartitions],
+        classOf[MatrixFilterPartitions],
+        classOf[TableCalculateNewPartitions],
+        classOf[ForceCountTable],
+        classOf[ForceCountMatrixTable],
+        classOf[NPartitionsTable],
+        classOf[NPartitionsMatrixTable],
+        classOf[LogisticRegression],
+        classOf[PoissonRegression],
+        classOf[Skat],
+        classOf[LocalLDPrune],
+        classOf[MatrixExportEntriesByCol],
+        classOf[PCA],
+        classOf[VEP],
+        classOf[IBD],
+        classOf[Nirvana],
+        classOf[GetElement],
+        classOf[WrappedMatrixToTableFunction],
+        classOf[WrappedMatrixToValueFunction],
+        classOf[PCRelate],
+      ),
+      typeHintFieldName = "name",
+    )
 
   def extractTo[T: Manifest](ctx: ExecuteContext, config: String): T = {
+    implicit val formats: Formats = RelationalFunctions.formats(ctx.referenceGenomes)
     val jv = JsonMethods.parse(config)
     (jv \ "name").extract[String] match {
       case "VEP" =>
         logger.info(f"vep config json: $jv")
-        VEP.fromJValue(ctx.fs, jv).asInstanceOf[T]
+        VEP.fromJValue(ctx.fs, ctx.referenceGenomes, jv).asInstanceOf[T]
       case _ =>
         logger.info(f"JSON: $jv")
         jv.extract[T]

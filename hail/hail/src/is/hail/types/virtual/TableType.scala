@@ -4,18 +4,18 @@ import is.hail.collection.FastSeq
 import is.hail.collection.implicits.toRichIterable
 import is.hail.expr.ir._
 import is.hail.rvd.RVDType
+import is.hail.types.TypeStringSerializer
 import is.hail.types.physical.{PStruct, PType}
 import is.hail.utils._
+import is.hail.variant.ReferenceGenomeEnv
 
 import org.json4s._
 import org.json4s.JsonAST.JString
 
-class TableTypeSerializer extends CustomSerializer[TableType](format =>
-      (
-        { case JString(s) => IRParser.parseTableType(s) },
-        { case tt: TableType => JString(tt.toString) },
-      )
-    )
+class TableTypeSerializer(rgs: Option[ReferenceGenomeEnv])
+    extends TypeStringSerializer[TableType](rgs, IRParser.parseTableType, _.toString) {
+  def this(rgs: ReferenceGenomeEnv) = this(Some(rgs))
+}
 
 object TableType {
   def keyType(ts: TStruct, key: IndexedSeq[String]): TStruct =

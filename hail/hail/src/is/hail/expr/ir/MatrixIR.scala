@@ -16,6 +16,7 @@ import is.hail.rvd._
 import is.hail.types._
 import is.hail.types.virtual._
 import is.hail.utils._
+import is.hail.variant.ReferenceGenomeEnv
 
 import scala.collection.immutable.ArraySeq
 
@@ -26,12 +27,13 @@ import org.json4s.jackson.JsonMethods
 object MatrixIR {
   def read(
     fs: FS,
+    rgs: ReferenceGenomeEnv,
     path: String,
     dropCols: Boolean = false,
     dropRows: Boolean = false,
     requestedType: Option[MatrixType] = None,
   ): MatrixIR = {
-    val reader = MatrixNativeReader(fs, path)
+    val reader = MatrixNativeReader(fs, rgs, path)
     MatrixRead(requestedType.getOrElse(reader.fullMatrixType), dropCols, dropRows, reader)
   }
 
@@ -104,7 +106,8 @@ object MatrixReader {
     implicit val formats: Formats = DefaultFormats
     (jv \ "name").extract[String] match {
       case "MatrixRangeReader" => MatrixRangeReader.fromJValue(ctx, jv)
-      case "MatrixNativeReader" => MatrixNativeReader.fromJValue(ctx.fs, jv)
+      case "MatrixNativeReader" =>
+        MatrixNativeReader.fromJValue(ctx.fs, ctx.referenceGenomes, jv)
       case "MatrixBGENReader" => MatrixBGENReader.fromJValue(ctx, jv)
       case "MatrixPLINKReader" => MatrixPLINKReader.fromJValue(ctx, jv)
       case "MatrixVCFReader" => MatrixVCFReader.fromJValue(ctx, jv)
@@ -202,12 +205,18 @@ abstract class MatrixHybridReader extends TableReaderWithExtraUID with MatrixRea
 }
 
 object MatrixNativeReader {
-  def apply(fs: FS, path: String, options: Option[NativeReaderOptions] = None): MatrixNativeReader =
-    MatrixNativeReader(fs, MatrixNativeReaderParameters(path, options))
+  def apply(
+    fs: FS,
+    rgs: ReferenceGenomeEnv,
+    path: String,
+    options: Option[NativeReaderOptions] = None,
+  ): MatrixNativeReader =
+    MatrixNativeReader(fs, rgs, MatrixNativeReaderParameters(path, options))
 
-  def apply(fs: FS, params: MatrixNativeReaderParameters): MatrixNativeReader = {
+  def apply(fs: FS, rgs: ReferenceGenomeEnv, params: MatrixNativeReaderParameters)
+    : MatrixNativeReader = {
     val spec =
-      (RelationalSpec.read(fs, params.path): @unchecked) match {
+      (RelationalSpec.read(fs, rgs, params.path): @unchecked) match {
         case mts: AbstractMatrixTableSpec => mts
         case _: AbstractTableSpec => fatal(s"file is a Table, not a MatrixTable: '${params.path}'")
       }
@@ -221,18 +230,18 @@ object MatrixNativeReader {
     new MatrixNativeReader(params, spec)
   }
 
-  def fromJValue(fs: FS, jv: JValue): MatrixNativeReader = {
+  def fromJValue(fs: FS, rgs: ReferenceGenomeEnv, jv: JValue): MatrixNativeReader = {
     val path = jv \ "path" match {
       case JString(s) => s
     }
 
     val options = jv \ "options" match {
       case optionsJV: JObject =>
-        Some(NativeReaderOptions.fromJValue(optionsJV))
+        Some(NativeReaderOptions.fromJValue(optionsJV, rgs))
       case JNothing => None
     }
 
-    MatrixNativeReader(fs, MatrixNativeReaderParameters(path, options))
+    MatrixNativeReader(fs, rgs, MatrixNativeReaderParameters(path, options))
   }
 }
 

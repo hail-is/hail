@@ -5,18 +5,18 @@ import is.hail.backend.HailStateManager
 import is.hail.collection.FastSeq
 import is.hail.expr.{JSONAnnotationImpex, SparkAnnotationImpex}
 import is.hail.expr.ir._
+import is.hail.types.TypeStringSerializer
 import is.hail.utils
+import is.hail.variant.ReferenceGenomeEnv
 
 import org.apache.spark.sql.types.DataType
-import org.json4s.{CustomSerializer, JValue}
+import org.json4s.JValue
 import org.json4s.JsonAST.JString
 
-class TypeSerializer extends CustomSerializer[Type](_ =>
-      (
-        { case JString(s) => IRParser.parseType(s) },
-        { case t: Type => JString(t.parsableString()) },
-      )
-    )
+class TypeSerializer(rgs: Option[ReferenceGenomeEnv])
+    extends TypeStringSerializer[Type](rgs, IRParser.parseType, _.parsableString()) {
+  def this(rgs: ReferenceGenomeEnv) = this(Some(rgs))
+}
 
 abstract class Type extends VType with Serializable {
 
