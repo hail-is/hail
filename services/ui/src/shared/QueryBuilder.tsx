@@ -140,9 +140,10 @@ function FreeTextRowEditor({ row, onChange, onRemove }: {
   );
 }
 
-export function QueryBuilder({ fields, q, onSearch, onDirtyChange }: {
+export function QueryBuilder({ fields, q, onSearch, onDirtyChange, emptyLabel = 'Showing all jobs' }: {
   fields: readonly QueryFieldConfig[];
   q: string;
+  emptyLabel?: string;
   onSearch: (_q: string) => void;
   onDirtyChange?: (_dirty: boolean) => void;
 }): JSX.Element {
@@ -268,7 +269,7 @@ export function QueryBuilder({ fields, q, onSearch, onDirtyChange }: {
         {mode === 'builder' ? (
           <div className="min-h-24 w-full p-4 bg-slate-200 rounded-b rounded-tr space-y-3">
             {rows.length === 0 && (
-              <div className="p-2 bg-white rounded border text-sm text-zinc-500">Showing all jobs</div>
+              <div className="p-2 bg-white rounded border text-sm text-zinc-500">{emptyLabel}</div>
             )}
             {rows.map((row) => (row.kind === 'structured' ? (
               <StructuredRowEditor

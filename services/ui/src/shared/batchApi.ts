@@ -24,10 +24,16 @@ export interface Batch {
   n_cancelled: number;
   time_created?: string | null;
   time_completed?: string | null;
+  duration_ms?: number | null;
   duration?: string | null;
   cost: number;
   cost_breakdown?: CostBreakdownEntry[] | null;
   attributes?: Record<string, string>;
+}
+
+export interface BatchListPage {
+  batches: Batch[];
+  last_batch_id?: number;
 }
 
 export interface BatchJob {
@@ -56,6 +62,14 @@ export interface BillingProjectInfo {
 // service's full API surface. Add to this as more pages need more of it.
 export function createHailApi(basePath: string) {
   return {
+    // `q` is always sent, even when empty: an absent `q` makes the server substitute its own
+    // `user = <me>` default, whereas an empty one means "no filters".
+    getBatches: (params: { q: string; lastBatchId?: number }) => {
+      const search = new URLSearchParams({ q: params.q });
+      if (params.lastBatchId != null) search.set('last_batch_id', String(params.lastBatchId));
+      return hailApiFetch<BatchListPage>(`${basePath}/api/v2alpha/batches?${search.toString()}`);
+    },
+
     getBatch: (batchId: string) =>
       hailApiFetch<Batch>(`${basePath}/api/v1alpha/batches/${batchId}`),
 

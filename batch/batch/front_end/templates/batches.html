@@ -4,8 +4,16 @@
 {% block title %}Batches{% endblock %}
 {% block head %}
 <script defer src="{{ base_path }}/common_static/focus_on_keyup.js"></script>
+<script defer src="{{ base_path }}/batch/static/js/job.js"></script>
 {% endblock %}
 {% block content %}
+{% if userdata['system_permissions']['access_developer_environments'] %}
+<div class='mt-2'>
+  <a id="enable-react-ui-btn" href="#" class='text-sm text-sky-600 hover:underline'>
+    Try new layout
+  </a>
+</div>
+{% endif %}
 <div class='flex-col m-auto w-full space-y-4'>
   <h1 class="text-2xl font-light">Batches</h1>
   {{ table_search("batch-search", base_path ~ "/batches") }}
