@@ -293,12 +293,7 @@ object IRFunctionRegistry {
 }
 
 object RegistryHelpers {
-  def stupidUnwrapStruct(r: Region, value: Row, ptype: PType): Long = {
-    assert(value != null)
-    ptype.unstagedStoreJavaObject(value, r)
-  }
-
-  def stupidUnwrapArray(r: Region, value: IndexedSeq[Annotation], ptype: PType): Long = {
+  def stupidUnwrapJavaObject(r: Region, value: Annotation, ptype: PType): Long = {
     assert(value != null)
     ptype.unstagedStoreJavaObject(value, r)
   }
@@ -350,8 +345,8 @@ abstract class RegistryFunctions {
         val pt = PType.canonical(t.storageType())
         val addr = pt.store(cb, r, sc, deepCopy = false)
         cb.memoize(Code.invokeScalaObject3[PType, Region, Long, AnyRef](
-          RegistryHelpers.getClass,
-          if (safe) "safeReadAnyRef" else "unsafeReadAnyRef",
+          if (safe) SafeRow.getClass else UnsafeRow.getClass,
+          "readAnyRef",
           cb.emb.getPType(pt),
           r,
           addr,
@@ -424,9 +419,9 @@ abstract class RegistryFunctions {
       case _: TBaseStruct =>
         val sst = st.asInstanceOf[SBaseStructPointer]
         val pt = sst.pType.asInstanceOf[PCanonicalBaseStruct]
-        val addr = cb.memoize(Code.invokeScalaObject3[Region, Row, PType, Long](
+        val addr = cb.memoize(Code.invokeScalaObject3[Region, Annotation, PType, Long](
           RegistryHelpers.getClass,
-          "stupidUnwrapStruct",
+          "stupidUnwrapJavaObject",
           r.region,
           coerce[Row](value),
           cb.emb.ecb.getPType(pt),
@@ -438,9 +433,9 @@ abstract class RegistryFunctions {
       case TArray(_: TBaseStruct) =>
         val ast = st.asInstanceOf[SIndexablePointer]
         val pca = ast.pType.asInstanceOf[PCanonicalArray]
-        val array = cb.memoize(Code.invokeScalaObject3[Region, IndexedSeq[Annotation], PType, Long](
+        val array = cb.memoize(Code.invokeScalaObject3[Region, Annotation, PType, Long](
           RegistryHelpers.getClass,
-          "stupidUnwrapArray",
+          "stupidUnwrapJavaObject",
           r.region,
           coerce[IndexedSeq[Annotation]](value),
           cb.emb.ecb.getPType(pca),

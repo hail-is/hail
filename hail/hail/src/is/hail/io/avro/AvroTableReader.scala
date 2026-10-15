@@ -25,7 +25,7 @@ class AvroTableReader(
   unsafeOptions: Option[UnsafeAvroTableReaderOptions] = None,
 ) extends TableReaderWithExtraUID {
 
-  private def partitioner: RVDPartitioner =
+  private lazy val partitioner: RVDPartitioner =
     unsafeOptions.map { case UnsafeAvroTableReaderOptions(key, intervals, _) =>
       require(
         intervals.length == paths.length,

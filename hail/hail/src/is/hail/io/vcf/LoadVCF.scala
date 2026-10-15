@@ -1975,7 +1975,7 @@ class MatrixVCFReader(
 
   override def partitionCounts: Option[IndexedSeq[Long]] = None
 
-  def partitioner: Option[RVDPartitioner] =
+  lazy val partitioner: Option[RVDPartitioner] =
     params.partitionsJSON.map { partitionsJSON =>
       val indexedPartitionsType = partitionsType.get
       val jv = JsonMethods.parse(partitionsJSON)
