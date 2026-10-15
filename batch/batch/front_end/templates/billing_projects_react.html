@@ -1,0 +1,16 @@
+{% extends "layout.html" %}
+{% block title %}Billing Projects{% endblock %}
+{% block head %}
+<script type="module" src="{{ base_path }}/batch/static/compiled-js/billing.js"></script>
+{% endblock %}
+{% block content %}
+<div id="billing-projects-root"
+  data-base-path="{{ base_path }}"
+  data-is-global-bm="{{ 'true' if userdata['system_permissions']['update_all_billing_projects'] else 'false' }}"
+  data-can-create-bp="{{ 'true' if userdata['system_permissions']['create_billing_projects'] else 'false' }}"
+  data-can-create-quotes="{{ 'true' if userdata['system_permissions']['create_quotes'] else 'false' }}">
+  <div class="flex items-center justify-center mt-24">
+    <span class="text-5xl font-light text-sky-600">Loading&hellip;</span>
+  </div>
+</div>
+{% endblock %}
