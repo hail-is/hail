@@ -138,7 +138,7 @@ class IntervalSuite {
     Interval(start, end, includesStart, includesEnd)
 
   @Test def testIntervalSortAndReduce(implicit ctx: ExecuteContext): Unit = {
-    val ord = TInt32.ordering(ctx.stateManager).intervalEndpointOrdering
+    val ord = TInt32.ordering.intervalEndpointOrdering
 
     assertEq(Interval.union(ArraySeq(), ord), ArraySeq())
     assertEq(Interval.union(ArraySeq(intInterval(0, 10)), ord), ArraySeq(intInterval(0, 10)))
@@ -158,7 +158,7 @@ class IntervalSuite {
   }
 
   @Test def testIntervalIntersection(implicit ctx: ExecuteContext): Unit = {
-    val ord = TInt32.ordering(ctx.stateManager).intervalEndpointOrdering
+    val ord = TInt32.ordering.intervalEndpointOrdering
 
     val x1 = ArraySeq(
       intInterval(5, 10),

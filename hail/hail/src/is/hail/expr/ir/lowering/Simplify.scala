@@ -2043,10 +2043,7 @@ object Simplify {
               ))
 
             case TableFilterIntervals(c, _i1, keep1) if keep1 == keep =>
-              val ord = PartitionBoundOrdering(
-                ctx,
-                c.typ.keyType,
-              ).intervalEndpointOrdering
+              val ord = PartitionBoundOrdering(c.typ.keyType).intervalEndpointOrdering
               val i1 = Interval.union(_i1, ord)
               val i2 = Interval.union(intervals, ord)
               val merged =
@@ -2082,13 +2079,13 @@ object Simplify {
                   NativeReaderOptions(
                     Interval.union(
                       intervals,
-                      PartitionBoundOrdering(ctx, pt).intervalEndpointOrdering,
+                      PartitionBoundOrdering(pt).intervalEndpointOrdering,
                     ),
                     pt,
                     true,
                   )
                 case Some(NativeReaderOptions(preIntervals, intervalPointType, _)) =>
-                  val iord = PartitionBoundOrdering(ctx, intervalPointType).intervalEndpointOrdering
+                  val iord = PartitionBoundOrdering(intervalPointType).intervalEndpointOrdering
                   NativeReaderOptions(
                     Interval.intersection(
                       Interval.union(preIntervals, iord),
@@ -2120,7 +2117,7 @@ object Simplify {
                   NativeReaderOptions(
                     Interval.union(
                       intervals,
-                      PartitionBoundOrdering(ctx, pt).intervalEndpointOrdering,
+                      PartitionBoundOrdering(pt).intervalEndpointOrdering,
                     ),
                     pt,
                     true,
@@ -2130,7 +2127,7 @@ object Simplify {
                       intervalPointType,
                       _,
                     )) =>
-                  val iord = PartitionBoundOrdering(ctx, intervalPointType).intervalEndpointOrdering
+                  val iord = PartitionBoundOrdering(intervalPointType).intervalEndpointOrdering
                   NativeReaderOptions(
                     Interval.intersection(
                       Interval.union(preIntervals, iord),

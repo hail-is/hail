@@ -41,7 +41,7 @@ final case class PCanonicalSet(elementType: PType, required: Boolean = false)
     : Long = {
     val s: IndexedSeq[Annotation] = ArraySeq.sorted(annotation.asInstanceOf[Set[Annotation]])(
       implicitly,
-      elementType.virtualType.ordering(sm).toOrdering,
+      elementType.virtualType.ordering.toOrdering,
     )
     arrayRep.unstagedStoreJavaObject(sm, s, region)
   }

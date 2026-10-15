@@ -1,7 +1,6 @@
 package is.hail.types.virtual
 
 import is.hail.annotations._
-import is.hail.backend.HailStateManager
 
 case object TString extends Type {
   override def _toPretty = "String"
@@ -13,7 +12,7 @@ case object TString extends Type {
 
   override def _typeCheck(a: Any): Boolean = a.isInstanceOf[String]
 
-  override def mkOrdering(sm: HailStateManager, missingEqual: Boolean): ExtendedOrdering =
+  override def mkOrdering(missingEqual: Boolean): ExtendedOrdering =
     ExtendedOrdering.extendToNull(implicitly[Ordering[String]], missingEqual)
 
   override def isIsomorphicTo(t: Type): Boolean =

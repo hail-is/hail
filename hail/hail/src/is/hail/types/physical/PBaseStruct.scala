@@ -2,7 +2,6 @@ package is.hail.types.physical
 
 import is.hail.annotations._
 import is.hail.asm4s._
-import is.hail.backend.HailStateManager
 import is.hail.collection.implicits.toRichIterable
 import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.types.physical.stypes.interfaces.SBaseStructValue
@@ -68,15 +67,15 @@ abstract class PBaseStruct extends PType {
   def isCompatibleWith(other: PBaseStruct): Boolean =
     fields.zip(other.fields).forall { case (l, r) => l.typ isOfType r.typ }
 
-  override def unsafeOrdering(sm: HailStateManager): UnsafeOrdering =
-    unsafeOrdering(sm, this)
+  override def unsafeOrdering: UnsafeOrdering =
+    unsafeOrdering(this)
 
-  override def unsafeOrdering(sm: HailStateManager, rightType: PType): UnsafeOrdering = {
+  override def unsafeOrdering(rightType: PType): UnsafeOrdering = {
     require(this isOfType rightType)
 
     val right = rightType.asInstanceOf[PBaseStruct]
     val fieldOrderings =
-      types.zip(right.types).map { case (l, r) => l.unsafeOrdering(sm, r) }
+      types.zip(right.types).map { case (l, r) => l.unsafeOrdering(r) }
 
     new UnsafeOrdering {
       override def compare(o1: Long, o2: Long): Int = {

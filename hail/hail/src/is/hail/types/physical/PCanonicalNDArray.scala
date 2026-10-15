@@ -89,8 +89,8 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
 
   override lazy val alignment: Long = representation.alignment
 
-  override def unsafeOrdering(sm: HailStateManager): UnsafeOrdering =
-    representation.unsafeOrdering(sm)
+  override def unsafeOrdering: UnsafeOrdering =
+    representation.unsafeOrdering
 
   override def numElements(shape: IndexedSeq[Value[Long]]): Code[Long] =
     shape.foldLeft(1L: Code[Long])(_ * _)

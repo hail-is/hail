@@ -177,7 +177,7 @@ class RVD(
     val localKPType = typ.kType
     val stateManager = partitioner.sm
 
-    val ord = PartitionBoundOrdering(stateManager, localType.kType.virtualType)
+    val ord = PartitionBoundOrdering(localType.kType.virtualType)
     new RVD(
       typ,
       partitioner,
@@ -197,7 +197,7 @@ class RVD(
             if (first)
               first = false
             else {
-              if (localType.kRowOrd(stateManager).gt(prevK.value.offset, ptr)) {
+              if (localType.kRowOrd.gt(prevK.value.offset, ptr)) {
                 val prevKeyString = Region.pretty(localKPType, prevK.value.offset)
 
                 prevK.setSelect(localType.rowType, localType.kFieldIdx, ptr, deepCopy = true)
@@ -263,7 +263,7 @@ class RVD(
       val newType = typ.copy(key = newPartitioner.kType.fieldNames)
 
       val localRowPType = rowPType
-      val kOrdering = PartitionBoundOrdering(ctx.stateManager, newType.kType.virtualType)
+      val kOrdering = PartitionBoundOrdering(newType.kType.virtualType)
 
       val partBc = newPartitioner.broadcast(crdd.sparkContext)
       val enc = TypedCodecSpec(ctx, rowPType, BufferSpec.wireSpec)
@@ -999,7 +999,6 @@ class RVD(
     val rightTyp = that.typ
     val codecSpec = TypedCodecSpec(ctx, that.rowPType, BufferSpec.wireSpec)
     val makeEnc = codecSpec.buildEncoder(ctx, that.rowPType)
-    val sm = ctx.stateManager
     val partitionKeyedIntervals = that.crdd.cmapPartitions { (hcl, ctx, it) =>
       val encoder = new ByteArrayEncoder(hcl, makeEnc)
       TaskContext.get().addTaskCompletionListener[Unit](_ => encoder.close()): Unit
@@ -1020,7 +1019,7 @@ class RVD(
 
     val nParts = getNumPartitions
     val intervalOrd =
-      rightTyp.kType.types(0).virtualType.ordering(sm).toOrdering.asInstanceOf[Ordering[Interval]]
+      rightTyp.kType.types(0).virtualType.ordering.toOrdering.asInstanceOf[Ordering[Interval]]
     val sorted: RDD[((Int, Interval), Array[Byte])] = new ShuffledRDD(
       partitionKeyedIntervals,
       new Partitioner {
@@ -1143,7 +1142,7 @@ object RVD extends Logging {
         None
     }.flatten
 
-    val kOrd = PartitionBoundOrdering(sm, typ.kType.virtualType).toOrdering
+    val kOrd = PartitionBoundOrdering(typ.kType.virtualType).toOrdering
     ArraySeq.unsafeWrapArray(keyInfo.sortedInPlaceBy(_.min)(kOrd))
   }
 
@@ -1317,7 +1316,7 @@ object RVD extends Logging {
     assert(nPartitions > 0)
     assert(pInfo.nonEmpty)
 
-    val kord = PartitionBoundOrdering(ctx, typ.kType.virtualType).toOrdering
+    val kord = PartitionBoundOrdering(typ.kType.virtualType).toOrdering
     val min = pInfo.map(_.min).min(kord)
     val max = pInfo.map(_.max).max(kord)
     val samples = pInfo.flatMap(_.samples)

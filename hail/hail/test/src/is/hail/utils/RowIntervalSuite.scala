@@ -15,7 +15,7 @@ import org.junit.jupiter.api.Test
 
 class RowIntervalSuite {
   lazy val t = TStruct("a" -> TInt32, "b" -> TInt32, "c" -> TInt32)
-  def pord(implicit ctx: ExecuteContext) = PartitionBoundOrdering(ctx, t)
+  def pord(implicit ctx: ExecuteContext) = PartitionBoundOrdering(t)
 
   def assertContains(
     i: Interval,

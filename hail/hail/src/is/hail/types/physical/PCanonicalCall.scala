@@ -22,8 +22,8 @@ final case class PCanonicalCall(required: Boolean = false) extends PCall {
   override def byteSize: Long = representation.byteSize
   override def alignment: Long = representation.alignment
 
-  override def unsafeOrdering(sm: HailStateManager): UnsafeOrdering =
-    representation.unsafeOrdering(sm) // this was a terrible idea
+  override def unsafeOrdering: UnsafeOrdering =
+    representation.unsafeOrdering // this was a terrible idea
 
   override def setRequired(required: Boolean) =
     if (required == this.required) this else PCanonicalCall(required)

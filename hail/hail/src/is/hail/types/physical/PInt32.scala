@@ -20,7 +20,7 @@ class PInt32(override val required: Boolean) extends PNumeric with PPrimitive {
 
   override type NType = PInt32
 
-  override def unsafeOrdering(sm: HailStateManager): UnsafeOrdering = new UnsafeOrdering {
+  override def unsafeOrdering: UnsafeOrdering = new UnsafeOrdering {
     override def compare(o1: Long, o2: Long): Int =
       Integer.compare(Region.loadInt(o1), Region.loadInt(o2))
   }

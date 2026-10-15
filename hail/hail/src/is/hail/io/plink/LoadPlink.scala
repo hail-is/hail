@@ -77,7 +77,7 @@ object LoadPlink extends Logging {
         n += 1
       }
     }
-    implicit val ord = locusAllelesType.ordering(ctx.stateManager).toOrdering
+    implicit val ord = locusAllelesType.ordering.toOrdering
     val variants = vs.result().sortedInPlaceBy(_.locusAlleles)
     (n, variants)
   }
@@ -275,7 +275,7 @@ object MatrixPLINKReader extends Logging {
 
     var p = 0
     var prevEnd = 0
-    val lOrd = locusType.ordering(ctx.stateManager)
+    val lOrd = locusType.ordering
     while (p < nPartitions && prevEnd < nVariants) {
       val start = prevEnd
 

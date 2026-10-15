@@ -45,7 +45,7 @@ class RepartitionedOrderedRDD2 private (
 
   val prevCRDD: ContextRDD[Long] = prev.crdd
   val typ: RVDType = prev.typ
-  val kOrd: ExtendedOrdering = PartitionBoundOrdering(sm, typ.kType.virtualType)
+  val kOrd: ExtendedOrdering = PartitionBoundOrdering(typ.kType.virtualType)
 
   override def getPartitions: Array[Partition] = {
     require(newRangeBounds.forall { i =>

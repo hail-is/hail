@@ -1106,7 +1106,7 @@ object LowerTableIR extends Logging {
         val loweredChild = lower(child)
         val part = loweredChild.partitioner
         val kt = child.typ.keyType
-        val ord = PartitionBoundOrdering(ctx.stateManager, kt)
+        val ord = PartitionBoundOrdering(kt)
         val iord = ord.intervalEndpointOrdering
 
         val filterPartitioner = new RVDPartitioner(
