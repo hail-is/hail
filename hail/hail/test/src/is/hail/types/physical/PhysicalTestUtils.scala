@@ -26,20 +26,19 @@ abstract class PhysicalTestUtils extends Logging {
     val region = Region(pool = pool)
 
     val srcAddress = sourceType match {
-      case x: PSubsetStruct => ScalaToRegionValue(ctx.stateManager, srcRegion, x.ps, sourceValue)
-      case _ => ScalaToRegionValue(ctx.stateManager, srcRegion, sourceType, sourceValue)
+      case x: PSubsetStruct => ScalaToRegionValue(srcRegion, x.ps, sourceValue)
+      case _ => ScalaToRegionValue(srcRegion, sourceType, sourceValue)
     }
 
     if (interpret) {
       try {
         val copyOff = destType.copyFromAddress(
-          ctx.stateManager,
           region,
           sourceType,
           srcAddress,
           deepCopy = deepCopy,
         )
-        val copy = UnsafeRow.read(ctx.stateManager, destType, region, copyOff)
+        val copy = UnsafeRow.read(destType, region, copyOff)
 
         logger.info(s"Copied value: $copy, Source value: $sourceValue")
 
@@ -99,7 +98,7 @@ abstract class PhysicalTestUtils extends Logging {
       try {
         val f = fb.result()(ctx.theHailClassLoader)
         val copyOff = f(region, srcAddress)
-        UnsafeRow.read(ctx.stateManager, destType, region, copyOff)
+        UnsafeRow.read(destType, region, copyOff)
       } catch {
         case e: HailException =>
           if (expectRuntimeError) {

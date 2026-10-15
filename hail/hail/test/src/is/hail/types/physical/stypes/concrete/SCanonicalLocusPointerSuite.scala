@@ -39,7 +39,7 @@ class SCanonicalLocusPointerSuite {
 
       check(forAll(genLocus(rg)) { l =>
         ctx.r.pool.scopedRegion { r =>
-          val addr = pt.unstagedStoreJavaObject(ctx.stateManager, l, r)
+          val addr = pt.unstagedStoreJavaObject(l, r)
           val idx = rg.getContigIndex(l.contig)
           assertEq(contigIdx(r, addr), idx)
           assertEq(packed(r, addr), (idx.toLong << 32) | l.position.toLong)
@@ -75,7 +75,7 @@ class SCanonicalLocusPointerSuite {
 
         val byPrefixCode = ctx.r.pool.scopedRegion { r =>
           loci
-            .map(l => (l, prefixCode(r, pt.unstagedStoreJavaObject(ctx.stateManager, l, r))))
+            .map(l => (l, prefixCode(r, pt.unstagedStoreJavaObject(l, r))))
             .sortWith { case ((_, b1), (_, b2)) => java.util.Arrays.compareUnsigned(b1, b2) < 0 }
             .map(_._1)
         }

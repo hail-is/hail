@@ -86,7 +86,7 @@ object LocusBenchmarkData {
   def store(ctx: ExecuteContext, elementType: PType, loci: IndexedSeq[Locus], region: Region)
     : (PCanonicalArray, Long) = {
     val pt = PCanonicalArray(elementType.setRequired(true), required = true)
-    (pt, pt.unstagedStoreJavaObject(ctx.stateManager, loci, region))
+    (pt, pt.unstagedStoreJavaObject(loci, region))
   }
 
   /** Feature flags as a Python session started in this environment would set them. Each flag is set

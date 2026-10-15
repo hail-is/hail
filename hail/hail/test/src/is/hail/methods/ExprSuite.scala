@@ -2,7 +2,7 @@ package is.hail.methods
 
 import is.hail.TestUtils._
 import is.hail.annotations.RowSeq
-import is.hail.backend.{ExecuteContext, HailStateManager}
+import is.hail.backend.ExecuteContext
 import is.hail.expr._
 import is.hail.expr.ir.IRParser
 import is.hail.scalacheck._
@@ -17,8 +17,6 @@ import org.scalacheck.Gen
 import org.scalacheck.Prop.forAll
 
 class ExprSuite {
-
-  def sm(implicit ctx: ExecuteContext): HailStateManager = ctx.stateManager
 
   @Test def testTypePretty(): Unit = {
     // for arbType

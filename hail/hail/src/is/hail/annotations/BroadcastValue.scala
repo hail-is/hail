@@ -32,7 +32,7 @@ object BroadcastRow {
 
   def apply(ctx: ExecuteContext, value: Row, t: TBaseStruct): BroadcastRow = {
     val pType = PType.literalPType(t, value).asInstanceOf[PStruct]
-    val offset = pType.unstagedStoreJavaObject(ctx.stateManager, value, ctx.r)
+    val offset = pType.unstagedStoreJavaObject(value, ctx.r)
     BroadcastRow(ctx, RegionValue(ctx.r, offset), pType)
   }
 }
@@ -101,9 +101,9 @@ case class BroadcastRow(ctx: ExecuteContext, value: RegionValue, t: PStruct)
     extends BroadcastRegionValue {
 
   override def javaValue: UnsafeRow =
-    UnsafeRow.readBaseStruct(ctx.stateManager, t, value.region, value.offset)
+    UnsafeRow.readBaseStruct(t, value.region, value.offset)
 
-  override def safeJavaValue: Row = SafeRow.read(ctx.stateManager, t, value).asInstanceOf[Row]
+  override def safeJavaValue: Row = SafeRow.read(t, value).asInstanceOf[Row]
 
   def cast(newT: PStruct): BroadcastRow = {
     assert(t.virtualType == newT.virtualType)
@@ -114,7 +114,7 @@ case class BroadcastRow(ctx: ExecuteContext, value: RegionValue, t: PStruct)
       ctx,
       RegionValue(
         value.region,
-        newT.copyFromAddress(ctx.stateManager, value.region, t, value.offset, deepCopy = false),
+        newT.copyFromAddress(value.region, t, value.offset, deepCopy = false),
       ),
       newT,
     )
@@ -131,10 +131,10 @@ case class BroadcastIndexedSeq(
 ) extends BroadcastRegionValue {
 
   override def safeJavaValue: IndexedSeq[Row] =
-    SafeRow.read(ctx.stateManager, t, value).asInstanceOf[IndexedSeq[Row]]
+    SafeRow.read(t, value).asInstanceOf[IndexedSeq[Row]]
 
   override def javaValue: UnsafeIndexedSeq =
-    new UnsafeIndexedSeq(ctx.stateManager, t, value.region, value.offset)
+    new UnsafeIndexedSeq(t, value.region, value.offset)
 
   def cast(newT: PArray): BroadcastIndexedSeq = {
     assert(t.virtualType == newT.virtualType)
@@ -145,7 +145,7 @@ case class BroadcastIndexedSeq(
       ctx,
       RegionValue(
         value.region,
-        newT.copyFromAddress(ctx.stateManager, value.region, t, value.offset, deepCopy = false),
+        newT.copyFromAddress(value.region, t, value.offset, deepCopy = false),
       ),
       newT,
     )

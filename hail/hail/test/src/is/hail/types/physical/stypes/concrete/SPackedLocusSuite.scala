@@ -38,7 +38,7 @@ class SPackedLocusSuite {
 
       check(forAll(genLocus(rg)) { l =>
         ctx.r.pool.scopedRegion { r =>
-          val addr = pt.unstagedStoreJavaObject(ctx.stateManager, l, r)
+          val addr = pt.unstagedStoreJavaObject(l, r)
           val idx = rg.getContigIndex(l.contig)
           assertEq(contigIdx(r, addr), idx)
           assertEq(position(r, addr), l.position)
@@ -65,8 +65,8 @@ class SPackedLocusSuite {
       check(forAll(genLocus(rg)) { l =>
         ctx.r.pool.scopedRegion { r =>
           java.util.Arrays.equals(
-            canonicalCode(r, canonical.unstagedStoreJavaObject(ctx.stateManager, l, r)),
-            packedCode(r, packed.unstagedStoreJavaObject(ctx.stateManager, l, r)),
+            canonicalCode(r, canonical.unstagedStoreJavaObject(l, r)),
+            packedCode(r, packed.unstagedStoreJavaObject(l, r)),
           )
         }
       })
@@ -77,7 +77,7 @@ class SPackedLocusSuite {
       val pt = PPackedLocus(rg)
       check(forAll(genLocus(rg)) { l =>
         ctx.r.pool.scopedRegion { r =>
-          val addr = pt.unstagedStoreJavaObject(ctx.stateManager, l, r)
+          val addr = pt.unstagedStoreJavaObject(l, r)
           Region.pretty(pt, addr) == s"#${rg.getContigIndex(l.contig)}:${l.position}"
         }
       })

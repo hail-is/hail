@@ -2,7 +2,7 @@ package is.hail.sparkextras.implicits
 
 import is.hail.annotations._
 import is.hail.asm4s.HailClassLoader
-import is.hail.backend.{ExecuteContext, HailStateManager}
+import is.hail.backend.ExecuteContext
 import is.hail.backend.spark.SparkTaskContext
 import is.hail.expr.ir.partFile
 import is.hail.io.{AbstractTypedCodecSpec, Encoder, FileWriteMetadata}
@@ -22,7 +22,6 @@ import org.apache.spark.sql.Row
 
 object RichContextRDDRegionValue {
   def writeRowsPartition(
-    sm: HailStateManager,
     makeEnc: (OutputStream, HailClassLoader) => Encoder,
     indexKeyFieldIndices: IndexedSeq[Int] = null,
     rowType: PStruct = null,
@@ -46,7 +45,7 @@ object RichContextRDDRegionValue {
     it.foreach { ptr =>
       if (iw != null) {
         val off = en.indexOffset()
-        val key = SafeRow.selectFields(sm, rowType, ctx.r, ptr)(indexKeyFieldIndices)
+        val key = SafeRow.selectFields(rowType, ctx.r, ptr)(indexKeyFieldIndices)
         iw.appendRow(key, off, RowSeq())
       }
       en.writeByte(1)
@@ -78,7 +77,6 @@ object RichContextRDDRegionValue {
   }
 
   def writeSplitRegion(
-    sm: HailStateManager,
     fs: FS,
     path: String,
     t: RVDType,
@@ -112,7 +110,7 @@ object RichContextRDDRegionValue {
               it.foreach { ptr =>
                 val rows_off = rowsEN.indexOffset()
                 val ents_off = entriesEN.indexOffset()
-                val key = SafeRow.selectFields(sm, fullRowType, ctx.r, ptr)(t.kFieldIdx)
+                val key = SafeRow.selectFields(fullRowType, ctx.r, ptr)(t.kFieldIdx)
                 iw.appendRow(key, rows_off, RowSeq(ents_off))
 
                 rowsEN.writeByte(1)
@@ -222,7 +220,6 @@ class RichContextRDDLong(val crdd: ContextRDD[Long]) extends AnyVal {
         f1(_, _, SparkTaskContext.get(), _)
       },
       RichContextRDDRegionValue.writeRowsPartition(
-        ctx.stateManager,
         encoding.buildEncoder(ctx, t.rowType),
         t.kFieldIdx,
         t.rowType,
@@ -230,8 +227,8 @@ class RichContextRDDLong(val crdd: ContextRDD[Long]) extends AnyVal {
     )
   }
 
-  def toRows(sm: HailStateManager, rowType: PStruct): RDD[Row] =
-    crdd.cmap((_, _, ptr) => SafeRow(sm, rowType, ptr)).run
+  def toRows(rowType: PStruct): RDD[Row] =
+    crdd.cmap((_, _, ptr) => SafeRow(rowType, ptr)).run
 }
 
 class RichContextRDDRegionValue(val crdd: ContextRDD[RegionValue]) extends AnyVal {
@@ -294,6 +291,6 @@ class RichContextRDDRegionValue(val crdd: ContextRDD[RegionValue]) extends AnyVa
     }
   }
 
-  def toRows(sm: HailStateManager, rowType: PStruct): RDD[Row] =
-    crdd.run.map(rv => SafeRow(sm, rowType, rv.offset))
+  def toRows(rowType: PStruct): RDD[Row] =
+    crdd.run.map(rv => SafeRow(rowType, rv.offset))
 }

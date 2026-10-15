@@ -1,10 +1,9 @@
 package is.hail.variant
 
-import is.hail.backend.HailStateManager
 import is.hail.types.physical.{PArray, PInt32, PLocus, PString, PStruct}
 import is.hail.utils._
 
-class RegionValueVariant(sm: HailStateManager, rowType: PStruct) extends View {
+class RegionValueVariant(rowType: PStruct) extends View {
   private val locusField = rowType.fieldByName("locus")
   private val locusPType = locusField.typ
   private val allelesField = rowType.fieldByName("alleles")
@@ -34,7 +33,7 @@ class RegionValueVariant(sm: HailStateManager, rowType: PStruct) extends View {
     if (cachedContig == null) {
       locusPType match {
         case pl: PLocus =>
-          cachedContig = pl.contig(sm, locusAddress)
+          cachedContig = pl.contig(locusAddress)
         case s: PStruct =>
           cachedContig = s.types(0).asInstanceOf[PString].loadString(s.loadField(locusAddress, 0))
       }

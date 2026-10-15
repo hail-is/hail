@@ -407,7 +407,6 @@ object Nirvana extends Logging {
     val startQuery = nirvanaSignature.query("position")
     val refQuery = nirvanaSignature.query("refAllele")
     val altsQuery = nirvanaSignature.query("altAlleles")
-    val sm = ctx.stateManager
     val localRowType = tv.rvd.rowPType
     val localBlockSize = blockSize
 
@@ -426,7 +425,7 @@ object Nirvana extends Logging {
 
         val warnContext = new mutable.HashSet[String]
 
-        val rvv = new RegionValueVariant(sm, localRowType)
+        val rvv = new RegionValueVariant(localRowType)
 
         it.map { ptr =>
           rvv.set(ptr)
@@ -472,7 +471,7 @@ object Nirvana extends Logging {
       nirvanaRVDType,
       prev.partitioner,
       ContextRDD.weaken(annotations).cmapPartitions { (_, rvdContext, it) =>
-        val rvb = new RegionValueBuilder(ctx.stateManager, rvdContext.region)
+        val rvb = new RegionValueBuilder(rvdContext.region)
 
         it.map { case (v, nirvana) =>
           rvb.start(nirvanaRowType)

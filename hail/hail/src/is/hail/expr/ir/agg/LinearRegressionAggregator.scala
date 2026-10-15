@@ -2,7 +2,7 @@ package is.hail.expr.ir.agg
 
 import is.hail.annotations.{Region, RegionValueBuilder, UnsafeRow}
 import is.hail.asm4s._
-import is.hail.backend.{ExecuteContext, HailStateManager}
+import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder, IEmitCode}
 import is.hail.linalg.{DenseMatrix, MatrixSingularException, NotConvergedException}
 import is.hail.types.physical._
@@ -37,19 +37,17 @@ object LinearRegressionAggregator {
   )
 
   def computeResult(region: Region, xtyPtr: Long, xtxPtr: Long, k0: Int): Long = {
-    // The state type holds only float64 arrays, so no reference genome is needed.
-    val sm = HailStateManager(Map.empty)
-    val xty = DenseVector(UnsafeRow.readArray(sm, vector, null, xtyPtr)
+    val xty = DenseVector(UnsafeRow.readArray(vector, null, xtyPtr)
       .asInstanceOf[IndexedSeq[Double]].toArray[Double])
     val k = xty.length
     val xtx = DenseMatrix(
       k,
       k,
-      UnsafeRow.readArray(sm, vector, null, xtxPtr)
+      UnsafeRow.readArray(vector, null, xtxPtr)
         .asInstanceOf[IndexedSeq[Double]].toArray[Double],
     )
 
-    val rvb = new RegionValueBuilder(sm, region)
+    val rvb = new RegionValueBuilder(region)
     rvb.start(resultPType)
     rvb.startStruct()
 

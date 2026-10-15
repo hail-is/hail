@@ -2,7 +2,7 @@ package is.hail.linalg
 
 import is.hail.annotations._
 import is.hail.asm4s.HailClassLoader
-import is.hail.backend.{BroadcastValue, ExecuteContext, HailStateManager}
+import is.hail.backend.{BroadcastValue, ExecuteContext}
 import is.hail.backend.spark.{unsafeHailClassLoaderForSparkWorkers, SparkBackend, SparkTaskContext}
 import is.hail.collection.{FastSeq, IntArrayBuilder}
 import is.hail.collection.implicits._
@@ -1564,13 +1564,12 @@ class BlockMatrix(
       "entry" -> PFloat64Required,
     )
 
-    val sm = ctx.stateManager
     val entriesRDD =
       ContextRDD.weaken(blocks).cflatMap { case (_, rvdContext, ((blockRow, blockCol), block)) =>
         val rowOffset = blockRow * blockSize.toLong
         val colOffset = blockCol * blockSize.toLong
 
-        val rvb = new RegionValueBuilder(sm, rvdContext.region)
+        val rvb = new RegionValueBuilder(rvdContext.region)
 
         block.iterator
           .map { case ((i, j), entry) =>
@@ -2443,7 +2442,7 @@ class BlockMatrixReadRowBlockedRDD(
       if (rowsForPartition.isEmpty) Iterator.empty
       else {
         val region = ctx.region
-        val rvb = new RegionValueBuilder(HailStateManager(Map.empty), region)
+        val rvb = new RegionValueBuilder(region)
         val firstRow = rowsForPartition(0)
         var blockRow = (firstRow / blockSize).toInt
         val fs = fsBc.value

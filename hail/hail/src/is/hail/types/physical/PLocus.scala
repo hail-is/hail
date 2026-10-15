@@ -2,7 +2,6 @@ package is.hail.types.physical
 
 import is.hail.annotations.{Region, UnsafeOrdering}
 import is.hail.asm4s._
-import is.hail.backend.HailStateManager
 import is.hail.types.virtual.TLocus
 import is.hail.variant.ReferenceGenome
 
@@ -16,7 +15,7 @@ abstract class PLocus extends PType {
 
   def rg: ReferenceGenome
 
-  def contig(sm: HailStateManager, value: Long): String
+  def contig(value: Long): String
 
   def position(value: Code[Long]): Code[Int]
 
@@ -27,7 +26,6 @@ abstract class PLocus extends PType {
   def positionType: PInt32
 
   def unstagedStoreLocus(
-    sm: HailStateManager,
     addr: Long,
     contig: String,
     position: Int,

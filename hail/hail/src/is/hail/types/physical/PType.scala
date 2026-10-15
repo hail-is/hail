@@ -2,7 +2,7 @@ package is.hail.types.physical
 
 import is.hail.annotations._
 import is.hail.asm4s._
-import is.hail.backend.{ExecuteContext, HailStateManager}
+import is.hail.backend.ExecuteContext
 import is.hail.collection.{BooleanArrayBuilder, FastSeq, IntArrayBuilder}
 import is.hail.expr.ir._
 import is.hail.types.{tcoerce, Requiredness, TypeStringSerializer}
@@ -405,7 +405,6 @@ abstract class PType extends Serializable with Requiredness {
   }
 
   protected[physical] def _copyFromAddress(
-    sm: HailStateManager,
     region: Region,
     srcPType: PType,
     srcAddress: Long,
@@ -413,7 +412,6 @@ abstract class PType extends Serializable with Requiredness {
   ): Long
 
   def copyFromAddress(
-    sm: HailStateManager,
     region: Region,
     srcPType: PType,
     srcAddress: Long,
@@ -429,7 +427,7 @@ abstract class PType extends Serializable with Requiredness {
           s"virtualType: $virtualType != srcPType.virtualType: ${srcPType.virtualType}",
         )
     }
-    _copyFromAddress(sm, region, srcPType, srcAddress, deepCopy)
+    _copyFromAddress(region, srcPType, srcAddress, deepCopy)
   }
 
   /* return a SCode that can cheaply operate on the region representation. Generally a pointer type,
@@ -451,7 +449,6 @@ abstract class PType extends Serializable with Requiredness {
   ): Unit
 
   def unstagedStoreAtAddress(
-    sm: HailStateManager,
     addr: Long,
     region: Region,
     srcPType: PType,
@@ -467,10 +464,9 @@ abstract class PType extends Serializable with Requiredness {
 
   def unstagedLoadFromNested(addr: Long): Long
 
-  def unstagedStoreJavaObject(sm: HailStateManager, annotation: Annotation, region: Region): Long
+  def unstagedStoreJavaObject(annotation: Annotation, region: Region): Long
 
   def unstagedStoreJavaObjectAtAddress(
-    sm: HailStateManager,
     addr: Long,
     annotation: Annotation,
     region: Region,

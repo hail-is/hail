@@ -2,7 +2,6 @@ package is.hail.types.physical
 
 import is.hail.annotations.{Annotation, Region, UnsafeOrdering}
 import is.hail.asm4s._
-import is.hail.backend.HailStateManager
 import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.types.physical.stypes.SValue
 import is.hail.types.physical.stypes.concrete.{SPackedLocus, SPackedLocusValue}
@@ -33,7 +32,7 @@ final case class PPackedLocus(rg: ReferenceGenome, required: Boolean = false)
 
   def contigIdx(address: Long): Int = (Region.loadLong(address) >>> 32).toInt
 
-  override def contig(sm: HailStateManager, address: Long): String =
+  override def contig(address: Long): String =
     rg.getContig(contigIdx(address))
 
   override def position(address: Long): Int = Region.loadLong(address).toInt
@@ -51,7 +50,6 @@ final case class PPackedLocus(rg: ReferenceGenome, required: Boolean = false)
     cb += Region.storeLong(addr, value.asLocus.packed(cb))
 
   override def unstagedStoreAtAddress(
-    sm: HailStateManager,
     addr: Long,
     region: Region,
     srcPType: PType,
@@ -65,7 +63,6 @@ final case class PPackedLocus(rg: ReferenceGenome, required: Boolean = false)
     }
 
   override def _copyFromAddress(
-    sm: HailStateManager,
     region: Region,
     srcPType: PType,
     srcAddress: Long,
@@ -73,15 +70,14 @@ final case class PPackedLocus(rg: ReferenceGenome, required: Boolean = false)
   ): Long =
     srcPType match {
       case _: PPackedLocus =>
-        super._copyFromAddress(sm, region, srcPType, srcAddress, deepCopy)
+        super._copyFromAddress(region, srcPType, srcAddress, deepCopy)
       case _ =>
         val addr = region.allocate(alignment, byteSize)
-        unstagedStoreAtAddress(sm, addr, region, srcPType, srcAddress, deepCopy)
+        unstagedStoreAtAddress(addr, region, srcPType, srcAddress, deepCopy)
         addr
     }
 
   override def unstagedStoreLocus(
-    sm: HailStateManager,
     addr: Long,
     contig: String,
     position: Int,
@@ -93,12 +89,11 @@ final case class PPackedLocus(rg: ReferenceGenome, required: Boolean = false)
     )
 
   override def unstagedStoreJavaObjectAtAddress(
-    sm: HailStateManager,
     addr: Long,
     annotation: Annotation,
     region: Region,
   ): Unit = {
     val locus = annotation.asInstanceOf[Locus]
-    unstagedStoreLocus(sm, addr, locus.contig, locus.position, region)
+    unstagedStoreLocus(addr, locus.contig, locus.position, region)
   }
 }

@@ -98,7 +98,7 @@ class ETypeSuite {
       Code._empty
     }
 
-    val x = inPType.unstagedStoreJavaObject(ctx.stateManager, data, ctx.r)
+    val x = inPType.unstagedStoreJavaObject(data, ctx.r)
 
     val buffer = new MemoryBuffer
     val ob = new MemoryOutputBuffer(buffer)
@@ -121,7 +121,7 @@ class ETypeSuite {
         ctx.r,
         new MemoryInputBuffer(buffer),
       )
-    SafeRow.read(ctx.stateManager, outPType, result)
+    SafeRow.read(outPType, result)
   }
 
   def assertEqualEncodeDecode(
@@ -410,9 +410,9 @@ class ETypeSuite {
     : Annotation = {
     val codec = TypedCodecSpec(et, pt.virtualType, BufferSpec.wireSpec)
     val bytes =
-      codec.encodeValue(ctx, pt, pt.unstagedStoreJavaObject(ctx.stateManager, a, ctx.r))
+      codec.encodeValue(ctx, pt, pt.unstagedStoreJavaObject(a, ctx.r))
     val (decodedPType, addr) = codec.decode(ctx, pt.virtualType, bytes, ctx.r)
-    SafeRow.read(ctx.stateManager, decodedPType, addr)
+    SafeRow.read(decodedPType, addr)
   }
 
   // Unstaged codecs convert between locus representations, which needs reference genomes.
@@ -525,11 +525,11 @@ class ETypeSuite {
         val buffer = new MemoryBuffer
         val ob = new MemoryOutputBuffer(buffer)
         val enc = et.buildEncoder(ctx, canonical)(ob, ctx.theHailClassLoader)
-        enc.writeRegionValue(ctx.r, canonical.unstagedStoreJavaObject(ctx.stateManager, l, ctx.r))
+        enc.writeRegionValue(ctx.r, canonical.unstagedStoreJavaObject(l, ctx.r))
         enc.flush()
         buffer.clearPos()
         val addr = decode(ctx.r, new MemoryInputBuffer(buffer))
-        SafeRow.read(ctx.stateManager, packed, addr) == l
+        SafeRow.read(packed, addr) == l
       })
     }
 }

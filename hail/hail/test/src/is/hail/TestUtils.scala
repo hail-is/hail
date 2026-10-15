@@ -211,7 +211,7 @@ object TestUtils extends Logging {
 
         ctx.r.pool.scopedRegion { region =>
           ctx.local(r = region) { ctx =>
-            val rvb = new RegionValueBuilder(ctx.stateManager, ctx.r)
+            val rvb = new RegionValueBuilder(ctx.r)
             rvb.start(argsPType)
             rvb.startTuple()
             var i = 0
@@ -230,7 +230,7 @@ object TestUtils extends Logging {
 
             ctx.scopedExecution { (hcl, fs, tc, r) =>
               val off = f(hcl, fs, tc, r)(r, argsOff, aggOff)
-              SafeRow(ctx.stateManager, resultType2.asInstanceOf[PBaseStruct], off).get(0)
+              SafeRow(resultType2.asInstanceOf[PBaseStruct], off).get(0)
             }
           }
         }
@@ -252,7 +252,7 @@ object TestUtils extends Logging {
 
         ctx.r.pool.scopedRegion { region =>
           ctx.local(r = region) { ctx =>
-            val rvb = new RegionValueBuilder(ctx.stateManager, ctx.r)
+            val rvb = new RegionValueBuilder(ctx.r)
             rvb.start(argsPType)
             rvb.startTuple()
             var i = 0
@@ -264,7 +264,7 @@ object TestUtils extends Logging {
             val argsOff = rvb.end()
             ctx.scopedExecution { (hcl, fs, tc, r) =>
               val resultOff = f(hcl, fs, tc, r)(r, argsOff)
-              SafeRow(ctx.stateManager, resultType2.asInstanceOf[PBaseStruct], resultOff).get(0)
+              SafeRow(resultType2.asInstanceOf[PBaseStruct], resultOff).get(0)
             }
           }
         }

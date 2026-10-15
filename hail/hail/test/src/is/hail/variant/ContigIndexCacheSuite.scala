@@ -161,7 +161,7 @@ object ContigIndexCacheSuite {
   type LocusEmitter = (EmitCodeBuilder, SLocusValue) => Value[Long]
 
   def storeCanonical(ctx: ExecuteContext, rg: ReferenceGenome, l: Locus, r: Region): Long =
-    PCanonicalLocus(rg).unstagedStoreJavaObject(ctx.stateManager, l, r)
+    PCanonicalLocus(rg).unstagedStoreJavaObject(l, r)
 
   /** Compiles `f` over a canonical locus, given its address. Each call of the result runs the same
     * generated instance, so a cache it holds persists across calls.

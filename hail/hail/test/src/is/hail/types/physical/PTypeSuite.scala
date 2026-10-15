@@ -123,7 +123,6 @@ class PTypeSuite {
   // carry their own.
   @Test def testLocusRepresentationsRoundTrip(implicit ctx: ExecuteContext): Unit =
     for (rg <- references) {
-      val sm = ctx.stateManager
       check(forAll(genPTypeValOn(ctx, rg)) { case (pt, a) =>
         for {
           (src, dst) <- representationPairs(pt, rg)
@@ -135,12 +134,12 @@ class PTypeSuite {
           def assertReadsBack(addr: Long, how: String): Unit = {
             val clue = s"$how: $src -> $dst, deepCopy=$deepCopy"
             val t = dst.virtualType
-            assert(t.valuesSimilar(SafeRow.read(sm, dst, addr), a), clue)
-            assert(t.valuesSimilar(UnsafeRow.read(sm, dst, r, addr), a), clue)
+            assert(t.valuesSimilar(SafeRow.read(dst, addr), a), clue)
+            assert(t.valuesSimilar(UnsafeRow.read(dst, r, addr), a), clue)
           }
 
-          val srcAddr = src.unstagedStoreJavaObject(sm, a, r)
-          assertReadsBack(dst.copyFromAddress(sm, r, src, srcAddr, deepCopy), "unstaged copy")
+          val srcAddr = src.unstagedStoreJavaObject(a, r)
+          assertReadsBack(dst.copyFromAddress(r, src, srcAddr, deepCopy), "unstaged copy")
           assertReadsBack(
             compileStore(ctx, src, dst, deepCopy, coerce = false)(r, srcAddr),
             "staged store",

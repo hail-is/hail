@@ -237,7 +237,6 @@ object IBD {
   final val chunkSize = 1024
 
   def computeIBDMatrix(
-    ctx: ExecuteContext,
     input: MatrixValue,
     computeMaf: Option[(RegionValue) => Double],
     min: Option[Double],
@@ -247,7 +246,6 @@ object IBD {
   ): ContextRDD[Long] = {
 
     val nSamples = input.nCols
-    val sm = ctx.stateManager
 
     val rowPType = input.rvRowPType
     val unnormalizedIbse = input.rvd.mapPartitions { (_, ctx, it) =>
@@ -313,7 +311,7 @@ object IBD {
 
     joined
       .cmapPartitions { (_, ctx, it) =>
-        val rvb = new RegionValueBuilder(sm, ctx.region)
+        val rvb = new RegionValueBuilder(ctx.region)
         for {
           ((iChunk, jChunk), ibses) <- it
           si <- (0 until chunkSize).iterator
@@ -351,7 +349,6 @@ object IBD {
   private[methods] def generateComputeMaf(input: MatrixValue, fieldName: String)
     : (RegionValue) => Double = {
     val rvRowType = input.rvRowType
-    val sm = input.rvd.partitioner.sm
     val rvRowPType = input.rvRowPType
     val field = rvRowType.field(fieldName)
     assert(field.typ == TFloat64)
@@ -364,11 +361,11 @@ object IBD {
       val isDefined = rvRowPType.isFieldDefined(rv.offset, idx)
       val maf = Region.loadDouble(rvRowPType.loadField(rv.offset, idx))
       if (!isDefined) {
-        val row = new UnsafeRow(sm, rvRowPType, rv).deleteField(entriesIdx)
+        val row = new UnsafeRow(rvRowPType, rv).deleteField(entriesIdx)
         fatal(s"The minor allele frequency expression evaluated to NA at ${rowKeysF(row)}.")
       }
       if (maf < 0.0 || maf > 1.0) {
-        val row = new UnsafeRow(sm, rvRowPType, rv).deleteField(entriesIdx)
+        val row = new UnsafeRow(rvRowPType, rv).deleteField(entriesIdx)
         fatal(
           s"The minor allele frequency expression for ${rowKeysF(row)} evaluated to $maf which is not in [0,1]."
         )
@@ -403,7 +400,7 @@ case class IBD(
     input.requireUniqueSamples("ibd")
     val computeMaf = mafFieldName.map(IBD.generateComputeMaf(input, _))
     val crdd =
-      IBD.computeIBDMatrix(ctx, input, computeMaf, min, max, input.stringSampleIds, bounded)
+      IBD.computeIBDMatrix(input, computeMaf, min, max, input.stringSampleIds, bounded)
     TableValue(ctx, IBD.ibdPType, IBD.ibdKey, crdd)
   }
 }

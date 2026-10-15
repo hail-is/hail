@@ -77,7 +77,6 @@ case class MatrixExportEntriesByCol(
       )
 
       val fsBc = ctx.fsBc
-      val sm = ctx.stateManager
       val localTempDir = ctx.localTmpdir
       val partFolders = mv.rvd.crdd.cmapPartitionsWithIndex { (i, _, ctx, it) =>
         val partFolder = partFileBase + partFile(d, i, TaskContext.get())
@@ -112,9 +111,9 @@ case class MatrixExportEntriesByCol(
 
         it.foreach { ptr =>
           val entriesArray =
-            new UnsafeIndexedSeq(sm, entryArrayType, ctx.region, rvType.loadField(ptr, entriesIdx))
+            new UnsafeIndexedSeq(entryArrayType, ctx.region, rvType.loadField(ptr, entriesIdx))
 
-          val fullRow = new UnsafeRow(sm, rvType, ctx.region, ptr)
+          val fullRow = new UnsafeRow(rvType, ctx.region, ptr)
 
           val rowFieldStrs = (0 until rvType.size)
             .filter(_ != entriesIdx)

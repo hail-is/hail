@@ -90,7 +90,6 @@ class VEP(private val params: VEPParameters, conf: VEPConfiguration)
         else s
       }
 
-    val sm = ctx.stateManager
     val localRowType = inRvd.rowPType
 
     val csqPattern = "CSQ=[^;^\\t]+".r
@@ -102,7 +101,7 @@ class VEP(private val params: VEPParameters, conf: VEPConfiguration)
 
         val warnContext = new mutable.HashSet[String]
 
-        val rvv = new RegionValueVariant(sm, localRowType)
+        val rvv = new RegionValueVariant(localRowType)
         it
           .map { ptr =>
             rvv.set(ptr)

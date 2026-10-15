@@ -2,7 +2,6 @@ package is.hail.types.physical
 
 import is.hail.annotations._
 import is.hail.asm4s._
-import is.hail.backend.HailStateManager
 import is.hail.collection.FastSeq
 import is.hail.expr.ir.{EmitCode, EmitCodeBuilder}
 import is.hail.types.physical.stypes.SValue
@@ -47,7 +46,7 @@ final case class PCanonicalLocus(rg: ReferenceGenome, required: Boolean = false)
 
   private[physical] def contigAddr(address: Long): Long = representation.loadField(address, 0)
 
-  override def contig(sm: HailStateManager, address: Long): String =
+  override def contig(address: Long): String =
     contigType.loadString(contigAddr(address))
 
   override def position(address: Long): Int = Region.loadInt(representation.fieldOffset(address, 1))
@@ -86,7 +85,6 @@ final case class PCanonicalLocus(rg: ReferenceGenome, required: Boolean = false)
   }
 
   override def unstagedStoreAtAddress(
-    sm: HailStateManager,
     addr: Long,
     region: Region,
     srcPType: PType,
@@ -95,7 +93,6 @@ final case class PCanonicalLocus(rg: ReferenceGenome, required: Boolean = false)
   ): Unit =
     srcPType match {
       case pt: PCanonicalLocus => representation.unstagedStoreAtAddress(
-          sm,
           addr,
           region,
           pt.representation,
@@ -103,13 +100,12 @@ final case class PCanonicalLocus(rg: ReferenceGenome, required: Boolean = false)
           deepCopy,
         )
       case pt: PPackedLocus =>
-        unstagedStoreLocus(sm, addr, pt.contig(sm, srcAddress), pt.position(srcAddress), region)
+        unstagedStoreLocus(addr, pt.contig(srcAddress), pt.position(srcAddress), region)
     }
 
   override def containsPointers: Boolean = representation.containsPointers
 
   override def _copyFromAddress(
-    sm: HailStateManager,
     region: Region,
     srcPType: PType,
     srcAddress: Long,
@@ -117,10 +113,10 @@ final case class PCanonicalLocus(rg: ReferenceGenome, required: Boolean = false)
   ): Long =
     srcPType match {
       case pt: PCanonicalLocus =>
-        representation._copyFromAddress(sm, region, pt.representation, srcAddress, deepCopy)
+        representation._copyFromAddress(region, pt.representation, srcAddress, deepCopy)
       case pt: PPackedLocus =>
         val addr = representation.allocate(region)
-        unstagedStoreAtAddress(sm, addr, region, pt, srcAddress, deepCopy)
+        unstagedStoreAtAddress(addr, region, pt, srcAddress, deepCopy)
         addr
     }
 
@@ -188,20 +184,17 @@ final case class PCanonicalLocus(rg: ReferenceGenome, required: Boolean = false)
   override def unstagedLoadFromNested(addr: Long): Long = addr
 
   override def unstagedStoreLocus(
-    sm: HailStateManager,
     addr: Long,
     contig: String,
     position: Int,
     region: Region,
   ): Unit = {
     contigType.unstagedStoreJavaObjectAtAddress(
-      sm,
       representation.fieldOffset(addr, 0),
       contig,
       region,
     )
     positionType.unstagedStoreJavaObjectAtAddress(
-      sm,
       representation.fieldOffset(addr, 1),
       position,
       region,
@@ -209,19 +202,17 @@ final case class PCanonicalLocus(rg: ReferenceGenome, required: Boolean = false)
   }
 
   override def unstagedStoreJavaObjectAtAddress(
-    sm: HailStateManager,
     addr: Long,
     annotation: Annotation,
     region: Region,
   ): Unit = {
     val myLocus = annotation.asInstanceOf[Locus]
-    unstagedStoreLocus(sm, addr, myLocus.contig, myLocus.position, region)
+    unstagedStoreLocus(addr, myLocus.contig, myLocus.position, region)
   }
 
-  override def unstagedStoreJavaObject(sm: HailStateManager, annotation: Annotation, region: Region)
-    : Long = {
+  override def unstagedStoreJavaObject(annotation: Annotation, region: Region): Long = {
     val addr = representation.allocate(region)
-    unstagedStoreJavaObjectAtAddress(sm, addr, annotation, region)
+    unstagedStoreJavaObjectAtAddress(addr, annotation, region)
     addr
   }
 

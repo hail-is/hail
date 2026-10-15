@@ -1,7 +1,6 @@
 package is.hail.sparkextras
 
 import is.hail.annotations._
-import is.hail.backend.HailStateManager
 import is.hail.collection.FastSeq
 import is.hail.rvd.{PartitionBoundOrdering, RVD, RVDPartitioner, RVDType}
 import is.hail.utils._
@@ -29,16 +28,14 @@ class OrderedDependency[T](
 }
 
 object RepartitionedOrderedRDD2 {
-  def apply(sm: HailStateManager, prev: RVD, newRangeBounds: IndexedSeq[Interval])
-    : ContextRDD[Long] =
-    ContextRDD(new RepartitionedOrderedRDD2(sm, prev, newRangeBounds))
+  def apply(prev: RVD, newRangeBounds: IndexedSeq[Interval]): ContextRDD[Long] =
+    ContextRDD(new RepartitionedOrderedRDD2(prev, newRangeBounds))
 }
 
 /** Repartition 'prev' to comply with 'newRangeBounds', using narrow dependencies. Assumes new key
   * type is a prefix of old key type, so no reordering is needed.
   */
 class RepartitionedOrderedRDD2 private (
-  sm: HailStateManager,
   @transient val prev: RVD,
   @transient val newRangeBounds: IndexedSeq[Interval],
 ) extends RDD[ContextRDD.Element[Long]](prev.crdd.sparkContext, Nil) { // Nil since we implement getDependencies
@@ -78,7 +75,7 @@ class RepartitionedOrderedRDD2 private (
         )
         private[this] var pulled: Boolean = false
         private[this] var current: Long = _
-        private[this] val ur = new UnsafeRow(sm, typ.rowType)
+        private[this] val ur = new UnsafeRow(typ.rowType)
         private[this] val key = new SelectFieldsRow(ur, typ.kFieldIdx)
 
         // drop left elements at iterator allocation to avoid extra control flow in hasNext()

@@ -1,6 +1,5 @@
 package is.hail.annotations
 
-import is.hail.backend.HailStateManager
 import is.hail.types.physical._
 import is.hail.types.virtual._
 import is.hail.utils._
@@ -23,7 +22,6 @@ trait UnKryoSerializable extends KryoSerializable {
 }
 
 class UnsafeIndexedSeq(
-  val sm: HailStateManager,
   val t: PContainer,
   val region: Region,
   val aoff: Long,
@@ -35,7 +33,7 @@ class UnsafeIndexedSeq(
     if (i < 0 || i >= length)
       throw new IndexOutOfBoundsException(i.toString)
     if (t.isElementDefined(aoff, i)) {
-      UnsafeRow.read(sm, t.elementType, region, t.loadElement(aoff, length, i))
+      UnsafeRow.read(t.elementType, region, t.loadElement(aoff, length, i))
     } else
       null
   }
@@ -47,29 +45,28 @@ object UnsafeRow {
   def readBinary(boff: Long, t: PBinary): Array[Byte] =
     t.loadBytes(boff)
 
-  def readArray(sm: HailStateManager, t: PContainer, region: Region, aoff: Long): IndexedSeq[Any] =
-    new UnsafeIndexedSeq(sm, t, region, aoff)
+  def readArray(t: PContainer, region: Region, aoff: Long): IndexedSeq[Any] =
+    new UnsafeIndexedSeq(t, region, aoff)
 
-  def readBaseStruct(sm: HailStateManager, t: PBaseStruct, region: Region, offset: Long)
-    : UnsafeRow =
-    new UnsafeRow(sm, t, region, offset)
+  def readBaseStruct(t: PBaseStruct, region: Region, offset: Long): UnsafeRow =
+    new UnsafeRow(t, region, offset)
 
   def readString(boff: Long, t: PString): String =
     new String(readBinary(boff, t.binaryRepresentation))
 
-  def readLocus(sm: HailStateManager, offset: Long, t: PLocus): Locus =
+  def readLocus(offset: Long, t: PLocus): Locus =
     Locus(
-      t.contig(sm, offset),
+      t.contig(offset),
       t.position(offset),
     )
 
-  def readNDArray(sm: HailStateManager, offset: Long, region: Region, nd: PNDArray): UnsafeNDArray =
-    new UnsafeNDArray(sm, nd, region, offset)
+  def readNDArray(offset: Long, region: Region, nd: PNDArray): UnsafeNDArray =
+    new UnsafeNDArray(nd, region, offset)
 
-  def readAnyRef(sm: HailStateManager, t: PType, region: Region, offset: Long): AnyRef =
-    read(sm, t, region, offset).asInstanceOf[AnyRef]
+  def readAnyRef(t: PType, region: Region, offset: Long): AnyRef =
+    read(t, region, offset).asInstanceOf[AnyRef]
 
-  def read(sm: HailStateManager, t: PType, region: Region, offset: Long): Any = {
+  def read(t: PType, region: Region, offset: Long): Any = {
     t match {
       case _: PBoolean =>
         Region.loadBoolean(offset)
@@ -78,38 +75,37 @@ object UnsafeRow {
       case _: PFloat32 => Region.loadFloat(offset)
       case _: PFloat64 => Region.loadDouble(offset)
       case t: PArray =>
-        readArray(sm, t, region, offset)
+        readArray(t, region, offset)
       case t: PSet =>
-        readArray(sm, t, region, offset).toSet
+        readArray(t, region, offset).toSet
       case t: PString => readString(offset, t)
       case t: PBinary => readBinary(offset, t)
       case td: PDict =>
-        val a = readArray(sm, td, region, offset)
+        val a = readArray(td, region, offset)
         a.asInstanceOf[IndexedSeq[Row]].map(r => (r.get(0), r.get(1))).toMap
-      case t: PBaseStruct => readBaseStruct(sm, t, region, offset)
-      case x: PLocus => readLocus(sm, offset, x)
+      case t: PBaseStruct => readBaseStruct(t, region, offset)
+      case x: PLocus => readLocus(offset, x)
       case x: PInterval =>
         val start: Annotation =
           if (x.startDefined(offset))
-            read(sm, x.pointType, region, x.loadStart(offset))
+            read(x.pointType, region, x.loadStart(offset))
           else
             null
         val end =
           if (x.endDefined(offset))
-            read(sm, x.pointType, region, x.loadEnd(offset))
+            read(x.pointType, region, x.loadEnd(offset))
           else
             null
         val includesStart = x.includesStart(offset)
         val includesEnd = x.includesEnd(offset)
         Interval(start, end, includesStart, includesEnd)
       case nd: PNDArray =>
-        readNDArray(sm, offset, region, nd)
+        readNDArray(offset, region, nd)
     }
   }
 }
 
 class UnsafeRow(
-  val sm: HailStateManager,
   val t: PBaseStruct,
   var region: Region,
   var offset: Long,
@@ -151,10 +147,10 @@ class UnsafeRow(
     }
   }
 
-  def this(sm: HailStateManager, t: PBaseStruct, rv: RegionValue) =
-    this(sm, t, rv.region, rv.offset)
+  def this(t: PBaseStruct, rv: RegionValue) =
+    this(t, rv.region, rv.offset)
 
-  def this(sm: HailStateManager, t: PBaseStruct) = this(sm, t, null, 0)
+  def this(t: PBaseStruct) = this(t, null, 0)
 
   def set(newRegion: Region, newOffset: Long): Unit = {
     region = newRegion
@@ -173,9 +169,9 @@ class UnsafeRow(
     if (isNullAt(i))
       null
     else
-      UnsafeRow.read(sm, t.types(i), region, t.loadField(offset, i))
+      UnsafeRow.read(t.types(i), region, t.loadField(offset, i))
 
-  override def copy(): Row = new UnsafeRow(sm, t, region, offset)
+  override def copy(): Row = new UnsafeRow(t, region, offset)
 
   def pretty(): String = Region.pretty(t, offset)
 
@@ -223,41 +219,39 @@ class UnsafeRow(
 }
 
 object SafeRow {
-  def apply(sm: HailStateManager, t: PBaseStruct, off: Long): Row =
-    Annotation.copy(t.virtualType, new UnsafeRow(sm, t, null, off)).asInstanceOf[Row]
+  def apply(t: PBaseStruct, off: Long): Row =
+    Annotation.copy(t.virtualType, new UnsafeRow(t, null, off)).asInstanceOf[Row]
 
-  def apply(sm: HailStateManager, t: PBaseStruct, rv: RegionValue): Row =
-    SafeRow(sm, t, rv.offset)
+  def apply(t: PBaseStruct, rv: RegionValue): Row =
+    SafeRow(t, rv.offset)
 
   def selectFields(
-    sm: HailStateManager,
     t: PBaseStruct,
     region: Region,
     off: Long,
   )(
     selectIdx: IndexedSeq[Int]
   ): Row = {
-    val fullRow = new UnsafeRow(sm, t, region, off)
+    val fullRow = new UnsafeRow(t, region, off)
     RowSeq.fromSeq(selectIdx.map(i => Annotation.copy(t.types(i).virtualType, fullRow.get(i))))
   }
 
   def selectFields(
-    sm: HailStateManager,
     t: PBaseStruct,
     rv: RegionValue,
   )(
     selectIdx: IndexedSeq[Int]
   ): Row =
-    SafeRow.selectFields(sm, t, rv.region, rv.offset)(selectIdx)
+    SafeRow.selectFields(t, rv.region, rv.offset)(selectIdx)
 
-  def read(sm: HailStateManager, t: PType, off: Long): Annotation =
-    Annotation.copy(t.virtualType, UnsafeRow.read(sm, t, null, off))
+  def read(t: PType, off: Long): Annotation =
+    Annotation.copy(t.virtualType, UnsafeRow.read(t, null, off))
 
-  def readAnyRef(sm: HailStateManager, t: PType, region: Region, offset: Long): AnyRef =
-    read(sm, t, offset).asInstanceOf[AnyRef]
+  def readAnyRef(t: PType, region: Region, offset: Long): AnyRef =
+    read(t, offset).asInstanceOf[AnyRef]
 
-  def read(sm: HailStateManager, t: PType, rv: RegionValue): Annotation =
-    read(sm, t, rv.offset)
+  def read(t: PType, rv: RegionValue): Annotation =
+    read(t, rv.offset)
 
   def isSafe(a: Any): Boolean = {
     a match {
@@ -280,12 +274,12 @@ object SafeRow {
 }
 
 object SafeIndexedSeq {
-  def apply(sm: HailStateManager, t: PArray, off: Long): IndexedSeq[Annotation] =
-    Annotation.copy(t.virtualType, new UnsafeIndexedSeq(sm, t, null, off))
+  def apply(t: PArray, off: Long): IndexedSeq[Annotation] =
+    Annotation.copy(t.virtualType, new UnsafeIndexedSeq(t, null, off))
       .asInstanceOf[IndexedSeq[Annotation]]
 
-  def apply(sm: HailStateManager, t: PArray, rv: RegionValue): IndexedSeq[Annotation] =
-    apply(sm, t, rv.offset)
+  def apply(t: PArray, rv: RegionValue): IndexedSeq[Annotation] =
+    apply(t, rv.offset)
 }
 
 class SelectFieldsRow(
@@ -345,7 +339,6 @@ trait NDArray {
 }
 
 class UnsafeNDArray(
-  val sm: HailStateManager,
   val pnd: PNDArray,
   val region: Region,
   val ndAddr: Long,
@@ -356,7 +349,6 @@ class UnsafeNDArray(
   override def lookupElement(indices: IndexedSeq[Long]): Annotation = {
     val elementAddress = pnd.getElementAddress(indices, ndAddr)
     UnsafeRow.read(
-      sm,
       pnd.elementType,
       region,
       pnd.elementType.unstagedLoadFromNested(elementAddress),

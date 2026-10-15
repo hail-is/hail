@@ -319,7 +319,7 @@ object LoweredTableReader extends Logging {
 
     val s = ctx.scopedExecution { (hcl, fs, htc, r) =>
       val a = f(hcl, fs, htc, r)(r)
-      SafeRow(ctx.stateManager, resultPType, a)
+      SafeRow(resultPType, a)
     }
 
     val ksorted = s.getBoolean(0)

@@ -91,12 +91,11 @@ case class LinearRegressionRowsSingle(
     val copiedFieldIndices = (mv.typ.rowKey ++ passThrough).map(fullRowType.fieldIdx(_))
     val nDependentVariables = yFields.length
 
-    val sm = ctx.stateManager
     val newRVD = mv.rvd.mapPartitionsWithContext(
       rvdType
     ) { (hcl, consumerCtx, it) =>
       val producerCtx = consumerCtx.freshContext()
-      val rvb = new RegionValueBuilder(sm)
+      val rvb = new RegionValueBuilder()
 
       val missingCompleteCols = new IntArrayBuilder()
       val data = new Array[Double](n * rowBlockSize)
@@ -104,7 +103,7 @@ case class LinearRegressionRowsSingle(
       val blockWRVs = new Array[WritableRegionValue](rowBlockSize)
       var i = 0
       while (i < rowBlockSize) {
-        blockWRVs(i) = WritableRegionValue(sm, fullRowType, producerCtx.freshRegion())
+        blockWRVs(i) = WritableRegionValue(fullRowType, producerCtx.freshRegion())
         i += 1
       }
 
@@ -270,12 +269,11 @@ case class LinearRegressionRowsChained(
     val rvdType = tableType.canonicalRVDType
     val copiedFieldIndices = (mv.typ.rowKey ++ passThrough).map(fullRowType.fieldIdx(_))
 
-    val sm = ctx.stateManager
     val newRVD = mv.rvd.mapPartitionsWithContext(
       rvdType
     ) { (hcl, consumerCtx, it) =>
       val producerCtx = consumerCtx.freshContext()
-      val rvb = new RegionValueBuilder(sm)
+      val rvb = new RegionValueBuilder()
 
       val inputData = bc.value
       val builder = new IntArrayBuilder()
@@ -284,7 +282,7 @@ case class LinearRegressionRowsChained(
       val blockWRVs = new Array[WritableRegionValue](rowBlockSize)
       var i = 0
       while (i < rowBlockSize) {
-        blockWRVs(i) = WritableRegionValue(sm, fullRowType, producerCtx.freshRegion())
+        blockWRVs(i) = WritableRegionValue(fullRowType, producerCtx.freshRegion())
         i += 1
       }
 

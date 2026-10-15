@@ -408,10 +408,10 @@ class ReferenceGenomeSuite {
       val shipped = roundTrip(compiled)
       ctx.scopedExecution { (hcl, fs, tc, r) =>
         val argsOff =
-          argsPType.unstagedStoreJavaObject(ctx.stateManager, Row(Locus("20", 60001)), r)
+          argsPType.unstagedStoreJavaObject(Row(Locus("20", 60001)), r)
         val off = shipped(hcl, fs, tc, r)(r, argsOff)
         assertEq(
-          SafeRow(ctx.stateManager, rt, off).get(0),
+          SafeRow(rt, off).get(0),
           Row(Locus("chr20", 79360), false),
         )
       }
@@ -488,22 +488,20 @@ class ReferenceGenomeSuite {
 
       val shipped = roundTrip(compiled)
       ctx.scopedExecution { (hcl, fs, tc, r) =>
-        val argsOff = argsPType.unstagedStoreJavaObject(ctx.stateManager, Row("c"), r)
+        val argsOff = argsPType.unstagedStoreJavaObject(Row("c"), r)
         val off = shipped(hcl, fs, tc, r)(r, argsOff)
-        assertEq(SafeRow(ctx.stateManager, rt, off).get(0), "GGATCCGTGC")
+        assertEq(SafeRow(rt, off).get(0), "GGATCCGTGC")
       }
     }
   }
 
-  // Unstaged reads of packed loci name the contig through the reference genome the type carries,
-  // without a state manager that knows it.
+  // Unstaged reads of packed loci name the contig through the reference genome the type carries.
   @Test def testPackedLocusNamesContigAfterRoundTrip(implicit ctx: ExecuteContext): Unit =
     for (rg <- ArraySeq(builtin(ReferenceGenome.GRCh38), fakeGenome)) {
       val l = Locus(rg.contigs.last, 5)
       val t = PCanonicalStruct(true, "l" -> PPackedLocus(rg, true))
-      val off = t.unstagedStoreJavaObject(ctx.stateManager, Row(l), ctx.r)
-      val noGenomes = HailStateManager(Map.empty)
-      assertEq(new UnsafeRow(noGenomes, roundTrip(t), ctx.r, off).get(0), l)
+      val off = t.unstagedStoreJavaObject(Row(l), ctx.r)
+      assertEq(new UnsafeRow(roundTrip(t), ctx.r, off).get(0), l)
     }
 
   // Types reach tasks inside closures, so a type on a builtin reference genome must ship it as a

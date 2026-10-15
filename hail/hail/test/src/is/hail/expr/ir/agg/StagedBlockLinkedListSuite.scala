@@ -61,7 +61,7 @@ class StagedBlockLinkedListSuite {
 
       val f = fb.result()(ctx.theHailClassLoader)
       ({ (r, ptr, elt) =>
-        f(r, ptr, if (elt == null) 0L else ScalaToRegionValue(ctx.stateManager, r, elemPType, elt))
+        f(r, ptr, if (elt == null) 0L else ScalaToRegionValue(r, elemPType, elt))
       })
     }
 
@@ -105,7 +105,7 @@ class StagedBlockLinkedListSuite {
 
       val f = fb.result()(ctx.theHailClassLoader)
       ({ (r, ptr) =>
-        SafeRow.read(ctx.stateManager, arrayPType, f(r, ptr))
+        SafeRow.read(arrayPType, f(r, ptr))
           .asInstanceOf[IndexedSeq[E]]
       })
     }
