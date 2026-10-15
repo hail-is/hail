@@ -17,7 +17,7 @@ import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives._
 import is.hail.types.virtual._
 import is.hail.utils._
-import is.hail.variant.{Locus, ReferenceGenome}
+import is.hail.variant.Locus
 
 import scala.collection.immutable.ArraySeq
 import scala.collection.mutable
@@ -293,28 +293,20 @@ object IRFunctionRegistry {
 }
 
 object RegistryHelpers {
-  def stupidUnwrapStruct(rgs: Map[String, ReferenceGenome], r: Region, value: Row, ptype: PType)
-    : Long = {
+  def stupidUnwrapStruct(r: Region, value: Row, ptype: PType): Long = {
     assert(value != null)
     ptype.unstagedStoreJavaObject(value, r)
   }
 
-  def stupidUnwrapArray(
-    rgs: Map[String, ReferenceGenome],
-    r: Region,
-    value: IndexedSeq[Annotation],
-    ptype: PType,
-  ): Long = {
+  def stupidUnwrapArray(r: Region, value: IndexedSeq[Annotation], ptype: PType): Long = {
     assert(value != null)
     ptype.unstagedStoreJavaObject(value, r)
   }
 
-  def unsafeReadAnyRef(rgs: Map[String, ReferenceGenome], t: PType, region: Region, offset: Long)
-    : AnyRef =
+  def unsafeReadAnyRef(t: PType, region: Region, offset: Long): AnyRef =
     UnsafeRow.readAnyRef(t, region, offset)
 
-  def safeReadAnyRef(rgs: Map[String, ReferenceGenome], t: PType, region: Region, offset: Long)
-    : AnyRef =
+  def safeReadAnyRef(t: PType, region: Region, offset: Long): AnyRef =
     SafeRow.readAnyRef(t, region, offset)
 }
 
@@ -356,20 +348,10 @@ abstract class RegistryFunctions {
       case _: SLocus => sc.asLocus.getLocusObj(cb)
       case t =>
         val pt = PType.canonical(t.storageType())
-        def registerReferenceGenomes(typ: Type): Unit = typ match {
-          case TLocus(rg) => cb.emb.ecb.getReferenceGenome(rg): Unit
-          case TNDArray(elementType, _) => registerReferenceGenomes(elementType)
-          case _ => typ.children.foreach(registerReferenceGenomes)
-        }
-        registerReferenceGenomes(pt.virtualType)
         val addr = pt.store(cb, r, sc, deepCopy = false)
-        cb.memoize(Code.invokeScalaObject4[Map[
-          String,
-          ReferenceGenome,
-        ], PType, Region, Long, AnyRef](
+        cb.memoize(Code.invokeScalaObject3[PType, Region, Long, AnyRef](
           RegistryHelpers.getClass,
           if (safe) "safeReadAnyRef" else "unsafeReadAnyRef",
-          cb.emb.ecb.emodb.referenceGenomeMap,
           cb.emb.getPType(pt),
           r,
           addr,
@@ -442,13 +424,9 @@ abstract class RegistryFunctions {
       case _: TBaseStruct =>
         val sst = st.asInstanceOf[SBaseStructPointer]
         val pt = sst.pType.asInstanceOf[PCanonicalBaseStruct]
-        val addr = cb.memoize(Code.invokeScalaObject4[Map[
-          String,
-          ReferenceGenome,
-        ], Region, Row, PType, Long](
+        val addr = cb.memoize(Code.invokeScalaObject3[Region, Row, PType, Long](
           RegistryHelpers.getClass,
           "stupidUnwrapStruct",
-          cb.emb.ecb.emodb.referenceGenomeMap,
           r.region,
           coerce[Row](value),
           cb.emb.ecb.getPType(pt),
@@ -460,13 +438,9 @@ abstract class RegistryFunctions {
       case TArray(_: TBaseStruct) =>
         val ast = st.asInstanceOf[SIndexablePointer]
         val pca = ast.pType.asInstanceOf[PCanonicalArray]
-        val array = cb.memoize(Code.invokeScalaObject4[Map[
-          String,
-          ReferenceGenome,
-        ], Region, IndexedSeq[Annotation], PType, Long](
+        val array = cb.memoize(Code.invokeScalaObject3[Region, IndexedSeq[Annotation], PType, Long](
           RegistryHelpers.getClass,
           "stupidUnwrapArray",
-          cb.emb.ecb.emodb.referenceGenomeMap,
           r.region,
           coerce[IndexedSeq[Annotation]](value),
           cb.emb.ecb.getPType(pca),

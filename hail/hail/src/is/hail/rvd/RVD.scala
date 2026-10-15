@@ -2,7 +2,7 @@ package is.hail.rvd
 
 import is.hail.annotations._
 import is.hail.asm4s.HailClassLoader
-import is.hail.backend.{ExecuteContext, HailStateManager, HailTaskContext}
+import is.hail.backend.{ExecuteContext, HailTaskContext}
 import is.hail.backend.spark.{SparkBackend, SparkTaskContext}
 import is.hail.collection.FastSeq
 import is.hail.collection.implicits._
@@ -157,9 +157,7 @@ class RVD(
     require(newKey startsWith typ.key)
     require(newKey.forall(typ.rowType.fieldNames.contains))
     val rvdType = typ.copy(key = newKey)
-    if (
-      RVDPartitioner.isValid(ctx.stateManager, rvdType.kType.virtualType, partitioner.rangeBounds)
-    )
+    if (RVDPartitioner.isValid(rvdType.kType.virtualType, partitioner.rangeBounds))
       copy(typ = rvdType, partitioner = partitioner.copy(kType = rvdType.kType.virtualType))
     else {
       val adjustedPartitioner = partitioner.strictify()
@@ -347,9 +345,8 @@ class RVD(
       val keyInfo =
         RVD.getKeyInfo(ctx, newType, newType.key.length, RVD.getKeys(ctx, newType, shuffled))
       if (keyInfo.isEmpty)
-        return RVD.empty(ctx, typ)
+        return RVD.empty(typ)
       val newPartitioner = RVD.calculateKeyRanges(
-        ctx,
         newType,
         keyInfo,
         shuffled.getNumPartitions,
@@ -528,7 +525,7 @@ class RVD(
     require(n >= 0)
 
     if (n == 0)
-      return RVD.empty(partitioner.sm, typ)
+      return RVD.empty(typ)
 
     val (idxLast, nTake) = partitionCounts match {
       case Some(pcs) =>
@@ -569,7 +566,7 @@ class RVD(
     require(n >= 0)
 
     if (n == 0)
-      return RVD.empty(partitioner.sm, typ)
+      return RVD.empty(typ)
 
     val (idxFirst, nDrop) = partitionCounts match {
       case Some(pcs) =>
@@ -688,7 +685,7 @@ class RVD(
     logger.info(s"reading ${newPartitionIndices.length} of $nPartitions data partitions")
 
     if (newPartitionIndices.isEmpty)
-      RVD.empty(intervals.sm, typ)
+      RVD.empty(typ)
     else {
       subsetPartitions(newPartitionIndices).filter(pred)
     }
@@ -1067,16 +1064,13 @@ object RVD extends Logging {
 
   var CheckRvdKeyOrderingForTesting: Boolean = false
 
-  def empty(ctx: ExecuteContext, typ: RVDType): RVD =
-    RVD.empty(ctx.stateManager, typ)
-
-  def empty(sm: HailStateManager, typ: RVDType): RVD =
-    RVD(typ, RVDPartitioner.empty(sm, typ.kType.virtualType), ContextRDD.empty[Long]())
+  def empty(typ: RVDType): RVD =
+    RVD(typ, RVDPartitioner.empty(typ.kType.virtualType), ContextRDD.empty[Long]())
 
   def unkeyed(rowType: PStruct, crdd: ContextRDD[Long]): RVD =
     new RVD(
       RVDType(rowType, FastSeq()),
-      RVDPartitioner.unkeyed(null, crdd.getNumPartitions),
+      RVDPartitioner.unkeyed(crdd.getNumPartitions),
       crdd,
     )
 
@@ -1197,7 +1191,7 @@ object RVD extends Logging {
       return unkeyedCoercer
 
     val emptyCoercer: RVDCoercer = new RVDCoercer(fullType) {
-      override def _coerce(typ: RVDType, crdd: CRDD): RVD = empty(execCtx, typ)
+      override def _coerce(typ: RVDType, crdd: CRDD): RVD = empty(typ)
     }
 
     val keyInfo = getKeyInfo(execCtx, fullType, partitionKey, keys)
@@ -1227,16 +1221,15 @@ object RVD extends Logging {
 
     if (
       intraPartitionSortedness == RVDPartitionInfo.KSORTED
-      && RVDPartitioner.isValid(execCtx.stateManager, fullType.kType.virtualType, bounds)
+      && RVDPartitioner.isValid(fullType.kType.virtualType, bounds)
     ) {
 
       logger.info("Coerced sorted dataset")
 
       new RVDCoercer(fullType) {
         val unfixedPartitioner =
-          new RVDPartitioner(execCtx.stateManager, this.fullType.kType.virtualType, bounds)
+          new RVDPartitioner(this.fullType.kType.virtualType, bounds)
         val newPartitioner = RVDPartitioner.generate(
-          execCtx.stateManager,
           this.fullType.key.take(partitionKey),
           this.fullType.kType.virtualType,
           bounds,
@@ -1250,7 +1243,6 @@ object RVD extends Logging {
     } else if (
       intraPartitionSortedness >= RVDPartitionInfo.TSORTED
       && RVDPartitioner.isValid(
-        execCtx.stateManager,
         fullType.kType.virtualType.truncate(partitionKey),
         pkBounds,
       )
@@ -1261,12 +1253,10 @@ object RVD extends Logging {
 
       new RVDCoercer(fullType) {
         val unfixedPartitioner = new RVDPartitioner(
-          execCtx.stateManager,
           this.fullType.kType.virtualType.truncate(partitionKey),
           pkBounds,
         )
         val newPartitioner = RVDPartitioner.generate(
-          execCtx.stateManager,
           this.fullType.key.take(partitionKey),
           this.fullType.kType.virtualType.truncate(partitionKey),
           pkBounds,
@@ -1289,7 +1279,7 @@ object RVD extends Logging {
 
       new RVDCoercer(fullType) {
         val newPartitioner =
-          calculateKeyRanges(execCtx, this.fullType, keyInfo, keys.getNumPartitions, partitionKey)
+          calculateKeyRanges(this.fullType, keyInfo, keys.getNumPartitions, partitionKey)
 
         override def _coerce(typ: RVDType, crdd: CRDD): RVD =
           RVD.unkeyed(typ.rowType, crdd)
@@ -1299,7 +1289,6 @@ object RVD extends Logging {
   }
 
   def calculateKeyRanges(
-    ctx: ExecuteContext,
     typ: RVDType,
     pInfo: IndexedSeq[RVDPartitionInfo],
     nPartitions: Int,
@@ -1313,7 +1302,7 @@ object RVD extends Logging {
     val max = pInfo.map(_.max).max(kord)
     val samples = pInfo.flatMap(_.samples)
 
-    RVDPartitioner.fromKeySamples(ctx, typ, min, max, samples, nPartitions, partitionKey)
+    RVDPartitioner.fromKeySamples(typ, min, max, samples, nPartitions, partitionKey)
   }
 
   def apply(typ: RVDType, partitioner: RVDPartitioner, crdd: ContextRDD[Long]): RVD = {

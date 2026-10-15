@@ -1,7 +1,6 @@
 package is.hail.rvd
 
 import is.hail.annotations.RowSeq
-import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
 import is.hail.types.virtual.{TInt32, TStruct}
 import is.hail.utils.Interval
@@ -16,9 +15,8 @@ class RVDPartitionerSuite {
   var partitioner: RVDPartitioner = _
 
   @BeforeEach
-  def setupPartitioner(implicit ctx: ExecuteContext): Unit = {
+  def setupPartitioner(): Unit = {
     partitioner = new RVDPartitioner(
-      ctx.stateManager,
       kType,
       ArraySeq(
         Interval(RowSeq(1, 0), RowSeq(4, 3), true, false),
@@ -28,9 +26,8 @@ class RVDPartitionerSuite {
     )
   }
 
-  @Test def testExtendKey(implicit ctx: ExecuteContext): Unit = {
+  @Test def testExtendKey(): Unit = {
     val p = new RVDPartitioner(
-      ctx.stateManager,
       TStruct(("A", TInt32), ("B", TInt32)),
       ArraySeq(
         Interval(RowSeq(1, 0), RowSeq(4, 3), true, true),
@@ -114,7 +111,7 @@ class RVDPartitionerSuite {
     assert(partitioner.queryKey(RowSeq(7, 11)) == Range.inclusive(2, 2))
   }
 
-  @Test def testGenerateDisjoint(implicit ctx: ExecuteContext): Unit = {
+  @Test def testGenerateDisjoint(): Unit = {
     val intervals = ArraySeq(
       Interval(RowSeq(1, 0, 4), RowSeq(4, 3, 2), true, false),
       Interval(RowSeq(4, 3, 5), RowSeq(7, 9, 1), true, false),
@@ -123,7 +120,7 @@ class RVDPartitionerSuite {
       Interval(RowSeq(11, 0, 15), RowSeq(11, 0, 20), true, false),
     )
 
-    val p3 = RVDPartitioner.generate(ctx.stateManager, ArraySeq("A", "B", "C"), kType, intervals)
+    val p3 = RVDPartitioner.generate(ArraySeq("A", "B", "C"), kType, intervals)
     assert(p3.satisfiesAllowedOverlap(2))
     assert(p3.rangeBounds sameElements
       Array(
@@ -134,7 +131,7 @@ class RVDPartitionerSuite {
         Interval(RowSeq(11, 0, 15), RowSeq(11, 0, 20), false, false),
       ))
 
-    val p2 = RVDPartitioner.generate(ctx.stateManager, ArraySeq("A", "B"), kType, intervals)
+    val p2 = RVDPartitioner.generate(ArraySeq("A", "B"), kType, intervals)
     assert(p2.satisfiesAllowedOverlap(1))
     assert(p2.rangeBounds sameElements
       Array(
@@ -144,7 +141,7 @@ class RVDPartitionerSuite {
         Interval(RowSeq(11, 0, 2), RowSeq(11, 0, 20), false, false),
       ))
 
-    val p1 = RVDPartitioner.generate(ctx.stateManager, ArraySeq("A"), kType, intervals)
+    val p1 = RVDPartitioner.generate(ArraySeq("A"), kType, intervals)
     assert(p1.satisfiesAllowedOverlap(0))
     assert(p1.rangeBounds sameElements
       Array(
@@ -155,25 +152,24 @@ class RVDPartitionerSuite {
       ))
   }
 
-  @Test def testGenerateEmptyKey(implicit ctx: ExecuteContext): Unit = {
+  @Test def testGenerateEmptyKey(): Unit = {
     val intervals1 = ArraySeq(Interval(RowSeq(), RowSeq(), true, true))
     val intervals5 = ArraySeq.fill(5)(Interval(RowSeq(), RowSeq(), true, true))
 
-    val p5 = RVDPartitioner.generate(ctx.stateManager, FastSeq(), TStruct.empty, intervals5)
+    val p5 = RVDPartitioner.generate(FastSeq(), TStruct.empty, intervals5)
     assert(p5.rangeBounds == intervals1)
 
-    val p1 = RVDPartitioner.generate(ctx.stateManager, FastSeq(), TStruct.empty, intervals1)
+    val p1 = RVDPartitioner.generate(FastSeq(), TStruct.empty, intervals1)
     assert(p1.rangeBounds == intervals1)
 
-    val p0 = RVDPartitioner.generate(ctx.stateManager, FastSeq(), TStruct.empty, FastSeq())
+    val p0 = RVDPartitioner.generate(FastSeq(), TStruct.empty, FastSeq())
     assert(p0.rangeBounds.isEmpty)
   }
 
-  @Test def testIntersect(implicit ctx: ExecuteContext): Unit = {
+  @Test def testIntersect(): Unit = {
     val kType = TStruct(("key", TInt32))
     val left =
       new RVDPartitioner(
-        ctx.stateManager,
         kType,
         ArraySeq(
           Interval(RowSeq(1), RowSeq(10), true, false),
@@ -183,7 +179,6 @@ class RVDPartitionerSuite {
       )
     val right =
       new RVDPartitioner(
-        ctx.stateManager,
         kType,
         ArraySeq(
           Interval(RowSeq(1), RowSeq(4), true, false),

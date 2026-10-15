@@ -23,7 +23,6 @@ import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives._
 import is.hail.types.virtual._
 import is.hail.utils._
-import is.hail.variant.ReferenceGenome
 
 import scala.annotation.{nowarn, tailrec}
 import scala.collection.immutable.ArraySeq
@@ -1473,8 +1472,7 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
                 )
               assert(t.virtualType == TTuple(TFloat64))
               val resultType = t.asInstanceOf[PTuple]
-              Code.invokeScalaObject9[
-                Map[String, ReferenceGenome],
+              Code.invokeScalaObject8[
                 UnsafeIndexedSeq,
                 HailClassLoader,
                 FS,
@@ -1487,7 +1485,6 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
               ](
                 Graph.getClass,
                 "maximalIndependentSet",
-                cb.emb.ecb.emodb.referenceGenomeMap,
                 jEdges,
                 mb.getHailClassLoader,
                 mb.getFS,

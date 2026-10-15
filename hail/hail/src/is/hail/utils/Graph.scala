@@ -7,7 +7,6 @@ import is.hail.collection.BinaryHeap
 import is.hail.expr.ir.Compiled
 import is.hail.io.fs.FS
 import is.hail.types.physical.PTuple
-import is.hail.variant.ReferenceGenome
 
 import scala.collection.mutable
 import scala.reflect.ClassTag
@@ -44,7 +43,6 @@ object Graph {
     maximalIndependentSet(mkGraph(edges.view.map { case Row(i, j) => i -> j }))
 
   def maximalIndependentSet(
-    rgs: Map[String, ReferenceGenome],
     edges: UnsafeIndexedSeq,
     hcl: HailClassLoader,
     fs: FS,

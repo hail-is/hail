@@ -243,9 +243,8 @@ class IntervalSuite {
   var partitioner: Literal = _
 
   @BeforeEach
-  def setupRVDPartitioner(implicit ctx: ExecuteContext): Unit = {
+  def setupRVDPartitioner(): Unit = {
     partitioner = new RVDPartitioner(
-      ctx.stateManager,
       partitionerKType,
       ArraySeq(
         Interval(RowSeq(1, 0), RowSeq(4, 3), true, false),

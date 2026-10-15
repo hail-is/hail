@@ -1,7 +1,7 @@
 package is.hail.rvd
 
 import is.hail.annotations._
-import is.hail.backend.{ExecuteContext, HailStateManager}
+import is.hail.backend.ExecuteContext
 import is.hail.compatibility
 import is.hail.expr.{ir, JSONAnnotationImpex}
 import is.hail.expr.ir.{
@@ -110,7 +110,7 @@ object AbstractRVDSpec {
       }
 
     val spec =
-      MakeRVDSpec(codecSpec, ArraySeq(filePath), RVDPartitioner.unkeyed(execCtx.stateManager, 1))
+      MakeRVDSpec(codecSpec, ArraySeq(filePath), RVDPartitioner.unkeyed(1))
     spec.write(fs, path)
 
     ArraySeq(FileWriteMetadata(path, part0Count, bytesWritten))
@@ -129,7 +129,7 @@ object AbstractRVDSpec {
     uidFieldName: String,
   ): IR => TableStage = {
     require(specRight.key.isEmpty)
-    val partitioner = specLeft.partitioner(ctx.stateManager)
+    val partitioner = specLeft.partitioner
 
     newPartitioner match {
       case None =>
@@ -234,7 +234,7 @@ trait Indexed extends AbstractRVDSpec {
 }
 
 abstract class AbstractRVDSpec {
-  def partitioner(sm: HailStateManager): RVDPartitioner
+  def partitioner: RVDPartitioner
 
   def key: IndexedSeq[String]
 
@@ -258,7 +258,7 @@ abstract class AbstractRVDSpec {
   ): IR => TableStage = newPartitioner match {
     case Some(_) => fatal("attempted to read unindexed data as indexed")
     case None =>
-      val part = partitioner(ctx.stateManager)
+      val part = partitioner
       if (!part.kType.fieldNames.startsWith(requestedType.key))
         fatal(s"Error while reading table $path: legacy table written without key." +
           s"\n  Read and write with version 0.2.70 or earlier")
@@ -483,8 +483,8 @@ case class IndexedRVDSpec2(
       .importAnnotation(_jRangeBounds, TArray(TInterval(keyType)), padNulls = false)
       .asInstanceOf[IndexedSeq[Interval]]
 
-  override def partitioner(sm: HailStateManager): RVDPartitioner =
-    new RVDPartitioner(sm, keyType, partitionBounds)
+  override def partitioner: RVDPartitioner =
+    new RVDPartitioner(keyType, partitionBounds)
 
   override def partFiles: IndexedSeq[String] = _partFiles
 
@@ -501,7 +501,7 @@ case class IndexedRVDSpec2(
     filterIntervals: Boolean = false,
   ): IR => TableStage = newPartitioner match {
     case Some(np) =>
-      val part = partitioner(ctx.stateManager)
+      val part = partitioner
       /* ensure the old and new partitioners have the same key, and ensure the new partitioner is
        * strict */
       val extendedNP = np.extendKey(part.kType)
@@ -553,7 +553,7 @@ case class IndexedRVDSpec2(
         }
         val (nestedContexts, newRangeBounds) = contextsAndBounds.unzip
 
-        (nestedContexts, new RVDPartitioner(part.sm, part.kType, newRangeBounds))
+        (nestedContexts, new RVDPartitioner(part.kType, newRangeBounds))
       } else {
         /* We want to use newPartitioner as the partitioner, dropping any rows not contained in any
          * new partition. So we construct a map from new partitioner to the range of overlapping old
@@ -602,11 +602,10 @@ case class OrderedRVDSpec2(
 
   require(codecSpec2.encodedType.required)
 
-  override def partitioner(sm: HailStateManager): RVDPartitioner = {
+  override def partitioner: RVDPartitioner = {
     val keyType = codecSpec2.encodedVirtualType.asInstanceOf[TStruct].select(key)._1
     val rangeBoundsType = TArray(TInterval(keyType))
     new RVDPartitioner(
-      sm,
       keyType,
       JSONAnnotationImpex.importAnnotation(
         _jRangeBounds,

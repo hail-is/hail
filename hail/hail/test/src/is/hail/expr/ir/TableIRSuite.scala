@@ -1732,9 +1732,9 @@ class TableIRSuite {
     }
   }
 
-  @Test def testRepartitionCostEstimate(implicit ctx: ExecuteContext): Unit = {
-    val empty = RVDPartitioner.empty(ctx.stateManager, TStruct.empty)
-    val some = RVDPartitioner.unkeyed(ctx.stateManager, _)
+  @Test def testRepartitionCostEstimate(): Unit = {
+    val empty = RVDPartitioner.empty(TStruct.empty)
+    val some = RVDPartitioner.unkeyed(_)
 
     val data = IndexedSeq(
       (empty, empty, Succeeded, Failed("Repartitioning from an empty partitioner should be free")),
