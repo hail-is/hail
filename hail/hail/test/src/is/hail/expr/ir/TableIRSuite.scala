@@ -1473,6 +1473,33 @@ class TableIRSuite {
     )
   }
 
+  @Test def testTableScanTransitiveInitArg(implicit ctx: ExecuteContext): Unit = {
+    val t = TableRange(5, 2)
+    val row = Ref(TableIR.rowName, t.typ.rowType)
+    val v = takeWithTransitiveInitArg(ApplyScanOp(Take(), _)(row.get("idx")))
+    val mapped = TableMapRows(t, InsertFields(row.deepCopy, FastSeq("v" -> v)))
+    val rows = unoptimized(Interpret(mapped, _).rdd.collect().toSeq)
+    assert(rows == (0 until 5).map(i => RowSeq(i, RowSeq(0 until math.min(i, 1), 2))))
+  }
+
+  @Test def testTableAggregateTransitiveInitArg(implicit ctx: ExecuteContext): Unit = {
+    val t = TableRange(5, 2)
+    val row = Ref(TableIR.rowName, t.typ.rowType)
+    val v = takeWithTransitiveInitArg(ApplyAggOp(Take(), _)(row.get("idx")))
+    val res = unoptimized(Interpret[Any](_, TableAggregate(t, v)))
+    assert(res == RowSeq(FastSeq(0), 2))
+  }
+
+  @Test def testTableAggregateNestedTransitiveInitArg(implicit ctx: ExecuteContext): Unit = {
+    val t = TableRange(5, 2)
+    val row = Ref(TableIR.rowName, t.typ.rowType)
+    val v = bindIR(I32(3) - I32(1)) { n =>
+      bindIR(n - I32(1))(m => maketuple(ApplyAggOp(Take(), m)(row.get("idx")), n))
+    }
+    val res = unoptimized(Interpret[Any](_, TableAggregate(t, v)))
+    assert(res == RowSeq(FastSeq(0), 2))
+  }
+
   @Test def testIssue9016(implicit ctx: ExecuteContext): Unit = {
     val rows =
       mapIR(ToStream(MakeArray(makestruct("a" -> MakeTuple.ordered(FastSeq(I32(0), I32(1))))))) {
