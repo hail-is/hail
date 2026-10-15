@@ -540,11 +540,14 @@ object Extract {
     def newMemo: mutable.Map[IR, Int] = mutable.Map.empty[IR, Int]
 
     // For each free variable in each init op arg, add the binding site to bindingNodesReferenced
-    def bindInitArgRefs(initArgs: IndexedSeq[IR]): Unit = {
+    def bindInitArgRefs(
+      initArgs: IndexedSeq[IR],
+      scope: BindingEnv[BindingState] = env,
+    ): Unit = {
       initArgs.foreach { arg =>
         val fv = FreeVariables(arg, supportsAgg = false, supportsScan = false).eval
         fv.m.keys
-          .flatMap(k => env.eval.lookupOption(k))
+          .flatMap(k => scope.eval.lookupOption(k))
           .foreach(_.usedInInitOp = true)
       }
     }
@@ -552,26 +555,30 @@ object Extract {
     ir match {
       case Block(bindings, body) =>
         var newEnv = env
+        val nested = ArraySeq.newBuilder[(Name, IR)]
         val bindingsTemp = ArraySeq.newBuilder[(Name, IR)]
         bindingsTemp.sizeHint(bindings)
         bindings.foreach {
           case Binding(name, value, Scope.EVAL) =>
             val newValue =
-              this.extract(value, newEnv, initBindings, initBuilder, seqBuilder, memo, result, r,
-                isScan)
+              this.extract(value, newEnv, nested, initBuilder, seqBuilder, memo, result, r, isScan)
             bindingsTemp += name -> newValue
             newEnv = newEnv.bindEval(name, new BindingState)
           case Binding(name, value, _) =>
             seqBuilder += name -> value
         }
-        val newBody = this.extract(body, newEnv, initBindings, initBuilder, seqBuilder,
-          memo, result, r, isScan)
+        val newBody =
+          this.extract(body, newEnv, nested, initBuilder, seqBuilder, memo, result, r, isScan)
         val newBindings = bindingsTemp.result()
         bindingsTemp.clear()
+        newBindings.reverseIterator.foreach { case (name, f) =>
+          if (newEnv.eval(name).usedInInitOp) bindInitArgRefs(FastSeq(f), newEnv)
+        }
         newBindings.foreach { case b @ (name, f) =>
           if (newEnv.eval(name).usedInInitOp) initBindings += ((name, f))
           else bindingsTemp += b
         }
+        initBindings ++= nested.result()
 
         Let(bindingsTemp.result(), newBody)
 

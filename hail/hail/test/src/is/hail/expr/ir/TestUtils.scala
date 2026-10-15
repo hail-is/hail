@@ -2,6 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.collection.FastSeq
 import is.hail.collection.implicits.toRichIterable
+import is.hail.expr.ir.{Memoized => M}
 import is.hail.expr.ir.defs.{
   ApplyAggOp, ApplyScanOp, F64, I32, Literal, MakeArray, MakeStream, MakeStruct, MakeTuple, NA, Ref,
   TableAggregate, TableCollect, ToDict, ToSet, ToStream,
@@ -22,6 +23,15 @@ object TestUtils {
     )
 
   def collectNoKey(tir: TableIR): IR = TableCollect(tir)
+
+  def takeWithTransitiveInitArg(take: IR => IR): IR =
+    M.eval {
+      for {
+        n <- I32(3) - I32(1)
+        m <- n - I32(1)
+        t <- take(m)
+      } yield maketuple(t, n)
+    }
 
   def toIRInt(i: Integer): IR =
     if (i == null)
