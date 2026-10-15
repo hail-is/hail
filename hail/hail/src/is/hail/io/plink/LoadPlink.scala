@@ -403,7 +403,6 @@ class MatrixPLINKReader(
   def executeGeneric(ctx: ExecuteContext): GenericTableValue = {
     val localA2Reference = params.a2Reference
     val localNSamples = nSamples
-    val sm = ctx.stateManager
 
     val localLocusType = TLocus.schemaFromRG(referenceGenome)
 
@@ -460,7 +459,7 @@ class MatrixPLINKReader(
 
         val blockLength = (localNSamples + 3) / 4
 
-        val rvb = new RegionValueBuilder(sm, region)
+        val rvb = new RegionValueBuilder(region)
 
         val variants =
           using(new ObjectInputStream(fs.open(varFile)))(_.readObject()).asInstanceOf[Array[

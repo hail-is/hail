@@ -1,7 +1,6 @@
 package is.hail.rvd
 
 import is.hail.annotations._
-import is.hail.backend.HailStateManager
 import is.hail.collection.implicits.toRichIterable
 import is.hail.expr.ir.IRParser
 import is.hail.types.TypeStringSerializer
@@ -117,8 +116,8 @@ final case class RVDType(rowType: PStruct, key: IndexedSeq[String]) extends Seri
     }
   }
 
-  def kRowOrdView(sm: HailStateManager, region: Region) = new OrderingView[RegionValue] {
-    val wrv = WritableRegionValue(sm, kType, region)
+  def kRowOrdView(region: Region) = new OrderingView[RegionValue] {
+    val wrv = WritableRegionValue(kType, region)
     val kRowOrdering = kRowOrd
 
     override def setFiniteValue(representative: RegionValue): Unit =

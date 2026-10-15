@@ -1,7 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.annotations._
-import is.hail.backend.{ExecuteContext, HailStateManager}
+import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
 import is.hail.collection.implicits.toRichIterable
 import is.hail.expr.ir.TableNativeWriter.writeFileReadMe
@@ -31,7 +31,7 @@ case class MatrixValue(
   lazy val globals: BroadcastRow = {
     val prevGlobals = tv.globals
     val newT = prevGlobals.t.deleteField(LowerMatrixIR.colsFieldName)
-    val rvb = new RegionValueBuilder(HailStateManager(Map.empty), prevGlobals.value.region)
+    val rvb = new RegionValueBuilder(prevGlobals.value.region)
     rvb.start(newT)
     rvb.startStruct()
     rvb.addFields(
@@ -362,7 +362,7 @@ object MatrixValue {
   ): MatrixValue = {
     val globalsType = typ.globalType.appendKey(LowerMatrixIR.colsFieldName, TArray(typ.colType))
     val globalsPType = PType.canonical(globalsType).asInstanceOf[PStruct]
-    val rvb = new RegionValueBuilder(ctx.stateManager, ctx.r)
+    val rvb = new RegionValueBuilder(ctx.r)
     rvb.start(globalsPType)
     rvb.startStruct()
     typ.globalType.fields.foreach(f => rvb.addAnnotation(f.typ, globals.get(f.index)))

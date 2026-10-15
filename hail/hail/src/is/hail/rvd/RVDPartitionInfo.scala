@@ -1,7 +1,6 @@
 package is.hail.rvd
 
 import is.hail.annotations.{Region, RegionValue, SafeRow, WritableRegionValue}
-import is.hail.backend.HailStateManager
 import is.hail.types.virtual.Type
 import is.hail.utils._
 
@@ -29,7 +28,6 @@ object RVDPartitionInfo extends Logging {
   final val KSORTED = 2
 
   def apply(
-    sm: HailStateManager,
     typ: RVDType,
     partitionKey: Int,
     sampleSize: Int,
@@ -41,9 +39,9 @@ object RVDPartitionInfo extends Logging {
     using(RVDContext.default(producerContext.r.pool)) { localctx =>
       val kPType = typ.kType
       val pkOrd = typ.copy(key = typ.key.take(partitionKey)).kOrd
-      val minF = WritableRegionValue(sm, kPType, localctx.freshRegion())
-      val maxF = WritableRegionValue(sm, kPType, localctx.freshRegion())
-      val prevF = WritableRegionValue(sm, kPType, localctx.freshRegion())
+      val minF = WritableRegionValue(kPType, localctx.freshRegion())
+      val maxF = WritableRegionValue(kPType, localctx.freshRegion())
+      val prevF = WritableRegionValue(kPType, localctx.freshRegion())
 
       assert(it.hasNext)
       val f0 = it.next()
@@ -61,7 +59,7 @@ object RVDPartitionInfo extends Logging {
       var i: Long = 0
 
       if (sampleSize > 0) {
-        samples(0) = WritableRegionValue(sm, kPType, f0, localctx.freshRegion())
+        samples(0) = WritableRegionValue(kPType, f0, localctx.freshRegion())
         i += 1
       }
 
@@ -94,7 +92,7 @@ object RVDPartitionInfo extends Logging {
         prevF.set(f, deepCopy = true)
 
         if (i < sampleSize)
-          samples(i.toInt) = WritableRegionValue(sm, kPType, f, localctx.freshRegion())
+          samples(i.toInt) = WritableRegionValue(kPType, f, localctx.freshRegion())
         else {
           val j: Long = if (i > 0) rng.nextLong(i) else 0
           if (j < sampleSize)

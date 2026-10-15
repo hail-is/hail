@@ -175,8 +175,8 @@ case class VCFHeaderInfo(
     (infoType, vaSignature, formatType)
   }
 
-  def writeToRegion(sm: HailStateManager, r: Region, dropAttrs: Boolean): Long = {
-    val rvb = new RegionValueBuilder(sm, r)
+  def writeToRegion(r: Region, dropAttrs: Boolean): Long = {
+    val rvb = new RegionValueBuilder(r)
     rvb.start(VCFHeaderInfo.headerTypePType)
     rvb.startStruct()
     rvb.addAnnotation(rvb.currentType().virtualType, sampleIds.toFastSeq)
@@ -2014,7 +2014,6 @@ class MatrixVCFReader(
 
   def executeGeneric(ctx: ExecuteContext, dropRows: Boolean = false): GenericTableValue = {
     val fs = ctx.fs
-    val sm = ctx.stateManager
 
     val rgBc = referenceGenome.map(ctx.backend.broadcast)
     val localArrayElementsRequired = params.arrayElementsRequired
@@ -2070,7 +2069,7 @@ class MatrixVCFReader(
           LowerMatrixIR.entriesFieldName,
         )
 
-        val rvb = new RegionValueBuilder(sm, region)
+        val rvb = new RegionValueBuilder(region)
 
         val abs = new MissingArrayBuilder[String]
         val abi = new MissingArrayBuilder[Int]
@@ -2259,7 +2258,6 @@ case class GVCFPartitionReader(
                 classOf[String],
                 classOf[Int],
                 classOf[Int],
-                classOf[HailStateManager],
                 classOf[Region],
                 classOf[Region],
                 classOf[PStruct],
@@ -2280,7 +2278,6 @@ case class GVCFPartitionReader(
                 contig,
                 start,
                 end,
-                cb.emb.getObject(cb.emb.ecb.ctx.stateManager),
                 outerRegion,
                 eltRegion,
                 mb.getPType(requestedPType),
