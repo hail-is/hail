@@ -4,6 +4,7 @@ import functools
 import logging
 import os
 import ssl
+import time
 import traceback
 from typing import Any, AsyncIterator, Awaitable, Callable, Dict, Optional, TypeVar
 
@@ -90,13 +91,42 @@ async def aexit(acontext_manager, exc_type=None, exc_val=None, exc_tb=None):
     return await acontext_manager.__aexit__(exc_type, exc_val, exc_tb)
 
 
-async def resolve_test_db_endpoint(sql_config: SQLConfig) -> SQLConfig:
+async def resolve_test_db_endpoint(sql_config: SQLConfig, timeout_s: float = 600) -> SQLConfig:
     service_name, namespace = sql_config.host[: -len('.svc.cluster.local')].split('.', maxsplit=1)
     await kubernetes_asyncio.config.load_kube_config()
     async with kubernetes_asyncio.client.ApiClient() as api:
         client = kubernetes_asyncio.client.CoreV1Api(api)
         db_service = await client.read_namespaced_service(service_name, namespace)  # type: ignore
-        db_pod = await client.read_namespaced_pod(f'{db_service.spec.selector["app"]}-0', namespace)  # type: ignore
+        db_pod_name = f'{db_service.spec.selector["app"]}-0'  # type: ignore
+        # The test DB pod can be preempted and rescheduled. While that happens it may be terminating, briefly absent,
+        # or pending without a host IP for a minute or two.
+        deadline = time.monotonic() + timeout_s
+        tries = 0
+        while True:
+            try:
+                db_pod = await client.read_namespaced_pod(db_pod_name, namespace)  # type: ignore
+            except kubernetes_asyncio.client.ApiException as e:
+                if e.status != 404:
+                    raise
+                db_pod = None
+            if (
+                db_pod is not None
+                and db_pod.metadata.deletion_timestamp is None  # type: ignore
+                and db_pod.status.phase == 'Running'  # type: ignore
+                and db_pod.status.host_ip  # type: ignore
+            ):
+                break
+            if time.monotonic() > deadline:
+                raise TimeoutError(f'{namespace}/{db_pod_name} not running after {timeout_s}s')
+            if db_pod is None:
+                state = 'NotFound'
+            elif db_pod.metadata.deletion_timestamp is not None:  # type: ignore
+                state = 'Terminating'
+            else:
+                state = db_pod.status.phase  # type: ignore
+            log.info(f'waiting for {namespace}/{db_pod_name} to be running (state: {state})')
+            tries += 1
+            await sleep_before_try(tries, base_delay_ms=1_000, max_delay_ms=10_000)
         sql_config_dict = sql_config.to_dict()
         sql_config_dict['host'] = db_pod.status.host_ip  # type: ignore
         sql_config_dict['port'] = db_service.spec.ports[0].node_port  # type: ignore
