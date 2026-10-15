@@ -732,14 +732,10 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) extends Logg
   private def intervalsFromLiteralContigs(contigs: Any, rg: ReferenceGenome): KeySet = {
     KeySet((contigs: @unchecked) match {
       case x: Map[_, _] => x.keys.asInstanceOf[Iterable[String]].toFastSeq
-          .sortBy(rg.getContigIndex(_))(
-            TInt32.ordering(null).toOrdering.asInstanceOf[Ordering[Int]]
-          )
+          .sortBy(rg.contigIndexOption(_).getOrElse(Int.MaxValue))
           .flatMap(getIntervalFromContig(_, rg))
       case x: Iterable[_] => x.asInstanceOf[Iterable[String]].toArray.toFastSeq
-          .sortBy(rg.getContigIndex(_))(
-            TInt32.ordering(null).toOrdering.asInstanceOf[Ordering[Int]]
-          )
+          .sortBy(rg.contigIndexOption(_).getOrElse(Int.MaxValue))
           .flatMap(getIntervalFromContig(_, rg))
     })
   }

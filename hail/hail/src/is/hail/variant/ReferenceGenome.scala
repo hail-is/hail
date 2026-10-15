@@ -197,6 +197,10 @@ final class ReferenceGenome(
     idx.intValue()
   }
 
+  /** The index of `contig`, or `None` if it is null or not in this reference genome. */
+  def contigIndexOption(contig: String): Option[Int] =
+    Option(contigsIndex.get(contig)).map(_.intValue())
+
   def getContig(contigIdx: Int): String = contigs(contigIdx)
 
   def contigLength(contig: String): Int = {
