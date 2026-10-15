@@ -3,6 +3,7 @@ package is.hail.io.bgen
 import is.hail.backend.ExecuteContext
 import is.hail.types.virtual._
 import is.hail.utils._
+import is.hail.variant.ReferenceGenome
 
 import scala.collection.immutable.ArraySeq
 
@@ -49,7 +50,7 @@ object BgenRDDPartitions extends Logging {
 
   def apply(
     ctx: ExecuteContext,
-    rg: Option[String],
+    rg: Option[ReferenceGenome],
     files: IndexedSeq[BgenFileMetadata],
     blockSizeInMB: Option[Int],
     nPartitions: Option[Int],
