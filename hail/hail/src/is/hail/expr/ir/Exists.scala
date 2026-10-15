@@ -46,7 +46,6 @@ object IsScanResult {
 object IsAggResult {
   def apply(root: IR): Boolean = root match {
     case _: ApplyAggOp => true
-    case _: AggFold => true
     case AggFold(_, _, _, _, _, isScan) => !isScan
     case AggFilter(_, _, isScan) => !isScan
     case AggExplode(_, _, _, isScan) => !isScan
@@ -66,7 +65,7 @@ object ContainsAgg {
       } || ContainsAgg(body)
     case _: TableAggregate => false
     case _: MatrixAggregate => false
-    case _: StreamAgg => false
+    case StreamAgg(a, _, _) => ContainsAgg(a)
     case _ => root.children.exists {
         case child: IR => ContainsAgg(child)
         case _ => false
@@ -122,7 +121,7 @@ object ContainsScan {
       } || ContainsScan(body)
     case _: TableAggregate => false
     case _: MatrixAggregate => false
-    case _: StreamAggScan => false
+    case StreamAggScan(a, _, _) => ContainsScan(a)
     case _ => root.children.exists {
         case child: IR => ContainsScan(child)
         case _ => false

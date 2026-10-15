@@ -757,12 +757,17 @@ object Extract {
           )),
         )
 
-      case x: StreamAgg =>
-        assert(!ContainsScan(x))
-        x
-      case x: StreamAggScan =>
-        assert(!ContainsAgg(x))
-        x
+      // the stream is evaluated in the parent's scopes; the query's aggs are its own
+      case StreamAgg(a, name, query) =>
+        assert(!ContainsScan(query))
+        val newA =
+          this.extract(a, env, initBindings, initBuilder, seqBuilder, memo, result, r, isScan)
+        StreamAgg(newA, name, query)
+      case StreamAggScan(a, name, query) =>
+        assert(!ContainsAgg(query))
+        val newA =
+          this.extract(a, env, initBindings, initBuilder, seqBuilder, memo, result, r, isScan)
+        StreamAggScan(newA, name, query)
       case x =>
         x.mapChildrenWithIndex { case (child: IR, i) =>
           val newEnv = env.extend(Bindings.get(x, i).map((_, _) => new BindingState))

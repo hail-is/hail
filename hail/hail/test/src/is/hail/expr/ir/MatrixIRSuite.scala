@@ -10,8 +10,8 @@ import is.hail.collection.implicits._
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir.TestUtils._
 import is.hail.expr.ir.defs.{
-  Apply, GetField, I32, InsertFields, MakeTuple, MatrixMultiWrite, MatrixWrite, RNGSplit,
-  RNGSplitStatic, RNGStateLiteral, Ref, TableCollect,
+  Apply, ApplyAggOp, ApplyScanOp, GetField, I32, InsertFields, MakeTuple, MatrixMultiWrite,
+  MatrixWrite, RNGSplit, RNGSplitStatic, RNGStateLiteral, Ref, TableCollect,
 }
 import is.hail.types.virtual._
 import is.hail.utils._
@@ -191,6 +191,33 @@ class MatrixIRSuite {
     assert(cols.forall { case Row(col_idx: Int, n: Long, range: IndexedSeq[_]) =>
       (n == 20) && (range sameElements Array.range(0, col_idx))
     })
+  }
+
+  @Test def testStreamAggStreamReadsParentAggOnCols(implicit ctx: ExecuteContext): Unit = {
+    val mt = rangeMatrix()
+    val oldRow = Ref(MatrixIR.rowName, mt.typ.rowType)
+    val oldCol = Ref(MatrixIR.colName, mt.typ.colType)
+
+    val sum =
+      ApplyAggOp(Collect())(GetField(oldRow, "row_idx"))
+        .stream
+        .streamAgg(y => ApplyAggOp(Sum())(y.toL))
+
+    val cols = getCols(MatrixMapCols(mt, InsertFields(oldCol, FastSeq("sum" -> sum)), None))
+    assert(cols.forall { case Row(_, sum: Long) => sum == 190 })
+  }
+
+  @Test def testStreamAggScanQueryScanNotLiftedOnRows(implicit ctx: ExecuteContext): Unit = {
+    val mt = rangeMatrix()
+    val oldRow = Ref(MatrixIR.rowName, mt.typ.rowType)
+
+    val counts =
+      rangeIR(3)
+        .streamAggScan(_ => ApplyScanOp(Count())())
+        .toArray
+
+    val rows = getRows(MatrixMapRows(mt, InsertFields(oldRow, FastSeq("counts" -> counts))))
+    assert(rows.forall { case Row(_, counts: IndexedSeq[_]) => counts == IndexedSeq(0L, 1L, 2L) })
   }
 
   def rangeRowMatrix(start: Int, end: Int)(implicit ctx: ExecuteContext): MatrixIR = {
