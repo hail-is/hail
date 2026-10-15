@@ -40,7 +40,7 @@ object RVDPartitionInfo extends Logging {
   ): RVDPartitionInfo = {
     using(RVDContext.default(producerContext.r.pool)) { localctx =>
       val kPType = typ.kType
-      val pkOrd = typ.copy(key = typ.key.take(partitionKey)).kOrd(sm)
+      val pkOrd = typ.copy(key = typ.key.take(partitionKey)).kOrd
       val minF = WritableRegionValue(sm, kPType, localctx.freshRegion())
       val maxF = WritableRegionValue(sm, kPType, localctx.freshRegion())
       val prevF = WritableRegionValue(sm, kPType, localctx.freshRegion())
@@ -69,7 +69,7 @@ object RVDPartitionInfo extends Logging {
       while (it.hasNext) {
         val f = it.next()
 
-        val kOrd = typ.kOrd(sm)
+        val kOrd = typ.kOrd
         if (sortedness > UNSORTED && kOrd.lt(f, prevF.value.offset)) {
           if (pkOrd.lt(f, prevF.value.offset)) {
             val curr = Region.pretty(typ.kType, f)

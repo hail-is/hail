@@ -26,7 +26,7 @@ final case class PPackedLocus(rg: ReferenceGenome, required: Boolean = false)
 
   override def sType: SPackedLocus = SPackedLocus(rg)
 
-  override def unsafeOrdering(sm: HailStateManager): UnsafeOrdering = new UnsafeOrdering {
+  override def unsafeOrdering: UnsafeOrdering = new UnsafeOrdering {
     override def compare(o1: Long, o2: Long): Int =
       java.lang.Long.compare(Region.loadLong(o1), Region.loadLong(o2))
   }
@@ -40,7 +40,7 @@ final case class PPackedLocus(rg: ReferenceGenome, required: Boolean = false)
 
   override def position(address: Code[Long]): Code[Int] = Region.loadLong(address).toI
 
-  override def packed(sm: HailStateManager, address: Long): Long = Region.loadLong(address)
+  override def packed(address: Long): Long = Region.loadLong(address)
 
   override def positionType: PInt32 = PInt32(true)
 
@@ -61,7 +61,7 @@ final case class PPackedLocus(rg: ReferenceGenome, required: Boolean = false)
     srcPType match {
       case pt: PLocus =>
         assert(pt.isOfType(this))
-        Region.storeLong(addr, pt.packed(sm, srcAddress))
+        Region.storeLong(addr, pt.packed(srcAddress))
     }
 
   override def _copyFromAddress(

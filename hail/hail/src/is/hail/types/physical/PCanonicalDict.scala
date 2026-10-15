@@ -48,7 +48,7 @@ final case class PCanonicalDict(keyType: PType, valueType: PType, required: Bool
     val annotMap = annotation.asInstanceOf[Map[Annotation, Annotation]]
     val sortedArray = annotMap.map { case (k, v) => RowSeq(k, v) }
       .toArray
-      .sorted(elementType.virtualType.ordering(sm).toOrdering)
+      .sorted(elementType.virtualType.ordering.toOrdering)
       .toIndexedSeq
     this.arrayRep.unstagedStoreJavaObject(sm, sortedArray, region)
   }

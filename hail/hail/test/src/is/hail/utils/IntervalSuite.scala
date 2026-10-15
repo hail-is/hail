@@ -3,7 +3,7 @@ package is.hail.utils
 import is.hail.ParameterizedTest
 import is.hail.TestUtils.cartesian
 import is.hail.annotations.{ExtendedOrdering, RowSeq}
-import is.hail.backend.{ExecuteContext, HailStateManager}
+import is.hail.backend.ExecuteContext
 import is.hail.collection.implicits.toRichIterable
 import is.hail.rvd.RVDPartitioner
 import is.hail.types.virtual.{TInt32, TStruct}
@@ -13,7 +13,7 @@ import scala.collection.immutable.ArraySeq
 import org.junit.jupiter.api.{BeforeEach, Test}
 
 class IntervalSuite {
-  val pord: ExtendedOrdering = TInt32.ordering(HailStateManager(Map.empty))
+  val pord: ExtendedOrdering = TInt32.ordering
 
   // set of intervals chosen from 5 endpoints spans the space of relations
   // that two non-empty intervals can have with each other.
@@ -186,7 +186,7 @@ object SetInterval {
 
 case class SetInterval(start: Int, end: Int, includesStart: Boolean, includesEnd: Boolean) {
 
-  val pord: ExtendedOrdering = TInt32.ordering(HailStateManager(Map.empty))
+  val pord: ExtendedOrdering = TInt32.ordering
 
   val doubledPointSet: Set[Int] = {
     val first = if (includesStart) 2 * start else 2 * start + 1
@@ -256,7 +256,7 @@ case class SetInterval(start: Int, end: Int, includesStart: Boolean, includesEnd
 
 case class SetIntervalTree(ctx: ExecuteContext, annotations: IndexedSeq[(SetInterval, Int)]) {
 
-  val pord: ExtendedOrdering = TInt32.ordering(HailStateManager(Map.empty))
+  val pord: ExtendedOrdering = TInt32.ordering
 
   val doubledPointSet: Set[Int] =
     annotations.foldLeft(Set.empty[Int]) { case (ps, (i, _)) => ps.union(i.doubledPointSet) }

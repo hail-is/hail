@@ -1,7 +1,6 @@
 package is.hail.types.virtual
 
 import is.hail.annotations._
-import is.hail.backend.HailStateManager
 import is.hail.utils._
 import is.hail.variant._
 
@@ -31,12 +30,12 @@ case class TLocus(rg: ReferenceGenome) extends Type {
 
   override def _typeCheck(a: Any): Boolean = a.isInstanceOf[Locus]
 
-  override def mkOrdering(sm: HailStateManager, missingEqual: Boolean = true): ExtendedOrdering =
+  override def mkOrdering(missingEqual: Boolean = true): ExtendedOrdering =
     rg.extendedLocusOrdering
 
   lazy val representation: TStruct = TLocus.representation
 
-  def locusOrdering(sm: HailStateManager): Ordering[Locus] =
+  def locusOrdering: Ordering[Locus] =
     rg.locusOrdering
 
   override def unify(concrete: Type): Boolean = concrete match {

@@ -503,7 +503,7 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
 
     val localChildRowType = prevRVD.rowPType
     val keyIndices = prevRVD.typ.kFieldIdx
-    val keyOrd = prevRVD.typ.kRowOrd(ctx.stateManager)
+    val keyOrd = prevRVD.typ.kRowOrd
     val globalsBc = globals.broadcast(ctx.theHailClassLoader)
 
     val newRVDType = prevRVD.typ.copy(rowType = rowType)
@@ -1417,7 +1417,7 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
     val sortColIndexOrd = sortFields.map { case SortField(n, so) =>
       val i = rowType.fieldIdx(n)
       val f = rowType.fields(i)
-      val fo = f.typ.ordering(ctx.stateManager)
+      val fo = f.typ.ordering
       if (so == Ascending) fo else fo.reverse
     }
 

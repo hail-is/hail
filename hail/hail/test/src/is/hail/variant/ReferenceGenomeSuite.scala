@@ -197,7 +197,7 @@ class ReferenceGenomeSuite {
           val start = i.start.asInstanceOf[Locus]
           val end = i.end.asInstanceOf[Locus]
 
-          val ordering = TLocus(rg).ordering(HailStateManager(Map(rg.name -> rg)))
+          val ordering = TLocus(rg).ordering
 
           def getHtsjdkIntervalSequence: String = {
             val sb = new StringBuilder

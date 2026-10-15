@@ -122,11 +122,11 @@ trait PArrayBackedContainer extends PContainer {
   override def hasMissingValues(sourceOffset: Code[Long]): Code[Boolean] =
     arrayRep.hasMissingValues(sourceOffset)
 
-  override def unsafeOrdering(sm: HailStateManager): UnsafeOrdering =
-    unsafeOrdering(sm, this)
+  override def unsafeOrdering: UnsafeOrdering =
+    unsafeOrdering(this)
 
-  override def unsafeOrdering(sm: HailStateManager, rightType: PType): UnsafeOrdering =
-    arrayRep.unsafeOrdering(sm, rightType)
+  override def unsafeOrdering(rightType: PType): UnsafeOrdering =
+    arrayRep.unsafeOrdering(rightType)
 
   override def _copyFromAddress(
     sm: HailStateManager,

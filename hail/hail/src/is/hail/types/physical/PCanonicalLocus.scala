@@ -52,8 +52,8 @@ final case class PCanonicalLocus(rg: ReferenceGenome, required: Boolean = false)
 
   override def position(address: Long): Int = Region.loadInt(representation.fieldOffset(address, 1))
 
-  override def packed(sm: HailStateManager, address: Long): Long =
-    PLocus.pack(rg.getContigIndex(contig(sm, address)), position(address))
+  override def packed(address: Long): Long =
+    PLocus.pack(rg.getContigIndex(contigType.loadString(contigAddr(address))), position(address))
 
   lazy val contigType: PCanonicalString =
     representation.field("contig").typ.asInstanceOf[PCanonicalString]
@@ -64,8 +64,8 @@ final case class PCanonicalLocus(rg: ReferenceGenome, required: Boolean = false)
   lazy val positionType: PInt32 = representation.field("position").typ.asInstanceOf[PInt32]
 
   // FIXME: Remove when representation of contig/position is a naturally-ordered Long
-  override def unsafeOrdering(sm: HailStateManager): UnsafeOrdering = {
-    val binaryOrd = representation.fieldType("contig").unsafeOrdering(sm)
+  override def unsafeOrdering: UnsafeOrdering = {
+    val binaryOrd = representation.fieldType("contig").unsafeOrdering
 
     new UnsafeOrdering {
       override def compare(o1: Long, o2: Long): Int = {

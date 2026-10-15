@@ -133,10 +133,10 @@ case class StoredSTypePType(sType: SType, required: Boolean) extends PType {
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean): Unit =
     sb ++= sType.toString
 
-  override def unsafeOrdering(sm: HailStateManager, rightType: PType): UnsafeOrdering =
+  override def unsafeOrdering(rightType: PType): UnsafeOrdering =
     unsupportedCanonicalMethod
 
-  override def unsafeOrdering(sm: HailStateManager): UnsafeOrdering = unsupportedCanonicalMethod
+  override def unsafeOrdering: UnsafeOrdering = unsupportedCanonicalMethod
 
   override def unstagedLoadFromNested(addr: Long): Long = unsupportedCanonicalMethod
 

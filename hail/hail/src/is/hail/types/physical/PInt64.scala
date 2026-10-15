@@ -21,7 +21,7 @@ class PInt64(override val required: Boolean) extends PNumeric with PPrimitive {
 
   override type NType = PInt64
 
-  override def unsafeOrdering(sm: HailStateManager): UnsafeOrdering = new UnsafeOrdering {
+  override def unsafeOrdering: UnsafeOrdering = new UnsafeOrdering {
     override def compare(o1: Long, o2: Long): Int =
       java.lang.Long.compare(Region.loadLong(o1), Region.loadLong(o2))
   }

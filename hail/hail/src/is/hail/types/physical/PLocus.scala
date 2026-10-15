@@ -22,7 +22,7 @@ abstract class PLocus extends PType {
 
   def position(value: Long): Int
 
-  def packed(sm: HailStateManager, value: Long): Long
+  def packed(value: Long): Long
 
   def positionType: PInt32
 
@@ -34,15 +34,15 @@ abstract class PLocus extends PType {
     region: Region,
   ): Unit
 
-  override def unsafeOrdering(sm: HailStateManager, rightType: PType): UnsafeOrdering =
+  override def unsafeOrdering(rightType: PType): UnsafeOrdering =
     rightType match {
       case right: PLocus if right.getClass != getClass =>
         require(virtualType == right.virtualType, s"$this, $right")
         new UnsafeOrdering {
           override def compare(o1: Long, o2: Long): Int =
-            java.lang.Long.compare(packed(sm, o1), right.packed(sm, o2))
+            java.lang.Long.compare(packed(o1), right.packed(o2))
         }
       case _ =>
-        super.unsafeOrdering(sm, rightType)
+        super.unsafeOrdering(rightType)
     }
 }

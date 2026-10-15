@@ -175,7 +175,7 @@ class UnsafeSuite {
               region
             )
 
-          assert(t.unsafeOrdering(sm).equiv(res, off))
+          assert(t.unsafeOrdering.equiv(res, off))
         }
       }
     }
@@ -355,8 +355,8 @@ class UnsafeSuite {
       val ur2 = new UnsafeRow(sm, t, region2, offset2)
       assert(tv.valuesSimilar(a2, ur2))
 
-      val ord = tv.ordering(sm)
-      val uord = t.unsafeOrdering(sm)
+      val ord = tv.ordering
+      val uord = t.unsafeOrdering
 
       val c1 = ord.compare(a1, a2)
       val c2 = ord.compare(ur1, ur2)

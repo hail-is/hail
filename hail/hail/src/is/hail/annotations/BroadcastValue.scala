@@ -90,7 +90,7 @@ trait BroadcastRegionValue extends Logging {
 
   override def equals(obj: Any): Boolean = obj match {
     case b: BroadcastRegionValue =>
-      t == b.t && (ctx eq b.ctx) && t.unsafeOrdering(ctx.stateManager).compare(value, b.value) == 0
+      t == b.t && (ctx eq b.ctx) && t.unsafeOrdering.compare(value, b.value) == 0
     case _ => false
   }
 

@@ -57,7 +57,7 @@ class RVDPartitioner(
   require(allowedOverlap >= 0 && allowedOverlap <= kType.size)
   require(RVDPartitioner.isValid(sm, kType, rangeBounds, allowedOverlap))
 
-  val kord: ExtendedOrdering = PartitionBoundOrdering(sm, kType)
+  val kord: ExtendedOrdering = PartitionBoundOrdering(kType)
   val intervalKeyLT: (Interval, Any) => Boolean = (i, k) => i.isBelowPosition(kord, k)
   val keyIntervalLT: (Any, Interval) => Boolean = (k, i) => i.isAbovePosition(kord, k)
   val intervalLT: (Interval, Interval) => Boolean = (i1, i2) => i1.isBelow(kord, i2)
@@ -350,7 +350,7 @@ object RVDPartitioner extends Logging {
     intervals: IndexedSeq[Interval],
     allowedOverlap: Int,
   ): RVDPartitioner = {
-    val kord = PartitionBoundOrdering(sm, kType)
+    val kord = PartitionBoundOrdering(kType)
     val eord = kord.intervalEndpointOrdering
     val iord = Interval.ordering(kord, startPrimary = true)
     val pk = allowedOverlap + 1
@@ -392,7 +392,7 @@ object RVDPartitioner extends Logging {
     require(typ.kType.virtualType.relaxedTypeCheck(max))
     require(keys.forall(typ.kType.virtualType.relaxedTypeCheck))
 
-    val kOrd = PartitionBoundOrdering(ctx.stateManager, typ.kType.virtualType).toOrdering
+    val kOrd = PartitionBoundOrdering(typ.kType.virtualType).toOrdering
     val sortedKeys = keys.sorted(kOrd)
     val step = (sortedKeys.length - 1).toDouble / nPartitions
     val partitionEdges = ArraySeq.tabulate(nPartitions - 1) { i =>
@@ -419,7 +419,7 @@ object RVDPartitioner extends Logging {
     rangeBounds.isEmpty ||
     rangeBounds.zip(rangeBounds.tail).forall { case (left: Interval, right: Interval) =>
       val r =
-        PartitionBoundOrdering(sm, kType).intervalEndpointOrdering.lteqWithOverlap(allowedOverlap)(
+        PartitionBoundOrdering(kType).intervalEndpointOrdering.lteqWithOverlap(allowedOverlap)(
           left.right,
           right.left,
         )
