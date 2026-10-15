@@ -210,10 +210,10 @@ class ReferenceGenomeSuite {
                 endPos.toLong,
               ).getBaseString
               pos =
-                if (rg.contigsIndex.get(pos.contig) == rg.contigs.length - 1)
+                if (rg.getContigIndex(pos.contig) == rg.contigs.length - 1)
                   null
                 else
-                  Locus(rg.contigs(rg.contigsIndex.get(pos.contig) + 1), 1)
+                  Locus(rg.contigs(rg.getContigIndex(pos.contig) + 1), 1)
             }
             sb.result()
           }

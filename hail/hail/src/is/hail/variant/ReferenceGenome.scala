@@ -81,10 +81,10 @@ final class ReferenceGenome(
       s"Found the contigs '${yContigs.intersect(mtContigs).mkString(", ")}' in both Y and MT contigs."
     )
 
-  val contigsIndex: java.util.HashMap[String, Integer] =
+  private val contigsIndex: java.util.HashMap[String, Integer] =
     makeJavaMap(contigs.iterator.zipWithIndex.map { case (c, i) => (c, box(i)) })
 
-  val contigsSet: java.util.HashSet[String] = makeJavaSet(contigs)
+  private val contigsSet: java.util.HashSet[String] = makeJavaSet(contigs)
 
   private[this] val jLengths: java.util.HashMap[String, java.lang.Integer] =
     makeJavaMap(lengths.iterator.map { case (c, i) => (c, box(i)) })
@@ -176,8 +176,6 @@ final class ReferenceGenome(
     parInput: IndexedSeq[(Locus, Locus)] = parInput,
   ): ReferenceGenome =
     new ReferenceGenome(name, contigs, lengths, xContigs, yContigs, mtContigs, parInput)
-
-  def getGlobalContigEnds: IndexedSeq[Long] = globalContigEnds
 
   def locusToGlobalPos(contig: String, pos: Int): Long =
     globalPosContigStarts(contig) + (pos - 1)
