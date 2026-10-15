@@ -114,7 +114,7 @@ trait ShimRVDSpec extends AbstractRVDSpec {
 
   final override def key: IndexedSeq[String] = shim.key
 
-  override def partitioner: RVDPartitioner = shim.partitioner
+  override lazy val partitioner: RVDPartitioner = shim.partitioner
 
   override def typedCodecSpec: AbstractTypedCodecSpec = shim.typedCodecSpec
 
@@ -150,7 +150,7 @@ case class UnpartitionedRVDSpec private (
   private val rowVType = rowType.vType.asInstanceOf[TStruct]
   private val rowEType = rowType.eType
 
-  override def partitioner: RVDPartitioner =
+  override lazy val partitioner: RVDPartitioner =
     RVDPartitioner.unkeyed(partFiles.length)
 
   override def key: IndexedSeq[String] = FastSeq()

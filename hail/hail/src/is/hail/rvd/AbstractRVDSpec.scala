@@ -481,7 +481,7 @@ case class IndexedRVDSpec2(
       .importAnnotation(_jRangeBounds, TArray(TInterval(keyType)), padNulls = false)
       .asInstanceOf[IndexedSeq[Interval]]
 
-  override def partitioner: RVDPartitioner =
+  override lazy val partitioner: RVDPartitioner =
     new RVDPartitioner(keyType, partitionBounds)
 
   override def partFiles: IndexedSeq[String] = _partFiles
@@ -600,7 +600,7 @@ case class OrderedRVDSpec2(
 
   require(codecSpec2.encodedType.required)
 
-  override def partitioner: RVDPartitioner = {
+  override lazy val partitioner: RVDPartitioner = {
     val keyType = codecSpec2.encodedVirtualType.asInstanceOf[TStruct].select(key)._1
     val rangeBoundsType = TArray(TInterval(keyType))
     new RVDPartitioner(
