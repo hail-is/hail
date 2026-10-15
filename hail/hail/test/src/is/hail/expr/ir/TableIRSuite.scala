@@ -20,8 +20,8 @@ import is.hail.types.physical.{PCanonicalLocus, PInterval}
 import is.hail.types.physical.LocusRepresentations.{references, withReference}
 import is.hail.types.virtual._
 import is.hail.utils._
-import is.hail.variant.Locus
 import is.hail.variant.BuiltinLoci.tlocus
+import is.hail.variant.Locus
 
 import scala.collection.immutable.ArraySeq
 

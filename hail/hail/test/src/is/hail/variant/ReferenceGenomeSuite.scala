@@ -15,7 +15,7 @@ import is.hail.types.physical.{
 import is.hail.types.physical.stypes.PTypeReferenceSingleCodeType
 import is.hail.types.virtual.{TBoolean, TInterval, TLocus, TString, TStruct}
 import is.hail.utils._
-import is.hail.variant.BuiltinLoci.{builtin, pcanonicalLocus, ppackedLocus, tlocus}
+import is.hail.variant.BuiltinLoci.{builtin, pcanonicalLocus, tlocus}
 
 import scala.collection.immutable.ArraySeq
 

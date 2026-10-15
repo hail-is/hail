@@ -57,7 +57,7 @@ object LocusRepresentations {
   /** The loci in `pt`, wherever they are nested. */
   def loci(pt: PType): Seq[PLocus] = {
     val b = Seq.newBuilder[PLocus]
-    mapLoci(pt) { l => b += l; l }
+    val _ = mapLoci(pt) { l => b += l; l }
     b.result()
   }
 

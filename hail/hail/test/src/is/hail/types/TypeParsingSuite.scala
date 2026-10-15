@@ -5,7 +5,6 @@ import is.hail.collection.FastSeq
 import is.hail.expr.ir.IRParser
 import is.hail.rvd.{AbstractRVDSpec, RVDType, RVDTypeSerializer}
 import is.hail.types.physical._
-import is.hail.types.physical.LocusRepresentations
 import is.hail.types.physical.LocusRepresentations.customReference
 import is.hail.types.virtual._
 import is.hail.utils.deepestMessage

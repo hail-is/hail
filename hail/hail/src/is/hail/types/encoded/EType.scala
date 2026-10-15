@@ -14,7 +14,6 @@ import is.hail.types.physical._
 import is.hail.types.physical.stypes.{SType, SValue}
 import is.hail.types.virtual._
 import is.hail.utils._
-import is.hail.variant.ReferenceGenome
 
 import scala.collection.immutable.ArraySeq
 
