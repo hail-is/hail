@@ -62,11 +62,23 @@ object LowerMatrixIR extends Logging {
       case vir: IR => lower(ctx, vir, ab)
     }
 
+  // -- NOTE: Rules for lifting agg/scan ops --
+  // The eval names `hoist` can see at a node inside newRow or newCol:
+  //   Some(v): a Block EVAL binding; invariant iff its lifted value v is, checked by `hoist`.
+  //   None: varies per row, column, loop iteration or element; an init arg can't read it.
+  private type LiftEnv = BindingEnv[Option[IR]]
+
+  private def LiftEnv(variant: Name): LiftEnv =
+    BindingEnv(Env(variant -> None), Some(Env.empty), Some(Env.empty))
+
   private def bindingsToStruct(bindings: IndexedSeq[(Name, IR)]): MakeStruct =
     MakeStruct(bindings.map { case (n, ir) => n.str -> ir })
 
-  private def unwrapStruct(bindings: IndexedSeq[(Name, _)], struct: Atom): IndexedSeq[(Name, IR)] =
-    bindings.map { case (name, _) => name -> struct.get(name.str) }
+  private def unwrapStruct(bindings: IndexedSeq[(Name, _)], struct: Atom): IndexedSeq[Binding] =
+    bindings.map { case (name, _) => Binding(name, struct.get(name.str)) }
+
+  private def unwrapM[S](bindings: IndexedSeq[(Name, _)], struct: Atom): M[S] =
+    bindings.foldLeft(M.unit[S]) { case (m, (name, _)) => m >> (name -> struct.get(name.str)) }
 
   private def lower(
     ctx: ExecuteContext,
@@ -237,106 +249,141 @@ object LowerMatrixIR extends Logging {
         }
 
       case MatrixMapRows(child, newRow) =>
-        def liftScans(ir: IR): (IR, IndexedSeq[(Name, IR)]) = {
-          def lift(ir: IR, builder: mutable.Growable[(Name, IR)]): IR =
+        def liftScans(ir: IR): (IR, M[EVAL.type]) = {
+          var top: M[EVAL.type] = M.unit
+          val moved = mutable.Set.empty[Name]
+          // Names of lifted ops' results. They aren't in the env, so `hoist` checks them here.
+          val lifted = mutable.Set.empty[Name]
+
+          def extendEnv(env: LiftEnv, ir: IR, i: Int): LiftEnv =
+            env.extend(Bindings.get(ir, i).map((_, _) => None))
+
+          // -- See NOTE: Rules for lifting agg/scan ops --
+          def hoist(x: IR, env: LiftEnv): Unit =
+            FreeVariables(x, supportsAgg = false, supportsScan = true).eval.m.keys.foreach { n =>
+              if (lifted.contains(n)) fatal(s"scan init argument depends on a scan result: $n")
+              env.eval.lookupOption(n).foreach {
+                case Some(v) => if (moved.add(n)) { hoist(v, env); top = top >> M.let(n -> v) }
+                case None => fatal(s"scan init argument refers to $n, which can't leave newRow")
+              }
+            }
+
+          def emit(
+            builder: mutable.Growable[(Name, IR)],
+            env: LiftEnv,
+            name: Name,
+            x: IR,
+          ): Unit = {
+            if (ContainsAgg(x))
+              fatal("aggregations inside scans are not supported in MatrixMapRows")
+            hoist(x, env)
+            lifted += name
+            builder += (name -> x)
+          }
+
+          def lift(ir: IR, env: LiftEnv, builder: mutable.Growable[(Name, IR)]): IR =
             ir match {
               case a: ApplyScanOp =>
                 val s = freshName()
-                builder += (s -> a)
+                emit(builder, env, s, a)
                 Ref(s, a.typ)
 
               case a @ AggFold(_, _, _, _, _, true) =>
                 val s = freshName()
-                builder += (s -> a)
+                emit(builder, env, s, a)
                 Ref(s, a.typ)
 
               case AggFilter(filt, body, true) =>
                 val ab = ArraySeq.newBuilder[(Name, IR)]
-                val liftedBody = lift(body, ab)
+                val liftedBody = lift(body, extendEnv(env, ir, 1), ab)
                 val aggs = ab.result()
                 val structResult = bindingsToStruct(aggs)
                 val uid = Ref(freshName(), structResult.typ)
-                builder += (uid.name -> AggFilter(filt, structResult, true))
-                Let(unwrapStruct(aggs, uid), liftedBody)
+                emit(builder, env, uid.name, AggFilter(filt, structResult, true))
+                Block(unwrapStruct(aggs, uid), liftedBody)
 
               case AggExplode(a, name, body, true) =>
                 val ab = ArraySeq.newBuilder[(Name, IR)]
-                val liftedBody = lift(body, ab)
+                val liftedBody = lift(body, extendEnv(env, ir, 1), ab)
                 val aggs = ab.result()
                 val structResult = bindingsToStruct(aggs)
                 val uid = Ref(freshName(), structResult.typ)
-                builder += (uid.name -> AggExplode(a, name, structResult, true))
-                Let(unwrapStruct(aggs, uid), liftedBody)
+                emit(builder, env, uid.name, AggExplode(a, name, structResult, true))
+                Block(unwrapStruct(aggs, uid), liftedBody)
 
               case AggGroupBy(a, body, true) =>
                 val ab = ArraySeq.newBuilder[(Name, IR)]
-                val liftedBody = lift(body, ab)
+                val liftedBody = lift(body, extendEnv(env, ir, 1), ab)
                 val aggs = ab.result()
 
                 val aggIR = AggGroupBy(a, bindingsToStruct(aggs), true)
                 val uid = Ref(freshName(), aggIR.typ)
-                builder += (uid.name -> aggIR)
+                emit(builder, env, uid.name, aggIR)
 
                 ToDict(mapIR(ToStream(uid)) { elt =>
                   M.eval {
                     for {
                       key <- elt.get("key")
                       value <- elt.get("value")
-                      _ <- M.sequence(unwrapStruct(aggs, value).map(M.let[EVAL.type]): _*)
+                      _ <- unwrapM(aggs, value)
                     } yield maketuple(key, liftedBody)
                   }
                 })
 
               case AggArrayPerElement(a, elementName, indexName, body, knownLength, true) =>
                 val ab = ArraySeq.newBuilder[(Name, IR)]
-                val liftedBody = lift(body, ab)
+                val liftedBody = lift(body, extendEnv(env, ir, 1), ab)
 
                 val aggs = ab.result()
                 val aggBody = bindingsToStruct(aggs)
                 val aggIR =
                   AggArrayPerElement(a, elementName, indexName, aggBody, knownLength, true)
                 val uid = Ref(freshName(), aggIR.typ)
-                builder += (uid.name -> aggIR)
+                emit(builder, env, uid.name, aggIR)
 
                 ToArray(mapIR(ToStream(uid)) { eltUID =>
-                  Let(unwrapStruct(aggs, eltUID), liftedBody)
+                  Block(unwrapStruct(aggs, eltUID), liftedBody)
                 })
 
               case Block(bindings, body) =>
-                val newBindings = ArraySeq.newBuilder[Binding]
-
-                def go(i: Int, builder: mutable.Growable[(Name, IR)]): IR = {
-                  if (i == bindings.length) lift(body, builder)
+                def go(i: Int, env: LiftEnv, builder: mutable.Growable[(Name, IR)]): M[EVAL.type] =
+                  if (i == bindings.length) lift(body, env, builder)
                   else bindings(i) match {
-                    case Binding(name, value, Scope.SCAN) =>
+                    case b @ Binding(name, _, SCAN) =>
                       val ab = ArraySeq.newBuilder[(Name, IR)]
-                      val liftedBody = go(i + 1, ab)
+                      val liftedBody = go(i + 1, env.bindScan(name, None), ab)
                       val aggs = ab.result()
                       val structResult = bindingsToStruct(aggs)
                       val uid = Ref(freshName(), structResult.typ)
-                      builder += (uid.name -> Let(FastSeq(name -> value), structResult))
-                      newBindings ++= unwrapStruct(aggs, uid).map(b =>
-                        Binding(b._1, b._2, Scope.EVAL)
-                      )
-                      liftedBody
+                      emit(builder, env, uid.name, Block(FastSeq(b), structResult))
+                      unwrapM(aggs, uid) >> liftedBody
                     case Binding(name, value, scope) =>
-                      newBindings += Binding(name, lift(value, builder), scope)
-                      go(i + 1, builder)
+                      val v = lift(value, env.extend(Bindings.get(ir, i).dropBindings), builder)
+                      val e = env.bindInScope(name, if (scope == EVAL) Some(v) else None, scope)
+                      val liftedBody = go(i + 1, e, builder)
+                      if (moved.contains(name)) liftedBody
+                      else M.defer[EVAL.type](_.strictMemoize(v, name, scope)) >> liftedBody
                   }
-                }
 
-                val newBody = go(0, builder)
-                Block(newBindings.result(), newBody)
+                M.eval(go(0, env, builder))
 
               case StreamAggScan(a, name, query) =>
-                StreamAggScan(lift(a, builder), name, query)
+                StreamAggScan(lift(a, env, builder), name, query)
+
+              case _: TableAggregate | _: MatrixAggregate =>
+                ir
 
               case _ =>
-                MapIR(lift(_, builder))(ir)
+                ir.mapChildrenWithIndex {
+                  case (c: IR, i) => lift(c, extendEnv(env, ir, i), builder)
+                  case (c, _) => c
+                }
             }
 
-          val ab = ArraySeq.newBuilder[(Name, IR)]
-          (lift(ir, ab), ab.result())
+          val builder = ArraySeq.newBuilder[(Name, IR)]
+          val env = LiftEnv(rowName)
+          val body = lift(ir, env, builder)
+          (body, builder.result().foldLeft(top)(_ >> M.let[EVAL.type](_)))
         }
 
         lower(ctx, child, liftedRelationalLets).mapRows { (global, row) =>
@@ -358,7 +405,7 @@ object LowerMatrixIR extends Logging {
 
               (body, bindings) = liftScans(lower(ctx, newRow, liftedRelationalLets))
 
-              _ <- M.sequence(bindings.map(M.let[EVAL.type]): _*)
+              _ <- bindings
 
               newRow <-
                 if (!ContainsAgg(body)) body
@@ -383,139 +430,188 @@ object LowerMatrixIR extends Logging {
       case MatrixMapCols(child, newCol, _) =>
         val lc = lower(ctx, child, liftedRelationalLets)
 
+        var scanTop: M[EVAL.type] = M.unit
+        var aggTop: M[EVAL.type] = M.unit
+        val movedScan = mutable.Set.empty[Name]
+        val copiedAgg = mutable.Set.empty[Name]
+        // Names of lifted ops' results. They aren't in the env, so `hoist` checks them here.
+        val lifted = mutable.Set.empty[Name]
+
+        def extendEnv(env: LiftEnv, ir: IR, i: Int): LiftEnv =
+          env.extend(Bindings.get(ir, i).map((_, _) => None))
+
+        // -- See NOTE: Rules for lifting agg/scan ops --
+        def hoist(x: IR, env: LiftEnv, isScan: Boolean): Unit =
+          FreeVariables(x, supportsAgg = !isScan, supportsScan = isScan).eval.m.keys.foreach { n =>
+            if (lifted.contains(n)) fatal(s"init argument depends on an aggregation result: $n")
+            env.eval.lookupOption(n).foreach {
+              case Some(v) =>
+                if (isScan && movedScan.add(n)) {
+                  hoist(v, env, isScan)
+                  scanTop = scanTop >> M.let(n -> v)
+                }
+                if (!isScan && copiedAgg.add(n)) {
+                  hoist(v, env, isScan)
+                  aggTop = aggTop >> M.let(n -> v.deepCopy)
+                }
+              case None => fatal(s"init argument refers to $n, which can't leave newCol")
+            }
+          }
+
+        def emit(
+          builder: mutable.Growable[(Name, IR)],
+          env: LiftEnv,
+          name: Name,
+          x: IR,
+          isScan: Boolean,
+        ): Unit = {
+          if (isScan && ContainsAgg(x))
+            fatal("aggregations inside scans are not supported in MatrixMapCols")
+          if (!isScan && ContainsScan(x))
+            fatal("scans inside aggregations are not supported in MatrixMapCols")
+          hoist(x, env, isScan)
+          lifted += name
+          builder += (name -> x)
+        }
+
         def lift(
           ir: IR,
+          env: LiftEnv,
           scanBindings: mutable.Growable[(Name, IR)],
           aggBindings: mutable.Growable[(Name, IR)],
         ): IR = ir match {
           case a: ApplyScanOp =>
             val s = freshName()
-            scanBindings += (s -> a)
+            emit(scanBindings, env, s, a, isScan = true)
             Ref(s, a.typ)
 
           case a: ApplyAggOp =>
             val s = freshName()
-            aggBindings += (s -> a)
+            emit(aggBindings, env, s, a, isScan = false)
             Ref(s, a.typ)
 
           case a @ AggFold(_, _, _, _, _, isScan) =>
             val s = freshName()
-            if (isScan) scanBindings += (s -> a)
-            else aggBindings += (s -> a)
+            emit(if (isScan) scanBindings else aggBindings, env, s, a, isScan)
             Ref(s, a.typ)
 
           case AggFilter(filt, body, isScan) =>
             val ab = ArraySeq.newBuilder[(Name, IR)]
+            val bodyEnv = extendEnv(env, ir, 1)
             val (liftedBody, builder) =
-              if (isScan) (lift(body, ab, aggBindings), scanBindings)
-              else (lift(body, scanBindings, ab), aggBindings)
+              if (isScan) (lift(body, bodyEnv, ab, aggBindings), scanBindings)
+              else (lift(body, bodyEnv, scanBindings, ab), aggBindings)
 
             val aggs = ab.result()
             val structResult = bindingsToStruct(aggs)
 
             val uid = Ref(freshName(), structResult.typ)
-            builder += (uid.name -> AggFilter(filt, structResult, isScan))
-            Let(unwrapStruct(aggs, uid), liftedBody)
+            emit(builder, env, uid.name, AggFilter(filt, structResult, isScan), isScan)
+            Block(unwrapStruct(aggs, uid), liftedBody)
 
           case AggExplode(a, name, body, isScan) =>
             val ab = ArraySeq.newBuilder[(Name, IR)]
+            val bodyEnv = extendEnv(env, ir, 1)
             val (liftedBody, builder) =
-              if (isScan) (lift(body, ab, aggBindings), scanBindings)
-              else (lift(body, scanBindings, ab), aggBindings)
+              if (isScan) (lift(body, bodyEnv, ab, aggBindings), scanBindings)
+              else (lift(body, bodyEnv, scanBindings, ab), aggBindings)
 
             val aggs = ab.result()
             val structResult = bindingsToStruct(aggs)
             val uid = Ref(freshName(), structResult.typ)
-            builder += (uid.name -> AggExplode(a, name, structResult, isScan))
-            Let(unwrapStruct(aggs, uid), liftedBody)
+            emit(builder, env, uid.name, AggExplode(a, name, structResult, isScan), isScan)
+            Block(unwrapStruct(aggs, uid), liftedBody)
 
           case AggGroupBy(a, body, isScan) =>
             val ab = ArraySeq.newBuilder[(Name, IR)]
+            val bodyEnv = extendEnv(env, ir, 1)
             val (liftedBody, builder) =
-              if (isScan) (lift(body, ab, aggBindings), scanBindings)
-              else (lift(body, scanBindings, ab), aggBindings)
+              if (isScan) (lift(body, bodyEnv, ab, aggBindings), scanBindings)
+              else (lift(body, bodyEnv, scanBindings, ab), aggBindings)
 
             val aggs = ab.result()
             val aggIR = AggGroupBy(a, bindingsToStruct(aggs), isScan)
             val uid = Ref(freshName(), aggIR.typ)
-            builder += (uid.name -> aggIR)
+            emit(builder, env, uid.name, aggIR, isScan)
             ToDict(mapIR(ToStream(uid)) { elt =>
               M.eval {
                 for {
                   key <- elt.get("key")
                   value <- elt.get("value")
-                  _ <- M.sequence(unwrapStruct(aggs, value).map(M.let[EVAL.type]): _*)
+                  _ <- unwrapM(aggs, value)
                 } yield maketuple(key, liftedBody)
               }
             })
 
           case AggArrayPerElement(a, elementName, indexName, body, knownLength, isScan) =>
             val ab = ArraySeq.newBuilder[(Name, IR)]
+            val bodyEnv = extendEnv(env, ir, 1)
             val (liftedBody, builder) =
-              if (isScan) (lift(body, ab, aggBindings), scanBindings)
-              else (lift(body, scanBindings, ab), aggBindings)
+              if (isScan) (lift(body, bodyEnv, ab, aggBindings), scanBindings)
+              else (lift(body, bodyEnv, scanBindings, ab), aggBindings)
 
             val aggs = ab.result()
             val aggBody = bindingsToStruct(aggs)
-            val aggIR =
-              AggArrayPerElement(a, elementName, indexName, aggBody, knownLength, isScan)
+            val aggIR = AggArrayPerElement(a, elementName, indexName, aggBody, knownLength, isScan)
             val uid = Ref(freshName(), aggIR.typ)
-            builder += (uid.name -> aggIR)
-            ToArray(mapIR(ToStream(uid))(eltUID => Let(unwrapStruct(aggs, eltUID), liftedBody)))
+            emit(builder, env, uid.name, aggIR, isScan)
+            ToArray(mapIR(ToStream(uid))(eltUID =>
+              Block(unwrapStruct(aggs, eltUID), liftedBody)
+            ))
 
           case Block(bindings, body) =>
-            val newBindings = ArraySeq.newBuilder[Binding]
             def go(
               i: Int,
+              env: LiftEnv,
               scanBindings: mutable.Growable[(Name, IR)],
               aggBindings: mutable.Growable[(Name, IR)],
-            ): IR =
-              if (i == bindings.length) lift(body, scanBindings, aggBindings)
+            ): M[EVAL.type] =
+              if (i == bindings.length) lift(body, env, scanBindings, aggBindings)
               else bindings(i) match {
-                case Binding(name, value, Scope.EVAL) =>
-                  val lifted = lift(value, scanBindings, aggBindings)
-                  val liftedBody = go(i + 1, scanBindings, aggBindings)
-                  newBindings += Binding(name, lifted, Scope.EVAL)
-                  liftedBody
-                case Binding(name, value, scope) =>
+                case Binding(name, value, EVAL) =>
+                  val valueEnv = env.extend(Bindings.get(ir, i).dropBindings)
+                  val v = lift(value, valueEnv, scanBindings, aggBindings)
+                  val liftedBody = go(i + 1, env.bindEval(name, Some(v)), scanBindings, aggBindings)
+                  if (movedScan.contains(name)) liftedBody else (name -> v) >> liftedBody
+                case b @ Binding(name, _, scope) =>
                   val ab = ArraySeq.newBuilder[(Name, IR)]
+                  val bodyEnv = env.bindInScope(name, None, scope)
                   val liftedBody =
-                    if (scope == Scope.SCAN) go(i + 1, ab, aggBindings)
-                    else go(i + 1, scanBindings, ab)
-
-                  val builder = if (scope == Scope.SCAN) scanBindings else aggBindings
+                    if (scope == SCAN) go(i + 1, bodyEnv, ab, aggBindings)
+                    else go(i + 1, bodyEnv, scanBindings, ab)
 
                   val aggs = ab.result()
-                  val structResult = bindingsToStruct(aggs)
+                  val result = Block(FastSeq(b), bindingsToStruct(aggs))
+                  val uid = Ref(freshName(), result.typ)
 
-                  val uid = Ref(freshName(), structResult.typ)
-                  builder += (uid.name -> Block(FastSeq(Binding(name, value, scope)), structResult))
-                  newBindings ++= unwrapStruct(aggs, uid).map(b =>
-                    Binding(b._1, b._2, Scope.EVAL)
-                  )
-                  liftedBody
+                  if (scope == SCAN) emit(scanBindings, env, uid.name, result, isScan = true)
+                  else emit(aggBindings, env, uid.name, result, isScan = false)
+
+                  unwrapM(aggs, uid) >> liftedBody
               }
 
-            val newBody = go(0, scanBindings, aggBindings)
-            Block(newBindings.result().reverse, newBody)
+            M.eval(go(0, env, scanBindings, aggBindings))
 
           case StreamAgg(a, name, query) =>
-            StreamAgg(lift(a, scanBindings, aggBindings), name, query)
+            StreamAgg(lift(a, env, scanBindings, aggBindings), name, query)
+
           case StreamAggScan(a, name, query) =>
-            StreamAggScan(lift(a, scanBindings, aggBindings), name, query)
+            StreamAggScan(lift(a, env, scanBindings, aggBindings), name, query)
+
+          case _: TableAggregate | _: MatrixAggregate =>
+            ir
 
           case _ =>
-            MapIR(lift(_, scanBindings, aggBindings))(ir)
+            ir.mapChildrenWithIndex {
+              case (c: IR, i) => lift(c, extendEnv(env, ir, i), scanBindings, aggBindings)
+              case (c, _) => c
+            }
         }
 
         val scanBuilder = ArraySeq.newBuilder[(Name, IR)]
         val aggBuilder = ArraySeq.newBuilder[(Name, IR)]
-
-        val b0 = lift(
-          lower(ctx, newCol, liftedRelationalLets),
-          scanBuilder,
-          aggBuilder,
-        )
+        val env = LiftEnv(colName)
+        val b0 = lift(lower(ctx, newCol, liftedRelationalLets), env, scanBuilder, aggBuilder)
 
         val aggs = aggBuilder.result()
         val scans = scanBuilder.result()
@@ -531,32 +627,34 @@ object LowerMatrixIR extends Logging {
           else {
             val RunAgg =
               lc.deepCopy.aggregate { (global, row) =>
-                M.eval {
+                M.agg {
                   for {
-                    cols <- global.get(colsFieldName)
-                    _ <- globalName -> global.select(child.typ.globalType.fieldNames)
-                    result <- M.lift[AGG.type] {
-                      for {
-                        aggCols <- global.get(colsFieldName)
-                        entries <- row.get(entriesFieldName)
-                        _ <- globalName -> global.select(child.typ.globalType.fieldNames)
-                        _ <- rowName -> row.select(child.typ.rowType.fieldNames)
-                      } yield makestruct(
-                        "__n_rows" ->
-                          ApplyAggOp(Count())(),
-                        "__array_aggs" ->
-                          rangeIR(aggCols.len).toArray.aggElements(Some(cols.len)) { (elem, idx) =>
-                            M.agg {
-                              for {
-                                _ <- colName -> aggCols.at(elem)
-                                g <- entryName -> entries.at(elem)
-                                _ <- M.lift[EVAL.type]((colName -> cols.at(idx)) >> M.unit)
-                              } yield AggFilter(!g.isNA, bindingsToStruct(aggs), isScan = false)
-                            }
-                          },
+                    _ <- M.lift[EVAL.type] {
+                      M.sequence[EVAL.type](
+                        cols.name -> global.get(colsFieldName),
+                        globalName -> global.select(child.typ.globalType.fieldNames),
+                        aggTop,
+                        M.unit,
                       )
                     }
-                  } yield result
+
+                    aggCols <- global.get(colsFieldName)
+                    entries <- row.get(entriesFieldName)
+                    _ <- globalName -> global.select(child.typ.globalType.fieldNames)
+                    _ <- rowName -> row.select(child.typ.rowType.fieldNames)
+                  } yield makestruct(
+                    "__n_rows" ->
+                      ApplyAggOp(Count())(),
+                    "__array_aggs" ->
+                      rangeIR(aggCols.len).toArray.aggElements(Some(cols.len)) { (elem, _) =>
+                        M.agg {
+                          for {
+                            _ <- colName -> aggCols.at(elem)
+                            g <- entryName -> entries.at(elem)
+                          } yield AggFilter(!g.isNA, bindingsToStruct(aggs), isScan = false)
+                        }
+                      },
+                  )
                 }
               }
 
@@ -574,9 +672,7 @@ object LowerMatrixIR extends Logging {
               } yield unit
 
             val bindBody: M[EVAL.type] =
-              arrayAggs.at(colIdx).flatMap { elem =>
-                M.sequence(unwrapStruct(aggs, elem).map(M.let[EVAL.type]): _*)
-              }
+              arrayAggs.at(colIdx).flatMap(elem => unwrapM(aggs, elem))
 
             (bindResult, bindBody)
           }
@@ -591,12 +687,10 @@ object LowerMatrixIR extends Logging {
             val result = Ref(Name("__scan_result"), RunScan.typ)
 
             val bindResult: M[EVAL.type] =
-              result.name -> RunScan
+              scanTop >> M.let(result.name -> RunScan)
 
             val bindBody: M[EVAL.type] =
-              result.at(colIdx).flatMap { elem =>
-                M.sequence(unwrapStruct(scans, elem).map(M.let[EVAL.type]): _*)
-              }
+              result.at(colIdx).flatMap(elem => unwrapM(scans, elem))
 
             (bindResult, bindBody)
           }
