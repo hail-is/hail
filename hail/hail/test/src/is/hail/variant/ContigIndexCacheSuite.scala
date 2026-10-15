@@ -8,8 +8,8 @@ import is.hail.backend.ExecuteContext
 import is.hail.expr.ir._
 import is.hail.expr.ir.TestUtils.collect
 import is.hail.expr.ir.defs.{Literal, TableWrite}
-import is.hail.types.physical.PCanonicalLocus
 import is.hail.types.physical.LocusRepresentations.withReference
+import is.hail.types.physical.PCanonicalLocus
 import is.hail.types.physical.stypes.interfaces.SLocusValue
 import is.hail.types.virtual.{TArray, TInt32, TLocus, TString}
 import is.hail.variant.ContigIndexCacheSuite.{
