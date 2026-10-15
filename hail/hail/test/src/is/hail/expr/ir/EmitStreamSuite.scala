@@ -101,7 +101,7 @@ class EmitStreamSuite {
       if (arg == null)
         f(r, 0L, true)
       else
-        f(r, ScalaToRegionValue(ctx.stateManager, r, inputType, arg), false)
+        f(r, ScalaToRegionValue(r, inputType, arg), false)
     }
   }
 
@@ -132,7 +132,7 @@ class EmitStreamSuite {
             eos = true
             0L
           } else
-            ScalaToRegionValue(ctx.stateManager, _eltRegion, elementType, it.next())
+            ScalaToRegionValue(_eltRegion, elementType, it.next())
         override def close(): Unit = ()
       }
       assert(it != null, "null iterators not supported")
@@ -938,7 +938,6 @@ class EmitStreamSuite {
 
     ctx.r.pool.scopedSmallRegion { r =>
       val input = t.unstagedStoreJavaObject(
-        ctx.stateManager,
         RowSeq(null, IndexedSeq(1d, 2d), IndexedSeq(3d, 4d)),
         r,
       )

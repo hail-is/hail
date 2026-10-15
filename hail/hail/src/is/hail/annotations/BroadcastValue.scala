@@ -32,7 +32,7 @@ object BroadcastRow {
 
   def apply(ctx: ExecuteContext, value: Row, t: TBaseStruct): BroadcastRow = {
     val pType = PType.literalPType(t, value).asInstanceOf[PStruct]
-    val offset = pType.unstagedStoreJavaObject(ctx.stateManager, value, ctx.r)
+    val offset = pType.unstagedStoreJavaObject(value, ctx.r)
     BroadcastRow(ctx, RegionValue(ctx.r, offset), pType)
   }
 }
@@ -113,7 +113,7 @@ case class BroadcastRow(ctx: ExecuteContext, value: RegionValue, t: PStruct)
       ctx,
       RegionValue(
         value.region,
-        newT.copyFromAddress(ctx.stateManager, value.region, t, value.offset, deepCopy = false),
+        newT.copyFromAddress(value.region, t, value.offset, deepCopy = false),
       ),
       newT,
     )
@@ -142,7 +142,7 @@ case class BroadcastIndexedSeq(
       ctx,
       RegionValue(
         value.region,
-        newT.copyFromAddress(ctx.stateManager, value.region, t, value.offset, deepCopy = false),
+        newT.copyFromAddress(value.region, t, value.offset, deepCopy = false),
       ),
       newT,
     )

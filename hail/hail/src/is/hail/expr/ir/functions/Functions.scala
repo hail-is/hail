@@ -3,7 +3,7 @@ package is.hail.expr.ir.functions
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.asm4s.implicits.valueToRichCodeRegion
-import is.hail.backend.{ExecuteContext, HailStateManager}
+import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
 import is.hail.collection.implicits.toRichIterable
 import is.hail.experimental.ExperimentalFunctions
@@ -296,7 +296,7 @@ object RegistryHelpers {
   def stupidUnwrapStruct(rgs: Map[String, ReferenceGenome], r: Region, value: Row, ptype: PType)
     : Long = {
     assert(value != null)
-    ptype.unstagedStoreJavaObject(HailStateManager(rgs), value, r)
+    ptype.unstagedStoreJavaObject(value, r)
   }
 
   def stupidUnwrapArray(
@@ -306,7 +306,7 @@ object RegistryHelpers {
     ptype: PType,
   ): Long = {
     assert(value != null)
-    ptype.unstagedStoreJavaObject(HailStateManager(rgs), value, r)
+    ptype.unstagedStoreJavaObject(value, r)
   }
 }
 

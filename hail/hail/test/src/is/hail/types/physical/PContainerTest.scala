@@ -24,7 +24,7 @@ class PContainerTest extends PhysicalTestUtils {
   )(implicit ctx: ExecuteContext
   ) = {
     val srcRegion = Region(pool = ctx.r.pool)
-    val src = ScalaToRegionValue(ctx.stateManager, srcRegion, sourceType, data)
+    val src = ScalaToRegionValue(srcRegion, sourceType, data)
 
     logger.info(s"Testing $data")
 
@@ -42,7 +42,7 @@ class PContainerTest extends PhysicalTestUtils {
   )(implicit ctx: ExecuteContext
   ) = {
     val srcRegion = Region(pool = ctx.r.pool)
-    val src = ScalaToRegionValue(ctx.stateManager, srcRegion, sourceType, data)
+    val src = ScalaToRegionValue(srcRegion, sourceType, data)
 
     logger.info(s"Testing $data")
 
@@ -64,7 +64,7 @@ class PContainerTest extends PhysicalTestUtils {
   )(implicit ctx: ExecuteContext
   ) = {
     val srcRegion = Region(pool = ctx.r.pool)
-    val src = ScalaToRegionValue(ctx.stateManager, srcRegion, sourceType, data)
+    val src = ScalaToRegionValue(srcRegion, sourceType, data)
 
     logger.info(s"\nTesting $data")
 

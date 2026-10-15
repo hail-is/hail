@@ -2,7 +2,6 @@ package is.hail.types.physical
 
 import is.hail.annotations.{Annotation, Region}
 import is.hail.asm4s.{Code, Value}
-import is.hail.backend.HailStateManager
 import is.hail.collection.implicits.toRichIterable
 import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.types.physical.stypes.SValue
@@ -120,7 +119,6 @@ final case class PSubsetStruct(ps: PStruct, _fieldNames: IndexedSeq[String])
     PSubsetStruct(ps.setRequired(required).asInstanceOf[PStruct], _fieldNames)
 
   override def copyFromAddress(
-    sm: HailStateManager,
     region: Region,
     srcPType: PType,
     srcAddress: Long,
@@ -129,7 +127,6 @@ final case class PSubsetStruct(ps: PStruct, _fieldNames: IndexedSeq[String])
     throw new UnsupportedOperationException
 
   override def _copyFromAddress(
-    sm: HailStateManager,
     region: Region,
     srcPType: PType,
     srcAddress: Long,
@@ -157,7 +154,6 @@ final case class PSubsetStruct(ps: PStruct, _fieldNames: IndexedSeq[String])
     throw new UnsupportedOperationException
 
   override def unstagedStoreAtAddress(
-    sm: HailStateManager,
     addr: Long,
     region: Region,
     srcPType: PType,
@@ -170,12 +166,10 @@ final case class PSubsetStruct(ps: PStruct, _fieldNames: IndexedSeq[String])
 
   override def unstagedLoadFromNested(addr: Long): Long = addr
 
-  override def unstagedStoreJavaObject(sm: HailStateManager, annotation: Annotation, region: Region)
-    : Long =
+  override def unstagedStoreJavaObject(annotation: Annotation, region: Region): Long =
     throw new UnsupportedOperationException
 
   override def unstagedStoreJavaObjectAtAddress(
-    sm: HailStateManager,
     addr: Long,
     annotation: Annotation,
     region: Region,

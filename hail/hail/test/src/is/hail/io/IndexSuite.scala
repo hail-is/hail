@@ -81,7 +81,6 @@ class IndexSuite {
     val (irt, intDec) = intSpec.buildDecoder(ctx, intPType.virtualType)
     assert(irt == intPType)
     IndexReaderBuilder.withDecoders(
-      ctx,
       leafDec,
       intDec,
       keyPType.virtualType,

@@ -175,7 +175,6 @@ class RVD(
     val partitionerBc = partitioner.broadcast(crdd.sparkContext)
     val localType = typ
     val localKPType = typ.kType
-    val stateManager = partitioner.sm
 
     val ord = PartitionBoundOrdering(localType.kType.virtualType)
     new RVD(
@@ -183,7 +182,7 @@ class RVD(
       partitioner,
       crdd.cmapPartitionsWithIndex { case (i, _, ctx, it) =>
         val regionForWriting = ctx.freshRegion() // This one gets cleaned up when context is freed.
-        val prevK = WritableRegionValue(stateManager, localType.kType, regionForWriting)
+        val prevK = WritableRegionValue(localType.kType, regionForWriting)
         val kUR = new UnsafeRow(localKPType)
 
         new Iterator[Long] {
@@ -295,7 +294,7 @@ class RVD(
         new RVD(
           typ.copy(key = typ.key.take(newPartitioner.kType.size)),
           newPartitioner,
-          RepartitionedOrderedRDD2(ctx.stateManager, this, newPartitioner.rangeBounds),
+          RepartitionedOrderedRDD2(this, newPartitioner.rangeBounds),
         )
       else
         this
@@ -413,11 +412,10 @@ class RVD(
   // Key-wise operations
 
   def distinctByKey(execCtx: ExecuteContext): RVD = {
-    val sm = execCtx.stateManager
     val localType = typ
     repartition(execCtx, partitioner.strictify())
       .mapPartitions(typ)((_, ctx, it) =>
-        OrderedRVIterator(localType, it.toIteratorRV(ctx.r), ctx, sm)
+        OrderedRVIterator(localType, it.toIteratorRV(ctx.r), ctx)
           .staircase
           .map(_.value.offset)
       )
@@ -429,9 +427,8 @@ class RVD(
     require(partitioner.satisfiesAllowedOverlap(typ.key.length - 1))
 
     val localTyp = typ
-    val localSm = partitioner.sm
     val sortedRDD = crdd.toCRDDRegionValue.cmapPartitions { (_, consumerCtx, it) =>
-      OrderedRVIterator(localTyp, it, consumerCtx, localSm).localKeySort(newKey)
+      OrderedRVIterator(localTyp, it, consumerCtx).localKeySort(newKey)
     }.toCRDDPtr
 
     val newType = typ.copy(key = newKey)
@@ -960,14 +957,12 @@ class RVD(
     require(joinKey <= this.typ.key.length)
     require(joinKey <= that.typ.key.length)
 
-    val sm = partitioner.sm
     val left = this.truncateKey(newTyp.key)
     RVD(
       typ = newTyp,
       partitioner = left.partitioner,
       crdd = left.crdd.toCRDDRegionValue.czipPartitions(
         RepartitionedOrderedRDD2(
-          sm,
           that,
           this.partitioner.coarsenedRangeBounds(joinKey),
         ).toCRDDRegionValue
@@ -1092,10 +1087,9 @@ object RVD extends Logging {
   ): ContextRDD[Long] = {
     // The region values in 'crdd' are of type `typ.rowType`
     val localType = typ
-    val sm = ctx.stateManager
     crdd.cmapPartitionsWithContext { (hcl, consumerCtx, it) =>
       val producerCtx = consumerCtx.freshContext()
-      val wrv = WritableRegionValue(sm, localType.kType, consumerCtx.region)
+      val wrv = WritableRegionValue(localType.kType, consumerCtx.region)
       it(hcl, producerCtx).map { ptr =>
         wrv.setSelect(localType.rowType, localType.kFieldIdx, ptr, deepCopy = true)
         producerCtx.region.clear()
@@ -1125,11 +1119,9 @@ object RVD extends Logging {
 
     val localType = typ
 
-    val sm = ctx.stateManager
     val keyInfo = keys.crunJobWithIndex { (i, _, rvdContext, it) =>
       if (it.hasNext)
         Some(RVDPartitionInfo(
-          sm,
           localType,
           partitionKey,
           samplesPerPartition,
@@ -1333,14 +1325,13 @@ object RVD extends Logging {
     if (rvds.length == 1 || rvds.forall(_.rowPType == rvds.head.rowPType))
       return rvds
 
-    val sm = execCtx.stateManager
     val unifiedRowPType = InferPType.getCompatiblePType(rvds.map(_.rowPType)).asInstanceOf[PStruct]
     val unifiedKey = rvds.map(_.typ.key).reduce((l, r) => commonPrefix(l, r))
     rvds.map { rvd =>
       val srcRowPType = rvd.rowPType
       val newRVDType = rvd.typ.copy(rowType = unifiedRowPType, key = unifiedKey)
       rvd.map(newRVDType)((_, ctx, ptr) =>
-        unifiedRowPType.copyFromAddress(sm, ctx.r, srcRowPType, ptr, false)
+        unifiedRowPType.copyFromAddress(ctx.r, srcRowPType, ptr, false)
       )
     }
   }

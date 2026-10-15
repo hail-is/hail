@@ -2,7 +2,7 @@ package is.hail.expr.ir.agg
 
 import is.hail.annotations.{Region, RegionValueBuilder, UnsafeRow}
 import is.hail.asm4s._
-import is.hail.backend.{ExecuteContext, HailStateManager}
+import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder, IEmitCode}
 import is.hail.linalg.{DenseMatrix, MatrixSingularException, NotConvergedException}
 import is.hail.types.physical._
@@ -47,7 +47,7 @@ object LinearRegressionAggregator {
         .asInstanceOf[IndexedSeq[Double]].toArray[Double],
     )
 
-    val rvb = new RegionValueBuilder(HailStateManager(Map.empty), region)
+    val rvb = new RegionValueBuilder(region)
     rvb.start(resultPType)
     rvb.startStruct()
 

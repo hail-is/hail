@@ -100,9 +100,7 @@ object AbstractRVDSpec {
           RichContextRDDRegionValue.writeRowsPartition(codecSpec.buildEncoder(execCtx, rowType))(
             execCtx.theHailClassLoader,
             ctx,
-            rows.iterator.map { a =>
-              rowType.unstagedStoreJavaObject(execCtx.stateManager, a, ctx.r)
-            },
+            rows.iterator.map(a => rowType.unstagedStoreJavaObject(a, ctx.r)),
             os,
             null,
           )

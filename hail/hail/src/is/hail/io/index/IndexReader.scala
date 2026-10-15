@@ -2,7 +2,7 @@ package is.hail.io.index
 
 import is.hail.annotations._
 import is.hail.asm4s.HailClassLoader
-import is.hail.backend.{ExecuteContext, HailStateManager}
+import is.hail.backend.ExecuteContext
 import is.hail.collection.implicits.toRichIndexedSeq
 import is.hail.io._
 import is.hail.io.fs.{FS, SeekableDataInputStream}
@@ -31,7 +31,6 @@ object IndexReaderBuilder {
     val (intPType: PStruct, intDec) =
       spec.internalNodeCodec.buildDecoder(ctx, spec.internalNodeCodec.encodedVirtualType)
     withDecoders(
-      ctx,
       leafDec,
       intDec,
       keyType,
@@ -42,7 +41,6 @@ object IndexReaderBuilder {
   }
 
   def withDecoders(
-    ctx: ExecuteContext,
     leafDec: (InputStream, HailClassLoader) => Decoder,
     intDec: (InputStream, HailClassLoader) => Decoder,
     keyType: Type,
@@ -50,12 +48,11 @@ object IndexReaderBuilder {
     leafPType: PStruct,
     intPType: PStruct,
   ): (HailClassLoader, FS, String, Int, RegionPool) => IndexReader = {
-    val sm = ctx.stateManager
     (theHailClassLoader, fs, path, cacheCapacity, pool) =>
       new IndexReader(
         theHailClassLoader, fs, path, cacheCapacity, leafDec, intDec, keyType,
         annotationType,
-        leafPType, intPType, pool, sm)
+        leafPType, intPType, pool)
   }
 }
 
@@ -129,7 +126,6 @@ class IndexReader(
   val leafPType: PStruct,
   val internalPType: PStruct,
   val pool: RegionPool,
-  val sm: HailStateManager,
 ) extends AutoCloseable with Logging {
   /* prior to ~0.2.139, The index files were written as a directory with two files, the index
    * itself, and a metadata.json.gz, when reading an index, we switch on if the old style metadata

@@ -1,7 +1,6 @@
 package is.hail.sparkextras
 
 import is.hail.annotations._
-import is.hail.backend.HailStateManager
 import is.hail.collection.FastSeq
 import is.hail.rvd.{PartitionBoundOrdering, RVD, RVDPartitioner, RVDType}
 import is.hail.utils._
@@ -29,16 +28,14 @@ class OrderedDependency[T](
 }
 
 object RepartitionedOrderedRDD2 {
-  def apply(sm: HailStateManager, prev: RVD, newRangeBounds: IndexedSeq[Interval])
-    : ContextRDD[Long] =
-    ContextRDD(new RepartitionedOrderedRDD2(sm, prev, newRangeBounds))
+  def apply(prev: RVD, newRangeBounds: IndexedSeq[Interval]): ContextRDD[Long] =
+    ContextRDD(new RepartitionedOrderedRDD2(prev, newRangeBounds))
 }
 
 /** Repartition 'prev' to comply with 'newRangeBounds', using narrow dependencies. Assumes new key
   * type is a prefix of old key type, so no reordering is needed.
   */
 class RepartitionedOrderedRDD2 private (
-  sm: HailStateManager,
   @transient val prev: RVD,
   @transient val newRangeBounds: IndexedSeq[Interval],
 ) extends RDD[ContextRDD.Element[Long]](prev.crdd.sparkContext, Nil) { // Nil since we implement getDependencies

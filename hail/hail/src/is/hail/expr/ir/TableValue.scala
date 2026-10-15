@@ -115,7 +115,6 @@ object TableValue extends Logging {
       globalType = newGlobalType,
     )
     val ctx = childValues.head.ctx
-    val sm = ctx.stateManager
 
     val childRVDs = RVD.unify(ctx, childValues.map(_.rvd))
     assert(childRVDs.forall(_.typ.key.startsWith(typ.key)))
@@ -153,7 +152,7 @@ object TableValue extends Logging {
     )
     val localDataLength = childValues.length
     val rvMerger = { (ctx: RVDContext, it: Iterator[collection.IndexedSeq[(RegionValue, Int)]]) =>
-      val rvb = new RegionValueBuilder(sm)
+      val rvb = new RegionValueBuilder()
       val newRegionValue = RegionValue()
 
       it.map { rvs =>
@@ -186,8 +185,8 @@ object TableValue extends Logging {
       partitioner = newPartitioner,
       crdd = ContextRDD.czipNPartitions(repartitionedRVDs.map(_.crdd.toCRDDRegionValue)) {
         (ctx, its) =>
-          val orvIters = its.map(it => OrderedRVIterator(localRVDType, it, ctx, sm))
-          rvMerger(ctx, OrderedRVIterator.multiZipJoin(sm, orvIters))
+          val orvIters = its.map(it => OrderedRVIterator(localRVDType, it, ctx))
+          rvMerger(ctx, OrderedRVIterator.multiZipJoin(orvIters))
       }.toCRDDPtr,
     )
 
@@ -440,7 +439,6 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
   def aggregateByKey(extracted: IndependentExtractedAggs): TableValue = {
     val prevRVD = rvd.truncateKey(typ.key)
     val fsBc = ctx.fsBc
-    val sm = ctx.stateManager
 
     val aggSigs = extracted.sigs
 
@@ -529,7 +527,7 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
         new Iterator[Long] {
           var isEnd = false
           var current: Long = 0
-          val rowKey: WritableRegionValue = WritableRegionValue(sm, keyType, ctx.freshRegion())
+          val rowKey: WritableRegionValue = WritableRegionValue(keyType, ctx.freshRegion())
           val consumerRegion: Region = ctx.region
 
           override def hasNext: Boolean = {
@@ -696,7 +694,6 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
     val rightRVDType = rightValue.rvd.typ.copy(key = rightValue.typ.key)
     val rightValueFields = rightRVDType.valueType.fieldNames
 
-    val sm = ctx.stateManager
     val localKey = typ.key
     val localRoot = root
     val newRVD =
@@ -710,7 +707,7 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
           (
             RVDType(newRowType, localKey),
             (_: RVDContext, it: Iterator[Muple[RegionValue, Iterable[RegionValue]]]) => {
-              val rvb = new RegionValueBuilder(sm)
+              val rvb = new RegionValueBuilder()
               val rv2 = RegionValue()
               it.map { case Muple(rv, is) =>
                 rvb.set(rv.region)
@@ -741,7 +738,7 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
           (
             RVDType(newRowType, localKey),
             (_: RVDContext, it: Iterator[JoinedRegionValue]) => {
-              val rvb = new RegionValueBuilder(sm)
+              val rvb = new RegionValueBuilder()
               val rv2 = RegionValue()
               it.map { case Muple(rv, i) =>
                 rvb.set(rv.region)
@@ -778,7 +775,6 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
     bufferSize: Int,
   ): TableValue = {
     val fsBc = ctx.fsBc
-    val sm = ctx.stateManager
 
     val aggSigs = extracted.sigs
 
@@ -917,7 +913,7 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
     val crdd = ContextRDD.weaken(rdd).cmapPartitionsWithIndex({ (i, hcl, ctx, it) =>
       val region = ctx.region
 
-      val rvb = new RegionValueBuilder(sm)
+      val rvb = new RegionValueBuilder()
       val partRegion = ctx.partitionRegion
       val tc = SparkTaskContext.get()
       val globals = globalsBc.value.readRegionValue(partRegion, hcl)
