@@ -37,6 +37,10 @@ def test_config_list_empty_config(runner: CliRunner):
         ('query/batch_worker_memory', 'standard'),
         ('query/name_prefix', 'foo'),
         ('query/disable_progress_bar', '1'),
+        ('emr/region', 'us-east-1'),
+        ('emr/region', 'us-gov-west-1'),
+        ('emr/region', 'ap-southeast-3'),
+        ('emr/remote_tmpdir', 's3://foo/bar'),
     ],
 )
 def test_config_set_get_list_unset(name: str, value: str, runner: CliRunner, config_dir: str):
@@ -117,6 +121,8 @@ def test_config_unset_unknown_name(runner: CliRunner):
         ('query/batch_driver_memory', '1bar'),
         ('query/batch_worker_memory', 'random'),
         ('query/disable_progress_bar', '2'),
+        ('emr/region', 'not a region'),
+        ('emr/remote_tmpdir', 'gs://foo/bar'),
     ],
 )
 def test_config_set_bad_value(name: str, value: str, runner: CliRunner):
