@@ -25,6 +25,7 @@ import scala.collection.mutable.ArrayBuffer
 
 import java.io.OutputStream
 
+import org.json4s.Formats
 import org.json4s.jackson.Serialization
 
 trait AbstractIndexMetadata {
@@ -245,7 +246,7 @@ case class StagedIndexMetadata(
   attributes: Map[String, Any],
 ) {
   def serialize(out: OutputStream, height: Int, rootOffset: Long, nKeys: Long): Unit = {
-    import AbstractRVDSpec.formats
+    implicit val formats: Formats = AbstractRVDSpec.formats
     val metadata = IndexMetadata(
       IndexWriter.version.rep,
       branchingFactor,

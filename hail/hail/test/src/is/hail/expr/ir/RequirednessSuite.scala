@@ -729,7 +729,8 @@ class RequirednessSuite {
       )
     }
 
-    val reader = TableNativeReader(ctx.fs, TableNativeReaderParameters(path, None))
+    val reader =
+      TableNativeReader(ctx.fs, ctx.referenceGenomes, TableNativeReaderParameters(path, None))
     Array(
       table.typ,
       TableType(TStruct("a" -> tnestedarray), FastSeq(), TStruct("z" -> tstruct)),
