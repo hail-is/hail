@@ -23,6 +23,8 @@ export interface UseBatchListResult {
   goToNextPage: () => void;
   goToPreviousPage: () => void;
   goToFirstPage: () => void;
+  cancelBatch: (_batchId: number) => Promise<void>;
+  deleteBatch: (_batchId: number) => Promise<void>;
 }
 
 export const REFRESH_INTERVAL_MS = 30_000;
@@ -150,6 +152,16 @@ export function useBatchList(basePath: string, username: string): UseBatchListRe
     syncUrl(q, undefined);
   }, [q]);
 
+  const cancelBatch = useCallback(async (batchId: number) => {
+    await api.cancelBatch(String(batchId));
+    await fetchData('refresh', q, pageLastBatchId);
+  }, [api, fetchData, q, pageLastBatchId]);
+
+  const deleteBatch = useCallback(async (batchId: number) => {
+    await api.deleteBatch(String(batchId));
+    await fetchData('refresh', q, pageLastBatchId);
+  }, [api, fetchData, q, pageLastBatchId]);
+
   return {
     batches,
     error,
@@ -169,5 +181,7 @@ export function useBatchList(basePath: string, username: string): UseBatchListRe
     goToNextPage,
     goToPreviousPage,
     goToFirstPage,
+    cancelBatch,
+    deleteBatch,
   };
 }

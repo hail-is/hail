@@ -26,6 +26,7 @@ export interface Batch {
   time_completed?: string | null;
   duration_ms?: number | null;
   duration?: string | null;
+  msec_mcpu?: number | null;
   cost: number;
   cost_breakdown?: CostBreakdownEntry[] | null;
   attributes?: Record<string, string>;
