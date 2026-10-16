@@ -241,7 +241,7 @@ class MatrixIRSuite {
     val row = Ref(MatrixIR.rowName, mt.typ.rowType)
     val v = scanSumAndMax(row.get("row_idx"))
     val rows = getRows(MatrixMapRows(mt, InsertFields(row.deepCopy, FastSeq("v" -> v))))
-    assert(rows.toSeq == expectedSumAndMax(5))
+    assertEq(rows.toSeq, expectedSumAndMax(5))
   }
 
   @Test def testScanBlockBindingOnCols(implicit ctx: ExecuteContext): Unit = {
@@ -249,7 +249,7 @@ class MatrixIRSuite {
     val col = Ref(MatrixIR.colName, mt.typ.colType)
     val v = scanSumAndMax(col.get("col_idx"))
     val cols = getCols(MatrixMapCols(mt, InsertFields(col.deepCopy, FastSeq("v" -> v)), None))
-    assert(cols.toSeq == expectedSumAndMax(5))
+    assertEq(cols.toSeq, expectedSumAndMax(5))
   }
 
   @Test def testScanInitArgBoundInNewRow(implicit ctx: ExecuteContext): Unit = {
@@ -263,7 +263,7 @@ class MatrixIRSuite {
     }
     val rows = getRows(MatrixMapRows(mt, InsertFields(row.deepCopy, FastSeq("v" -> v))))
     val expected = (0 until 5).map(i => RowSeq(i, RowSeq(0 until math.min(i, 2), 2)))
-    assert(rows.toSeq == expected)
+    assertEq(rows.toSeq, expected)
   }
 
   @Test def testScanOfAggOnRows(implicit ctx: ExecuteContext): Unit = {
@@ -324,7 +324,7 @@ class MatrixIRSuite {
     val mapped = MatrixMapCols(mt, InsertFields(col.deepCopy, FastSeq("v" -> v)), None)
     val cols = unoptimized(getCols(mapped)(_))
     val expected = (0 until 5).map(i => RowSeq(i, RowSeq(0 until math.min(i, 2), 2)))
-    assert(cols.toSeq == expected)
+    assertEq(cols.toSeq, expected)
   }
 
   @Test def testAggInitArgBoundInNewCol(implicit ctx: ExecuteContext): Unit = {
@@ -340,7 +340,7 @@ class MatrixIRSuite {
     val mapped = MatrixMapCols(mt, InsertFields(col.deepCopy, FastSeq("v" -> v)), None)
     val cols = unoptimized(getCols(mapped)(_))
     val expected = (0 until 5).map(i => RowSeq(i, RowSeq(0 until 2, 2)))
-    assert(cols.toSeq == expected)
+    assertEq(cols.toSeq, expected)
   }
 
   @Test def testAggSeqArgReadsColOnCols(implicit ctx: ExecuteContext): Unit = {
@@ -348,7 +348,7 @@ class MatrixIRSuite {
     val col = Ref(MatrixIR.colName, mt.typ.colType)
     val v = ApplyAggOp(Sum())(col.get("col_idx").toL)
     val cols = getCols(MatrixMapCols(mt, InsertFields(col.deepCopy, FastSeq("v" -> v)), None))
-    assert(cols.toSeq == (0 until 5).map(i => RowSeq(i, 3L * i)))
+    assertEq(cols.toSeq, (0 until 5).map(i => RowSeq(i, 3L * i)))
   }
 
   @Test def testAggBlockBindingOnCols(implicit ctx: ExecuteContext): Unit = {
@@ -363,7 +363,7 @@ class MatrixIRSuite {
       } yield maketuple(sum, count)
     }
     val cols = getCols(MatrixMapCols(mt, InsertFields(col.deepCopy, FastSeq("v" -> v)), None))
-    assert(cols.toSeq == (0 until 5).map(i => RowSeq(i, RowSeq(3L, i.toLong))))
+    assertEq(cols.toSeq, (0 until 5).map(i => RowSeq(i, RowSeq(3L, i.toLong))))
   }
 
   @Test def testScanTransitiveInitArgOnRows(implicit ctx: ExecuteContext): Unit = {
@@ -372,7 +372,7 @@ class MatrixIRSuite {
     val v = takeWithTransitiveInitArg(ApplyScanOp(Take(), _)(row.get("row_idx")))
     val mapped = MatrixMapRows(mt, InsertFields(row.deepCopy, FastSeq("v" -> v)))
     val rows = unoptimized(getRows(mapped)(_))
-    assert(rows.toSeq == (0 until 5).map(i => RowSeq(i, RowSeq(0 until math.min(i, 1), 2))))
+    assertEq(rows.toSeq, (0 until 5).map(i => RowSeq(i, RowSeq(0 until math.min(i, 1), 2))))
   }
 
   @Test def testScanTransitiveInitArgOnCols(implicit ctx: ExecuteContext): Unit = {
@@ -381,7 +381,7 @@ class MatrixIRSuite {
     val v = takeWithTransitiveInitArg(ApplyScanOp(Take(), _)(col.get("col_idx")))
     val mapped = MatrixMapCols(mt, InsertFields(col.deepCopy, FastSeq("v" -> v)), None)
     val cols = unoptimized(getCols(mapped)(_))
-    assert(cols.toSeq == (0 until 5).map(i => RowSeq(i, RowSeq(0 until math.min(i, 1), 2))))
+    assertEq(cols.toSeq, (0 until 5).map(i => RowSeq(i, RowSeq(0 until math.min(i, 1), 2))))
   }
 
   @Test def testAggTransitiveInitArgOnCols(implicit ctx: ExecuteContext): Unit = {
@@ -391,7 +391,7 @@ class MatrixIRSuite {
     val v = takeWithTransitiveInitArg(ApplyAggOp(Take(), _)(row.get("row_idx")))
     val mapped = MatrixMapCols(mt, InsertFields(col.deepCopy, FastSeq("v" -> v)), None)
     val cols = unoptimized(getCols(mapped)(_))
-    assert(cols.toSeq == (0 until 5).map(i => RowSeq(i, RowSeq(FastSeq(0), 2))))
+    assertEq(cols.toSeq, (0 until 5).map(i => RowSeq(i, RowSeq(FastSeq(0), 2))))
   }
 
   def rangeRowMatrix(start: Int, end: Int)(implicit ctx: ExecuteContext): MatrixIR = {
