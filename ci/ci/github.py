@@ -8,6 +8,7 @@ import random
 import re
 import secrets
 import time
+import traceback
 from shlex import quote as shq
 from typing import Any, Dict, FrozenSet, Iterable, List, Optional, Protocol, Sequence, Set, Union
 
@@ -28,6 +29,7 @@ from .build import BuildConfiguration, Code
 from .build_selection import compute_requested_steps
 from .constants import AUTHORIZED_USERS, COMPILER_TEAM, GITHUB_CLONE_URL, GITHUB_STATUS_CONTEXT, SERVICES_TEAM
 from .environment import CLOUD, DEPLOY_STEPS, REGION
+from .events import CIEvent, record_event
 from .globals import is_test_deployment
 from .utils import GithubStatus, add_deployed_services, github_status
 
@@ -68,7 +70,7 @@ WHERE sha = %s
     return record is not None
 
 
-async def send_zulip_deploy_failure_message(message: str, db: Database, sha: Optional[str]):
+async def send_zulip_deploy_failure_message(message: str, db: Database, target_branch: str, sha: Optional[str]):
     if zulip_client is None:
         log.info('Zulip integration is not enabled. No config file found')
         return
@@ -87,6 +89,7 @@ async def send_zulip_deploy_failure_message(message: str, db: Database, sha: Opt
     }
     result = zulip_client.send_message(request)
     log.info(result)
+    await record_event(db, CIEvent.DEPLOY_FAILURE_ALERTED, target_branch=target_branch, target_sha=sha)
 
     if sha is not None:
         await db.execute_insertone(
@@ -196,6 +199,16 @@ class MergeFailureBatch:
     def __init__(self, exception: BaseException, attributes: Dict[str, str]):
         self.exception = exception
         self.attributes = attributes
+
+
+def describe_exception(e: BaseException) -> str:
+    if isinstance(e, CalledProcessError):
+        stdout = e.stdout.decode('utf-8', errors='replace')
+        stderr = e.stderr.decode('utf-8', errors='replace')
+        return f'command exited with status {e.returncode}\nstdout:\n{stdout}\nstderr:\n{stderr}'
+    if isinstance(e, gidgethub.HTTPException):
+        return f'{int(e.status_code)} {type(e).__name__}: {e}'
+    return ''.join(traceback.format_exception_only(type(e), e))
 
 
 ASSIGN_SERVICES = '#assign services'
@@ -330,6 +343,21 @@ class PR(Code):
     def increment_pr_metric(self):
         TRACKED_PRS.labels(build_state=self.build_state, review_state=self.review_state).inc()
 
+    async def request_build(self, db: Database, reason: str):
+        if reason == self.pending_build_reason:
+            return
+        self.pending_build_reason = reason
+        if reason != 'unknown':
+            await record_event(
+                db,
+                CIEvent.BUILD_REQUESTED,
+                target_branch=self.target_branch.branch.short_str(),
+                pr_number=self.number,
+                source_sha=self.source_sha,
+                target_sha=self.target_branch.sha,
+                message=reason,
+            )
+
     async def authorized(self, db: Database):
         if self.author in {user.gh_username for user in AUTHORIZED_USERS}:
             return True
@@ -388,7 +416,6 @@ class PR(Code):
             self.batch = None
             self.source_sha_failed = None
             self.set_build_state(None)
-            self.pending_build_reason = f'new commit {new_source_sha[:8]}'
             self.target_branch.batch_changed = True
             self.target_branch.state_changed = True
 
@@ -441,7 +468,7 @@ class PR(Code):
             return GithubStatus.SUCCESS
         return GithubStatus.PENDING
 
-    async def post_github_status(self, gh_client, gh_status: GithubStatus):
+    async def post_github_status(self, db: Database, gh_client, gh_status: GithubStatus):
         assert self.source_sha is not None
 
         log.info(f'{self.short_str()}: notify github state: {gh_status}')
@@ -461,10 +488,22 @@ class PR(Code):
             log.exception(
                 f'{self.short_str()}: notify github of build state failed due to exception: {f"/repos/{self.target_branch.branch.repo.short_str()}/statuses/{self.source_sha}"} / {data} / {e}'
             )
-        except aiohttp.client_exceptions.ClientResponseError:
+            await self._record_status_post_failed(db, gh_status, e)
+        except aiohttp.client_exceptions.ClientResponseError as e:
             log.exception(f'{self.short_str()}: Unexpected exception in post to github: {data}')
+            await self._record_status_post_failed(db, gh_status, e)
 
-    async def assign_gh_reviewer_if_requested(self, gh_client):
+    async def _record_status_post_failed(self, db: Database, gh_status: GithubStatus, e: BaseException):
+        await record_event(
+            db,
+            CIEvent.STATUS_POST_FAILED,
+            target_branch=self.target_branch.branch.short_str(),
+            pr_number=self.number,
+            source_sha=self.source_sha,
+            message=f'{gh_status.value}: {describe_exception(e)}',
+        )
+
+    async def assign_gh_reviewer_if_requested(self, db: Database, gh_client):
         if len(self.assignees) == 0 and len(self.reviewers) == 0 and self.body is not None:
             assignees = set()
             if ASSIGN_SERVICES in self.body:
@@ -475,14 +514,31 @@ class PR(Code):
                 return
             data = {'assignees': list(assignees)}
             log.info(f'{self.short_str()}: assigning reviewers: {data}')
+            target_branch = self.target_branch.branch.short_str()
             try:
                 await gh_client.post(
                     f'/repos/{self.target_branch.branch.repo.short_str()}/issues/{self.number}/assignees', data=data
                 )
-            except gidgethub.HTTPException:
-                log.exception(f'{self.short_str()}: post assignees to github failed due to exception: {data}')
-            except aiohttp.client_exceptions.ClientResponseError:
-                log.exception(f'{self.short_str()}: Unexpected exception in post to github: {data}')
+            except (gidgethub.HTTPException, aiohttp.client_exceptions.ClientResponseError) as e:
+                if isinstance(e, gidgethub.HTTPException):
+                    log.exception(f'{self.short_str()}: post assignees to github failed due to exception: {data}')
+                else:
+                    log.exception(f'{self.short_str()}: Unexpected exception in post to github: {data}')
+                await record_event(
+                    db,
+                    CIEvent.REVIEWER_ASSIGN_FAILED,
+                    target_branch=target_branch,
+                    pr_number=self.number,
+                    message=f'{sorted(assignees)}: {describe_exception(e)}',
+                )
+            else:
+                await record_event(
+                    db,
+                    CIEvent.REVIEWER_ASSIGNED,
+                    target_branch=target_branch,
+                    pr_number=self.number,
+                    message=', '.join(sorted(assignees)),
+                )
 
     def _apply_github_data(self, review_decision: str, check_nodes: List[Dict[str, Any]]):
         if review_decision == 'APPROVED':
@@ -664,11 +720,29 @@ mkdir -p {shq(repo_dir)}
             submitted = True
             self.tactical = False
             self.batch = batch
+            await record_event(
+                db,
+                CIEvent.BUILD_STARTED,
+                target_branch=self.target_branch.branch.short_str(),
+                pr_number=self.number,
+                batch_id=batch.id,
+                source_sha=self.source_sha,
+                target_sha=self.target_branch.sha,
+                message=reason,
+            )
         except concurrent.futures.CancelledError:
             raise
         except Exception as e:  # pylint: disable=broad-except
-            # FIXME save merge failure output for UI
             assert self.target_branch.sha is not None
+            await record_event(
+                db,
+                CIEvent.BUILD_START_FAILED,
+                target_branch=self.target_branch.branch.short_str(),
+                pr_number=self.number,
+                source_sha=self.source_sha,
+                target_sha=self.target_branch.sha,
+                message=describe_exception(e),
+            )
             self.batch = MergeFailureBatch(
                 e,
                 attributes={
@@ -761,7 +835,7 @@ mkdir -p {shq(repo_dir)}
             if self.intended_github_status != last_posted_status:
                 log.info(f'Intended github status for {self.short_str()} is: {self.intended_github_status}')
                 log.info(f'Last known github status for {self.short_str()} is: {last_posted_status}')
-                await self.post_github_status(gh, self.intended_github_status)
+                await self.post_github_status(db, gh, self.intended_github_status)
                 self.last_known_github_status[GITHUB_STATUS_CONTEXT] = self.intended_github_status
 
         if not await self.authorized(db):
@@ -773,9 +847,9 @@ mkdir -p {shq(repo_dir)}
         if not self.batch or (on_deck and self.batch.attributes['target_sha'] != self.target_branch.sha):
             if self.batch:
                 old_target = self.batch.attributes['target_sha']
-                self.pending_build_reason = f'target sha updated {old_target[:8]} -> {self.target_branch.sha[:8]}'
+                await self.request_build(db, f'target sha updated {old_target[:8]} -> {self.target_branch.sha[:8]}')
             elif self.pending_build_reason == 'unknown':
-                self.pending_build_reason = await self._determine_build_reason(batch_client, db)
+                await self.request_build(db, await self._determine_build_reason(batch_client, db))
             if on_deck or self.target_branch.n_running_batches < MAX_CONCURRENT_PR_BATCHES:
                 self.target_branch.n_running_batches += 1
                 async with repos_lock:
@@ -798,16 +872,25 @@ mkdir -p {shq(repo_dir)}
             and all(label not in DO_NOT_MERGE for label in self.labels)
         )
 
-    async def merge(self, gh):
+    async def merge(self, db: Database, gh):
+        event_fields = {
+            'target_branch': self.target_branch.branch.short_str(),
+            'pr_number': self.number,
+            'source_sha': self.source_sha,
+            'target_sha': self.target_branch.sha,
+        }
+        await record_event(db, CIEvent.MERGE_REQUESTED, **event_fields)
         try:
             await gh.put(
                 f'/repos/{self.target_branch.branch.repo.short_str()}/pulls/{self.number}/merge',
                 data={'merge_method': 'squash', 'sha': self.source_sha},
             )
-            return True
-        except (gidgethub.HTTPException, aiohttp.client_exceptions.ClientResponseError):
+        except (gidgethub.HTTPException, aiohttp.client_exceptions.ClientResponseError) as e:
             log.info(f'merge {self.target_branch.branch.short_str()} {self.number} failed', exc_info=True)
-        return False
+            await record_event(db, CIEvent.MERGE_FAILED, **event_fields, message=describe_exception(e))
+            return False
+        await record_event(db, CIEvent.MERGE_SUCCEEDED, **event_fields)
+        return True
 
     def checkout_script(self):
         assert self.target_branch.sha
@@ -933,6 +1016,7 @@ class WatchedBranch(Code):
 
         self.prs: Dict[int, PR] = {}
         self.sha: Optional[str] = None
+        self.last_seen_sha: Optional[str] = None
 
         self.pip_version: Optional[str] = None
 
@@ -1010,7 +1094,7 @@ class WatchedBranch(Code):
             while self.github_changed or self.batch_changed or self.state_changed:
                 if self.github_changed:
                     self.github_changed = False
-                    await self._update_github(gh)
+                    await self._update_github(db, gh)
 
                 if self.batch_changed:
                     self.batch_changed = False
@@ -1020,25 +1104,25 @@ class WatchedBranch(Code):
                     self.state_changed = False
                     await self._heal(db, batch_client, gh, frozen)
                     if (self.deploy_batch is None or self.deploy_state is not None) and not frozen and self.mergeable:
-                        await self.try_to_merge(gh)
+                        await self.try_to_merge(db, gh)
         finally:
             t_total = time.monotonic() - t_update_start
             WATCHED_BRANCH_UPDATE_LATENCY.set(t_total)
             log.info(f'update done {self.short_str()} in {t_total:.1f}s')
             self.updating = False
 
-    async def try_to_merge(self, gh):
+    async def try_to_merge(self, db: Database, gh):
         assert self.mergeable
         for pr in self.prs_in_merge_priority_order():
             if pr.is_mergeable():
-                if await pr.merge(gh):
+                if await pr.merge(db, gh):
                     self.github_changed = True
                     self.sha = None
                     self.state_changed = True
                     self.merge_candidate = None
                     return
 
-    async def _update_github(self, gh):
+    async def _update_github(self, db: Database, gh):
         log.info(f'update github {self.short_str()}')
 
         repo_ss = self.branch.repo.short_str()
@@ -1049,17 +1133,31 @@ class WatchedBranch(Code):
             log.info(f'{self.branch.short_str()} sha changed: {self.sha} => {new_sha}')
             self.sha = new_sha
             self.state_changed = True
+        # self.sha is reset to None after a merge to force a refetch, so track the last seen sha separately
+        if new_sha != self.last_seen_sha:
+            if self.last_seen_sha is not None:
+                await record_event(
+                    db,
+                    CIEvent.TARGET_MOVED,
+                    target_branch=self.branch.short_str(),
+                    target_sha=new_sha,
+                    previous_sha=self.last_seen_sha,
+                )
+            self.last_seen_sha = new_sha
 
         new_prs: Dict[int, PR] = {}
         async for gh_json_pr in gh.getiter(f'/repos/{repo_ss}/pulls?state=open&base={self.branch.name}'):
             number = gh_json_pr['number']
             if number in self.prs:
                 pr = self.prs[number]
+                old_source_sha = pr.source_sha
                 pr.update_from_gh_json(gh_json_pr)
+                if pr.source_sha != old_source_sha:
+                    await pr.request_build(db, f'new commit {pr.source_sha[:8]}')
             else:
                 pr = PR.from_gh_json(gh_json_pr, self)
                 if self.prs:
-                    pr.pending_build_reason = 'initial build'
+                    await pr.request_build(db, 'initial build')
             new_prs[number] = pr
         for number, pr in self.prs.items():
             if number not in new_prs:
@@ -1067,7 +1165,7 @@ class WatchedBranch(Code):
         self.prs = new_prs
 
         for pr in new_prs.values():
-            await pr.assign_gh_reviewer_if_requested(gh)
+            await pr.assign_gh_reviewer_if_requested(db, gh)
 
         if new_prs:
             pr_github_data = await _fetch_pr_github_data(
@@ -1127,6 +1225,13 @@ class WatchedBranch(Code):
                 log.exception(
                     f'Could not update deploy_batch status due to exception {exc}, setting deploy_batch to None'
                 )
+                await record_event(
+                    db,
+                    CIEvent.DEPLOY_STATUS_FAILED,
+                    target_branch=self.branch.short_str(),
+                    batch_id=self.deploy_batch.id,
+                    message=describe_exception(exc),
+                )
                 self.deploy_batch = None
                 return
             if status['complete']:
@@ -1134,6 +1239,14 @@ class WatchedBranch(Code):
                     self.deploy_state = 'success'
                 else:
                     self.deploy_state = 'failure'
+                await record_event(
+                    db,
+                    CIEvent.DEPLOY_FINISHED,
+                    target_branch=self.branch.short_str(),
+                    batch_id=self.deploy_batch.id,
+                    target_sha=self.deploy_batch.attributes.get('sha'),
+                    message=self.deploy_state,
+                )
 
                 if not is_test_deployment and self.deploy_state == 'failure':
                     url = deploy_config.external_url('batch', f'/batches/{self.deploy_batch.id}')
@@ -1143,7 +1256,9 @@ branch: {self.branch.short_str()}
 sha: {self.sha}
 url: {url}
 """
-                    await send_zulip_deploy_failure_message(deploy_failure_message, db, self.sha)
+                    await send_zulip_deploy_failure_message(
+                        deploy_failure_message, db, self.branch.short_str(), self.sha
+                    )
                 self.state_changed = True
 
     async def _heal_deploy(self, db: Database, batch_client: BatchClient, frozen: bool):
@@ -1209,6 +1324,16 @@ url: {url}
                 attrs = batch.attributes
                 log.info(f'cancel batch {batch.id} for {attrs["pr"]} {attrs["source_sha"]} => {attrs["target_sha"]}')
                 await batch.cancel()
+                await record_event(
+                    db,
+                    CIEvent.BUILD_CANCELLED,
+                    target_branch=self.branch.short_str(),
+                    pr_number=int(attrs['pr']),
+                    batch_id=batch.id,
+                    source_sha=attrs['source_sha'],
+                    target_sha=attrs['target_sha'],
+                    message='no longer the current build for its PR (new commit, retry, or PR closed)',
+                )
 
     async def _start_deploy(self, db: Database, batch_client: BatchClient):
         # not deploying
@@ -1280,14 +1405,29 @@ Deploy config failed to build with exception:
 {e}
 ```
 """
-                await send_zulip_deploy_failure_message(deploy_failure_message, db, self.sha)
+                await send_zulip_deploy_failure_message(deploy_failure_message, db, self.branch.short_str(), self.sha)
                 raise
             await deploy_batch.submit()
             self.deploy_batch = deploy_batch
+            await record_event(
+                db,
+                CIEvent.DEPLOY_STARTED,
+                target_branch=self.branch.short_str(),
+                batch_id=deploy_batch.id,
+                target_sha=self.sha,
+                message=batch_name,
+            )
         except concurrent.futures.CancelledError:
             raise
         except Exception as e:  # pylint: disable=broad-except
             log.exception('could not start deploy')
+            await record_event(
+                db,
+                CIEvent.DEPLOY_START_FAILED,
+                target_branch=self.branch.short_str(),
+                target_sha=self.sha,
+                message=describe_exception(e),
+            )
             self.deploy_batch = MergeFailureBatch(
                 e, attributes={'deploy': '1', 'target_branch': self.branch.short_str(), 'sha': self.sha}
             )

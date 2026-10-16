@@ -55,6 +55,7 @@ from web_common import (
 from .constants import AUTHORIZED_USERS, TEAMS, User
 from .environment import CLOUD, DEFAULT_NAMESPACE, DOMAIN, STORAGE_URI
 from .envoy import Service, create_cds_response, create_rds_response
+from .events import CIEvent, cleanup_old_events, record_event
 from .github import PR, WIP, FQBranch, MergeFailureBatch, Repo, UnwatchedBranch, WatchedBranch, select_random_teammate
 from .utils import gcp_logging_queries
 
@@ -417,9 +418,20 @@ async def _retry_pr_core(
 
     await db.execute_insertone('INSERT INTO invalidated_batches (batch_id) VALUES (%s);', batch_id)
     pr.tactical = tactical
-    pr.pending_build_reason = f'{"tactical " if tactical else ""}retry by {username}'
     pr.batch = None
     pr.set_build_state(None)
+    # request_build sets the reason before its first await, so the PR's state is consistent before any event write
+    await pr.request_build(db, f'{"tactical " if tactical else ""}retry by {username}')
+    await record_event(
+        db,
+        CIEvent.RETRY_REQUESTED,
+        target_branch=wb.branch.short_str(),
+        pr_number=pr.number,
+        username=username,
+        batch_id=batch_id,
+        source_sha=pr.source_sha,
+        message='tactical' if tactical else 'full',
+    )
     notify = wb.notify_batch_changed(
         db, app[AppKeys.BATCH_CLIENT], app[AppKeys.GH_CLIENT], app[AppKeys.FROZEN_MERGE_DEPLOY]
     )
@@ -536,13 +548,14 @@ async def get_user(request: web.Request, userdata: UserData) -> web.Response:
 @routes.post('/authorize_source_sha')
 @web_security_headers
 @auth.authenticated_users_with_permission(SystemPermission.MANAGE_CI, redirect=False)
-async def post_authorized_source_sha(request: web.Request, _) -> NoReturn:
+async def post_authorized_source_sha(request: web.Request, userdata: UserData) -> NoReturn:
     app = request.app
     db = app[AppKeys.DB]
     post = await request.post()
     sha = str(post['sha']).strip()
     await db.execute_insertone('INSERT INTO authorized_shas (sha) VALUES (%s);', sha)
     log.info(f'authorized sha: {sha}')
+    await record_event(db, CIEvent.SHA_AUTHORIZED, username=userdata['username'], source_sha=sha)
     session = await aiohttp_session.get_session(request)
     set_message(session, f'SHA {sha} authorized.', 'info')
     raise web.HTTPFound(deploy_config.external_url('ci', '/'))
@@ -703,9 +716,10 @@ async def deploy_status(request: web.Request, _) -> web.Response:
 
 @routes.post('/api/v1alpha/update')
 @auth.authenticated_users_with_permission(SystemPermission.MANAGE_CI, redirect=False)
-async def post_update(request: web.Request, _) -> web.Response:
+async def post_update(request: web.Request, userdata: UserData) -> web.Response:
     log.info('developer triggered update')
     db = request.app[AppKeys.DB]
+    await record_event(db, CIEvent.UPDATE_TRIGGERED, username=userdata['username'])
     batch_client = request.app[AppKeys.BATCH_CLIENT]
     gh_client = request.app[AppKeys.GH_CLIENT]
     frozen = request.app[AppKeys.FROZEN_MERGE_DEPLOY]
@@ -767,6 +781,15 @@ async def dev_deploy_branch(request: web.Request, userdata: UserData) -> web.Res
     except Exception as e:  # pylint: disable=broad-except
         message = traceback.format_exc()
         raise web.HTTPBadRequest(text=f'starting the deploy failed due to\n{message}') from e
+    await record_event(
+        app[AppKeys.DB],
+        CIEvent.DEV_DEPLOY_REQUESTED,
+        username=userdata['username'],
+        batch_id=batch_id,
+        source_sha=sha,
+        namespace=userdata['namespace_name'],
+        message=f'branch: {branch.short_str()}\nsteps: {steps}\nexcluded steps: {excluded_steps}',
+    )
     return json_response({'sha': sha, 'batch_id': batch_id})
 
 
@@ -779,7 +802,7 @@ async def batch_callback(request: web.Request):
 @routes.post('/freeze_merge_deploy')
 @web_security_headers
 @auth.authenticated_users_with_permission(SystemPermission.MANAGE_CI)
-async def freeze_deploys(request: web.Request, _) -> NoReturn:
+async def freeze_deploys(request: web.Request, userdata: UserData) -> NoReturn:
     app = request.app
     db = app[AppKeys.DB]
     session = await aiohttp_session.get_session(request)
@@ -793,6 +816,7 @@ UPDATE globals SET frozen_merge_deploy = 1;
 """)
 
     app[AppKeys.FROZEN_MERGE_DEPLOY] = True
+    await record_event(db, CIEvent.FROZEN, username=userdata['username'])
 
     set_message(session, 'Froze all merges and deploys.', 'info')
 
@@ -802,7 +826,7 @@ UPDATE globals SET frozen_merge_deploy = 1;
 @routes.post('/unfreeze_merge_deploy')
 @web_security_headers
 @auth.authenticated_users_with_permission(SystemPermission.MANAGE_CI)
-async def unfreeze_deploys(request: web.Request, _) -> NoReturn:
+async def unfreeze_deploys(request: web.Request, userdata: UserData) -> NoReturn:
     app = request.app
     db = app[AppKeys.DB]
     session = await aiohttp_session.get_session(request)
@@ -816,6 +840,7 @@ UPDATE globals SET frozen_merge_deploy = 0;
 """)
 
     app[AppKeys.FROZEN_MERGE_DEPLOY] = False
+    await record_event(db, CIEvent.UNFROZEN, username=userdata['username'])
 
     set_message(session, 'Unfroze all merges and deploys.', 'info')
 
@@ -854,7 +879,7 @@ async def get_active_namespaces(request: web.Request, userdata: UserData) -> web
 @routes.post('/namespaces/{namespace}/services/add')
 @web_security_headers
 @auth.authenticated_users_with_permission(SystemPermission.MANAGE_CI)
-async def add_namespaced_service(request: web.Request, _) -> NoReturn:
+async def add_namespaced_service(request: web.Request, userdata: UserData) -> NoReturn:
     db = request.app[AppKeys.DB]
     post = await request.post()
     service = post['service']
@@ -876,6 +901,9 @@ WHERE namespace = %s AND service = %s
             'INSERT INTO deployed_services (`namespace`, `service`) VALUES (%s, %s)',
             (namespace, service),
         )
+        await record_event(
+            db, CIEvent.SERVICE_ADDED, username=userdata['username'], namespace=namespace, service=str(service)
+        )
 
     raise web.HTTPFound(deploy_config.external_url('ci', '/namespaces'))
 
@@ -883,7 +911,7 @@ WHERE namespace = %s AND service = %s
 @routes.post('/namespaces/{namespace}/services/{service}/edit')
 @web_security_headers
 @auth.authenticated_users_with_permission(SystemPermission.MANAGE_CI)
-async def update_namespaced_service(request: web.Request, _) -> NoReturn:
+async def update_namespaced_service(request: web.Request, userdata: UserData) -> NoReturn:
     db = request.app[AppKeys.DB]
     service = request.match_info['service']
     namespace = request.match_info['namespace']
@@ -894,6 +922,14 @@ async def update_namespaced_service(request: web.Request, _) -> NoReturn:
         """UPDATE deployed_services SET rate_limit_rps = %s WHERE namespace = %s AND service = %s""",
         (rate_limit, namespace, service),
     )
+    await record_event(
+        db,
+        CIEvent.SERVICE_EDITED,
+        username=userdata['username'],
+        namespace=namespace,
+        service=service,
+        message=f'rate_limit_rps: {rate_limit}',
+    )
 
     session = await aiohttp_session.get_session(request)
     set_message(session, f'Set {service} in {namespace} rate limit to {rate_limit}.', 'info')
@@ -903,7 +939,7 @@ async def update_namespaced_service(request: web.Request, _) -> NoReturn:
 @routes.post('/namespaces/add')
 @web_security_headers
 @auth.authenticated_users_with_permission(SystemPermission.MANAGE_CI)
-async def add_namespace(request: web.Request, _) -> NoReturn:
+async def add_namespace(request: web.Request, userdata: UserData) -> NoReturn:
     db = request.app[AppKeys.DB]
     post = await request.post()
     namespace = post['namespace']
@@ -921,6 +957,7 @@ async def add_namespace(request: web.Request, _) -> NoReturn:
             'INSERT INTO active_namespaces (`namespace`) VALUES (%s)',
             (namespace,),
         )
+        await record_event(db, CIEvent.NAMESPACE_CREATED, username=userdata['username'], namespace=str(namespace))
 
     raise web.HTTPFound(deploy_config.external_url('ci', '/namespaces'))
 
@@ -1021,6 +1058,97 @@ LIMIT %s
                 'source_sha': r['source_sha'],
                 'retried_by': r['retried_by'],
                 'retried_at': r['retried_at'].replace(tzinfo=timezone.utc).isoformat(),
+            }
+            for r in rows
+        ],
+        'cursor': rows[-1]['id'] if has_more else None,
+        'has_more': has_more,
+    })
+
+
+_EVENT_COLUMNS = (
+    'id',
+    'event',
+    'target_branch',
+    'pr_number',
+    'username',
+    'batch_id',
+    'source_sha',
+    'target_sha',
+    'previous_sha',
+    'namespace',
+    'service',
+    'merge_uuid',
+    'message',
+)
+
+
+@routes.get('/api/v1alpha/events')
+@auth.authenticated_users_with_permission(SystemPermission.READ_CI, redirect=False)
+async def api_events(request: web.Request, _) -> web.Response:
+    db = request.app[AppKeys.DB]
+    query = request.rel_url.query
+
+    try:
+        limit = min(int(query.get('limit', 100)), 500)
+    except ValueError as exc:
+        raise web.HTTPBadRequest(text='limit must be an integer') from exc
+    if limit <= 0:
+        raise web.HTTPBadRequest(text='limit must be a positive integer')
+
+    conditions = []
+    args: list = []
+
+    if (target_branch := query.get('target_branch')) is not None:
+        conditions.append('target_branch = %s')
+        args.append(target_branch)
+
+    if (pr := query.get('pr')) is not None:
+        try:
+            args.append(int(pr))
+        except ValueError as exc:
+            raise web.HTTPBadRequest(text='pr must be an integer') from exc
+        conditions.append('pr_number = %s')
+
+    if (event := query.get('event')) is not None:
+        try:
+            args.append(CIEvent(event).value)
+        except ValueError as exc:
+            raise web.HTTPBadRequest(text=f'unknown event: {event!r}') from exc
+        conditions.append('event = %s')
+
+    if (cursor := query.get('cursor')) is not None:
+        try:
+            args.append(int(cursor))
+        except ValueError as exc:
+            raise web.HTTPBadRequest(text='cursor must be an integer') from exc
+        conditions.append('id < %s')
+
+    where = ('WHERE ' + ' AND '.join(conditions)) if conditions else ''
+
+    rows = [
+        row
+        async for row in db.execute_and_fetchall(
+            f"""
+SELECT {', '.join(_EVENT_COLUMNS)}, time
+FROM ci_events
+{where}
+ORDER BY id DESC
+LIMIT %s
+""",
+            [*args, limit + 1],
+        )
+    ]
+
+    has_more = len(rows) > limit
+    if has_more:
+        rows = rows[:limit]
+
+    return json_response({
+        'rows': [
+            {
+                **{column: r[column] for column in _EVENT_COLUMNS},
+                'time': r['time'].replace(tzinfo=timezone.utc).isoformat(),
             }
             for r in rows
         ],
@@ -1226,23 +1354,25 @@ async def api_teams(_request: web.Request, _) -> web.Response:
 
 @routes.post('/api/v1alpha/freeze')
 @auth.authenticated_users_with_permission(SystemPermission.MANAGE_CI, redirect=False)
-async def api_freeze(request: web.Request, _) -> web.Response:
+async def api_freeze(request: web.Request, userdata: UserData) -> web.Response:
     app = request.app
     if app[AppKeys.FROZEN_MERGE_DEPLOY]:
         raise web.HTTPConflict(text='CI is already frozen.')
     await app[AppKeys.DB].execute_update('UPDATE globals SET frozen_merge_deploy = 1;')
     app[AppKeys.FROZEN_MERGE_DEPLOY] = True
+    await record_event(app[AppKeys.DB], CIEvent.FROZEN, username=userdata['username'])
     return json_response({'frozen': True})
 
 
 @routes.post('/api/v1alpha/unfreeze')
 @auth.authenticated_users_with_permission(SystemPermission.MANAGE_CI, redirect=False)
-async def api_unfreeze(request: web.Request, _) -> web.Response:
+async def api_unfreeze(request: web.Request, userdata: UserData) -> web.Response:
     app = request.app
     if not app[AppKeys.FROZEN_MERGE_DEPLOY]:
         raise web.HTTPConflict(text='CI is already unfrozen.')
     await app[AppKeys.DB].execute_update('UPDATE globals SET frozen_merge_deploy = 0;')
     app[AppKeys.FROZEN_MERGE_DEPLOY] = False
+    await record_event(app[AppKeys.DB], CIEvent.UNFROZEN, username=userdata['username'])
     return json_response({'frozen': False})
 
 
@@ -1273,15 +1403,17 @@ async def api_retry_pr(request: web.Request, userdata: UserData) -> web.Response
 
 @routes.post('/api/v1alpha/authorize_sha')
 @auth.authenticated_users_with_permission(SystemPermission.MANAGE_CI, redirect=False)
-async def api_authorize_sha(request: web.Request, _) -> web.Response:
+async def api_authorize_sha(request: web.Request, userdata: UserData) -> web.Response:
     params = await json_request(request)
     if not isinstance(params, dict):
         raise web.HTTPBadRequest(text='Request body must be a JSON object')
     sha = str(params.get('sha', '')).strip()
     if not sha:
         raise web.HTTPBadRequest(text='sha is required')
-    await request.app[AppKeys.DB].execute_insertone('INSERT INTO authorized_shas (sha) VALUES (%s);', sha)
+    db = request.app[AppKeys.DB]
+    await db.execute_insertone('INSERT INTO authorized_shas (sha) VALUES (%s);', sha)
     log.info(f'authorized sha: {sha}')
+    await record_event(db, CIEvent.SHA_AUTHORIZED, username=userdata['username'], source_sha=sha)
     return web.Response(status=201)
 
 
@@ -1298,22 +1430,24 @@ async def api_get_namespace(request: web.Request, _) -> web.Response:
 
 @routes.put('/api/v1alpha/namespaces/{namespace}')
 @auth.authenticated_users_with_permission(SystemPermission.MANAGE_CI, redirect=False)
-async def api_put_namespace(request: web.Request, _) -> web.Response:
+async def api_put_namespace(request: web.Request, userdata: UserData) -> web.Response:
     db = request.app[AppKeys.DB]
     namespace = request.match_info['namespace']
     existing = await db.execute_and_fetchone('SELECT 1 FROM active_namespaces WHERE namespace = %s', (namespace,))
     if existing:
         return json_response({'namespace': namespace})
     await db.execute_insertone('INSERT INTO active_namespaces (`namespace`) VALUES (%s)', (namespace,))
+    await record_event(db, CIEvent.NAMESPACE_CREATED, username=userdata['username'], namespace=namespace)
     return web.Response(status=201)
 
 
 @routes.delete('/api/v1alpha/namespaces/{namespace}')
 @auth.authenticated_users_with_permission(SystemPermission.MANAGE_CI, redirect=False)
-async def api_delete_namespace(request: web.Request, _) -> web.Response:
+async def api_delete_namespace(request: web.Request, userdata: UserData) -> web.Response:
     db = request.app[AppKeys.DB]
     namespace = request.match_info['namespace']
     await remove_namespace_from_db(db, namespace)
+    await record_event(db, CIEvent.NAMESPACE_DELETED, username=userdata['username'], namespace=namespace)
     return web.Response(status=204)
 
 
@@ -1333,7 +1467,7 @@ async def api_get_namespace_service(request: web.Request, _) -> web.Response:
 
 @routes.put('/api/v1alpha/namespaces/{namespace}/services/{service}')
 @auth.authenticated_users_with_permission(SystemPermission.MANAGE_CI, redirect=False)
-async def api_put_namespace_service(request: web.Request, _) -> web.Response:
+async def api_put_namespace_service(request: web.Request, userdata: UserData) -> web.Response:
     db = request.app[AppKeys.DB]
     namespace = request.match_info['namespace']
     service = request.match_info['service']
@@ -1345,12 +1479,13 @@ async def api_put_namespace_service(request: web.Request, _) -> web.Response:
     await db.execute_insertone(
         'INSERT INTO deployed_services (`namespace`, `service`) VALUES (%s, %s)', (namespace, service)
     )
+    await record_event(db, CIEvent.SERVICE_ADDED, username=userdata['username'], namespace=namespace, service=service)
     return web.Response(status=201)
 
 
 @routes.patch('/api/v1alpha/namespaces/{namespace}/services/{service}')
 @auth.authenticated_users_with_permission(SystemPermission.MANAGE_CI, redirect=False)
-async def api_update_namespace_service(request: web.Request, _) -> web.Response:
+async def api_update_namespace_service(request: web.Request, userdata: UserData) -> web.Response:
     db = request.app[AppKeys.DB]
     namespace = request.match_info['namespace']
     service = request.match_info['service']
@@ -1362,16 +1497,25 @@ async def api_update_namespace_service(request: web.Request, _) -> web.Response:
         'UPDATE deployed_services SET rate_limit_rps = %s WHERE namespace = %s AND service = %s',
         (rate_limit_rps, namespace, service),
     )
+    await record_event(
+        db,
+        CIEvent.SERVICE_EDITED,
+        username=userdata['username'],
+        namespace=namespace,
+        service=service,
+        message=f'rate_limit_rps: {rate_limit_rps}',
+    )
     return web.Response(status=200)
 
 
 @routes.delete('/api/v1alpha/namespaces/{namespace}/services/{service}')
 @auth.authenticated_users_with_permission(SystemPermission.MANAGE_CI, redirect=False)
-async def api_delete_namespace_service(request: web.Request, _) -> web.Response:
+async def api_delete_namespace_service(request: web.Request, userdata: UserData) -> web.Response:
     db = request.app[AppKeys.DB]
     namespace = request.match_info['namespace']
     service = request.match_info['service']
     await db.execute_update('DELETE FROM deployed_services WHERE namespace = %s AND service = %s', (namespace, service))
+    await record_event(db, CIEvent.SERVICE_DELETED, username=userdata['username'], namespace=namespace, service=service)
     return web.Response(status=204)
 
 
@@ -1387,6 +1531,7 @@ async def cleanup_expired_namespaces(db: Database):
         assert namespace != 'default'
         log.info(f'Cleaning up expired namespace: {namespace}')
         await remove_namespace_from_db(db, namespace)
+        await record_event(db, CIEvent.NAMESPACE_EXPIRED_CLEANUP, namespace=namespace)
 
 
 async def update_envoy_configs(db: Database, k8s_client):
@@ -1454,6 +1599,12 @@ async def update_loop(app: web.Application):
         except Exception:  # pylint: disable=broad-except
             if wb:
                 log.exception(f'{wb.branch.short_str()} update failed due to exception')
+                await record_event(
+                    app[AppKeys.DB],
+                    CIEvent.UPDATE_FAILED,
+                    target_branch=wb.branch.short_str(),
+                    message=traceback.format_exc(),
+                )
         await asyncio.sleep(300)
 
 
@@ -1491,6 +1642,13 @@ SELECT frozen_merge_deploy FROM globals;
     app[AppKeys.FROZEN_MERGE_DEPLOY] = row['frozen_merge_deploy']
     app[AppKeys.TASK_MANAGER] = aiotools.BackgroundTaskManager()
     exit_stack.callback(app[AppKeys.TASK_MANAGER].shutdown)
+
+    await record_event(
+        app[AppKeys.DB],
+        CIEvent.CI_STARTED,
+        message=f'version: {os.environ.get("HAIL_SHA")}\npod: {os.environ.get("HOSTNAME")}',
+    )
+    app[AppKeys.TASK_MANAGER].ensure_future(periodically_call(3600, cleanup_old_events, app[AppKeys.DB]))
 
     if DEFAULT_NAMESPACE == 'default':
         kubernetes_asyncio.config.load_incluster_config()
