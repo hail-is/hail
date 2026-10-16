@@ -2453,6 +2453,10 @@ async def ui_delete_batch(request: web.Request, _, batch_id: int) -> NoReturn:
 @auth.authenticated_users_only()
 @catch_ui_error_in_dev
 async def ui_batches(request: web.Request, userdata: UserData) -> web.Response:
+    # If the user has enabled the React UI, render the React page:
+    if request.cookies.get('hail_react_ui') == '1':
+        return await render_template('batch', request, userdata, 'batches_react.html', {})
+
     session = await aiohttp_session.get_session(request)
     user = userdata['username']
     q = request.query.get('q', f'user = {user}' if CURRENT_QUERY_VERSION == 2 else f'user:{user}')
