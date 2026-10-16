@@ -6,7 +6,7 @@ aiohappyeyeballs==2.7.1
     #   -c web_common/../hail/python/dev/pinned-requirements.txt
     #   -c web_common/../hail/python/pinned-requirements.txt
     #   aiohttp
-aiohttp==3.14.4
+aiohttp==3.14.5
     # via
     #   -c web_common/../gear/pinned-requirements.txt
     #   -c web_common/../hail/python/dev/pinned-requirements.txt
@@ -52,7 +52,7 @@ markupsafe==3.0.4
     #   -c web_common/../hail/python/dev/pinned-requirements.txt
     #   -c web_common/../hail/python/pinned-requirements.txt
     #   jinja2
-multidict==6.9.1
+multidict==7.1.0
     # via
     #   -c web_common/../gear/pinned-requirements.txt
     #   -c web_common/../hail/python/dev/pinned-requirements.txt
