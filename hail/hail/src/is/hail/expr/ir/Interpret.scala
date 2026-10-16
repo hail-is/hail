@@ -28,18 +28,22 @@ object Interpret extends Logging {
   type Agg = (IndexedSeq[Row], TStruct)
 
   def apply(tir: TableIR, ctx: ExecuteContext): TableValue = {
+    TypeCheck(ctx, tir)
     val lowered =
       LoweringPipeline.legacyRelationalLowerer(ctx, tir).asInstanceOf[TableIR]
     ExecuteRelational(ctx, lowered).asTableValue(ctx)
   }
 
   def apply(mir: MatrixIR, ctx: ExecuteContext): TableValue = {
+    TypeCheck(ctx, mir)
     val lowered = LoweringPipeline.legacyRelationalLowerer(ctx, mir).asInstanceOf[TableIR]
     ExecuteRelational(ctx, lowered).asTableValue(ctx)
   }
 
-  def apply(bmir: BlockMatrixIR, ctx: ExecuteContext): BlockMatrix =
+  def apply(bmir: BlockMatrixIR, ctx: ExecuteContext): BlockMatrix = {
+    TypeCheck(ctx, bmir)
     LoweringPipeline.legacyRelationalLowerer(ctx, bmir).asInstanceOf[BlockMatrixIR].execute(ctx)
+  }
 
   def apply[T](ctx: ExecuteContext, ir: IR): T =
     apply[T](ctx, ir, Env.empty[(Any, Type)], FastSeq[(Any, Type)]())
@@ -53,8 +57,9 @@ object Interpret extends Logging {
     val bindings = env.m.view.map { case (k, (value, t)) =>
       k -> Literal.coerce(t, value)
     }.toFastSeq
-    val lowered =
-      LoweringPipeline.relationalLowerer(ctx, Let(bindings, ir0)).asInstanceOf[IR]
+    val ir = Let(bindings, ir0)
+    TypeCheck(ctx, ir)
+    val lowered = LoweringPipeline.relationalLowerer(ctx, ir).asInstanceOf[IR]
     val result = run(ctx, lowered, Env.empty[Any], args, Memo.empty).asInstanceOf[T]
     result
   }

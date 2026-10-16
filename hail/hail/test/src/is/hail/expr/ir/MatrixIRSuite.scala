@@ -12,8 +12,9 @@ import is.hail.expr.ir.{Memoized => M}
 import is.hail.expr.ir.Scope.{AGG, SCAN}
 import is.hail.expr.ir.TestUtils._
 import is.hail.expr.ir.defs.{
-  Apply, ApplyAggOp, ApplyScanOp, Binding, Block, GetField, I32, InsertFields, Let, MakeTuple,
-  MatrixMultiWrite, MatrixWrite, RNGSplit, RNGSplitStatic, RNGStateLiteral, Ref, TableCollect,
+  Apply, ApplyAggOp, ApplyScanOp, ArrayMaximalIndependentSet, Binding, Block, GetField, I32, I64,
+  InsertFields, Let, Literal, MakeTuple, MatrixMultiWrite, MatrixWrite, RNGSplit, RNGSplitStatic,
+  RNGStateLiteral, Ref, TableCollect,
 }
 import is.hail.types.virtual._
 import is.hail.utils._
@@ -283,7 +284,6 @@ class MatrixIRSuite {
       } yield y
     }
     val mapped = MatrixMapRows(mt, InsertFields(row, FastSeq("v" -> v)))
-    TypeCheck(ctx, mapped)
     interceptFatal("aggregations inside scans")(getRows(mapped))
   }
 
@@ -291,6 +291,7 @@ class MatrixIRSuite {
     val n = Ref(freshName(), TInt32)
     val m = Ref(freshName(), TInt32)
     val col = Ref(MatrixIR.colName, TStruct("col_idx" -> TInt32))
+    val row = Ref(MatrixIR.rowName, TStruct("row_idx" -> TInt32))
     FastSeq(
       (
         Block(FastSeq(Binding(n.name, ApplyAggOp(Count())().toI)), ApplyScanOp(Take(), n)(I32(0))),
@@ -306,6 +307,10 @@ class MatrixIRSuite {
       (
         ApplyAggOp(Sum())(ApplyScanOp(Take(), col.get("col_idx"))(I32(0)).len.toL),
         "scan init argument refers to sa",
+      ),
+      (
+        ApplyAggOp(Sum())(ApplyScanOp(Take(), row.get("row_idx"))(I32(0)).len.toL),
+        "scan init argument refers to va",
       ),
     )
   }
@@ -333,27 +338,66 @@ class MatrixIRSuite {
     assertEq(rows.toSeq, (0 until 5).map(i => RowSeq(i, 3L * i)))
   }
 
-  def testScanAggNestingOnCols() = {
+  def testScanOfAggOnCols() = {
     val x = Ref(freshName(), TInt64)
     FastSeq(
-      (ApplyScanOp(Sum())(ApplyAggOp(Count())()), "aggregations inside scans"),
-      (ApplyAggOp(Sum())(ApplyScanOp(Count())()), "scans inside aggregations"),
-      (
-        Block(FastSeq(Binding(x.name, ApplyAggOp(Count())(), SCAN)), ApplyScanOp(Sum())(x)),
-        "aggregations inside scans",
-      ),
-      (
-        Block(FastSeq(Binding(x.name, ApplyScanOp(Count())(), AGG)), ApplyAggOp(Sum())(x)),
-        "scans inside aggregations",
-      ),
+      ApplyScanOp(Sum())(ApplyAggOp(Count())()),
+      Block(FastSeq(Binding(x.name, ApplyAggOp(Count())(), SCAN)), ApplyScanOp(Sum())(x)),
     )
   }
 
   @ParameterizedTest
-  def testScanAggNestingOnCols(v: IR, error: String)(implicit ctx: ExecuteContext): Unit = {
+  def testScanOfAggOnCols(v: IR)(implicit ctx: ExecuteContext): Unit = {
     val mt = rangeMatrix(3, 5, Some(2))
     val col = Ref(MatrixIR.colName, mt.typ.colType)
-    interceptFatal(error)(getCols(MatrixMapCols(mt, InsertFields(col, FastSeq("v" -> v)), None)))
+    val mapped = MatrixMapCols(mt, InsertFields(col, FastSeq("v" -> v)), None)
+    interceptFatal("aggregations inside scans")(getCols(mapped))
+  }
+
+  def testAggOfScanOnCols() = {
+    val x = Ref(freshName(), TInt64)
+    FastSeq(
+      ApplyAggOp(Sum())(ApplyScanOp(Count())()),
+      Block(FastSeq(Binding(x.name, ApplyScanOp(Count())(), AGG)), ApplyAggOp(Sum())(x)),
+    )
+  }
+
+  @ParameterizedTest
+  def testAggOfScanOnCols(v: IR)(implicit ctx: ExecuteContext): Unit = {
+    val mt = rangeMatrix(3, 5, Some(2))
+    val col = Ref(MatrixIR.colName, mt.typ.colType)
+    val mapped = MatrixMapCols(mt, InsertFields(col, FastSeq("v" -> v)), None)
+    interceptFatal("scans inside aggregations")(getCols(mapped))
+  }
+
+  // Children that drop eval drop the agg and scan scopes too.
+  private def scansUnderDropEval = {
+    val edges = Literal(TArray(TTuple(TInt32, TInt32)), FastSeq(Row(0, 1)))
+    val tieBreaker = ApplyScanOp(Count())().toD
+    FastSeq(
+      aggFoldIR(I64(0))(_ + I64(1))((a, b) => a + b + ApplyScanOp(Count())()),
+      ArrayMaximalIndependentSet(edges, Some((freshName(), freshName(), tieBreaker))),
+    )
+  }
+
+  def testScanUnderDropEvalOnRows() = scansUnderDropEval
+
+  @ParameterizedTest
+  def testScanUnderDropEvalOnRows(v: IR)(implicit ctx: ExecuteContext): Unit = {
+    val mt = rangeMatrix(5, 3, Some(2))
+    val row = Ref(MatrixIR.rowName, mt.typ.rowType)
+    val mapped = MatrixMapRows(mt, InsertFields(row, FastSeq("v" -> v)))
+    interceptAssertion("ApplyScanOp outside a scan scope")(getRows(mapped))
+  }
+
+  def testScanUnderDropEvalOnCols() = scansUnderDropEval
+
+  @ParameterizedTest
+  def testScanUnderDropEvalOnCols(v: IR)(implicit ctx: ExecuteContext): Unit = {
+    val mt = rangeMatrix(3, 5, Some(2))
+    val col = Ref(MatrixIR.colName, mt.typ.colType)
+    val mapped = MatrixMapCols(mt, InsertFields(col, FastSeq("v" -> v)), None)
+    interceptAssertion("ApplyScanOp outside a scan scope")(getCols(mapped))
   }
 
   @Test def testScanInitArgBoundInNewCol(implicit ctx: ExecuteContext): Unit = {
@@ -436,6 +480,29 @@ class MatrixIRSuite {
     val mapped = MatrixMapCols(mt, InsertFields(col.deepCopy, FastSeq("v" -> v)), None)
     val cols = unoptimized(getCols(mapped)(_))
     assertEq(cols.toSeq, (0 until 5).map(i => RowSeq(i, RowSeq(FastSeq(0), 2))))
+  }
+
+  def testInitArgReadsNRowsOnCols() = {
+    def rowIdx = Ref(MatrixIR.rowName, TStruct("row_idx" -> TInt32)).get("row_idx")
+    def colIdx = Ref(MatrixIR.colName, TStruct("col_idx" -> TInt32)).get("col_idx")
+    def nRows = Ref(Name("n_rows"), TInt64)
+    def viaEval(op: IR => IR): IR = M.eval(for {
+      n <- nRows.toI
+      t <- op(n)
+    } yield t)
+    val ops = FastSeq[IR => IR](
+      n => ApplyAggOp(Take(), n)(rowIdx),
+      n => ApplyScanOp(Take(), n)(colIdx),
+    )
+    ops.flatMap(op => FastSeq(op(nRows.toI), viaEval(op)))
+  }
+
+  @ParameterizedTest
+  def testInitArgReadsNRowsOnCols(v: IR)(implicit ctx: ExecuteContext): Unit = {
+    val mt = rangeMatrix(3, 5, Some(2))
+    val col = Ref(MatrixIR.colName, mt.typ.colType)
+    val mapped = MatrixMapCols(mt, InsertFields(col, FastSeq("v" -> v)), None)
+    interceptFatal("init argument refers to n_rows")(unoptimized(getCols(mapped)(_)))
   }
 
   def rangeRowMatrix(start: Int, end: Int)(implicit ctx: ExecuteContext): MatrixIR = {

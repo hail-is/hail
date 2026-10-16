@@ -346,7 +346,12 @@ object Bindings {
       case ArrayMaximalIndependentSet(a, Some((left, right, _))) if i == 1 =>
         val typ = tcoerce[TBaseStruct](elementType(a.typ)).types.head
         val tupleType = TTuple(typ)
-        Bindings(FastSeq(left -> tupleType, right -> tupleType), dropEval = true)
+        Bindings(
+          FastSeq(left -> tupleType, right -> tupleType),
+          agg = AggEnv.Drop,
+          scan = AggEnv.Drop,
+          dropEval = true,
+        )
       case AggArrayPerElement(a, elementName, indexName, _, _, isScan) =>
         if (i == 0)
           Bindings(
@@ -379,8 +384,8 @@ object Bindings {
         else
           Bindings(
             FastSeq(accumName -> zero.typ, otherAccumName -> zero.typ),
-            agg = if (isScan) AggEnv.NoOp else AggEnv.Drop,
-            scan = if (!isScan) AggEnv.NoOp else AggEnv.Drop,
+            agg = AggEnv.Drop,
+            scan = AggEnv.Drop,
             dropEval = true,
           )
       case NDArrayMap(nd, name, _) if i == 1 =>
