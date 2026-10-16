@@ -24,7 +24,7 @@ class TypeParsingSuite {
 
   private val rg = customReference
 
-  private val inScope = ReferenceGenomeEnv(Map(rg.name -> rg))
+  private val inScope = ReferenceGenomeEnv(Seq(rg))
 
   private def typeFormats(rgs: ReferenceGenomeEnv): Formats =
     DefaultFormats +

@@ -44,7 +44,7 @@ final class Py4JQueryDriver(backend: Backend) extends Closeable with Logging {
 
   private[this] val flags: HailFeatureFlags = HailFeatureFlags.fromEnv()
   private[this] val hcl = new HailClassLoader(getClass.getClassLoader)
-  private[this] val references = mutable.Map(ReferenceGenome.builtinReferences().toSeq: _*)
+  private[this] var references = ReferenceGenomeEnv.empty
   private[this] val liftovers = mutable.Map.empty[(String, String), Liftover]
   private[this] val sequences = mutable.Map.empty[String, ReferenceSequence]
   private[this] val blockMatrixCache = mutable.Map[String, linalg.BlockMatrix]()
@@ -338,7 +338,7 @@ final class Py4JQueryDriver(backend: Backend) extends Closeable with Logging {
     fileAndLineCounts(regex, files, maxLines).view.mapValues(_.map(_.value)).toArray
 
   private[this] def addReference(rg: ReferenceGenome): Unit =
-    ReferenceGenome.addFatalOnCollision(references, FastSeq(rg))
+    references = references.withReferences(FastSeq(rg))
 
   override def close(): Unit = {
     try executor.close()
@@ -355,7 +355,7 @@ final class Py4JQueryDriver(backend: Backend) extends Closeable with Logging {
 
   // A reference genome's liftovers and sequence go with it, as Python's do.
   private[this] def removeReference(name: String): Unit = {
-    references -= name
+    references = references.without(name)
     liftovers.filterInPlace { case ((source, _), _) => source != name }
     sequences -= name
   }
@@ -372,7 +372,7 @@ final class Py4JQueryDriver(backend: Backend) extends Closeable with Logging {
           tmpdir = tmpdir,
           localTmpdir = localTmpdir,
           backend = backend,
-          references = ReferenceGenomeEnv(references.toMap),
+          references = references,
           liftovers = liftovers.toMap,
           sequences = sequences.toMap,
           fs = tmpFileManager.fs,
@@ -473,8 +473,9 @@ final class Py4JQueryDriver(backend: Backend) extends Closeable with Logging {
         override def scoped[A](req: HttpExchange)(f: ExecuteContext => A): A =
           withExecuteContext()(f)
 
+        // Only checks that `refs` could be added: Python adds each one with pyAddReference.
         override def putReferences(req: HttpExchange)(refs: Iterable[ReferenceGenome]): Unit =
-          refs.foreach(addReference)
+          references.withReferences(refs): Unit
       }
 
       // 0 => let the OS pick an available port
