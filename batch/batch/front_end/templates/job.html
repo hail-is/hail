@@ -129,6 +129,23 @@
       {% call collapsible_li(false, 'Cost', job.get('cost')) %}
       {{ resource_cost_table(job['cost_breakdown'] or {}) }}
       {% endcall %}
+      {% if job['retried_attempts_cost'] %}
+      <li class='px-4 py-4'>
+        <div class='flex justify-between'>
+          <div class='text-lg font-light'>Cost of retried attempts</div>
+          <div class='text-lg font-light'>{{ job['retried_attempts_cost'] }}</div>
+        </div>
+        <div class='text-sm font-light text-zinc-500'>Attempts whose VM went away before they finished, most often because it was preempted.</div>
+      </li>
+      {% endif %}
+      {% if job['projected_nonpreemptible_cost'] %}
+      <li class='px-4 py-4'>
+        <div class='flex justify-between'>
+          <div class='text-lg font-light'>Projected cost on non-preemptible</div>
+          <div class='text-lg font-light'>{{ job['projected_nonpreemptible_cost'] }}</div>
+        </div>
+      </li>
+      {% endif %}
     </ul>
   </div>
   <div class='w-full lg:basis-2/3 overflow-auto'>
