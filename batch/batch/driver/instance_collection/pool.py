@@ -587,6 +587,69 @@ HAVING n_ready_jobs + n_running_jobs > 0;
         result = dict(sorted(result.items(), key=lambda item: item[1]['allocated_cores_mcpu'], reverse=True))
         return result
 
+    async def _user_runnable_jobs(self, user):
+        async for job_group in self.db.select_and_fetchall(
+            """
+SELECT job_groups.batch_id, job_groups.job_group_id, t.cancelled IS NOT NULL AS cancelled, userdata, job_groups.user, format_version
+FROM job_groups
+LEFT JOIN batches ON job_groups.batch_id = batches.id
+LEFT JOIN LATERAL (
+  SELECT 1 AS cancelled
+  FROM job_group_self_and_ancestors
+  INNER JOIN job_groups_cancelled
+    ON job_group_self_and_ancestors.batch_id = job_groups_cancelled.id AND
+      job_group_self_and_ancestors.ancestor_id = job_groups_cancelled.job_group_id
+  WHERE job_groups.batch_id = job_group_self_and_ancestors.batch_id AND
+    job_groups.job_group_id = job_group_self_and_ancestors.job_group_id
+) AS t ON TRUE
+WHERE job_groups.user = %s AND job_groups.`state` = 'running'
+ORDER BY job_groups.batch_id, job_groups.job_group_id;
+""",
+            (user,),
+            "user_runnable_jobs__select_running_batches",
+        ):
+            async for record in self.db.select_and_fetchall(
+                """
+SELECT jobs.job_id, spec, cores_mcpu, regions_bits_rep, time_ready, job_group_id, n_max_attempts, count(attempts.job_id) AS n_prior_attempts
+FROM jobs FORCE INDEX(jobs_batch_id_ic_state_ar_n_regions_bits_rep_job_group_id)
+LEFT JOIN jobs_telemetry ON jobs.batch_id = jobs_telemetry.batch_id AND jobs.job_id = jobs_telemetry.job_id
+LEFT JOIN attempts ON jobs.batch_id = attempts.batch_id AND jobs.job_id = attempts.job_id
+WHERE jobs.batch_id = %s AND job_group_id = %s AND inst_coll = %s AND jobs.state = 'Ready' AND always_run = 1
+GROUP BY jobs.job_id, jobs.batch_id
+ORDER BY jobs.batch_id, jobs.job_group_id, inst_coll, state, always_run, -n_regions DESC, regions_bits_rep, jobs.job_id
+LIMIT 300;
+""",
+                (job_group['batch_id'], job_group['job_group_id'], self.pool.name),
+                "user_runnable_jobs__select_ready_always_run_jobs",
+            ):
+                record['batch_id'] = job_group['batch_id']
+                record['job_group_id'] = job_group['job_group_id']
+                record['userdata'] = job_group['userdata']
+                record['user'] = job_group['user']
+                record['format_version'] = job_group['format_version']
+                yield record
+            if not job_group['cancelled']:
+                async for record in self.db.select_and_fetchall(
+                    """
+SELECT jobs.job_id, spec, cores_mcpu, regions_bits_rep, time_ready, job_group_id, n_max_attempts, count(attempts.attempt_id) AS n_prior_attempts
+FROM jobs FORCE INDEX(jobs_batch_id_ic_state_ar_n_regions_bits_rep_job_id)
+LEFT JOIN jobs_telemetry ON jobs.batch_id = jobs_telemetry.batch_id AND jobs.job_id = jobs_telemetry.job_id
+LEFT JOIN attempts ON jobs.batch_id = attempts.batch_id AND jobs.job_id = attempts.job_id
+WHERE jobs.batch_id = %s AND job_group_id = %s AND inst_coll = %s AND jobs.state = 'Ready' AND always_run = 0 AND cancelled = 0
+GROUP BY jobs.batch_id, inst_coll, state, always_run, n_regions, regions_bits_rep, jobs.job_id
+ORDER BY jobs.batch_id, inst_coll, state, always_run, n_regions, regions_bits_rep, jobs.job_id
+LIMIT 300;
+""",
+                    (job_group['batch_id'], job_group['job_group_id'], self.pool.name),
+                    "user_runnable_jobs__select_ready_jobs_batch_not_cancelled",
+                ):
+                    record['batch_id'] = job_group['batch_id']
+                    record['job_group_id'] = job_group['job_group_id']
+                    record['userdata'] = job_group['userdata']
+                    record['user'] = job_group['user']
+                    record['format_version'] = job_group['format_version']
+                    yield record
+
     async def schedule_loop_body(self):
         if self.app['frozen']:
             log.info(f'not scheduling any jobs for {self.pool}; batch is frozen')
@@ -618,69 +681,6 @@ HAVING n_ready_jobs + n_running_jobs > 0;
             for user, resources in user_resources.items()
         }
 
-        async def user_runnable_jobs(user):
-            async for job_group in self.db.select_and_fetchall(
-                """
-SELECT job_groups.batch_id, job_groups.job_group_id, t.cancelled IS NOT NULL AS cancelled, userdata, job_groups.user, format_version
-FROM job_groups
-LEFT JOIN batches ON job_groups.batch_id = batches.id
-LEFT JOIN LATERAL (
-  SELECT 1 AS cancelled
-  FROM job_group_self_and_ancestors
-  INNER JOIN job_groups_cancelled
-    ON job_group_self_and_ancestors.batch_id = job_groups_cancelled.id AND
-      job_group_self_and_ancestors.ancestor_id = job_groups_cancelled.job_group_id
-  WHERE job_groups.batch_id = job_group_self_and_ancestors.batch_id AND
-    job_groups.job_group_id = job_group_self_and_ancestors.job_group_id
-) AS t ON TRUE
-WHERE job_groups.user = %s AND job_groups.`state` = 'running'
-ORDER BY job_groups.batch_id, job_groups.job_group_id;
-""",
-                (user,),
-                "user_runnable_jobs__select_running_batches",
-            ):
-                async for record in self.db.select_and_fetchall(
-                    """
-SELECT jobs.job_id, spec, cores_mcpu, regions_bits_rep, time_ready, job_group_id, n_max_attempts, count(attempts.job_id) AS n_prior_attempts
-FROM jobs FORCE INDEX(jobs_batch_id_ic_state_ar_n_regions_bits_rep_job_group_id)
-LEFT JOIN jobs_telemetry ON jobs.batch_id = jobs_telemetry.batch_id AND jobs.job_id = jobs_telemetry.job_id
-LEFT JOIN attempts ON jobs.batch_id = attempts.batch_id AND jobs.job_id = attempts.job_id
-WHERE jobs.batch_id = %s AND job_group_id = %s AND inst_coll = %s AND jobs.state = 'Ready' AND always_run = 1
-GROUP BY jobs.job_id, jobs.batch_id
-ORDER BY jobs.batch_id, jobs.job_group_id, inst_coll, state, always_run, -n_regions DESC, regions_bits_rep, jobs.job_id
-LIMIT 300;
-""",
-                    (job_group['batch_id'], job_group['job_group_id'], self.pool.name),
-                    "user_runnable_jobs__select_ready_always_run_jobs",
-                ):
-                    record['batch_id'] = job_group['batch_id']
-                    record['job_group_id'] = job_group['job_group_id']
-                    record['userdata'] = job_group['userdata']
-                    record['user'] = job_group['user']
-                    record['format_version'] = job_group['format_version']
-                    yield record
-                if not job_group['cancelled']:
-                    async for record in self.db.select_and_fetchall(
-                        """
-SELECT jobs.job_id, spec, cores_mcpu, regions_bits_rep, time_ready, job_group_id, n_max_attempts, count(attempts.attempt_id) AS n_prior_attempts
-FROM jobs FORCE INDEX(jobs_batch_id_ic_state_ar_n_regions_bits_rep_job_id)
-LEFT JOIN jobs_telemetry ON jobs.batch_id = jobs_telemetry.batch_id AND jobs.job_id = jobs_telemetry.job_id
-LEFT JOIN attempts ON jobs.batch_id = attempts.batch_id AND jobs.job_id = attempts.job_id
-WHERE jobs.batch_id = %s AND job_group_id = %s AND inst_coll = %s AND jobs.state = 'Ready' AND always_run = 0 AND cancelled = 0
-GROUP BY jobs.batch_id, inst_coll, state, always_run, n_regions, regions_bits_rep, jobs.job_id
-ORDER BY jobs.batch_id, inst_coll, state, always_run, n_regions, regions_bits_rep, jobs.job_id
-LIMIT 300;
-""",
-                        (job_group['batch_id'], job_group['job_group_id'], self.pool.name),
-                        "user_runnable_jobs__select_ready_jobs_batch_not_cancelled",
-                    ):
-                        record['batch_id'] = job_group['batch_id']
-                        record['job_group_id'] = job_group['job_group_id']
-                        record['userdata'] = job_group['userdata']
-                        record['user'] = job_group['user']
-                        record['format_version'] = job_group['format_version']
-                        yield record
-
         waitable_pool = WaitableSharedPool(self.async_worker_pool)
 
         should_wait = True
@@ -691,8 +691,9 @@ LIMIT 300;
 
             scheduled_cores_mcpu = 0
             share = user_share[user]
+            n_attempted_for_user = 0
 
-            async for record in user_runnable_jobs(user):
+            async for record in self._user_runnable_jobs(user):
                 attempt_id = secret_alnum_string(6)
                 record['attempt_id'] = attempt_id
 
@@ -767,8 +768,11 @@ LIMIT 300;
                         unscheduled_cores_mcpu_per_region[region] += record['cores_mcpu'] / n_regions
                         unscheduled_jobs_per_region[region] += 1 / n_regions
 
-                if n_scheduled >= share:
-                    should_wait = False
+                n_attempted_for_user += 1
+                if n_attempted_for_user >= share:
+                    # Rerun straight away only if this user's jobs are being placed; otherwise wait for a state change.
+                    if scheduled_cores_mcpu > 0:
+                        should_wait = False
                     break
 
         await waitable_pool.wait()
