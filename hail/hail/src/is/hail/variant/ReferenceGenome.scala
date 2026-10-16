@@ -638,28 +638,4 @@ object ReferenceGenome {
       parInput.asScala.to(ArraySeq),
     )
 
-  def addFatalOnCollision(
-    existing: mutable.Map[String, ReferenceGenome],
-    newReferences: Iterable[ReferenceGenome],
-  ): Unit =
-    for (rg <- newReferences) {
-      if (existing.get(rg.name).exists(_ != rg))
-        fatal(
-          s"Cannot add reference genome '${rg.name}', a different reference with that name already exists. " ++
-            "Choose a reference name NOT in the following list:" ++
-            ArraySeq.sorted(existing.keys).mkString(start = "\n  ", sep = "\n  ", end = "")
-        )
-
-      existing += (rg.name -> rg)
-    }
-
-  def addFatalOnCollision(
-    existing: Map[String, ReferenceGenome],
-    newReferences: Iterable[ReferenceGenome],
-  ): Map[String, ReferenceGenome] = {
-    val mut = mutable.Map(existing.toSeq: _*)
-    addFatalOnCollision(mut, newReferences)
-    mut.toMap
-  }
-
 }

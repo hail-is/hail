@@ -97,7 +97,7 @@ class PTypeSuite {
     } assertEq(
       IRParser.parsePType(
         pt.toString,
-        ReferenceGenomeEnv(Map(customReference.name -> customReference)),
+        ReferenceGenomeEnv(Seq(customReference)),
       ),
       pt,
     )
