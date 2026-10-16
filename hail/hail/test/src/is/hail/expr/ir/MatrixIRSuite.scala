@@ -12,7 +12,7 @@ import is.hail.expr.ir.{Memoized => M}
 import is.hail.expr.ir.Scope.{AGG, SCAN}
 import is.hail.expr.ir.TestUtils._
 import is.hail.expr.ir.defs.{
-  Apply, ApplyAggOp, ApplyScanOp, Binding, Block, GetField, I32, InsertFields, MakeTuple,
+  Apply, ApplyAggOp, ApplyScanOp, Binding, Block, GetField, I32, InsertFields, Let, MakeTuple,
   MatrixMultiWrite, MatrixWrite, RNGSplit, RNGSplitStatic, RNGStateLiteral, Ref, TableCollect,
 }
 import is.hail.types.virtual._
@@ -285,6 +285,52 @@ class MatrixIRSuite {
     val mapped = MatrixMapRows(mt, InsertFields(row, FastSeq("v" -> v)))
     TypeCheck(ctx, mapped)
     interceptFatal("aggregations inside scans")(getRows(mapped))
+  }
+
+  def testScanAggNestingOnRows() = {
+    val n = Ref(freshName(), TInt32)
+    val m = Ref(freshName(), TInt32)
+    val col = Ref(MatrixIR.colName, TStruct("col_idx" -> TInt32))
+    FastSeq(
+      (
+        Block(FastSeq(Binding(n.name, ApplyAggOp(Count())().toI)), ApplyScanOp(Take(), n)(I32(0))),
+        "aggregations inside scans",
+      ),
+      (
+        Let(
+          FastSeq(n.name -> ApplyAggOp(Count())().toI, m.name -> (n - I32(1))),
+          ApplyScanOp(Take(), m)(I32(0)),
+        ),
+        "aggregations inside scans",
+      ),
+      (
+        ApplyAggOp(Sum())(ApplyScanOp(Take(), col.get("col_idx"))(I32(0)).len.toL),
+        "scan init argument refers to sa",
+      ),
+    )
+  }
+
+  @ParameterizedTest
+  def testScanAggNestingOnRows(v: IR, error: String)(implicit ctx: ExecuteContext): Unit = {
+    val mt = rangeMatrix(5, 3, Some(2))
+    val row = Ref(MatrixIR.rowName, mt.typ.rowType)
+    interceptFatal(error)(getRows(MatrixMapRows(mt, InsertFields(row, FastSeq("v" -> v)))))
+  }
+
+  def testAggOfScanOnRows() = {
+    val x = Ref(freshName(), TInt64)
+    FastSeq(
+      ApplyAggOp(Sum())(ApplyScanOp(Count())()),
+      Block(FastSeq(Binding(x.name, ApplyScanOp(Count())(), AGG)), ApplyAggOp(Sum())(x)),
+    )
+  }
+
+  @ParameterizedTest
+  def testAggOfScanOnRows(v: IR)(implicit ctx: ExecuteContext): Unit = {
+    val mt = rangeMatrix(5, 3, Some(2))
+    val row = Ref(MatrixIR.rowName, mt.typ.rowType)
+    val rows = getRows(MatrixMapRows(mt, InsertFields(row, FastSeq("v" -> v))))
+    assertEq(rows.toSeq, (0 until 5).map(i => RowSeq(i, 3L * i)))
   }
 
   def testScanAggNestingOnCols() = {
