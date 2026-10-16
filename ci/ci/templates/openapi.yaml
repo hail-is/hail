@@ -395,6 +395,24 @@ components:
                     type: boolean
             is_merge_candidate:
               type: boolean
+            merge_pending:
+              type: boolean
+              description: CI has requested an async merge of this PR and is waiting for GitHub to finish it
+            merge_pending_uuid:
+              type: string
+              nullable: true
+              description: GitHub's id for the pending async merge, if GitHub reported one
+            merge_requested_at_ms:
+              type: integer
+              nullable: true
+              description: When CI requested the pending merge, in milliseconds since the epoch
+            merge_failures:
+              type: integer
+              description: Failed merge attempts at the current source and target SHAs
+            merge_retry_after_ms:
+              type: integer
+              nullable: true
+              description: When CI will next try to merge this PR after a failed attempt, in milliseconds since the epoch
             blocking_deploy_batch_id:
               type: integer
               nullable: true

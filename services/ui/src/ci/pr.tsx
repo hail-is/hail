@@ -7,6 +7,7 @@ import { StateIcon } from '../batch/components/StateIcon';
 import { BatchStateIcon } from '../shared/BatchStateIcon';
 import { useTip, FloatingTip } from '../shared/useTip';
 import { AutoRefreshBar } from '../shared/AutoRefreshBar';
+import { formatTime } from '../shared/timeUtils';
 
 const REFRESH_INTERVAL_MS = 30_000;
 
@@ -44,6 +45,11 @@ interface WatchedBranchPr {
   is_mergeable?: boolean;
   prs_ahead_in_queue?: PrsAheadEntry[];
   is_merge_candidate?: boolean;
+  merge_pending?: boolean;
+  merge_pending_uuid?: string | null;
+  merge_requested_at_ms?: number | null;
+  merge_failures?: number;
+  merge_retry_after_ms?: number | null;
   blocking_deploy_batch_id?: number | null;
   batch?: BatchSummary | null;
   review_state?: string | null;
@@ -239,6 +245,19 @@ function MergeEligibility({ pr, basePath, batchBaseUrl, wbIndex }: {
         {pr.blocking_labels && pr.blocking_labels.length > 0 && (
           <li>
             <Icon name="cancel" className="text-red-600" /> Blocked by label: {pr.blocking_labels.join(', ')}
+          </li>
+        )}
+        {pr.merge_pending && (
+          <li>
+            <Icon name="hourglass_top" className="text-zinc-400" /> Merge requested{' '}
+            {formatTime(pr.merge_requested_at_ms ?? null)} - waiting for GitHub (merge id:{' '}
+            <span className="font-mono">{pr.merge_pending_uuid ?? 'unknown'}</span>)
+          </li>
+        )}
+        {!pr.merge_pending && pr.merge_retry_after_ms != null && (
+          <li>
+            <Icon name="warning" className="text-orange-500" /> Merge failed {pr.merge_failures} time(s) - next attempt
+            after {formatTime(pr.merge_retry_after_ms)} (see CI logs for details)
           </li>
         )}
       </ul>

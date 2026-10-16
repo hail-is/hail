@@ -9,7 +9,21 @@ import re
 import secrets
 import time
 from shlex import quote as shq
-from typing import Any, Dict, FrozenSet, Iterable, List, Optional, Protocol, Sequence, Set, Union
+from typing import (
+    Any,
+    Dict,
+    FrozenSet,
+    Iterable,
+    List,
+    Literal,
+    NamedTuple,
+    Optional,
+    Protocol,
+    Sequence,
+    Set,
+    Tuple,
+    Union,
+)
 
 import aiohttp
 import aiohttp.client_exceptions
@@ -22,7 +36,7 @@ from gidgethub import aiohttp as gh_aiohttp
 from gear import Database, UserData
 from hailtop.batch_client.aioclient import Batch, BatchClient
 from hailtop.config import get_deploy_config
-from hailtop.utils import RETRY_FUNCTION_SCRIPT, CalledProcessError, check_shell, check_shell_output
+from hailtop.utils import RETRY_FUNCTION_SCRIPT, CalledProcessError, check_shell, check_shell_output, time_msecs
 
 from .build import BuildConfiguration, Code
 from .build_selection import compute_requested_steps
@@ -208,6 +222,45 @@ DO_NOT_TEST = 'do-not-test'
 RERUN_ALL_TESTS = 'rerun all tests'
 
 DO_NOT_MERGE = {STACKED_PR, WIP}
+
+GITHUB_ASYNC_MERGE_HEADERS = {'X-GitHub-Api-Version': '2026-03-10'}
+
+MergeResult = Literal['merged', 'pending', 'failed']
+
+
+class PendingMerge(NamedTuple):
+    pr_number: int
+    # None if GitHub reported the merge as already in flight without telling us its uuid
+    uuid: Optional[str]
+    source_sha: str
+    target_sha: str
+    requested_at_ms: int
+
+
+class MergeAttempt(NamedTuple):
+    pr_number: int
+    source_sha: str
+    target_sha: str
+
+
+class FailedMerge(NamedTuple):
+    failures: int
+    retry_after_ms: int
+
+
+MERGE_RETRY_BACKOFF_SECS = [60, 600, 3600]
+
+
+def _async_merge_url(repo: str, pr_number: int) -> str:
+    return f'/repos/{repo}/pulls/{pr_number}/merge-async'
+
+
+def _merge_result(response: Dict[str, Any]) -> MergeResult:
+    # Anything other than a definite outcome (e.g. 'enqueued') might still land, so keep waiting on it
+    status = response['status']
+    if status in ('merged', 'failed'):
+        return status
+    return 'pending'
 
 
 def clone_or_fetch_script(repo):
@@ -804,16 +857,30 @@ mkdir -p {shq(repo_dir)}
             and all(label not in DO_NOT_MERGE for label in self.labels)
         )
 
-    async def merge(self, gh):
+    async def merge(self, gh) -> Tuple[MergeResult, Optional[str]]:
+        url = _async_merge_url(self.target_branch.branch.repo.short_str(), self.number)
         try:
-            await gh.put(
-                f'/repos/{self.target_branch.branch.repo.short_str()}/pulls/{self.number}/merge',
-                data={'merge_method': 'squash', 'sha': self.source_sha},
+            response = await gh.put(
+                url,
+                data={'merge_method': 'squash', 'merge_action': 'direct_merge', 'sha': self.source_sha},
+                extra_headers=GITHUB_ASYNC_MERGE_HEADERS,
             )
-            return True
-        except (gidgethub.HTTPException, aiohttp.client_exceptions.ClientResponseError):
+        except gidgethub.HTTPException as e:
+            if e.status_code == 409:
+                log.info(f'merge {self.target_branch.branch.short_str()} {self.number} already in flight')
+                return 'pending', None
             log.info(f'merge {self.target_branch.branch.short_str()} {self.number} failed', exc_info=True)
-        return False
+            return 'failed', None
+        except aiohttp.client_exceptions.ClientResponseError:
+            log.info(f'merge {self.target_branch.branch.short_str()} {self.number} failed', exc_info=True)
+            return 'failed', None
+
+        result = _merge_result(response)
+        if result != 'merged':
+            log.info(f'merge {self.target_branch.branch.short_str()} {self.number} {result}: {response}')
+        if result == 'pending':
+            return result, response.get('details', {}).get('uuid')
+        return result, None
 
     def checkout_script(self):
         assert self.target_branch.sha
@@ -955,6 +1022,12 @@ class WatchedBranch(Code):
 
         self.merge_candidate: Optional[PR] = None
 
+        # Remember an async merge that was requested but not (observed to be) completed yet
+        self.pending_merge: Optional[PendingMerge] = None
+
+        # Async merge failures are only observed on a later pass, so remember them to give other PRs a turn
+        self.failed_merges: Dict[MergeAttempt, FailedMerge] = {}
+
     def prs_in_merge_priority_order(self) -> Iterable[PR]:
         return sorted(self.prs.values(), key=lambda pr: pr.merge_priority(), reverse=True)
 
@@ -1035,14 +1108,95 @@ class WatchedBranch(Code):
 
     async def try_to_merge(self, gh):
         assert self.mergeable
+        current_attempts = {self._merge_attempt(pr) for pr in self.prs.values() if pr.source_sha and self.sha}
+        self.failed_merges = {a: f for a, f in self.failed_merges.items() if a in current_attempts}
+        if (
+            self.pending_merge is not None
+            and self.pending_merge.uuid is None
+            and not self.prs[self.pending_merge.pr_number].is_mergeable()
+        ):
+            # checking a merge without a uuid means requesting it again, which is only right while the PR is mergeable
+            log.info(f'pending merge {self.branch.short_str()} {self.pending_merge.pr_number} no longer mergeable')
+            self.pending_merge = None
+        if self.pending_merge is not None:
+            pending = self.pending_merge
+            result = await self._check_pending_merge(gh)
+            if result == 'merged':
+                self._target_merged()
+            if result != 'failed':
+                return
+            self._record_failed_merge(MergeAttempt(pending.pr_number, pending.source_sha, pending.target_sha))
         for pr in self.prs_in_merge_priority_order():
-            if pr.is_mergeable():
-                if await pr.merge(gh):
-                    self.github_changed = True
-                    self.sha = None
-                    self.state_changed = True
-                    self.merge_candidate = None
+            if pr.is_mergeable() and not self._backing_off(pr):
+                result, uuid = await pr.merge(gh)
+                if result == 'merged':
+                    self._target_merged()
                     return
+                if result == 'pending':
+                    attempt = self._merge_attempt(pr)
+                    self.pending_merge = PendingMerge(
+                        pr.number, uuid, attempt.source_sha, attempt.target_sha, requested_at_ms=time_msecs()
+                    )
+                    return
+
+    def _merge_attempt(self, pr: PR) -> MergeAttempt:
+        assert pr.source_sha is not None and self.sha is not None
+        return MergeAttempt(pr.number, pr.source_sha, self.sha)
+
+    def _record_failed_merge(self, attempt: MergeAttempt):
+        previous = self.failed_merges.get(attempt)
+        failures = previous.failures + 1 if previous else 1
+        backoff = MERGE_RETRY_BACKOFF_SECS[min(failures, len(MERGE_RETRY_BACKOFF_SECS)) - 1]
+        self.failed_merges[attempt] = FailedMerge(failures, time_msecs() + backoff * 1000)
+        log.info(
+            f'merge {self.branch.short_str()} {attempt.pr_number} failed {failures} time(s), backing off {backoff}s'
+        )
+
+    def failed_merge(self, pr: PR) -> Optional[FailedMerge]:
+        if pr.source_sha is None or self.sha is None:
+            return None
+        return self.failed_merges.get(self._merge_attempt(pr))
+
+    def _backing_off(self, pr: PR) -> bool:
+        failed = self.failed_merge(pr)
+        return failed is not None and time_msecs() < failed.retry_after_ms
+
+    async def _check_pending_merge(self, gh) -> MergeResult:
+        assert self.pending_merge is not None
+        pr_number, uuid = self.pending_merge.pr_number, self.pending_merge.uuid
+        if uuid is None:
+            # Without a uuid we can't poll, so re-request the merge: a 409 means it is still in flight.
+            pr = self.prs[pr_number]
+            result, uuid = await pr.merge(gh)
+            self.pending_merge = self.pending_merge._replace(uuid=uuid) if result == 'pending' else None
+            return result
+        url = f'{_async_merge_url(self.branch.repo.short_str(), pr_number)}/{uuid}'
+        try:
+            response = await gh.getitem(url, extra_headers=GITHUB_ASYNC_MERGE_HEADERS)
+        except gidgethub.HTTPException as e:
+            if e.status_code == 404:
+                # async merge results expire after 24 hours
+                log.info(f'pending merge {self.branch.short_str()} {pr_number} expired')
+                self.pending_merge = None
+                return 'failed'
+            log.info(f'checking pending merge {self.branch.short_str()} {pr_number} failed', exc_info=True)
+            return 'pending'
+        except aiohttp.client_exceptions.ClientResponseError:
+            log.info(f'checking pending merge {self.branch.short_str()} {pr_number} failed', exc_info=True)
+            return 'pending'
+
+        result = _merge_result(response)
+        if result == 'pending':
+            return result
+        log.info(f'pending merge {self.branch.short_str()} {pr_number} finished: {response}')
+        self.pending_merge = None
+        return result
+
+    def _target_merged(self):
+        self.github_changed = True
+        self.sha = None
+        self.state_changed = True
+        self.merge_candidate = None
 
     async def _update_github(self, gh):
         log.info(f'update github {self.short_str()}')
@@ -1071,6 +1225,12 @@ class WatchedBranch(Code):
             if number not in new_prs:
                 pr.decrement_pr_metric()
         self.prs = new_prs
+
+        if self.pending_merge is not None and self.pending_merge.pr_number not in new_prs:
+            # the target sha fetched above may predate this PR's merge, so refetch it
+            log.info(f'pending merge {self.branch.short_str()} {self.pending_merge.pr_number} no longer open')
+            self.pending_merge = None
+            self._target_merged()
 
         for pr in new_prs.values():
             await pr.assign_gh_reviewer_if_requested(gh)
