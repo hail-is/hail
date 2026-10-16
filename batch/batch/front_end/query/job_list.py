@@ -243,9 +243,15 @@ def _time_value(v: Any) -> int:
 
 
 def _cost_value(v: Any) -> float:
-    if not isinstance(v, (int, float)) or isinstance(v, bool) or not math.isfinite(v):
+    if not isinstance(v, (int, float)) or isinstance(v, bool):
         raise QueryError(f'filter: expected a number, got {json.dumps(v)}')
-    return float(v)
+    try:
+        cost = float(v)
+    except OverflowError as e:
+        raise QueryError('filter: cost is too large') from e
+    if not math.isfinite(cost):
+        raise QueryError(f'filter: expected a number, got {json.dumps(v)}')
+    return cost
 
 
 def _str_value(v: Any) -> str:
@@ -325,7 +331,7 @@ def parse_filter(s: str, limits: JobListLimits) -> FilterNode:
 
 def _leaf(x: Dict[str, Any], limits: JobListLimits) -> Leaf:
     field = x['field']
-    if field not in _FIELDS:
+    if not isinstance(field, str) or field not in _FIELDS:
         raise QueryError(f'filter: unknown field {json.dumps(field)}')
     ops, parse_value = _FIELDS[field]
     op = x.get('op')
