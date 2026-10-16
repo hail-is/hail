@@ -6,7 +6,8 @@ import is.hail.asm4s.{classInfo, AsmFunction2RegionLongLong, Code, LongInfo}
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
 import is.hail.expr.ir.{
-  freshName, invoke, Compile, CompileCache, EmitFunctionBuilder, SingleCodeEmitParamType,
+  freshName, invoke, Compile, CompileCache, EmitFunctionBuilder, FunctionWithRgAttachments,
+  SingleCodeEmitParamType,
 }
 import is.hail.expr.ir.defs.{F64, GetTupleElement, I32, MakeTuple, Ref}
 import is.hail.io.reference.{
@@ -474,6 +475,49 @@ class ReferenceGenomeSuite {
         assertTrue(shippedRg ne fakeGenome)
         assertTrue(shippedSeq.rg eq shippedRg)
         assertEq(shippedSeq.lookup("c", 5, 10, 10), "GGATCCGTGC")
+      }
+    }
+  }
+
+  // A module ships each reference genome attachment it uses once, whatever its kind, and restores
+  // each before use.
+  @Test def testModuleShipsEachRgAttachmentOnce(implicit ctx: ExecuteContext): Unit = {
+    val liftover = liftoverGRCh37ToGRCh38
+    val seq = fakeReferenceSequence(fakeGenome)
+
+    ctx.local(
+      references = ctx.references.withReferences(Seq(fakeGenome)),
+      attachments = RgAttachments.empty.withLiftover(liftover).withSequence(seq),
+    ) { ctx =>
+      val fb = EmitFunctionBuilder[(AnyRef, AnyRef, AnyRef)](ctx, "ship_attachments")
+      fb.emit(Code.newInstance[(AnyRef, AnyRef, AnyRef), AnyRef, AnyRef, AnyRef](
+        fb.getLiftover(liftover.source, liftover.dest).get,
+        fb.getReferenceSequence(fakeGenome).get,
+        fb.getLiftover(liftover.source, liftover.dest).get,
+      ))
+      assertEq(fb.emodb.rgAttachments(), ArraySeq(liftover, seq))
+
+      val shipped = roundTrip(fb.resultWithIndex())
+      ctx.scopedExecution { (hcl, fs, tc, r) =>
+        val (lo: Liftover, shippedSeq: ReferenceSequence, _) = shipped(hcl, fs, tc, r)(): @unchecked
+        assertTrue(lo ne liftover)
+        assertTrue(shippedSeq ne seq)
+        assertEq(lo.queryLocus(Locus("20", 60001)), (Locus("chr20", 79360), false))
+        assertEq(shippedSeq.lookup("c", 5, 10, 10), "GGATCCGTGC")
+      }
+    }
+  }
+
+  @Test def testAddRgAttachmentsChecksLength(implicit ctx: ExecuteContext): Unit = {
+    val liftover = liftoverGRCh37ToGRCh38
+    ctx.local(attachments = RgAttachments.empty.withLiftover(liftover)) { ctx =>
+      val fb = EmitFunctionBuilder[Liftover](ctx, "add_attachments")
+      fb.emit(fb.getLiftover(liftover.source, liftover.dest).get)
+      ctx.scopedExecution { (hcl, fs, tc, r) =>
+        val f = fb.resultWithIndex()(hcl, fs, tc, r).asInstanceOf[FunctionWithRgAttachments]
+        interceptFatal("Invalid number of reference genome attachments, expected 1 got 2") {
+          f.addRgAttachments(Array(liftover, liftover))
+        }
       }
     }
   }
