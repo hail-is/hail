@@ -66,10 +66,15 @@ object LowerMatrixIR extends Logging {
   // The eval names `hoist` can see at a node inside newRow or newCol:
   //   Some(v): a Block EVAL binding; invariant iff its lifted value v is, checked by `hoist`.
   //   None: varies per row, column, loop iteration or element; an init arg can't read it.
+  // A lifted scan can't contain an agg op, directly or through an EVAL binding an init arg reads.
   private type LiftEnv = BindingEnv[Option[IR]]
 
-  private def LiftEnv(illegalEvalName: Name): LiftEnv =
-    BindingEnv(Env(illegalEvalName -> None), Some(Env.empty), Some(Env.empty))
+  private def LiftEnv(illegalEvals: Seq[Name], illegalAggs: Seq[Name] = Seq.empty): LiftEnv =
+    BindingEnv(
+      eval = Env.fromSeq(illegalEvals.map(_ -> None)),
+      agg = Some(Env.fromSeq(illegalAggs.map(_ -> None))),
+      scan = Some(Env.empty),
+    )
 
   private def bindingsToStruct(bindings: IndexedSeq[(Name, IR)]): MakeStruct =
     MakeStruct(bindings.map { case (n, ir) => n.str -> ir })
@@ -259,17 +264,17 @@ object LowerMatrixIR extends Logging {
             env.extend(Bindings.get(ir, i).map((_, _) => None))
 
           // -- See NOTE: Rules for lifting agg/scan ops --
-          def hoist(x: IR, env: LiftEnv): Unit =
+          def hoist(x: IR, env: LiftEnv): Unit = {
+            if (ContainsAgg(x))
+              fatal("aggregations inside scans are not supported in MatrixMapRows")
             FreeVariables(x, supportsAgg = false, supportsScan = true).eval.m.keys.foreach { n =>
               if (lifted.contains(n)) fatal(s"scan init argument depends on a scan result: $n")
               env.eval.lookupOption(n).foreach {
-                case Some(v) =>
-                  if (ContainsAgg(v))
-                    fatal("aggregations inside scans are not supported in MatrixMapRows")
-                  if (moved.add(n)) { hoist(v, env); top = top >> M.let(n -> v) }
+                case Some(v) => if (moved.add(n)) { hoist(v, env); top = top >> M.let(n -> v) }
                 case None => fatal(s"scan init argument refers to $n, which can't leave newRow")
               }
             }
+          }
 
           def emit(
             builder: mutable.Growable[(Name, IR)],
@@ -277,8 +282,6 @@ object LowerMatrixIR extends Logging {
             name: Name,
             x: IR,
           ): Unit = {
-            if (ContainsAgg(x))
-              fatal("aggregations inside scans are not supported in MatrixMapRows")
             hoist(x, env)
             lifted += name
             builder += (name -> x)
@@ -361,7 +364,7 @@ object LowerMatrixIR extends Logging {
                       emit(builder, env, uid.name, Block(FastSeq(b), structResult))
                       unwrapM(aggs, uid) >> liftedBody
                     case Binding(name, value, scope) =>
-                      val v = lift(value, env.extend(Bindings.get(ir, i).dropBindings), builder)
+                      val v = lift(value, env.promoteScope(scope), builder)
                       val e = env.bindInScope(name, if (scope == EVAL) Some(v) else None, scope)
                       val liftedBody = go(i + 1, e, builder)
                       if (moved.contains(name)) liftedBody
@@ -371,7 +374,7 @@ object LowerMatrixIR extends Logging {
                 M.eval(go(0, env, builder))
 
               case StreamAggScan(a, name, query) =>
-                StreamAggScan(lift(a, env, builder), name, query)
+                StreamAggScan(lift(a, extendEnv(env, ir, 0), builder), name, query)
 
               case _: TableAggregate | _: MatrixAggregate =>
                 ir
@@ -384,7 +387,7 @@ object LowerMatrixIR extends Logging {
             }
 
           val builder = ArraySeq.newBuilder[(Name, IR)]
-          val env = LiftEnv(rowName).bindAgg(colName -> None, entryName -> None)
+          val env = LiftEnv(FastSeq(rowName), FastSeq(rowName, colName, entryName))
           val body = lift(ir, env, builder)
           (body, builder.result().foldLeft(top)(_ >> M.let[EVAL.type](_)))
         }
@@ -572,8 +575,7 @@ object LowerMatrixIR extends Logging {
               if (i == bindings.length) lift(body, env, scanBindings, aggBindings)
               else bindings(i) match {
                 case Binding(name, value, EVAL) =>
-                  val valueEnv = env.extend(Bindings.get(ir, i).dropBindings)
-                  val v = lift(value, valueEnv, scanBindings, aggBindings)
+                  val v = lift(value, env, scanBindings, aggBindings)
                   val liftedBody = go(i + 1, env.bindEval(name, Some(v)), scanBindings, aggBindings)
                   if (movedScan.contains(name)) liftedBody else (name -> v) >> liftedBody
                 case b @ Binding(name, _, scope) =>
@@ -596,10 +598,10 @@ object LowerMatrixIR extends Logging {
             M.eval(go(0, env, scanBindings, aggBindings))
 
           case StreamAgg(a, name, query) =>
-            StreamAgg(lift(a, env, scanBindings, aggBindings), name, query)
+            StreamAgg(lift(a, extendEnv(env, ir, 0), scanBindings, aggBindings), name, query)
 
           case StreamAggScan(a, name, query) =>
-            StreamAggScan(lift(a, env, scanBindings, aggBindings), name, query)
+            StreamAggScan(lift(a, extendEnv(env, ir, 0), scanBindings, aggBindings), name, query)
 
           case _: TableAggregate | _: MatrixAggregate =>
             ir
@@ -613,7 +615,8 @@ object LowerMatrixIR extends Logging {
 
         val scanBuilder = ArraySeq.newBuilder[(Name, IR)]
         val aggBuilder = ArraySeq.newBuilder[(Name, IR)]
-        val env = LiftEnv(colName)
+        // `n_rows` comes out of the row aggregation, so no init arg may read it.
+        val env = LiftEnv(FastSeq(colName, Name("n_rows")))
         val b0 = lift(lower(ctx, newCol, liftedRelationalLets), env, scanBuilder, aggBuilder)
 
         val aggs = aggBuilder.result()
