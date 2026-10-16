@@ -1,15 +1,17 @@
 import { useState, useEffect } from 'react';
 import type { Batch } from '../../shared/batchApi';
-import { costByCategory, formatCpuHours, formatDurationMs, hasFieldTerm, jobCountsSummary, withFieldTerm } from './batchModels';
+import { costByCategory, formatDurationMs, hasFieldTerm, jobCountBreakdown, withFieldTerm } from './batchModels';
 import { BatchStateIcon } from './StateIcon';
+import { BatchActionDialog } from './BatchActionDialog';
 import { CostDisplay } from './CostDisplay';
+import { HoverTip } from './HoverTip';
 import { RelativeTime } from './RelativeTime';
 import { AutoRefreshBar } from '../../shared/AutoRefreshBar';
 import { SegmentedBar } from '../../shared/SegmentedBar';
 import { SpinnerIcon } from '../../shared/SpinnerIcon';
 import { QueryBuilder } from '../../shared/QueryBuilder';
 import { batchQueryFields } from '../../shared/queryFields';
-import { useBatchList } from '../hooks/useBatchList';
+import { defaultBatchQuery, useBatchList } from '../hooks/useBatchList';
 import { disableReactUi } from '../../shared/reactUiCookie';
 
 interface Props {
@@ -56,8 +58,25 @@ function BatchStatus({ batch }: { batch: Batch }): JSX.Element {
 }
 
 function JobCounts({ batch }: { batch: Batch }): JSX.Element {
+  const breakdown = jobCountBreakdown(batch);
+  const tip = (
+    <table>
+      <tbody>
+        {breakdown.map(({ label, count }) => (
+          <tr key={label}>
+            <td className="pr-3">{label}</td>
+            <td className="text-right tabular-nums">{count.toLocaleString()}</td>
+          </tr>
+        ))}
+        <tr className="border-t border-zinc-600">
+          <td className="pr-3">total</td>
+          <td className="text-right tabular-nums">{batch.n_jobs.toLocaleString()}</td>
+        </tr>
+      </tbody>
+    </table>
+  );
   return (
-    <div className="pr-4" title={jobCountsSummary(batch)}>
+    <HoverTip tip={tip} className="block pr-4 cursor-help">
       <SegmentedBar
         className="h-1.5 w-full"
         total={batch.n_jobs}
@@ -67,60 +86,79 @@ function JobCounts({ batch }: { batch: Batch }): JSX.Element {
           [batch.n_cancelled, 'bg-yellow-400', 'cancelled'],
         ]}
       />
-      <div className="mt-0.5 flex justify-between text-xs text-zinc-500 tabular-nums">
+      <span className="mt-0.5 flex justify-between gap-2 text-sm text-zinc-600 tabular-nums whitespace-nowrap">
         <span>{batch.n_completed.toLocaleString()} / {batch.n_jobs.toLocaleString()}</span>
-        {batch.n_failed > 0 && <span className="text-red-600">{batch.n_failed.toLocaleString()} failed</span>}
-      </div>
-    </div>
+        <span className="truncate">
+          {batch.n_failed > 0 && <span className="text-red-700">{batch.n_failed.toLocaleString()} failed</span>}
+          {batch.n_failed > 0 && batch.n_cancelled > 0 && ', '}
+          {batch.n_cancelled > 0 && <span className="text-yellow-700">{batch.n_cancelled.toLocaleString()} cancelled</span>}
+        </span>
+      </span>
+    </HoverTip>
   );
 }
 
-// A cell value that narrows the query to itself when clicked (or plain text, once it already has).
+// A cell value with hover buttons to narrow the query to it, or to exclude it.
 function TermFilterButton({ field, value, q, onSearch }: {
   field: string;
   value: string;
   q: string;
   onSearch: (_q: string) => void;
 }): JSX.Element {
-  if (hasFieldTerm(q, field, value)) {
-    return <span className="font-light text-zinc-800 truncate block" title={value}>{value}</span>;
-  }
+  const filteredIn = hasFieldTerm(q, field, value);
+  const iconButton = 'material-symbols-outlined text-sm leading-none text-zinc-400 hover:text-sky-600';
   return (
-    <button
-      type="button"
-      onClick={() => { onSearch(withFieldTerm(q, field, value)); }}
-      title={`Filter to ${field} = ${value}`}
-      className="group inline-flex max-w-full items-center gap-0.5 font-light text-zinc-500 hover:text-sky-600"
-    >
-      <span className="truncate">{value}</span>
-      <span aria-hidden="true" className="material-symbols-outlined text-sm invisible group-hover:visible">filter_alt</span>
-    </button>
+    <span className="group flex max-w-full items-center gap-0.5 font-light">
+      <span className={`truncate ${filteredIn ? 'text-zinc-800' : 'text-zinc-500'}`} title={value}>{value}</span>
+      <span className="hidden group-hover:inline-flex shrink-0 items-center">
+        {!filteredIn && (
+          <button
+            type="button"
+            onClick={() => { onSearch(withFieldTerm(q, field, value)); }}
+            title={`Filter to ${field} = ${value}`}
+            aria-label={`Filter to ${field} = ${value}`}
+            className={iconButton}
+          >
+            filter_alt
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={() => { onSearch(withFieldTerm(q, field, value, '!=')); }}
+          title={`Exclude ${field} = ${value}`}
+          aria-label={`Exclude ${field} = ${value}`}
+          className={iconButton}
+        >
+          filter_alt_off
+        </button>
+      </span>
+    </span>
   );
 }
 
+// Each preset replaces the whole query, and shows as on while the query is exactly that preset —
+// so Mine is on at page load, since it's the default query.
 function QuickFilters({ q, username, onSearch }: {
   q: string;
   username: string;
   onSearch: (_q: string) => void;
 }): JSX.Element {
-  // Running and Failed both set the `state` term, so they're mutually exclusive; either combines
-  // with Mine.
-  const chips = [
-    ...(username ? [{ label: 'Mine', field: 'user', value: username }] : []),
-    { label: 'Running', field: 'state', value: 'running' },
-    { label: 'Failed', field: 'state', value: 'failure' },
+  const presets = [
+    ...(username ? [{ label: 'Mine', query: defaultBatchQuery(username) }] : []),
+    { label: 'Running', query: 'state = running' },
+    { label: 'Failed', query: 'state = failure' },
   ];
   return (
     <div className="flex flex-wrap items-center gap-1.5">
       <span className="text-sm text-zinc-500 mr-1">Quick filters:</span>
-      {chips.map(({ label, field, value }) => {
-        const active = hasFieldTerm(q, field, value);
+      {presets.map(({ label, query }) => {
+        const active = q.trim() === query;
         return (
           <button
             type="button"
             key={label}
             aria-pressed={active}
-            onClick={() => { onSearch(withFieldTerm(q, field, active ? null : value)); }}
+            onClick={() => { onSearch(query); }}
             className={`text-xs px-2.5 py-0.5 rounded-full border transition-colors ${active ? 'bg-sky-500 border-sky-500 text-white' : 'border-zinc-300 text-zinc-500 hover:border-sky-400 hover:text-sky-600 bg-white'}`}
           >
             {label}
@@ -131,95 +169,82 @@ function QuickFilters({ q, username, onSearch }: {
   );
 }
 
-// Cancel/delete are irreversible, and a dense list makes misclicks easy, so each takes a second
-// confirming click.
 function RowActions({ batch, onCancel, onDelete }: {
   batch: Batch;
   onCancel: () => Promise<void>;
   onDelete: () => Promise<void>;
 }): JSX.Element | null {
-  const [confirming, setConfirming] = useState(false);
-  const [busy, setBusy] = useState(false);
+  const [open, setOpen] = useState(false);
 
   const action = batch.complete
-    ? { label: 'Delete', icon: 'delete', run: onDelete }
+    ? { kind: 'delete' as const, label: 'Delete', icon: 'delete', run: onDelete }
     : batch.state !== 'cancelled'
-      ? { label: 'Cancel', icon: 'cancel', run: onCancel }
+      ? { kind: 'cancel' as const, label: 'Cancel', icon: 'cancel', run: onCancel }
       : null;
   if (action == null) return null;
 
-  if (busy) return <SpinnerIcon className="text-zinc-400" />;
-
-  if (!confirming) {
-    return (
+  return (
+    <>
       <button
         type="button"
-        onClick={() => { setConfirming(true); }}
+        onClick={() => { setOpen(true); }}
         title={`${action.label} batch ${batch.id}`}
         aria-label={`${action.label} batch ${batch.id}`}
         className="text-zinc-400 hover:text-red-600"
       >
         <span aria-hidden="true" className="material-symbols-outlined text-lg leading-none">{action.icon}</span>
       </button>
-    );
-  }
-
-  return (
-    <span className="inline-flex items-center gap-1">
-      <button
-        type="button"
-        onClick={() => {
-          setBusy(true);
-          action.run().finally(() => { setBusy(false); setConfirming(false); });
-        }}
-        className="px-1.5 py-0.5 bg-red-600 text-white rounded text-xs hover:bg-red-700"
-      >
-        {action.label}?
-      </button>
-      <button
-        type="button"
-        onClick={() => { setConfirming(false); }}
-        title="Never mind"
-        aria-label="Never mind"
-        className="text-zinc-400 hover:text-zinc-700"
-      >
-        <span aria-hidden="true" className="material-symbols-outlined text-sm leading-none">close</span>
-      </button>
-    </span>
+      {open && (
+        <BatchActionDialog
+          action={action.kind}
+          batch={batch}
+          onConfirm={action.run}
+          onClose={() => { setOpen(false); }}
+        />
+      )}
+    </>
   );
 }
 
 function CostCell({ batch }: { batch: Batch }): JSX.Element {
   const categories = batch.cost_breakdown ? costByCategory(batch.cost_breakdown).filter((c) => c.cost > 0) : [];
+  if (categories.length === 0) return <span className="tabular-nums"><CostDisplay cost={batch.cost} /></span>;
+  const tip = (
+    <table>
+      <tbody>
+        {categories.map(({ resource, cost }) => (
+          <tr key={resource}>
+            <td className="pr-3">{resource}</td>
+            <td className="text-right"><CostDisplay cost={cost} /></td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
   return (
-    <span className="relative group inline-block tabular-nums">
-      <span className={categories.length > 0 ? 'underline decoration-dotted decoration-zinc-300 cursor-help' : ''}>
+    <HoverTip tip={tip} align="right" className="inline-block tabular-nums">
+      <span className="underline decoration-dotted decoration-zinc-300 cursor-help">
         <CostDisplay cost={batch.cost} />
       </span>
-      {categories.length > 0 && (
-        <span className="absolute right-0 top-full mt-1 hidden group-hover:block bg-zinc-800 text-white text-xs rounded px-2 py-1 z-10 pointer-events-none whitespace-nowrap text-left">
-          <table>
-            <tbody>
-              {categories.map(({ resource, cost }) => (
-                <tr key={resource}>
-                  <td className="pr-3">{resource}</td>
-                  <td className="text-right"><CostDisplay cost={cost} /></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </span>
-      )}
+    </HoverTip>
+  );
+}
+
+// Ticks on its own so that only running rows re-render each second, not the whole table.
+function ElapsedDuration({ since }: { since: number }): JSX.Element {
+  const now = useNow(1000);
+  return (
+    <span className="inline-flex items-center gap-1 text-sky-700" title="Elapsed so far">
+      {formatDurationMs(now - since)}
+      <SpinnerIcon className="h-3 w-3" />
     </span>
   );
 }
 
-function DurationCell({ batch, now }: { batch: Batch; now: number }): JSX.Element {
+function DurationCell({ batch }: { batch: Batch }): JSX.Element {
   if (batch.duration_ms != null) return <>{formatDurationMs(batch.duration_ms)}</>;
   const created = parseIso(batch.time_created);
-  if (!batch.complete && created != null) {
-    return <span className="text-sky-700" title="Elapsed so far">{formatDurationMs(now - created)}</span>;
-  }
+  if (!batch.complete && created != null) return <ElapsedDuration since={created} />;
   return <span className="text-zinc-400">--</span>;
 }
 
@@ -228,11 +253,10 @@ function TimeCell({ iso, fallback }: { iso: string | null | undefined; fallback:
   return ms != null ? <RelativeTime ms={ms} /> : <span className="text-zinc-400">{fallback}</span>;
 }
 
-function BatchRow({ basePath, batch, q, now, onSearch, onCancel, onDelete }: {
+function BatchRow({ basePath, batch, q, onSearch, onCancel, onDelete }: {
   basePath: string;
   batch: Batch;
   q: string;
-  now: number;
   onSearch: (_q: string) => void;
   onCancel: () => Promise<void>;
   onDelete: () => Promise<void>;
@@ -242,14 +266,14 @@ function BatchRow({ basePath, batch, q, now, onSearch, onCancel, onDelete }: {
   return (
     <tr className="border border-collapse hover:bg-slate-100">
       <td className="pl-3 py-2"><BatchStatus batch={batch} /></td>
-      <td className="font-light">
+      <td className="font-light pr-3">
         <a href={href} className="hover:text-sky-600 hover:underline underline-offset-2">{batch.id}</a>
       </td>
       <td className="pr-4">
         <a
           href={href}
           title={name}
-          className={`block truncate hover:text-sky-600 hover:underline underline-offset-2 ${name ? '' : 'text-zinc-400 italic'}`}
+          className={`inline-block max-w-full align-bottom truncate hover:text-sky-600 hover:underline underline-offset-2 ${name ? '' : 'text-zinc-400 italic'}`}
         >
           {name ?? 'no name'}
         </a>
@@ -265,8 +289,7 @@ function BatchRow({ basePath, batch, q, now, onSearch, onCancel, onDelete }: {
       <td className="hidden 2xl:table-cell font-light">
         <TimeCell iso={batch.time_completed} fallback="--" />
       </td>
-      <td className="hidden xl:table-cell font-light tabular-nums"><DurationCell batch={batch} now={now} /></td>
-      <td className="hidden xl:table-cell font-light text-right pr-4 tabular-nums">{formatCpuHours(batch.msec_mcpu)}</td>
+      <td className="hidden xl:table-cell font-light tabular-nums"><DurationCell batch={batch} /></td>
       <td className="hidden md:table-cell font-light text-right pr-4"><CostCell batch={batch} /></td>
       <td className="hidden md:table-cell text-center"><RowActions batch={batch} onCancel={onCancel} onDelete={onDelete} /></td>
     </tr>
@@ -310,7 +333,6 @@ export function BatchesPage({ basePath, username }: Props): JSX.Element {
       setActionError(String(e));
     }
   };
-  const now = useNow(refreshIntervalMs);
 
   if (loading) {
     return (
@@ -320,22 +342,35 @@ export function BatchesPage({ basePath, username }: Props): JSX.Element {
     );
   }
 
-  const pageCost = (batches ?? []).reduce((sum, b) => sum + b.cost, 0);
-
   return (
     <div className="pb-8">
-      {/* Breadcrumb */}
-      <nav className="flex items-center gap-2 text-xl font-light text-zinc-800 flex-wrap">
-        <span>Batches</span>
-      </nav>
-      <div className="mt-1 text-sm">
-        <button
-          type="button"
-          onClick={disableReactUi}
-          className="text-sky-600 hover:underline cursor-pointer"
-        >
-          Back to classic layout
-        </button>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          {/* Breadcrumb */}
+          <nav className="flex items-center gap-2 text-xl font-light text-zinc-800 flex-wrap">
+            <span>Batches</span>
+          </nav>
+          <div className="mt-1 text-sm">
+            <button
+              type="button"
+              onClick={disableReactUi}
+              className="text-sky-600 hover:underline cursor-pointer"
+            >
+              Back to classic layout
+            </button>
+          </div>
+        </div>
+        {refreshActive && (
+          <div className="w-44 shrink-0 border rounded bg-slate-50 px-3 py-2">
+            <AutoRefreshBar
+              autoRefresh={autoRefresh}
+              onToggle={setAutoRefresh}
+              countdownKey={countdownKey}
+              refreshing={refreshing}
+              intervalMs={refreshIntervalMs}
+            />
+          </div>
+        )}
       </div>
 
       <div className="flex flex-col w-full mt-4 space-y-4">
@@ -345,22 +380,8 @@ export function BatchesPage({ basePath, username }: Props): JSX.Element {
           onSearch={setSearch}
           onDirtyChange={setQueryDirty}
           emptyLabel="Showing all batches in your billing projects"
+          header={<QuickFilters q={q} username={username} onSearch={setSearch} />}
         />
-
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <QuickFilters q={q} username={username} onSearch={setSearch} />
-          {refreshActive && (
-            <div className="w-56">
-              <AutoRefreshBar
-                autoRefresh={autoRefresh}
-                onToggle={setAutoRefresh}
-                countdownKey={countdownKey}
-                refreshing={refreshing}
-                intervalMs={refreshIntervalMs}
-              />
-            </div>
-          )}
-        </div>
 
         {error && <div className="text-red-600">Error loading batches: {error}</div>}
         {actionError && <div className="text-red-600">{actionError}</div>}
@@ -376,15 +397,14 @@ export function BatchesPage({ basePath, username }: Props): JSX.Element {
               <thead>
                 <tr>
                   <th className="h-12 bg-slate-200 font-light text-md text-left pl-3 rounded-tl w-28">Status</th>
-                  <th className="h-12 bg-slate-200 font-light text-md text-left w-16">ID</th>
+                  <th className="h-12 bg-slate-200 font-light text-md text-left w-20">ID</th>
                   <th className="h-12 bg-slate-200 font-light text-md text-left rounded-tr md:rounded-tr-none">Batch Name</th>
                   <th className="h-12 bg-slate-200 font-light text-md text-left hidden lg:table-cell w-24">User</th>
                   <th className="h-12 bg-slate-200 font-light text-md text-left hidden lg:table-cell w-32">Billing Project</th>
-                  <th className="h-12 bg-slate-200 font-light text-md text-left hidden lg:table-cell w-32">Jobs</th>
+                  <th className="h-12 bg-slate-200 font-light text-md text-left hidden lg:table-cell w-44">Jobs</th>
                   <th className="h-12 bg-slate-200 font-light text-md text-left hidden lg:table-cell w-24">Created</th>
                   <th className="h-12 bg-slate-200 font-light text-md text-left hidden 2xl:table-cell w-24">Completed</th>
                   <th className="h-12 bg-slate-200 font-light text-md text-left hidden xl:table-cell w-20">Duration</th>
-                  <th className="h-12 bg-slate-200 font-light text-md text-right pr-4 hidden xl:table-cell w-24" title="Total CPU-hours reserved by this batch's jobs">CPU hrs</th>
                   <th className="h-12 bg-slate-200 font-light text-md text-right pr-4 hidden md:table-cell w-24">Cost</th>
                   <th className="h-12 bg-slate-200 font-light text-md hidden md:table-cell rounded-tr w-24"><span className="sr-only">Actions</span></th>
                 </tr>
@@ -396,7 +416,6 @@ export function BatchesPage({ basePath, username }: Props): JSX.Element {
                     basePath={basePath}
                     batch={batch}
                     q={q}
-                    now={now}
                     onSearch={setSearch}
                     onCancel={runAction(() => cancelBatch(batch.id))}
                     onDelete={runAction(() => deleteBatch(batch.id))}
@@ -404,19 +423,10 @@ export function BatchesPage({ basePath, username }: Props): JSX.Element {
                 ))}
                 {batches.length === 0 && (
                   <tr>
-                    <td colSpan={12} className="py-8 text-center text-zinc-400 italic">No batches match this query</td>
+                    <td colSpan={11} className="py-8 text-center text-zinc-400 italic">No batches match this query</td>
                   </tr>
                 )}
               </tbody>
-              {batches.length > 0 && (
-                <tfoot className="hidden md:table-footer-group">
-                  <tr>
-                    <td colSpan={12} className="pt-2 pr-4 text-right text-sm text-zinc-500 tabular-nums">
-                      Total for this page: <CostDisplay cost={pageCost} />
-                    </td>
-                  </tr>
-                </tfoot>
-              )}
             </table>
           </div>
         )}

@@ -27,10 +27,18 @@ function fieldTermPattern(field: string): RegExp {
 // Sets a v2 query's term for `field` to `field = value` (or removes it, if `value` is null),
 // replacing any term for that field already there rather than ANDing a second one (which for a
 // single-valued field could only ever match nothing), and keeping the rest of the query.
-export function withFieldTerm(q: string, field: string, value: string | null): string {
+//
+// With op '!=', excludes `value` instead: any `=` term for the field goes (it would contradict or
+// make redundant the exclusion), but other `!=` terms for it stay, so exclusions accumulate.
+export function withFieldTerm(q: string, field: string, value: string | null, op: '=' | '!=' = '='): string {
   const pattern = fieldTermPattern(field);
-  const kept = q.split('\n').filter((line) => line.trim().length > 0 && !pattern.test(line));
-  return (value == null ? kept : [...kept, `${field} = ${value}`]).join('\n');
+  const kept = q.split('\n').filter((line) => {
+    if (line.trim().length === 0) return false;
+    const m = pattern.exec(line);
+    if (m == null) return true;
+    return op === '!=' && m[1] === '!=' && m[2] !== value;
+  });
+  return (value == null ? kept : [...kept, `${field} ${op} ${value}`]).join('\n');
 }
 
 export function hasFieldTerm(q: string, field: string, value: string): boolean {
@@ -52,21 +60,17 @@ export function costByCategory(breakdown: readonly CostBreakdownEntry[]): CostBr
   return [...totals].map(([resource, cost]) => ({ resource, cost })).sort((a, b) => b.cost - a.cost);
 }
 
-export function jobCountsSummary(batch: Batch): string {
-  const parts: string[] = [];
-  const pending = batch.n_jobs - batch.n_completed;
-  if (pending !== 0) parts.push(`${pending} pending`);
-  if (batch.n_succeeded !== 0) parts.push(`${batch.n_succeeded} succeeded`);
-  if (batch.n_cancelled !== 0) parts.push(`${batch.n_cancelled} cancelled`);
-  if (batch.n_failed !== 0) parts.push(`${batch.n_failed} failed`);
-  return parts.length > 0 ? parts.join(', ') : 'no jobs';
+export interface JobCount {
+  label: string;
+  count: number;
 }
 
-const MSEC_MCPU_PER_CPU_HOUR = 1000 * 3_600_000;
-
-export function formatCpuHours(msecMcpu: number | null | undefined): string {
-  if (msecMcpu == null) return '';
-  const hours = msecMcpu / MSEC_MCPU_PER_CPU_HOUR;
-  if (hours > 0 && hours < 0.01) return '< 0.01';
-  return hours.toLocaleString(undefined, { maximumFractionDigits: hours < 100 ? 2 : 0 });
+// The nonzero job-state counts for a batch, in display order.
+export function jobCountBreakdown(batch: Batch): JobCount[] {
+  return [
+    { label: 'pending', count: batch.n_jobs - batch.n_completed },
+    { label: 'succeeded', count: batch.n_succeeded },
+    { label: 'failed', count: batch.n_failed },
+    { label: 'cancelled', count: batch.n_cancelled },
+  ].filter(({ count }) => count !== 0);
 }
