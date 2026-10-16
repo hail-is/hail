@@ -943,7 +943,10 @@ class EmitStreamSuite {
       )
 
       assert(
-        SafeRow.read(pt, f(ctx.theHailClassLoader, ctx.fs, ctx.taskContext, r)(r, input)) == RowSeq(
+        SafeRow.read(
+          pt,
+          f(ctx.theHailClassLoader, ctx.fs, ctx.taskContext, r)(r, input),
+        ) == RowSeq(
           null
         )
       )
