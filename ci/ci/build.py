@@ -162,11 +162,17 @@ class BuildConfiguration:
                 or (not step.run_if_requested and (not step.only_if_release or (is_release and scope == 'deploy')))
             ]
 
+    def _builds_in_scope(self, step: 'Step', scope: str) -> bool:
+        return step.can_run_in_scope(scope) or step.name in self.transitively_forced
+
+    def built_step_names(self, scope: str) -> List[str]:
+        return [step.name for step in self.steps if self._builds_in_scope(step, scope)]
+
     def build(self, batch, code, scope):
         assert scope in ('deploy', 'test', 'dev')
 
         for step in self.steps:
-            if step.can_run_in_scope(scope) or step.name in self.transitively_forced:
+            if self._builds_in_scope(step, scope):
                 assert step.can_run_in_current_cloud()
                 step.build(batch, code, scope)
 
@@ -185,7 +191,7 @@ class BuildConfiguration:
                 f"Cleanup {step.name} after running {[parent_step.name for parent_step in step_to_parent_steps[step]]}"
             )
 
-            if step.can_run_in_scope(scope) or step.name in self.transitively_forced:
+            if self._builds_in_scope(step, scope):
                 step.cleanup(batch, scope, parent_jobs)
 
     def namespace(self) -> Optional[str]:

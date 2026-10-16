@@ -561,6 +561,12 @@ mkdir -p {shq(repo_dir)}
             if RERUN_ALL_TESTS in self.labels or 'build.yaml' in changed_files:
                 log.info(f'PR #{self.number} running full test suite (rerun all tests label or build.yaml changed)')
                 requested_step_names: Optional[List[str]] = None
+                if self.tactical:
+                    # Still attempt every step, but name them explicitly so the tactical scan
+                    # below can drop the ones that already succeeded.
+                    requested_step_names = BuildConfiguration(
+                        self, build_yaml, scope='test', pr_labels=frozenset(self.labels)
+                    ).built_step_names('test')
             else:
                 requested_steps_set = compute_requested_steps(build_yaml, changed_files, scope='test', cloud=CLOUD)
                 log.info(f'PR #{self.number} selected steps ({len(requested_steps_set)})')
