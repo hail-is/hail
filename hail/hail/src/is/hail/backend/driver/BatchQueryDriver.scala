@@ -10,7 +10,7 @@ import is.hail.collection.ImmutableMap
 import is.hail.collection.implicits.toRichIterable
 import is.hail.expr.ir.lowering.IrMetadata
 import is.hail.io.fs.{CloudStorageConfig, FS, RequesterPaysConfig, RouterFS}
-import is.hail.io.reference.{Liftover, ReferenceSequence}
+import is.hail.io.reference.{Liftover, ReferenceSequence, RgAttachments}
 import is.hail.services._
 import is.hail.services.oauth2.CloudCredentials
 import is.hail.types.virtual.Kinds._
@@ -18,7 +18,6 @@ import is.hail.utils._
 import is.hail.variant.{ReferenceGenome, ReferenceGenomeEnv}
 
 import scala.annotation.switch
-import scala.collection.mutable
 
 import java.io.OutputStream
 import java.nio.charset.StandardCharsets
@@ -37,8 +36,7 @@ object BatchQueryDriver extends HttpLikeRpc with Logging {
     fs: FS,
     tmpdir: String,
     references: ReferenceGenomeEnv,
-    liftovers: Map[(String, String), Liftover],
-    sequences: Map[String, ReferenceSequence],
+    attachments: RgAttachments,
     outputUrl: String,
     action: Int,
     payload: JValue,
@@ -108,8 +106,7 @@ object BatchQueryDriver extends HttpLikeRpc with Logging {
           localTmpdir = "file:///tmp",
           backend = env.backend,
           references = env.references,
-          liftovers = env.liftovers,
-          sequences = env.sequences,
+          attachments = env.attachments,
           fs = env.fs,
           tempFileManager = new OwningTempFileManager(env.fs),
           theHailClassLoader = env.hcl,
@@ -125,6 +122,43 @@ object BatchQueryDriver extends HttpLikeRpc with Logging {
     // Only checks that `refs` could be added: Python sends them with the next request.
     override def putReferences(env: Env)(refs: Iterable[ReferenceGenome]): Unit =
       env.references.withReferences(refs): Unit
+  }
+
+  /** The reference genome attachments Python sends: liftover chain files by source then destination
+    * name, and sequences by reference genome name. A liftover or sequence attached to a reference
+    * genome not in `references` is skipped with a warning, so that only a use of it fails.
+    */
+  private[driver] def loadAttachments(
+    fs: FS,
+    references: ReferenceGenomeEnv,
+    liftovers: Map[String, Map[String, String]],
+    sequences: Map[String, SequenceConfig],
+  ): RgAttachments = {
+    def inScope(description: String, names: String*): Boolean =
+      names.filter(references.get(_).isEmpty) match {
+        case Seq() => true
+        case missing =>
+          logger.warn(
+            s"Skipping $description: reference genome ${missing.map(n => s"'$n'").mkString(", ")} " +
+              "is not in scope."
+          )
+          false
+      }
+
+    val withLiftovers =
+      liftovers.foldLeft(RgAttachments.empty) { case (acc, (source, chainFiles)) =>
+        chainFiles.foldLeft(acc) { case (acc, (dest, chainFile)) =>
+          if (inScope(s"liftover from '$source' to '$dest'", source, dest))
+            acc.withLiftover(Liftover(fs, references(source), references(dest), chainFile))
+          else acc
+        }
+      }
+
+    sequences.foldLeft(withLiftovers) { case (acc, (rg, seq)) =>
+      if (inScope(s"reference sequence of '$rg'", rg))
+        acc.withSequence(ReferenceSequence(fs, references(rg), seq.fasta, seq.index))
+      else acc
+    }
   }
 
   implicit override val fmts: Formats =
@@ -177,20 +211,8 @@ object BatchQueryDriver extends HttpLikeRpc with Logging {
     val references =
       ReferenceGenomeEnv(rpcConfig.custom_references.map(ReferenceGenome.fromJSON))
 
-    val liftovers = mutable.Map.empty[(String, String), Liftover]
-    for ((sourceGenome, liftoversForSource) <- rpcConfig.liftovers)
-      for ((destGenome, chainFile) <- liftoversForSource)
-        Liftover.addFatalOnCollision(
-          liftovers,
-          Liftover(fs, references(sourceGenome), references(destGenome), chainFile),
-        )
-
-    val sequences = mutable.Map.empty[String, ReferenceSequence]
-    for ((rg, seq) <- rpcConfig.sequences)
-      ReferenceSequence.addFatalOnCollision(
-        sequences,
-        ReferenceSequence(fs, references(rg), seq.fasta, seq.index),
-      )
+    val attachments =
+      loadAttachments(fs, references, rpcConfig.liftovers, rpcConfig.sequences)
 
     val backend =
       new ServiceBackend(
@@ -214,8 +236,7 @@ object BatchQueryDriver extends HttpLikeRpc with Logging {
           fs,
           rpcConfig.tmp_dir,
           references,
-          liftovers.toMap,
-          sequences.toMap,
+          attachments,
           outputURL,
           action,
           payload,
