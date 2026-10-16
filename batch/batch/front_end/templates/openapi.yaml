@@ -987,7 +987,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/JobListResponse'
+                $ref: '#/components/schemas/JobListPage'
         '400':
           description: "A bad parameter or filter; the reason names the problem."
         '404':
@@ -2599,7 +2599,7 @@ components:
           description: "What the job's outcome attempt would have cost in USD at the non-preemptible rates in effect when it started. Null unless the job succeeded on preemptible resources and every non-preemptible rate was found."
           nullable: true
 
-    JobListResponse:
+    JobListPage:
       type: object
       properties:
         jobs:

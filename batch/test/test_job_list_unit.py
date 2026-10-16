@@ -748,6 +748,8 @@ async def _respond(monkeypatch, exc: BaseException, query=None, semaphore=None):
         (pymysql.err.OperationalError(3024, 'maximum statement execution time exceeded'), 503),
         (pymysql.err.InterfaceError(0, ''), 503),
         (pymysql.err.InternalError(1205, 'Lock wait timeout'), 503),
+        (pymysql.err.OperationalError(1205, 'Lock wait timeout'), 503),
+        (pymysql.err.OperationalError(2006, 'MySQL server has gone away'), 503),
         # rolling back on a dead connection replaces the original error
         (_with_context(RuntimeError('rollback failed'), pymysql.err.OperationalError(2013, 'Lost')), 503),
     ],
@@ -760,7 +762,17 @@ async def test_handler_maps_errors(monkeypatch, exc, status):
         assert e.value.headers['Retry-After'] == str(job_list_api.RETRY_AFTER_SECS)
 
 
-@pytest.mark.parametrize('exc', [ValueError('a bug'), pymysql.err.InternalError(1064, 'syntax'), KeyError('x')])
+@pytest.mark.parametrize(
+    'exc',
+    [
+        ValueError('a bug'),
+        pymysql.err.InternalError(1064, 'syntax'),
+        # unmapped server codes come back as OperationalError, but aren't worth retrying
+        pymysql.err.OperationalError(1045, 'Access denied'),
+        pymysql.err.OperationalError(1366, 'Incorrect integer value'),
+        KeyError('x'),
+    ],
+)
 async def test_handler_leaves_other_errors_alone(monkeypatch, exc):
     with pytest.raises(type(exc)):
         await _respond(monkeypatch, exc)
