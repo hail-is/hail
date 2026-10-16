@@ -53,7 +53,7 @@ class InlineWorkerPool:
         await f(*args, **kwargs)
 
 
-def make_scheduler(job_cores_mcpu_by_user: Dict[str, int], n_jobs_per_user: int):
+def make_scheduler(job_cores_mcpu_by_user: Dict[str, int], n_jobs_per_user: int, n_prior_attempts: int = 0):
     """Returns the scheduler and a per-user count of jobs it has read from the queue."""
     n_read = {user: 0 for user in job_cores_mcpu_by_user}
 
@@ -70,8 +70,9 @@ def make_scheduler(job_cores_mcpu_by_user: Dict[str, int], n_jobs_per_user: int)
                 'user': user,
                 'cores_mcpu': job_cores_mcpu_by_user[user],
                 'regions_bits_rep': None,
-                'n_prior_attempts': 0,
+                'n_prior_attempts': n_prior_attempts,
                 'n_max_attempts': 5,
+                'format_version': 1,
             }
 
     scheduler: Any = PoolScheduler.__new__(PoolScheduler)
@@ -92,6 +93,17 @@ def scheduled_users(monkeypatch):
         users.append(record['user'])
 
     monkeypatch.setattr(pool_module, 'schedule_job', schedule_job)
+    return users
+
+
+@pytest.fixture
+def errored_users(monkeypatch):
+    users: List[str] = []
+
+    async def mark_job_errored(_app, _batch_id, _job_group_id, _job_id, _attempt_id, user, _format_version, _msg):
+        users.append(user)
+
+    monkeypatch.setattr(pool_module, 'mark_job_errored', mark_job_errored)
     return users
 
 
@@ -124,3 +136,14 @@ async def test_waits_when_nothing_could_be_placed(scheduled_users):
 
     assert scheduled_users == []
     assert should_wait is True
+
+
+async def test_errored_jobs_count_towards_share(errored_users):
+    # A lone user's share is 300; every job is over its attempt limit.
+    scheduler, n_read = make_scheduler({'alice': 1000}, n_jobs_per_user=400, n_prior_attempts=5)
+
+    should_wait = await scheduler.schedule_loop_body()
+
+    assert n_read['alice'] == 300
+    assert len(errored_users) == 300
+    assert should_wait is False

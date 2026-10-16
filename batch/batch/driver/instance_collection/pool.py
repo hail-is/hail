@@ -692,6 +692,7 @@ LIMIT 300;
             scheduled_cores_mcpu = 0
             share = user_share[user]
             n_attempted_for_user = 0
+            made_progress_for_user = False
 
             async for record in self._user_runnable_jobs(user):
                 attempt_id = secret_alnum_string(6)
@@ -712,66 +713,63 @@ LIMIT 300;
                 )
 
                 if n_prior_attempts >= n_max_attempts:
-                    await mark_job_errored(
-                        self.app,
-                        record['batch_id'],
-                        record['job_group_id'],
-                        record['job_id'],
-                        attempt_id,
-                        record['user'],
-                        BatchFormatVersion(record['format_version']),
-                        'job has too many prior attempts',
+                    error_msg = 'job has too many prior attempts'
+                elif len(set(regions).intersection(supported_regions)) == 0:
+                    error_msg = (
+                        f'no regions given in {regions} are supported. choose from a region in {supported_regions}'
                     )
-                    continue
-
-                if len(set(regions).intersection(supported_regions)) == 0:
-                    await mark_job_errored(
-                        self.app,
-                        record['batch_id'],
-                        record['job_group_id'],
-                        record['job_id'],
-                        attempt_id,
-                        record['user'],
-                        BatchFormatVersion(record['format_version']),
-                        f'no regions given in {regions} are supported. choose from a region in {supported_regions}',
-                    )
-                    continue
-
-                if scheduled_cores_mcpu + record['cores_mcpu'] > allocated_cores_mcpu:
-                    if random.random() > self.exceeded_shares_counter.rate():
-                        self.exceeded_shares_counter.push(True)
-                        self.scheduler_state_changed.set()
-                        break
-                    self.exceeded_shares_counter.push(False)
-
-                instance = self.pool.get_instance(record['cores_mcpu'], regions)
-                if instance:
-                    instance.adjust_free_cores_in_memory(-record['cores_mcpu'])
-                    scheduled_cores_mcpu += record['cores_mcpu']
-
-                    scheduled_cores_mcpu_per_region[instance.region] += record['cores_mcpu']
-                    scheduled_jobs_per_region[instance.region] += 1
-
-                    n_scheduled += 1
-
-                    async def schedule_with_error_handling(app, record, instance):
-                        try:
-                            await schedule_job(app, record, instance)
-                        except Exception:
-                            if instance.state == 'active':
-                                instance.adjust_free_cores_in_memory(record['cores_mcpu'])
-
-                    await waitable_pool.call(schedule_with_error_handling, self.app, record, instance)
                 else:
-                    n_regions = len(regions)
-                    for region in regions:
-                        unscheduled_cores_mcpu_per_region[region] += record['cores_mcpu'] / n_regions
-                        unscheduled_jobs_per_region[region] += 1 / n_regions
+                    error_msg = None
+
+                if error_msg is not None:
+                    await mark_job_errored(
+                        self.app,
+                        record['batch_id'],
+                        record['job_group_id'],
+                        record['job_id'],
+                        attempt_id,
+                        record['user'],
+                        BatchFormatVersion(record['format_version']),
+                        error_msg,
+                    )
+                    made_progress_for_user = True
+                else:
+                    if scheduled_cores_mcpu + record['cores_mcpu'] > allocated_cores_mcpu:
+                        if random.random() > self.exceeded_shares_counter.rate():
+                            self.exceeded_shares_counter.push(True)
+                            self.scheduler_state_changed.set()
+                            break
+                        self.exceeded_shares_counter.push(False)
+
+                    instance = self.pool.get_instance(record['cores_mcpu'], regions)
+                    if instance:
+                        instance.adjust_free_cores_in_memory(-record['cores_mcpu'])
+                        scheduled_cores_mcpu += record['cores_mcpu']
+
+                        scheduled_cores_mcpu_per_region[instance.region] += record['cores_mcpu']
+                        scheduled_jobs_per_region[instance.region] += 1
+
+                        n_scheduled += 1
+                        made_progress_for_user = True
+
+                        async def schedule_with_error_handling(app, record, instance):
+                            try:
+                                await schedule_job(app, record, instance)
+                            except Exception:
+                                if instance.state == 'active':
+                                    instance.adjust_free_cores_in_memory(record['cores_mcpu'])
+
+                        await waitable_pool.call(schedule_with_error_handling, self.app, record, instance)
+                    else:
+                        n_regions = len(regions)
+                        for region in regions:
+                            unscheduled_cores_mcpu_per_region[region] += record['cores_mcpu'] / n_regions
+                            unscheduled_jobs_per_region[region] += 1 / n_regions
 
                 n_attempted_for_user += 1
                 if n_attempted_for_user >= share:
-                    # Rerun straight away only if this user's jobs are being placed; otherwise wait for a state change.
-                    if scheduled_cores_mcpu > 0:
+                    # Rerun straight away only if this user's queue is moving; otherwise wait for a state change.
+                    if made_progress_for_user:
                         should_wait = False
                     break
 
