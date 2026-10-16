@@ -114,7 +114,7 @@ object MatrixNativeWriter {
 
     val lowered =
       if (partitions != null) {
-        val partitionsType = IRParser.parseType(partitionsTypeStr, ctx.referenceGenomes)
+        val partitionsType = IRParser.parseType(partitionsTypeStr, ctx.references)
         val jv = JsonMethods.parse(partitions)
         val rangeBounds = JSONAnnotationImpex.importAnnotation(jv, partitionsType)
           .asInstanceOf[IndexedSeq[Interval]]

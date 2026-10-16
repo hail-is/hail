@@ -57,9 +57,9 @@ class MatrixIRSuite {
       assertEvalsTo(MatrixWrite(original, writer), ())
 
       val read =
-        MatrixIR.read(fs, ctx.referenceGenomes, path, dropCols = false, dropRows = false, None)
+        MatrixIR.read(fs, ctx.references, path, dropCols = false, dropRows = false, None)
       val droppedRows =
-        MatrixIR.read(fs, ctx.referenceGenomes, path, dropCols = false, dropRows = true, None)
+        MatrixIR.read(fs, ctx.references, path, dropCols = false, dropRows = true, None)
 
       val expectedCols = ArraySeq.tabulate(10)(i => RowSeq(i, RowSeq(0L, i.toLong)))
       val expectedRows = if (writer eq writer1) {
@@ -498,7 +498,7 @@ class MatrixIRSuite {
           }
           val read = MatrixIR.read(
             fs,
-            ctx.referenceGenomes,
+            ctx.references,
             target,
             dropCols = false,
             dropRows = false,
@@ -517,7 +517,7 @@ class MatrixIRSuite {
             FastSeq(Interval(RowSeq(skipped), RowSeq(nRows), true, false)),
             TInt32,
           )
-          val reader = MatrixNativeReader(fs, ctx.referenceGenomes, target, Some(opts))
+          val reader = MatrixNativeReader(fs, ctx.references, target, Some(opts))
           val indexed = MatrixRead(reader.fullMatrixTypeWithoutUIDs, false, false, reader)
           assertEvalsTo(
             TableCollect(TableKeyBy(CastMatrixToTable(indexed, "entries", "cols"), FastSeq())),

@@ -194,7 +194,7 @@ object MatrixPLINKReader extends Logging {
     implicit val formats: Formats = DefaultFormats
     val params = jv.extract[MatrixPLINKReaderParameters]
 
-    val referenceGenome = params.rg.map(ctx.references)
+    val referenceGenome = params.rg.map(ctx.references.resolve)
     referenceGenome.foreach(_.validateContigRemap(params.contigRecoding))
 
     val locusType = TLocus.schemaFromRG(referenceGenome)

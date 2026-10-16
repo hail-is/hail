@@ -107,7 +107,7 @@ object MatrixReader {
     (jv \ "name").extract[String] match {
       case "MatrixRangeReader" => MatrixRangeReader.fromJValue(ctx, jv)
       case "MatrixNativeReader" =>
-        MatrixNativeReader.fromJValue(ctx.fs, ctx.referenceGenomes, jv)
+        MatrixNativeReader.fromJValue(ctx.fs, ctx.references, jv)
       case "MatrixBGENReader" => MatrixBGENReader.fromJValue(ctx, jv)
       case "MatrixPLINKReader" => MatrixPLINKReader.fromJValue(ctx, jv)
       case "MatrixVCFReader" => MatrixVCFReader.fromJValue(ctx, jv)
