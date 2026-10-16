@@ -438,6 +438,75 @@ Resources:
         IgnorePublicAcls: true
         RestrictPublicBuckets: true
 
+  VdcDb:
+    Type: "AWS::RDS::DBInstance"
+    Properties:
+      AllocatedStorage: 20
+      DBInstanceClass: "db.m9g.xlarge"
+      DBSubnetGroupName: !Ref VdcDbSubnetGroup
+      DBParameterGroupName: !Ref VdcDbParameterGroup
+      Engine: "mysql"
+      EngineVersion: "8.4.10"
+      MasterUsername: "root"
+      ManageMasterUserPassword: true
+      MasterUserSecret:
+        KmsKeyId: !Ref VdcDbMasterPassword
+      VPCSecurityGroups:
+        - !Ref VdcDbSecurityGroup
+
+  VdcDbSubnetGroup:
+    Type: "AWS::RDS::DBSubnetGroup"
+    Properties:
+      DBSubnetGroupDescription: "Group for VDC network subnets"
+      SubnetIds:
+        - !Ref VdcSubnetA
+        - !Ref VdcSubnetB
+        - !Ref VdcSubnetC
+
+  VdcDbParameterGroup:
+    Type: "AWS::RDS::DBParameterGroup"
+    Properties:
+      Description: "Parameter group for MySQL database"
+      Family: "mysql8.4"
+      Parameters:
+        innodb_log_buffer_size: "536870912"
+        innodb_redo_log_capacity: "10737418240"
+        event_scheduler: "on"
+        skip_show_database: "on"
+        local_infile: "off"
+        log_bin_trust_function_creators: "1"
+        sql_mode: "ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION"
+
+  VdcDbSecurityGroup:
+    Type: "AWS::EC2::SecurityGroup"
+    Properties:
+      VpcId: !ImportValue VdcNetwork
+      GroupDescription: "Security group for MySQL database"
+      SecurityGroupIngress:
+        - Description: "Allows MySQL access from cluster"
+          IpProtocol: "tcp"
+          FromPort: 3306
+          ToPort: 3306
+          SourceSecurityGroupId: !GetAtt VdcCluster.ClusterSecurityGroupId
+
+  VdcDbMasterPassword:
+    Type: "AWS::KMS::Key"
+    Properties:
+      Description: "Root password for MySQL database"
+      EnableKeyRotation: false
+      KeyPolicy:
+        Version: "2012-10-17"
+        Id: !Ref AWS::StackName
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              AWS:
+                Fn::Sub: 'arn:${AWS::Partition}:iam::${AWS::AccountId}:root'
+            Action:
+              - "kms:*"
+            Resource: "*"
+
+
   # AWS-managed EKS addons & necessary roles
 
   VdcClusterAddonEbsCsiDriver:
@@ -659,3 +728,8 @@ Outputs:
     Description: "ARN of IAM role associated with cluster nodes"
     Export:
       Name: VdcNodeRole
+  VdcDbSecurityGroup:
+    Value: !GetAtt VdcDbSecurityGroup.GroupId
+    Description: "RDS MySQL database security group"
+    Export:
+      Name: VdcDbSecurityGroup
