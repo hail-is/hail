@@ -219,6 +219,8 @@ def _nest(depth):
         },
         # fields and operators
         leaf('bogus', '=', 1),
+        leaf(['state'], '=', 'Failed'),
+        leaf({'state': 1}, '=', 'Failed'),
         leaf('state', 'contains', 'Fail'),
         leaf('job_id', '!=', 3),
         leaf('cost', '=', 1),
@@ -241,6 +243,7 @@ def _nest(depth):
         leaf('exit_code', '=', 2**31),
         leaf('cost', '<', '1'),
         leaf('cost', '<', True),
+        leaf('cost', '<', 10**400),
         leaf('name', '=', 5),
         leaf('name', '=', None),
         leaf('name', '=', ['a']),
