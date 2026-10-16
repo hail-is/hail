@@ -13,10 +13,12 @@ import org.json4s.JsonAST.JString
   */
 final class ReferenceGenomeEnv private (private val byName: Map[String, ReferenceGenome]) {
 
+  /** The reference genome named `name`, if it is in scope. */
+  def get(name: String): Option[ReferenceGenome] =
+    byName.get(name).orElse(ReferenceGenome.builtins.get(name))
+
   def resolve(name: String): ReferenceGenome =
-    byName.get(name)
-      .orElse(ReferenceGenome.builtins.get(name))
-      .getOrElse(fatal(s"Reference genome '$name' is not in scope."))
+    get(name).getOrElse(fatal(s"Reference genome '$name' is not in scope."))
 
   def apply(name: String): ReferenceGenome = resolve(name)
 

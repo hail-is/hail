@@ -70,47 +70,53 @@ class EmitModuleBuilder(val ctx: ExecuteContext, val modb: ModuleBuilder) {
   def referenceGenomeFields(): IndexedSeq[StaticFieldRef[ReferenceGenome]] =
     ArraySeq.from(rgContainers.values)
 
-  private val liftoverContainers: mutable.Map[(String, String), StaticFieldRef[Liftover]] =
-    mutable.Map.empty
+  private val liftoverContainers: mutable.LinkedHashMap[
+    (ReferenceGenome, ReferenceGenome),
+    StaticFieldRef[Liftover],
+  ] = mutable.LinkedHashMap.empty
 
   def hasLiftovers: Boolean = liftoverContainers.nonEmpty
 
   /** The session's liftover from `source` to `dest`, which [[Compiled]] ships with this module. */
-  def getLiftover(source: String, dest: String): Value[Liftover] = {
-    if (!ctx.liftovers.contains((source, dest)))
-      fatal(s"No liftover from reference genome '$source' to '$dest' has been added.")
+  def getLiftover(source: ReferenceGenome, dest: ReferenceGenome): Value[Liftover] = {
+    // Fails here, while compiling, if the session has no such liftover.
+    ctx.attachments.liftover(source, dest): Unit
     liftoverContainers.getOrElseUpdate(
       (source, dest),
-      modb.genStaticField[Liftover](s"liftover_${source}_to_$dest"),
+      modb.genStaticField[Liftover](s"liftover_${source.name}_to_${dest.name}"),
     )
   }
 
   def liftovers(): IndexedSeq[Liftover] =
-    ArraySeq.sorted(liftoverContainers.keys).map(ctx.liftovers)
+    ArraySeq.from(liftoverContainers.keys).map { case (source, dest) =>
+      ctx.attachments.liftover(source, dest)
+    }
 
   def liftoverFields(): IndexedSeq[StaticFieldRef[Liftover]] =
-    ArraySeq.sortedBy(liftoverContainers)(_._1).map(_._2)
+    ArraySeq.from(liftoverContainers.values)
 
-  private val sequenceContainers: mutable.Map[String, StaticFieldRef[ReferenceSequence]] =
-    mutable.Map.empty
+  private val sequenceContainers: mutable.LinkedHashMap[
+    ReferenceGenome,
+    StaticFieldRef[ReferenceSequence],
+  ] = mutable.LinkedHashMap.empty
 
   def hasReferenceSequences: Boolean = sequenceContainers.nonEmpty
 
   /** The session's reference sequence of `rg`, which [[Compiled]] ships with this module. */
-  def getReferenceSequence(rg: String): Value[ReferenceSequence] = {
-    if (!ctx.sequences.contains(rg))
-      fatal(s"FASTA file has not been loaded for reference genome '$rg'.")
+  def getReferenceSequence(rg: ReferenceGenome): Value[ReferenceSequence] = {
+    // Fails here, while compiling, if the session has no such reference sequence.
+    ctx.attachments.sequence(rg): Unit
     sequenceContainers.getOrElseUpdate(
       rg,
-      modb.genStaticField[ReferenceSequence](s"reference_sequence_$rg"),
+      modb.genStaticField[ReferenceSequence](s"reference_sequence_${rg.name}"),
     )
   }
 
   def referenceSequences(): IndexedSeq[ReferenceSequence] =
-    ArraySeq.sorted(sequenceContainers.keys).map(ctx.sequences)
+    ArraySeq.from(sequenceContainers.keys).map(ctx.attachments.sequence)
 
   def referenceSequenceFields(): IndexedSeq[StaticFieldRef[ReferenceSequence]] =
-    ArraySeq.sortedBy(sequenceContainers)(_._1).map(_._2)
+    ArraySeq.from(sequenceContainers.values)
 
   def setObjects(cb: EmitCodeBuilder, objects: Code[Array[AnyRef]]): Unit =
     modb.setObjects(cb, objects)
@@ -167,10 +173,10 @@ trait WrappedEmitModuleBuilder {
   def getReferenceGenome(rg: ReferenceGenome): Value[ReferenceGenome] =
     emodb.getReferenceGenome(rg)
 
-  def getLiftover(source: String, dest: String): Value[Liftover] =
+  def getLiftover(source: ReferenceGenome, dest: ReferenceGenome): Value[Liftover] =
     emodb.getLiftover(source, dest)
 
-  def getReferenceSequence(rg: String): Value[ReferenceSequence] =
+  def getReferenceSequence(rg: ReferenceGenome): Value[ReferenceSequence] =
     emodb.getReferenceSequence(rg)
 }
 
@@ -946,11 +952,11 @@ final class EmitClassBuilder[C](val emodb: EmitModuleBuilder, val cb: ClassBuild
           if (hasReferences)
             f.asInstanceOf[FunctionWithReferences].addReferenceGenomes(references)
           if (liftovers != null) {
-            liftovers.foreach(_.restore(fs))
+            liftovers.foreach(_.restore(fs, localTmpdir))
             f.asInstanceOf[FunctionWithLiftovers].addLiftovers(liftovers)
           }
           if (sequences != null) {
-            sequences.foreach(_.restore(localTmpdir, fs))
+            sequences.foreach(_.restore(fs, localTmpdir))
             f.asInstanceOf[FunctionWithReferenceSequences].addReferenceSequences(sequences)
           }
           if (nSerializedAggs != 0)
