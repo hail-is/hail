@@ -297,6 +297,12 @@ object RegistryHelpers {
     assert(value != null)
     ptype.unstagedStoreJavaObject(value, r)
   }
+
+  def unsafeReadAnyRef(t: PType, region: Region, offset: Long): AnyRef =
+    UnsafeRow.readAnyRef(t, region, offset)
+
+  def safeReadAnyRef(t: PType, region: Region, offset: Long): AnyRef =
+    SafeRow.readAnyRef(t, region, offset)
 }
 
 abstract class RegistryFunctions {
