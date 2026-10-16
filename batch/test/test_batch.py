@@ -968,8 +968,7 @@ def test_authorized_users_only():
         (session.get, '/api/v1alpha/batches/0/jobs/0/log', 401),
         (session.get, '/api/v1alpha/batches/0/jobs/0/resource_usage', 401),
         (session.get, '/api/v1alpha/batches/0/jobs/0/jvm_profile', 401),
-        (session.get, '/api/v1alpha/batches/0/timing', 401),
-        (session.get, '/api/v1alpha/batches/0/job_graph', 401),
+        (session.get, '/api/v2alpha/batches/0/job-list', 401),
         (session.get, '/api/v1alpha/batches', 401),
         (session.post, '/api/v1alpha/batches/create', 401),
         (session.post, '/api/v1alpha/batches/0/jobs/create', 401),
@@ -2436,3 +2435,72 @@ def test_billing_propogates_upwards(client: BatchClient):
     for jg in job_groups:
         status = jg.status()
         assert j_status['cost_breakdown'] == status['cost_breakdown'], str((jg.debug_info(), j_status))
+
+
+async def test_job_list(async_client: AioBatchClient):
+    b = create_batch(async_client)
+    j_ok = b.create_job(DOCKER_ROOT_IMAGE, ['true'])
+    jg = b.create_job_group(attributes={'name': 'inner'})
+    j_bad = jg.create_job(DOCKER_ROOT_IMAGE, ['false'], attributes={'name': 'failing'})
+    await b.submit()
+    await b.wait()
+
+    async def job_list(**params):
+        resp = await async_client._get(f'/api/v2alpha/batches/{b.id}/job-list', params=params)
+        return await resp.json()
+
+    resp = await job_list(job_group_ids='0', recursive='true', include='exit_code,start_time,end_time,total_jobs')
+    jobs = {j['job_id']: j for j in resp['jobs']}
+    assert set(jobs) == {j_ok.job_id, j_bad.job_id}, str(resp)
+    assert (jobs[j_ok.job_id]['state'], jobs[j_ok.job_id]['exit_code']) == ('Success', 0)
+    assert (jobs[j_bad.job_id]['state'], jobs[j_bad.job_id]['exit_code'], jobs[j_bad.job_id]['name']) == (
+        'Failed',
+        1,
+        'failing',
+    )
+    assert all(j['end_time'] >= j['start_time'] for j in resp['jobs'])
+    assert resp['pagination']['total_jobs'] == 2
+    assert resp['pagination']['page_end_reason'] == 'boundary'
+
+    failed = orjson.dumps({'field': 'state', 'op': 'in', 'value': ['Failed', 'Error']}).decode()
+    resp = await job_list(job_group_ids='0', recursive='true', filter=failed)
+    assert [j['job_id'] for j in resp['jobs']] == [j_bad.job_id]
+
+    resp = await job_list(job_group_ids=str(jg.job_group_id))
+    assert [j['job_id'] for j in resp['jobs']] == [j_bad.job_id]
+
+
+async def test_job_list_filter_fits_the_request_line(async_client: AioBatchClient):
+    b = create_batch(async_client)
+    b.create_job(DOCKER_ROOT_IMAGE, ['true'])
+    await b.submit()
+
+    def filter_of(n_bytes: int) -> str:
+        # characters that each percent-encode to three bytes, as badly as JSON can encode
+        prefix, suffix = '{"field":"name","op":"contains","value":"', '"}'
+        pad = '[]{},:' * n_bytes
+        s = prefix + pad[: n_bytes - len(prefix) - len(suffix)] + suffix
+        assert len(s.encode('utf-8')) == n_bytes
+        return s
+
+    # every other parameter at its longest
+    params = {
+        'job_group_ids': ','.join(['2147483647'] * 10),
+        'recursive': 'false',
+        'scan_direction': 'backward',
+        'scan_start_job_id': '2147483647',
+        'limit': '1000',
+        'max_scan_size': '50000',
+        'include': 'start_time,end_time,latest_attempt_duration,exit_code,attempts,attempts.cost_per_hour,'
+        'parent_ids,cost,total_jobs',
+    }
+    path = f'/api/v2alpha/batches/{b.id}/job-list'
+
+    # reaches the handler, which rejects the made-up groups, rather than aiohttp rejecting the request line
+    with pytest.raises(httpx.ClientResponseError) as e:
+        await async_client._get(path, params={**params, 'filter': filter_of(2048)})
+    assert e.value.status == 404, str(e.value)
+
+    with pytest.raises(httpx.ClientResponseError) as e:
+        await async_client._get(path, params={**params, 'filter': filter_of(2049)})
+    assert e.value.status == 400 and 'bytes' in str(e.value), str(e.value)
