@@ -131,6 +131,11 @@ _LOCAL_REACT_ROUTES: list[tuple[str, str, str, str, dict]] = [
     ('ci',           'GET', '/ci/swagger', 'swagger/index.html', {}),
     ('monitoring',   'GET', '/monitoring/swagger', 'swagger/index.html', {}),
     ('auth',         'GET', '/auth/swagger', 'swagger/index.html', {}),
+    # TODO: remove these two once the deployed batch backend has the /batches React branch (and
+    # stop forcing hail_react_ui in _proxy). Until then the backend's `/` redirect lands on the
+    # classic /batches context, which "Try new layout" can't override.
+    ('batch',        'GET', '/batch', 'batches_react.html', {}),
+    ('batch',        'GET', '/batch/', 'batches_react.html', {}),
     ('batch',        'GET', '/batch/batches', 'batches_react.html', {}),
     ('batch',        'GET', '/batch/batches/{batch_id}', 'batch_react.html', {}),
     ('batch',        'GET', '/batch/batches/{batch_id}/jobs/{job_id}', 'job_react.html', {}),
@@ -230,8 +235,10 @@ async def _proxy(request: web.Request, service: str) -> dict:
     backend_client = request.app[BC]
     backend_route = _backend_url(service, request.raw_path)
     headers = {'x-hail-return-jinja-context': '1'}
-    if request.cookies:
-        headers['Cookie'] = '; '.join(f'{k}={v}' for k, v in request.cookies.items())
+    # TODO: remove once "Try new layout" is no longer a dev-only opt-in; until then the devserver
+    # always asks the backend for the React version of pages that have one.
+    cookies = {**request.cookies, 'hail_react_ui': '1'}
+    headers['Cookie'] = '; '.join(f'{k}={v}' for k, v in cookies.items())
     try:
         async with await backend_client.request(request.method, backend_route, headers=headers) as resp:
             return await resp.json()

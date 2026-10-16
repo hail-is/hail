@@ -34,7 +34,10 @@ async function flush() {
 beforeEach(() => {
   vi.useFakeTimers();
   window.history.replaceState(null, '', '/batches');
-  fetchMock = vi.fn((url: string) => {
+  fetchMock = vi.fn((url: string, init?: RequestInit) => {
+    if (init?.method === 'PATCH' || init?.method === 'DELETE') {
+      return Promise.resolve({ ok: true, text: () => Promise.resolve('') });
+    }
     const params = new URL(url, 'http://localhost').searchParams;
     const page = PAGES.get(params.get('last_batch_id'));
     return Promise.resolve({ ok: true, text: () => Promise.resolve(JSON.stringify(page)) });
@@ -130,5 +133,23 @@ describe('auto-refresh', () => {
     const calls = fetchMock.mock.calls.length;
     await act(async () => { vi.advanceTimersByTime(REFRESH_INTERVAL_MS); });
     expect(fetchMock.mock.calls.length).toBe(calls + 1);
+  });
+});
+
+describe('actions', () => {
+  it('cancel and delete hit the batch endpoints, then refetch the current page', async () => {
+    const { result } = renderHook(() => useBatchList(BASE_PATH, 'alice'));
+    await flush();
+    const before = fetchMock.mock.calls.length;
+
+    await act(async () => { await result.current.cancelBatch(900); });
+    expect(fetchMock.mock.calls[before][0]).toBe(`${BASE_PATH}/api/v1alpha/batches/900/cancel`);
+    expect(fetchMock.mock.calls[before][1]?.method).toBe('PATCH');
+    expect(fetchMock.mock.calls[before + 1][0]).toContain('/api/v2alpha/batches?');
+
+    await act(async () => { await result.current.deleteBatch(870); });
+    expect(fetchMock.mock.calls[before + 2][0]).toBe(`${BASE_PATH}/api/v1alpha/batches/870`);
+    expect(fetchMock.mock.calls[before + 2][1]?.method).toBe('DELETE');
+    expect(fetchMock.mock.calls[before + 3][0]).toContain('/api/v2alpha/batches?');
   });
 });
