@@ -960,7 +960,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/JobListResponse'
+                $ref: '#/components/schemas/JobListPage'
         '400':
           description: "A bad parameter or filter; the reason names the problem."
         '404':
@@ -2569,7 +2569,7 @@ components:
           items:
             $ref: '#/components/schemas/JobAttemptResponse'
 
-    JobListResponse:
+    JobListPage:
       type: object
       properties:
         jobs:

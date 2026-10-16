@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from typing import Any, Dict, Mapping, Optional
 
 import pymysql
@@ -16,6 +17,13 @@ JOB_LIST_CONCURRENCY = 4
 JOB_LIST_QUEUE_WAIT_SECS = 2.0
 RETRY_AFTER_SECS = 1
 
+log = logging.getLogger('batch.front_end.job_list_api')
+
+# PyMySQL raises OperationalError for any server code >= 1000 it doesn't map, so match codes, not just the class.
+# 1040 too many connections, 1205 lock wait timeout, 1213 deadlock, 2003 can't connect, 2006 server gone away,
+# 2013 lost connection, 3024 statement time limit exceeded.
+TRANSIENT_MYSQL_CODES = frozenset((1040, 1205, 1213, 2003, 2006, 2013, 3024))
+
 
 def is_transient_db_error(e: BaseException) -> bool:
     """A database error worth retrying: a timeout, a lost or refused connection, lock trouble.
@@ -27,9 +35,13 @@ def is_transient_db_error(e: BaseException) -> bool:
     exc: Optional[BaseException] = e
     while exc is not None and id(exc) not in seen:
         seen.add(id(exc))
-        if isinstance(exc, (pymysql.err.OperationalError, pymysql.err.InterfaceError)):
+        if isinstance(exc, pymysql.err.InterfaceError):
             return True
-        if isinstance(exc, pymysql.err.InternalError) and exc.args and exc.args[0] == 1205:
+        if (
+            isinstance(exc, (pymysql.err.OperationalError, pymysql.err.InternalError))
+            and exc.args
+            and exc.args[0] in TRANSIENT_MYSQL_CODES
+        ):
             return True
         exc = exc.__context__
     return False
@@ -74,6 +86,7 @@ async def job_list_response(
     except Exception as e:
         # Not gear's unbounded retries: the client's bounded ones, so a request never overruns its deadline.
         if is_transient_db_error(e):
+            log.warning('job list: transient database error', exc_info=True)
             raise _unavailable('Database unavailable', 'The database is unavailable; retry shortly.') from e
         raise
     finally:
