@@ -68,8 +68,8 @@ object LowerMatrixIR extends Logging {
   //   None: varies per row, column, loop iteration or element; an init arg can't read it.
   private type LiftEnv = BindingEnv[Option[IR]]
 
-  private def LiftEnv(variant: Name): LiftEnv =
-    BindingEnv(Env(variant -> None), Some(Env.empty), Some(Env.empty))
+  private def LiftEnv(illegalEvalName: Name): LiftEnv =
+    BindingEnv(Env(illegalEvalName -> None), Some(Env.empty), Some(Env.empty))
 
   private def bindingsToStruct(bindings: IndexedSeq[(Name, IR)]): MakeStruct =
     MakeStruct(bindings.map { case (n, ir) => n.str -> ir })
@@ -263,7 +263,10 @@ object LowerMatrixIR extends Logging {
             FreeVariables(x, supportsAgg = false, supportsScan = true).eval.m.keys.foreach { n =>
               if (lifted.contains(n)) fatal(s"scan init argument depends on a scan result: $n")
               env.eval.lookupOption(n).foreach {
-                case Some(v) => if (moved.add(n)) { hoist(v, env); top = top >> M.let(n -> v) }
+                case Some(v) =>
+                  if (ContainsAgg(v))
+                    fatal("aggregations inside scans are not supported in MatrixMapRows")
+                  if (moved.add(n)) { hoist(v, env); top = top >> M.let(n -> v) }
                 case None => fatal(s"scan init argument refers to $n, which can't leave newRow")
               }
             }
@@ -381,7 +384,7 @@ object LowerMatrixIR extends Logging {
             }
 
           val builder = ArraySeq.newBuilder[(Name, IR)]
-          val env = LiftEnv(rowName)
+          val env = LiftEnv(rowName).bindAgg(colName -> None, entryName -> None)
           val body = lift(ir, env, builder)
           (body, builder.result().foldLeft(top)(_ >> M.let[EVAL.type](_)))
         }
