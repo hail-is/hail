@@ -1,5 +1,10 @@
 import { useState, useRef, useEffect } from 'react';
+import type { ReactNode } from 'react';
 import type { QueryFieldConfig } from './queryFields';
+
+// Query values aren't credentials; keep browser autofill and password-manager widgets (LastPass,
+// 1Password) out of these inputs, which they otherwise latch onto for fields like "user".
+const NO_AUTOFILL = { autoComplete: 'off', 'data-lpignore': 'true', 'data-1p-ignore': 'true' } as const;
 
 let rowIdCounter = 0;
 function newRowId(): string {
@@ -97,6 +102,7 @@ function StructuredRowEditor({ row, fields, onChange, onRemove }: {
           value={row.value}
           onChange={(e) => { onChange({ ...row, value: e.target.value }); }}
           placeholder={config?.placeholder ?? 'Enter value...'}
+          {...NO_AUTOFILL}
           className="p-2 bg-white rounded border flex-grow"
         />
       )}
@@ -126,6 +132,7 @@ function FreeTextRowEditor({ row, onChange, onRemove }: {
         value={row.value}
         onChange={(e) => { onChange({ ...row, value: e.target.value }); }}
         placeholder='partial match &mdash; wrap in "quotes" for exact match'
+        {...NO_AUTOFILL}
         className="p-2 bg-white rounded border flex-grow"
       />
       <button
@@ -140,10 +147,12 @@ function FreeTextRowEditor({ row, onChange, onRemove }: {
   );
 }
 
-export function QueryBuilder({ fields, q, onSearch, onDirtyChange, emptyLabel = 'Showing all jobs' }: {
+export function QueryBuilder({ fields, q, onSearch, onDirtyChange, emptyLabel = 'Showing all jobs', header }: {
   fields: readonly QueryFieldConfig[];
   q: string;
   emptyLabel?: string;
+  // Rendered at the top of the query box in builder mode (e.g. preset queries).
+  header?: ReactNode;
   onSearch: (_q: string) => void;
   onDirtyChange?: (_dirty: boolean) => void;
 }): JSX.Element {
@@ -245,7 +254,7 @@ export function QueryBuilder({ fields, q, onSearch, onDirtyChange, emptyLabel = 
       onSubmit={(e) => { e.preventDefault(); commit(rows, textValue); }}
     >
       <div className="flex-grow">
-        <div className="flex space-x-1">
+        <div className="flex gap-1">
           <button
             type="button"
             onClick={switchToBuilder}
@@ -264,10 +273,23 @@ export function QueryBuilder({ fields, q, onSearch, onDirtyChange, emptyLabel = 
           >
             Text Query
           </button>
+          {mode === 'text' && (
+            <a
+              href="https://hail.is/docs/batch/advanced_search_help.html"
+              target="_blank"
+              rel="noreferrer"
+              title="Query syntax help"
+              aria-label="Query syntax help"
+              className="ml-auto self-center text-zinc-500 hover:text-sky-600"
+            >
+              <span aria-hidden="true" className="material-symbols-outlined">help</span>
+            </a>
+          )}
         </div>
 
         {mode === 'builder' ? (
           <div className="min-h-24 w-full p-4 bg-slate-200 rounded-b rounded-tr space-y-3">
+            {header}
             {rows.length === 0 && (
               <div className="p-2 bg-white rounded border text-sm text-zinc-500">{emptyLabel}</div>
             )}
@@ -318,18 +340,13 @@ export function QueryBuilder({ fields, q, onSearch, onDirtyChange, emptyLabel = 
               placeholder='Enter search query (e.g., "cost > 5.00")'
               spellCheck={false}
               autoCorrect="off"
+              {...NO_AUTOFILL}
               className="h-32 w-full p-4 bg-white rounded resize whitespace-pre border"
             />
 
             {actionRow}
           </div>
         )}
-      </div>
-
-      <div className="flex items-start">
-        <a href="https://hail.is/docs/batch/advanced_search_help.html" target="_blank" rel="noreferrer">
-          <span className="material-symbols-outlined">help</span>
-        </a>
       </div>
     </form>
   );
