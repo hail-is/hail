@@ -227,6 +227,8 @@ async def _active_pr_json(wb: WatchedBranch, pr: PR, db: Database) -> dict:
             }
         else:
             exception = '\n'.join(traceback.format_exception(None, batch.exception, batch.exception.__traceback__))
+    failed_merge = wb.failed_merge(pr)
+    pending_merge = wb.pending_merge if wb.pending_merge and wb.pending_merge.pr_number == pr.number else None
     return {
         'review_approved': pr.review_state == 'approved',
         'checks_all_pass': len(pr.last_known_github_status) > 0 and pr.build_succeeding_on_all_platforms(),
@@ -243,6 +245,11 @@ async def _active_pr_json(wb: WatchedBranch, pr: PR, db: Database) -> dict:
             and not p.build_failed_on_at_least_one_platform()
         ],
         'is_merge_candidate': wb.merge_candidate is not None and wb.merge_candidate.number == pr.number,
+        'merge_pending': pending_merge is not None,
+        'merge_pending_uuid': pending_merge.uuid if pending_merge else None,
+        'merge_requested_at_ms': pending_merge.requested_at_ms if pending_merge else None,
+        'merge_failures': failed_merge.failures if failed_merge else 0,
+        'merge_retry_after_ms': failed_merge.retry_after_ms if failed_merge else None,
         'blocking_deploy_batch_id': blocking_deploy_batch_id,
         'batch': batch_summary,
         'pr_authorized': await pr.authorized(db),
