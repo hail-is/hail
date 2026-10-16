@@ -59,9 +59,8 @@ object ContainsAgg {
   def apply(root: IR): Boolean = IsAggResult(root) || (root match {
     case Block(bindings, body) =>
       bindings.exists {
-        case Binding(_, value, Scope.EVAL) => ContainsAgg(value)
         case Binding(_, _, Scope.AGG) => true
-        case Binding(_, _, Scope.SCAN) => false
+        case Binding(_, value, _) => ContainsAgg(value)
       } || ContainsAgg(body)
     case _: TableAggregate => false
     case _: MatrixAggregate => false
@@ -115,9 +114,8 @@ object ContainsScan {
   def apply(root: IR): Boolean = IsScanResult(root) || (root match {
     case Block(bindings, body) =>
       bindings.exists {
-        case Binding(_, value, Scope.EVAL) => ContainsScan(value)
-        case Binding(_, _, Scope.AGG) => false
         case Binding(_, _, Scope.SCAN) => true
+        case Binding(_, value, _) => ContainsScan(value)
       } || ContainsScan(body)
     case _: TableAggregate => false
     case _: MatrixAggregate => false

@@ -12,8 +12,8 @@ import is.hail.expr.ir.{Memoized => M}
 import is.hail.expr.ir.Scope.{AGG, SCAN}
 import is.hail.expr.ir.TestUtils._
 import is.hail.expr.ir.defs.{
-  Apply, ApplyAggOp, ApplyScanOp, GetField, I32, InsertFields, MakeTuple, MatrixMultiWrite,
-  MatrixWrite, RNGSplit, RNGSplitStatic, RNGStateLiteral, Ref, TableCollect,
+  Apply, ApplyAggOp, ApplyScanOp, Binding, Block, GetField, I32, InsertFields, MakeTuple,
+  MatrixMultiWrite, MatrixWrite, RNGSplit, RNGSplitStatic, RNGStateLiteral, Ref, TableCollect,
 }
 import is.hail.types.virtual._
 import is.hail.utils._
@@ -273,11 +273,35 @@ class MatrixIRSuite {
     }
   }
 
-  def testScanAggNestingOnCols() =
+  @Test def testScanBlockBindingOfAggOnRows(implicit ctx: ExecuteContext): Unit = {
+    val mt = rangeMatrix(5, 3, Some(2))
+    val row = Ref(MatrixIR.rowName, mt.typ.rowType)
+    val v = M.eval {
+      for {
+        x <- M.lift[SCAN.type](for { x <- ApplyAggOp(Count())() } yield x)
+        y <- ApplyScanOp(Sum())(x)
+      } yield y
+    }
+    val mapped = MatrixMapRows(mt, InsertFields(row, FastSeq("v" -> v)))
+    TypeCheck(ctx, mapped)
+    interceptFatal("aggregations inside scans")(getRows(mapped))
+  }
+
+  def testScanAggNestingOnCols() = {
+    val x = Ref(freshName(), TInt64)
     FastSeq(
       (ApplyScanOp(Sum())(ApplyAggOp(Count())()), "aggregations inside scans"),
       (ApplyAggOp(Sum())(ApplyScanOp(Count())()), "scans inside aggregations"),
+      (
+        Block(FastSeq(Binding(x.name, ApplyAggOp(Count())(), SCAN)), ApplyScanOp(Sum())(x)),
+        "aggregations inside scans",
+      ),
+      (
+        Block(FastSeq(Binding(x.name, ApplyScanOp(Count())(), AGG)), ApplyAggOp(Sum())(x)),
+        "scans inside aggregations",
+      ),
     )
+  }
 
   @ParameterizedTest
   def testScanAggNestingOnCols(v: IR, error: String)(implicit ctx: ExecuteContext): Unit = {
