@@ -36,7 +36,7 @@ object BatchQueryDriver extends HttpLikeRpc with Logging {
     hcl: HailClassLoader,
     fs: FS,
     tmpdir: String,
-    references: Map[String, ReferenceGenome],
+    references: ReferenceGenomeEnv,
     liftovers: Map[(String, String), Liftover],
     sequences: Map[String, ReferenceSequence],
     outputUrl: String,
@@ -107,7 +107,7 @@ object BatchQueryDriver extends HttpLikeRpc with Logging {
           tmpdir = env.tmpdir,
           localTmpdir = "file:///tmp",
           backend = env.backend,
-          references = ReferenceGenomeEnv(env.references),
+          references = env.references,
           liftovers = env.liftovers,
           sequences = env.sequences,
           fs = env.fs,
@@ -122,9 +122,9 @@ object BatchQueryDriver extends HttpLikeRpc with Logging {
         )(f)
       }
 
+    // Only checks that `refs` could be added: Python sends them with the next request.
     override def putReferences(env: Env)(refs: Iterable[ReferenceGenome]): Unit =
-      // evaluate for effects
-      ReferenceGenome.addFatalOnCollision(env.references, refs): Unit
+      env.references.withReferences(refs): Unit
   }
 
   implicit override val fmts: Formats =
@@ -175,10 +175,7 @@ object BatchQueryDriver extends HttpLikeRpc with Logging {
       )
 
     val references =
-      ReferenceGenome.addFatalOnCollision(
-        ReferenceGenome.builtinReferences(),
-        rpcConfig.custom_references.map(ReferenceGenome.fromJSON),
-      )
+      ReferenceGenomeEnv(rpcConfig.custom_references.map(ReferenceGenome.fromJSON))
 
     val liftovers = mutable.Map.empty[(String, String), Liftover]
     for ((sourceGenome, liftoversForSource) <- rpcConfig.liftovers)

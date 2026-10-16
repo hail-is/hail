@@ -317,7 +317,7 @@ class ReferenceGenomeSuite {
     for (name <- ReferenceGenome.hailReferences) {
       val cached = ReferenceGenome.builtinReferences()(name)
       assertTrue(ReferenceGenomeEnv.empty.resolve(name) eq cached)
-      assertTrue(ReferenceGenomeEnv(Map.empty).resolve(name) eq cached)
+      assertTrue(ReferenceGenomeEnv(Seq.empty).resolve(name) eq cached)
       assertTrue(ReferenceGenome.builtinReferences()(name) eq cached)
     }
 
