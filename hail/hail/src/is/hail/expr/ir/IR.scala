@@ -407,11 +407,11 @@ package defs {
         new ReferenceGenomeNameSerializer(rgs)
 
     def extract(ctx: ExecuteContext, jv: JValue): PartitionReader = {
-      implicit val formats: Formats = PartitionReader.formats(ctx.referenceGenomes)
+      implicit val formats: Formats = PartitionReader.formats(ctx.references)
       (jv \ "name").extract[String] match {
         case "PartitionNativeIntervalReader" =>
           val path = (jv \ "path").extract[String]
-          val spec = TableNativeReader.read(ctx.fs, ctx.referenceGenomes, path, None).spec
+          val spec = TableNativeReader.read(ctx.fs, ctx.references, path, None).spec
           PartitionNativeIntervalReader(
             path,
             spec,
@@ -419,7 +419,7 @@ package defs {
           )
         case "PartitionZippedNativeIntervalReader" =>
           val path = (jv \ "path").extract[String]
-          val spec = RelationalSpec.read(ctx.fs, ctx.referenceGenomes, path)
+          val spec = RelationalSpec.read(ctx.fs, ctx.references, path)
             .asInstanceOf[AbstractMatrixTableSpec]
           PartitionZippedNativeIntervalReader(
             path,
@@ -427,13 +427,13 @@ package defs {
             (jv \ "uidFieldName").extract[String],
           )
         case "GVCFPartitionReader" =>
-          val header = VCFHeaderInfo.fromJSON(jv \ "header", ctx.referenceGenomes)
+          val header = VCFHeaderInfo.fromJSON(jv \ "header", ctx.references)
           val callFields = (jv \ "callFields").extract[Set[String]]
           val entryFloatType =
-            IRParser.parseType((jv \ "entryFloatType").extract[String], ctx.referenceGenomes)
+            IRParser.parseType((jv \ "entryFloatType").extract[String], ctx.references)
           val arrayElementsRequired = (jv \ "arrayElementsRequired").extract[Boolean]
           val rg = (jv \ "rg") match {
-            case JString(s) => Some(ctx.referenceGenomes.resolve(s))
+            case JString(s) => Some(ctx.references.resolve(s))
             case JNothing => None
           }
           val contigRecoding = (jv \ "contigRecoding").extract[Map[String, String]]

@@ -21,7 +21,7 @@ import is.hail.types.virtual.{TArray, TInterval}
 import is.hail.types.virtual.Kinds.{BlockMatrix, Matrix, Table, Value}
 import is.hail.utils._
 import is.hail.utils.implicits.toRichString
-import is.hail.variant.ReferenceGenome
+import is.hail.variant.{ReferenceGenome, ReferenceGenomeEnv}
 
 import scala.annotation.nowarn
 import scala.collection.immutable.ArraySeq
@@ -263,7 +263,7 @@ final class Py4JQueryDriver(backend: Backend) extends Closeable with Logging {
       val kvs = JsonMethods.parse(jsonQuery).extract[Map[String, JValue]]
       val paths = kvs("paths").extract[IndexedSeq[String]]
       val intervalPointType =
-        parseType(kvs("intervalPointType").extract[String], ctx.referenceGenomes)
+        parseType(kvs("intervalPointType").extract[String], ctx.references)
       val intervalObjects =
         JSONAnnotationImpex.importAnnotation(kvs("intervals"), TArray(TInterval(intervalPointType)))
           .asInstanceOf[IndexedSeq[Interval]]
@@ -272,7 +272,7 @@ final class Py4JQueryDriver(backend: Backend) extends Closeable with Logging {
       val matrixReaders: util.List[MatrixIR] =
         paths.map { p =>
           logger.info(s"creating MatrixRead node for $p")
-          val mnr = MatrixNativeReader(ctx.fs, ctx.referenceGenomes, p, Some(opts))
+          val mnr = MatrixNativeReader(ctx.fs, ctx.references, p, Some(opts))
           MatrixRead(mnr.fullMatrixTypeWithoutUIDs, false, false, mnr): MatrixIR
         }.asJava
 
@@ -372,7 +372,7 @@ final class Py4JQueryDriver(backend: Backend) extends Closeable with Logging {
           tmpdir = tmpdir,
           localTmpdir = localTmpdir,
           backend = backend,
-          references = references.toMap,
+          references = ReferenceGenomeEnv(references.toMap),
           liftovers = liftovers.toMap,
           sequences = sequences.toMap,
           fs = tmpFileManager.fs,

@@ -15,7 +15,7 @@ import is.hail.services._
 import is.hail.services.oauth2.CloudCredentials
 import is.hail.types.virtual.Kinds._
 import is.hail.utils._
-import is.hail.variant.ReferenceGenome
+import is.hail.variant.{ReferenceGenome, ReferenceGenomeEnv}
 
 import scala.annotation.switch
 import scala.collection.mutable
@@ -107,7 +107,7 @@ object BatchQueryDriver extends HttpLikeRpc with Logging {
           tmpdir = env.tmpdir,
           localTmpdir = "file:///tmp",
           backend = env.backend,
-          references = env.references,
+          references = ReferenceGenomeEnv(env.references),
           liftovers = env.liftovers,
           sequences = env.sequences,
           fs = env.fs,

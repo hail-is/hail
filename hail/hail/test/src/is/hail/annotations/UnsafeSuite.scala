@@ -68,7 +68,7 @@ class UnsafeSuite {
 
   @ParameterizedTest
   def testCodecSerialization(codec: Spec)(implicit ctx: ExecuteContext): Unit = {
-    implicit val formats: Formats = AbstractRVDSpec.formats(ctx.referenceGenomes)
+    implicit val formats: Formats = AbstractRVDSpec.formats(ctx.references)
     assert(Serialization.read[Spec](codec.toString) == codec)
   }
 

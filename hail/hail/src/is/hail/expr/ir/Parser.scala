@@ -241,7 +241,7 @@ object IRParser {
 
   def partitioner_literal(ctx: ExecuteContext)(it: TokenIterator): RVDPartitioner = {
     identifier(it, "Partitioner")
-    val keyType = type_expr(ctx.referenceGenomes)(it).asInstanceOf[TStruct]
+    val keyType = type_expr(ctx.references)(it).asInstanceOf[TStruct]
     val vJSON = JsonMethods.parse(string_literal(it))
     val rangeBounds = JSONAnnotationImpex.importAnnotation(vJSON, TArray(TInterval(keyType)))
     new RVDPartitioner(
@@ -668,41 +668,41 @@ object IRParser {
     punctuation(it, "(")
     val sig = identifier(it) match {
       case "TypedStateSig" =>
-        val pt = vtwr_expr(ctx.referenceGenomes)(it)
+        val pt = vtwr_expr(ctx.references)(it)
         TypedStateSig(pt)
       case "DownsampleStateSig" =>
-        val labelType = vtwr_expr(ctx.referenceGenomes)(it)
+        val labelType = vtwr_expr(ctx.references)(it)
         DownsampleStateSig(labelType)
       case "TakeStateSig" =>
-        val pt = vtwr_expr(ctx.referenceGenomes)(it)
+        val pt = vtwr_expr(ctx.references)(it)
         TakeStateSig(pt)
       case "ReservoirSampleStateSig" =>
-        val pt = vtwr_expr(ctx.referenceGenomes)(it)
+        val pt = vtwr_expr(ctx.references)(it)
         ReservoirSampleStateSig(pt)
       case "DensifyStateSig" =>
-        val pt = vtwr_expr(ctx.referenceGenomes)(it)
+        val pt = vtwr_expr(ctx.references)(it)
         DensifyStateSig(pt)
       case "TakeByStateSig" =>
-        val vt = vtwr_expr(ctx.referenceGenomes)(it)
-        val kt = vtwr_expr(ctx.referenceGenomes)(it)
+        val vt = vtwr_expr(ctx.references)(it)
+        val kt = vtwr_expr(ctx.references)(it)
         TakeByStateSig(vt, kt, Ascending)
       case "CollectStateSig" =>
-        val pt = vtwr_expr(ctx.referenceGenomes)(it)
+        val pt = vtwr_expr(ctx.references)(it)
         CollectStateSig(pt)
       case "CollectAsSetStateSig" =>
-        val pt = vtwr_expr(ctx.referenceGenomes)(it)
+        val pt = vtwr_expr(ctx.references)(it)
         CollectAsSetStateSig(pt)
       case "CallStatsStateSig" => CallStatsStateSig()
       case "ArrayAggStateSig" =>
         val nested = agg_state_signatures(ctx)(it)
         ArrayAggStateSig(nested)
       case "GroupedStateSig" =>
-        val kt = vtwr_expr(ctx.referenceGenomes)(it)
+        val kt = vtwr_expr(ctx.references)(it)
         val nested = agg_state_signatures(ctx)(it)
         GroupedStateSig(kt, nested)
       case "ApproxCDFStateSig" => ApproxCDFStateSig()
       case "FoldStateSig" =>
-        val vtwr = vtwr_expr(ctx.referenceGenomes)(it)
+        val vtwr = vtwr_expr(ctx.references)(it)
         val accumName = name(it)
         val otherAccumName = name(it)
         val combIR = ir_value_expr(ctx)(it).run()
@@ -722,7 +722,7 @@ object IRParser {
     punctuation(it, "(")
     val sig = identifier(it) match {
       case "Grouped" =>
-        val pt = vtwr_expr(ctx.referenceGenomes)(it)
+        val pt = vtwr_expr(ctx.references)(it)
         val nested = p_agg_sigs(ctx)(it)
         GroupedAggSig(pt, nested)
       case "ArrayLen" =>
@@ -788,8 +788,8 @@ object IRParser {
   ): StackFrame[IR] = {
     val errorID = int32_literal(it)
     val function = identifier(it)
-    val typeArgs = type_exprs(ctx.referenceGenomes)(it)
-    val rt = type_expr(ctx.referenceGenomes)(it)
+    val typeArgs = type_exprs(ctx.references)(it)
+    val rt = type_expr(ctx.references)(it)
     ir_value_children(ctx)(it).map(args => cons(function, typeArgs, args, rt, errorID))
   }
 
@@ -804,10 +804,10 @@ object IRParser {
       case "True" => done(True())
       case "False" => done(False())
       case "Literal" =>
-        val (t, v) = ir_value(ctx.referenceGenomes)(it)
+        val (t, v) = ir_value(ctx.references)(it)
         done(Literal.coerce(t, v))
       case "EncodedLiteral" =>
-        val typ = type_expr(ctx.referenceGenomes)(it)
+        val typ = type_expr(ctx.references)(it)
         val encodedValue = Base64.getDecoder.decode(string_literal(it))
         val codec = TypedCodecSpec(
           EType.fromPythonTypeEncoding(typ),
@@ -817,12 +817,12 @@ object IRParser {
         done(EncodedLiteral(codec, Array(encodedValue)))
       case "Void" => done(Void())
       case "Cast" =>
-        val typ = type_expr(ctx.referenceGenomes)(it)
+        val typ = type_expr(ctx.references)(it)
         ir_value_expr(ctx)(it).map(Cast(_, typ))
       case "CastRename" =>
-        val typ = type_expr(ctx.referenceGenomes)(it)
+        val typ = type_expr(ctx.references)(it)
         ir_value_expr(ctx)(it).map(CastRename(_, typ))
-      case "NA" => done(NA(type_expr(ctx.referenceGenomes)(it)))
+      case "NA" => done(NA(type_expr(ctx.references)(it)))
       case "IsNA" => ir_value_expr(ctx)(it).map(IsNA)
       case "Coalesce" =>
         for {
@@ -874,7 +874,7 @@ object IRParser {
       case "TailLoop" =>
         val n = name(it)
         val paramNames = names(it)
-        val resultType = type_expr(ctx.referenceGenomes)(it)
+        val resultType = type_expr(ctx.references)(it)
         for {
           paramIRs <- fillArray(paramNames.length)(ir_value_expr(ctx)(it))(ArraySeq)
           params = paramNames.zip(paramIRs)
@@ -888,7 +888,7 @@ object IRParser {
         done(Ref(id, null))
       case "RelationalRef" =>
         val id = name(it)
-        val t = type_expr(ctx.referenceGenomes)(it)
+        val t = type_expr(ctx.references)(it)
         done(RelationalRef(id, t))
       case "RelationalLet" =>
         val n = name(it)
@@ -912,10 +912,10 @@ object IRParser {
           r <- ir_value_expr(ctx)(it)
         } yield ApplyComparisonOp(ComparisonOp.fromString(opName), l, r)
       case "MakeArray" =>
-        val typ = opt(it, type_expr(ctx.referenceGenomes)).map(_.asInstanceOf[TArray]).orNull
+        val typ = opt(it, type_expr(ctx.references)).map(_.asInstanceOf[TArray]).orNull
         ir_value_children(ctx)(it).map(args => MakeArray(args, typ))
       case "MakeStream" =>
-        val typ = opt(it, type_expr(ctx.referenceGenomes)).map(_.asInstanceOf[TStream]).orNull
+        val typ = opt(it, type_expr(ctx.references)).map(_.asInstanceOf[TStream]).orNull
         val requiresMemoryManagementPerElement = boolean_literal(it)
         ir_value_children(ctx)(it).map { args =>
           MakeStream(args, typ, requiresMemoryManagementPerElement)
@@ -1373,7 +1373,7 @@ object IRParser {
         val idx = int32_literal(it)
         ir_value_expr(ctx)(it).map(tuple => GetTupleElement(tuple, idx))
       case "Die" =>
-        val typ = type_expr(ctx.referenceGenomes)(it)
+        val typ = type_expr(ctx.references)(it)
         val errorID = int32_literal(it)
         ir_value_expr(ctx)(it).map(msg => Die(msg, typ, errorID))
       case "ConsoleLog" =>
@@ -1476,7 +1476,7 @@ object IRParser {
             consumeToken(it): Unit
             Left(x.value)
           case _ =>
-            Right(type_expr(ctx.referenceGenomes)(it))
+            Right(type_expr(ctx.references)(it))
         }
         val reader = PartitionReader.extract(ctx, JsonMethods.parse(string_literal(it)))
         ir_value_expr(ctx)(it).map { context =>
@@ -1491,23 +1491,23 @@ object IRParser {
           )
         }
       case "WritePartition" =>
-        implicit val formats: Formats = PartitionWriter.formats(ctx.referenceGenomes)
+        implicit val formats: Formats = PartitionWriter.formats(ctx.references)
         val writer = JsonMethods.parse(string_literal(it)).extract[PartitionWriter]
         for {
           stream <- ir_value_expr(ctx)(it)
           ctx <- ir_value_expr(ctx)(it)
         } yield WritePartition(stream, ctx, writer)
       case "WriteMetadata" =>
-        implicit val formats: Formats = MetadataWriter.formats(ctx.referenceGenomes)
+        implicit val formats: Formats = MetadataWriter.formats(ctx.references)
         val writer = JsonMethods.parse(string_literal(it)).extract[MetadataWriter]
         ir_value_expr(ctx)(it).map(ctx => WriteMetadata(ctx, writer))
       case "ReadValue" =>
-        implicit val formats: Formats = ValueReader.formats(ctx.referenceGenomes)
+        implicit val formats: Formats = ValueReader.formats(ctx.references)
         val reader = JsonMethods.parse(string_literal(it)).extract[ValueReader]
-        val typ = type_expr(ctx.referenceGenomes)(it)
+        val typ = type_expr(ctx.references)(it)
         ir_value_expr(ctx)(it).map(path => ReadValue(path, reader, typ))
       case "WriteValue" =>
-        implicit val formats: Formats = ValueWriter.formats(ctx.referenceGenomes)
+        implicit val formats: Formats = ValueWriter.formats(ctx.references)
         val writer = JsonMethods.parse(string_literal(it)).extract[ValueWriter]
         ir_value_children(ctx)(it).map { case Seq(value, path) =>
           WriteValue(value, path, writer)
@@ -1553,14 +1553,14 @@ object IRParser {
             consumeToken(it): Unit
             Left(x.value)
           case _ =>
-            Right(table_type_expr(ctx.referenceGenomes)(it))
+            Right(table_type_expr(ctx.references)(it))
         }
         val dropRows = boolean_literal(it)
         val readerStr = string_literal(it)
         val reader =
           TableReader.fromJValue(
             ctx.fs,
-            ctx.referenceGenomes,
+            ctx.references,
             JsonMethods.parse(readerStr).asInstanceOf[JObject],
           )
         val requestedType = requestedTypeRaw match {
@@ -1693,7 +1693,7 @@ object IRParser {
         } yield TableGen(contexts, globals, cname, gname, body, partitioner, errorId)
 
       case "TableFilterIntervals" =>
-        val keyType = type_expr(ctx.referenceGenomes)(it)
+        val keyType = type_expr(ctx.references)(it)
         val intervals = string_literal(it)
         val keep = boolean_literal(it)
         table_ir(ctx)(it).map { child =>
@@ -1807,7 +1807,7 @@ object IRParser {
             consumeToken(it): Unit
             Left(x.value)
           case _ =>
-            Right(matrix_type_expr(ctx.referenceGenomes)(it))
+            Right(matrix_type_expr(ctx.references)(it))
         }
         val dropCols = boolean_literal(it)
         val dropRows = boolean_literal(it)
@@ -1900,7 +1900,7 @@ object IRParser {
           )
         }
       case "MatrixFilterIntervals" =>
-        val keyType = type_expr(ctx.referenceGenomes)(it)
+        val keyType = type_expr(ctx.references)(it)
         val intervals = string_literal(it)
         val keep = boolean_literal(it)
         matrix_ir(ctx)(it).map { child =>

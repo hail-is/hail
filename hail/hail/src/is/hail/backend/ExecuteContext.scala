@@ -11,7 +11,7 @@ import is.hail.io.fs.FS
 import is.hail.io.reference.{Liftover, ReferenceSequence}
 import is.hail.linalg.BlockMatrix
 import is.hail.utils._
-import is.hail.variant.{ReferenceGenome, ReferenceGenomeEnv}
+import is.hail.variant.ReferenceGenomeEnv
 
 import scala.collection.mutable
 
@@ -60,7 +60,7 @@ object ExecuteContext {
     tmpdir: String,
     localTmpdir: String,
     backend: Backend,
-    references: Map[String, ReferenceGenome],
+    references: ReferenceGenomeEnv,
     liftovers: Map[(String, String), Liftover],
     sequences: Map[String, ReferenceSequence],
     fs: FS,
@@ -114,7 +114,7 @@ class ExecuteContext(
   val tmpdir: String,
   val localTmpdir: String,
   val backend: Backend,
-  val references: Map[String, ReferenceGenome],
+  val references: ReferenceGenomeEnv,
   val liftovers: Map[(String, String), Liftover],
   val sequences: Map[String, ReferenceSequence],
   val fs: FS,
@@ -139,8 +139,6 @@ class ExecuteContext(
           exc,
         )
     }
-
-  val referenceGenomes: ReferenceGenomeEnv = ReferenceGenomeEnv(references)
 
   lazy val fsBc: BroadcastValue[FS] = backend.broadcast(fs)
 
@@ -175,7 +173,7 @@ class ExecuteContext(
     tmpdir: String = this.tmpdir,
     localTmpdir: String = this.localTmpdir,
     backend: Backend = this.backend,
-    references: Map[String, ReferenceGenome] = this.references,
+    references: ReferenceGenomeEnv = this.references,
     liftovers: Map[(String, String), Liftover] = this.liftovers,
     sequences: Map[String, ReferenceSequence] = this.sequences,
     fs: FS = this.fs,

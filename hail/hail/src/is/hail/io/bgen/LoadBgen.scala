@@ -209,7 +209,7 @@ object LoadBgen extends Logging {
       mutable.Map.empty
 
     headers.zip(indexFilePaths).map { case (h, indexFilePath) =>
-      val (keyType, annotationType) = IndexReader.readTypes(fs, ctx.referenceGenomes, indexFilePath)
+      val (keyType, annotationType) = IndexReader.readTypes(fs, ctx.references, indexFilePath)
       val rg = keyType.asInstanceOf[TStruct].field("locus").typ match {
         case TLocus(rg) => Some(rg)
         case _ => None
@@ -590,7 +590,7 @@ class MatrixBGENReader(
     val globals = lowerGlobals(ctx, requestedType.globalType)
     variants match {
       case Some(v) =>
-        val t0 = TableNativeReader.read(ctx.fs, ctx.referenceGenomes, v, None)
+        val t0 = TableNativeReader.read(ctx.fs, ctx.references, v, None)
 
         val contexts = ArraySeq.newBuilder[Row]
         val rangeBounds = ArraySeq.newBuilder[Interval]

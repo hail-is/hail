@@ -39,7 +39,7 @@ object LocusRepresentations {
     */
   def withReference[A](rg: ReferenceGenome)(f: ExecuteContext => A)(implicit ctx: ExecuteContext)
     : A =
-    ctx.local(references = ctx.references + (rg.name -> rg))(f)
+    ctx.local(references = ctx.references.withReferences(Seq(rg)))(f)
 
   def mapLoci(pt: PType)(f: PLocus => PLocus): PType = pt match {
     case l: PLocus => f(l)

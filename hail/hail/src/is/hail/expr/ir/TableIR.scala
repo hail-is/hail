@@ -1688,7 +1688,7 @@ class TableNativeReader(
     : VirtualTypeWithReq =
     VirtualTypeWithReq(tcoerce[PStruct](spec.rowsComponent.rvdSpec(
       ctx.fs,
-      ctx.referenceGenomes,
+      ctx.references,
       params.path,
     )
       .typedCodecSpec.encodedType.decodedPType(requestedType.rowType)))
@@ -1700,7 +1700,7 @@ class TableNativeReader(
     : VirtualTypeWithReq =
     VirtualTypeWithReq(tcoerce[PStruct](spec.globalsComponent.rvdSpec(
       ctx.fs,
-      ctx.referenceGenomes,
+      ctx.references,
       params.path,
     )
       .typedCodecSpec.encodedType.decodedPType(requestedType.globalType)))
@@ -1817,11 +1817,11 @@ case class TableNativeZippedReader(
     requestedType.filter(f => rightFieldSet.contains(f.name))._1
 
   def leftPType(ctx: ExecuteContext, leftRType: TStruct): PStruct =
-    tcoerce[PStruct](specLeft.rowsComponent.rvdSpec(ctx.fs, ctx.referenceGenomes, pathLeft)
+    tcoerce[PStruct](specLeft.rowsComponent.rvdSpec(ctx.fs, ctx.references, pathLeft)
       .typedCodecSpec.encodedType.decodedPType(leftRType))
 
   def rightPType(ctx: ExecuteContext, rightRType: TStruct): PStruct =
-    tcoerce[PStruct](specRight.rowsComponent.rvdSpec(ctx.fs, ctx.referenceGenomes, pathRight)
+    tcoerce[PStruct](specRight.rowsComponent.rvdSpec(ctx.fs, ctx.references, pathRight)
       .typedCodecSpec.encodedType.decodedPType(rightRType))
 
   override def concreteRowRequiredness(ctx: ExecuteContext, requestedType: TableType)
@@ -1837,7 +1837,7 @@ case class TableNativeZippedReader(
 
   override def globalRequiredness(ctx: ExecuteContext, requestedType: TableType)
     : VirtualTypeWithReq =
-    VirtualTypeWithReq(specLeft.globalsComponent.rvdSpec(ctx.fs, ctx.referenceGenomes, pathLeft)
+    VirtualTypeWithReq(specLeft.globalsComponent.rvdSpec(ctx.fs, ctx.references, pathLeft)
       .typedCodecSpec.encodedType.decodedPType(requestedType.globalType))
 
   def fieldInserter(ctx: ExecuteContext, pLeft: PStruct, pRight: PStruct)

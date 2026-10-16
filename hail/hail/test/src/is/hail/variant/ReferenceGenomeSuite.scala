@@ -30,7 +30,6 @@ import org.scalacheck.Prop.forAll
 class ReferenceGenomeSuite {
 
   @Test def testGRCh37(implicit ctx: ExecuteContext): Unit = {
-    assertTrue(ctx.references.contains(ReferenceGenome.GRCh37))
     val grch37 = ctx.references(ReferenceGenome.GRCh37)
 
     assertTrue(grch37.inX("X"))
@@ -50,7 +49,6 @@ class ReferenceGenomeSuite {
   }
 
   @Test def testGRCh38(implicit ctx: ExecuteContext): Unit = {
-    assertTrue(ctx.references.contains(ReferenceGenome.GRCh38))
     val grch38 = ctx.references(ReferenceGenome.GRCh38)
 
     assertTrue(grch38.inX("chrX"))
@@ -177,7 +175,7 @@ class ReferenceGenomeSuite {
     val indexFile = ctx.fs.makeQualified(getTestResource("fake_reference.fasta.fai"))
 
     val rg = ReferenceGenome("test", ArraySeq("a", "b", "c"), Map("a" -> 25, "b" -> 15, "c" -> 10))
-    ctx.local(references = ctx.references + (rg.name -> rg)) { ctx =>
+    ctx.local(references = ctx.references.withReferences(Seq(rg))) { ctx =>
       val fr = FASTAReaderConfig(ctx.localTmpdir, ctx.fs, rg, fastaFile, indexFile, 3, 5).reader
       val refReaderPath =
         FASTAReader.getLocalFastaFile(ctx.localTmpdir, ctx.fs, fastaFile, indexFile)
@@ -384,7 +382,7 @@ class ReferenceGenomeSuite {
     ctx.fs.delete(goneChain, recursive = false)
 
     ctx.local(
-      references = ctx.references + (test38.name -> test38),
+      references = ctx.references.withReferences(Seq(test38)),
       liftovers = Map(used.key -> used, unused.key -> unused),
     ) { ctx =>
       val argsPType = PCanonicalTuple(true, pcanonicalLocus(ReferenceGenome.GRCh37, true))
@@ -458,8 +456,7 @@ class ReferenceGenomeSuite {
     )
 
     ctx.local(
-      references =
-        ctx.references + (fakeGenome.name -> fakeGenome) + (otherGenome.name -> otherGenome),
+      references = ctx.references.withReferences(Seq(fakeGenome, otherGenome)),
       sequences = Map(fakeGenome.name -> used, otherGenome.name -> unused),
     ) { ctx =>
       val argsPType = PCanonicalTuple(true, PCanonicalString(true))

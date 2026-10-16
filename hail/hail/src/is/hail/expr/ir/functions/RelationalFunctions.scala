@@ -148,12 +148,12 @@ object RelationalFunctions extends Logging {
     )
 
   def extractTo[T: Manifest](ctx: ExecuteContext, config: String): T = {
-    implicit val formats: Formats = RelationalFunctions.formats(ctx.referenceGenomes)
+    implicit val formats: Formats = RelationalFunctions.formats(ctx.references)
     val jv = JsonMethods.parse(config)
     (jv \ "name").extract[String] match {
       case "VEP" =>
         logger.info(f"vep config json: $jv")
-        VEP.fromJValue(ctx.fs, ctx.referenceGenomes, jv).asInstanceOf[T]
+        VEP.fromJValue(ctx.fs, ctx.references, jv).asInstanceOf[T]
       case _ =>
         logger.info(f"JSON: $jv")
         jv.extract[T]
