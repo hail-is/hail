@@ -5,6 +5,7 @@ import is.hail.annotations.{Region, RegionPool}
 import is.hail.asm4s.HailClassLoader
 import is.hail.backend.{ExecuteContext, OwningTempFileManager}
 import is.hail.expr.ir.lowering.IrMetadata
+import is.hail.io.reference.RgAttachments
 import is.hail.types.physical.{PCanonicalArray, PType}
 
 import scala.collection.immutable.ArraySeq
@@ -106,14 +107,12 @@ object LocusBenchmarkData {
     * does not compile against Hadoop or Spark.
     */
   def newExecuteContext(): ExecuteContext = {
-    val references = ReferenceGenome.builtinReferences()
     new ExecuteContext(
       tmpdir = "/tmp",
       localTmpdir = "file:///tmp",
       backend = null,
-      references = references,
-      liftovers = Map.empty,
-      sequences = Map.empty,
+      references = ReferenceGenomeEnv.empty,
+      attachments = RgAttachments.empty,
       fs = null,
       r = Region(pool = RegionPool()),
       tempFileManager = new OwningTempFileManager(null),
