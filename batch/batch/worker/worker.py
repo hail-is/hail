@@ -89,6 +89,7 @@ from ..resource_usage import ResourceUsageMonitor
 from ..semaphore import FIFOWeightedSemaphore
 from ..worker.worker_api import CloudDisk, CloudWorkerAPI, ContainerRegistryCredentials
 from .jvm_entryway_protocol import EndOfStream, read_bool, read_int, read_str, write_int, write_str
+from .log_syncer import LogSyncer, wakeup_all_active_log_syncers
 
 with open('/subdomains.txt', 'r', encoding='utf-8') as subdomains_file:
     HAIL_SERVICES = [line.rstrip() for line in subdomains_file.readlines()]
@@ -1948,11 +1949,25 @@ class DockerJob(Job):
         os.makedirs(self.io_host_path())
 
     async def run_container(self, container: Container, task_name: str):
+        log_syncer: Optional[LogSyncer] = None
+        if CLOUD == 'gcp':
+            remote_url = self.worker.file_store.log_path(
+                self.format_version, self.batch_id, self.job_id, self.attempt_id, task_name
+            )
+            log_syncer = await LogSyncer.start(
+                container.log_path, remote_url, self.batch_id, self.job_id, self.attempt_id
+            )
+
         async def on_completion():
             if container.state in ('pending', 'creating'):
+                if log_syncer is not None:
+                    await log_syncer.cancel()
                 return
 
-            if os.path.exists(container.log_path):
+            if log_syncer is not None:
+                with container._step('finishing_log_sync'):
+                    await log_syncer.finish()
+            elif os.path.exists(container.log_path):
                 with container._step('uploading_log'):
                     assert self.worker.file_store
                     await self.worker.file_store.write_log_file(
@@ -2223,6 +2238,7 @@ class JVMJob(Job):
         self.jvm_name: Optional[str] = None
 
         self.log_file = f'{self.scratch}/log'
+        self._log_syncer: Optional[LogSyncer] = None
 
         should_profile = job_spec['process']['profile']
         self.profile_file = f'{self.scratch}/profile.html' if should_profile else None
@@ -2386,6 +2402,14 @@ class JVMJob(Job):
 
                 self.state = 'running'
 
+                if CLOUD == 'gcp':
+                    remote_url = self.worker.file_store.log_path(
+                        self.format_version, self.batch_id, self.job_id, self.attempt_id, 'main'
+                    )
+                    self._log_syncer = await LogSyncer.start(
+                        self.log_file, remote_url, self.batch_id, self.job_id, self.attempt_id
+                    )
+
                 if os.environ.get('HAIL_TERRA'):
                     local_jar_location = '/hail-jars/hail-all-spark.jar'
                 else:
@@ -2448,7 +2472,11 @@ class JVMJob(Job):
         assert self.worker.fs
         assert self.jvm
 
-        if os.path.exists(self.log_file):
+        if self._log_syncer is not None:
+            with self.step('finishing_log_sync'):
+                await self._log_syncer.finish()
+            self._log_syncer = None
+        elif os.path.exists(self.log_file):
             with self.step('uploading_log'):
                 log_contents = await self.worker.fs.read(self.log_file)
                 await self.worker.file_store.write_log_file(
@@ -3410,11 +3438,16 @@ class Worker:
             deploy_config.url('batch-driver', '/api/v1alpha/instances/deactivate'), headers=await self.headers()
         )
 
+    def initiate_shutdown(self) -> None:
+        log.info('initiating shutdown, waking log syncers')
+        wakeup_all_active_log_syncers()
+        self.stop_event.set()
+
     async def kill(self, request):  # pylint: disable=unused-argument
         if not self.active:
             raise web.HTTPServiceUnavailable
         log.info('killed')
-        self.stop_event.set()
+        self.initiate_shutdown()
         return web.Response()
 
     async def post_job_complete_1(self, job: Job, full_status):
@@ -3656,7 +3689,16 @@ async def async_main():
 
 loop = asyncio.new_event_loop()
 asyncio.set_event_loop(loop)
+
+
+def _on_sigterm():
+    log.info('SIGTERM received')
+    if worker is not None:
+        worker.initiate_shutdown()
+
+
 loop.add_signal_handler(signal.SIGUSR1, dump_all_stacktraces)
+loop.add_signal_handler(signal.SIGTERM, _on_sigterm)
 loop.run_until_complete(async_main())
 log.info('closing loop')
 loop.close()
