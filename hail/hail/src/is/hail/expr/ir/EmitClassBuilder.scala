@@ -10,7 +10,7 @@ import is.hail.expr.ir.defs.EncodedLiteral
 import is.hail.expr.ir.orderings.{CodeOrdering, StructOrdering}
 import is.hail.io.{BufferSpec, InputBuffer, TypedCodecSpec}
 import is.hail.io.fs.FS
-import is.hail.io.reference.{Liftover, ReferenceSequence}
+import is.hail.io.reference.{Liftover, ReferenceSequence, RgAttachment}
 import is.hail.types.VirtualTypeWithReq
 import is.hail.types.physical.{PCanonicalTuple, PType}
 import is.hail.types.physical.stypes._
@@ -70,53 +70,64 @@ class EmitModuleBuilder(val ctx: ExecuteContext, val modb: ModuleBuilder) {
   def referenceGenomeFields(): IndexedSeq[StaticFieldRef[ReferenceGenome]] =
     ArraySeq.from(rgContainers.values)
 
-  private val liftoverContainers: mutable.LinkedHashMap[
-    (ReferenceGenome, ReferenceGenome),
-    StaticFieldRef[Liftover],
-  ] = mutable.LinkedHashMap.empty
-
-  def hasLiftovers: Boolean = liftoverContainers.nonEmpty
-
-  /** The session's liftover from `source` to `dest`, which [[Compiled]] ships with this module. */
-  def getLiftover(source: ReferenceGenome, dest: ReferenceGenome): Value[Liftover] = {
-    // Fails here, while compiling, if the session has no such liftover.
-    ctx.attachments.liftover(source, dest): Unit
-    liftoverContainers.getOrElseUpdate(
-      (source, dest),
-      modb.genStaticField[Liftover](s"liftover_${source.name}_to_${dest.name}"),
-    )
+  // A field typed as its reference genome attachment's class, so code using it needs no cast.
+  final private class RgAttachmentField[A <: RgAttachment: TypeInfo](val ref: StaticFieldRef[A]) {
+    def set(cb: EmitCodeBuilder, a: Code[RgAttachment]): Unit =
+      cb.assign(ref, Code.checkcast[A](a))
   }
 
-  def liftovers(): IndexedSeq[Liftover] =
-    ArraySeq.from(liftoverContainers.keys).map { case (source, dest) =>
-      ctx.attachments.liftover(source, dest)
-    }
-
-  def liftoverFields(): IndexedSeq[StaticFieldRef[Liftover]] =
-    ArraySeq.from(liftoverContainers.values)
-
-  private val sequenceContainers: mutable.LinkedHashMap[
-    ReferenceGenome,
-    StaticFieldRef[ReferenceSequence],
+  // Keyed by the reference genome attachment itself, which compares by identity.
+  private val rgAttachmentContainers: mutable.LinkedHashMap[
+    RgAttachment,
+    RgAttachmentField[_ <: RgAttachment],
   ] = mutable.LinkedHashMap.empty
 
-  def hasReferenceSequences: Boolean = sequenceContainers.nonEmpty
+  def hasRgAttachments: Boolean = rgAttachmentContainers.nonEmpty
 
-  /** The session's reference sequence of `rg`, which [[Compiled]] ships with this module. */
-  def getReferenceSequence(rg: ReferenceGenome): Value[ReferenceSequence] = {
-    // Fails here, while compiling, if the session has no such reference sequence.
-    ctx.attachments.sequence(rg): Unit
-    sequenceContainers.getOrElseUpdate(
-      rg,
-      modb.genStaticField[ReferenceSequence](s"reference_sequence_${rg.name}"),
+  // `A` is always the final class of `a` (Liftover or ReferenceSequence), so a field found under
+  // `a` was created with type `A`.
+  private def getRgAttachment[A <: RgAttachment: TypeInfo](a: A, name: => String): Value[A] =
+    rgAttachmentContainers.getOrElseUpdate(a, new RgAttachmentField(modb.genStaticField[A](name)))
+      .ref.asInstanceOf[StaticFieldRef[A]]
+
+  /** The session's liftover from `source` to `dest`, which [[Compiled]] ships with this module.
+    * Fails if the session has none.
+    */
+  def getLiftover(source: ReferenceGenome, dest: ReferenceGenome): Value[Liftover] =
+    getRgAttachment(
+      ctx.attachments.liftover(source, dest),
+      s"liftover_${source.name}_to_${dest.name}",
     )
+
+  /** The session's reference sequence of `rg`, which [[Compiled]] ships with this module. Fails if
+    * the session has none.
+    */
+  def getReferenceSequence(rg: ReferenceGenome): Value[ReferenceSequence] =
+    getRgAttachment(ctx.attachments.sequence(rg), s"reference_sequence_${rg.name}")
+
+  /** The reference genome attachments this module uses, in the order [[setRgAttachments]] expects.
+    */
+  def rgAttachments(): IndexedSeq[RgAttachment] =
+    ArraySeq.from(rgAttachmentContainers.keys)
+
+  /** Sets this module's reference genome attachment fields from `attachments`, ordered as
+    * [[rgAttachments]]. Fails if `attachments` has the wrong length.
+    */
+  private[ir] def setRgAttachments(cb: EmitCodeBuilder, attachments: Value[Array[RgAttachment]])
+    : Unit = {
+    val n = rgAttachmentContainers.size
+    cb.if_(
+      attachments.length().cne(const(n)),
+      cb._fatal(
+        "Invalid number of reference genome attachments, expected ",
+        n.toString,
+        " got ",
+        attachments.length().toS,
+      ),
+    )
+    for ((fld, i) <- rgAttachmentContainers.values.zipWithIndex)
+      fld.set(cb, attachments(i))
   }
-
-  def referenceSequences(): IndexedSeq[ReferenceSequence] =
-    ArraySeq.from(sequenceContainers.keys).map(ctx.attachments.sequence)
-
-  def referenceSequenceFields(): IndexedSeq[StaticFieldRef[ReferenceSequence]] =
-    ArraySeq.from(sequenceContainers.values)
 
   def setObjects(cb: EmitCodeBuilder, objects: Code[Array[AnyRef]]): Unit =
     modb.setObjects(cb, objects)
@@ -841,32 +852,14 @@ final class EmitClassBuilder[C](val emodb: EmitModuleBuilder, val cb: ClassBuild
     }
   }
 
-  def makeAddLiftovers(): Unit = {
-    cb.addInterface(typeInfo[FunctionWithLiftovers].iname)
+  def makeAddRgAttachments(): Unit = {
+    cb.addInterface(typeInfo[FunctionWithRgAttachments].iname)
     val mb = newEmitMethod(
-      "addLiftovers",
-      FastSeq[ParamType](typeInfo[Array[Liftover]]),
+      "addRgAttachments",
+      FastSeq[ParamType](typeInfo[Array[RgAttachment]]),
       typeInfo[Unit],
     )
-    mb.voidWithBuilder { cb =>
-      val liftovers = mb.getCodeParam[Array[Liftover]](1)
-      for ((fld, i) <- emodb.liftoverFields().zipWithIndex)
-        cb.assign(fld, liftovers(i))
-    }
-  }
-
-  def makeAddReferenceSequences(): Unit = {
-    cb.addInterface(typeInfo[FunctionWithReferenceSequences].iname)
-    val mb = newEmitMethod(
-      "addReferenceSequences",
-      FastSeq[ParamType](typeInfo[Array[ReferenceSequence]]),
-      typeInfo[Unit],
-    )
-    mb.voidWithBuilder { cb =>
-      val sequences = mb.getCodeParam[Array[ReferenceSequence]](1)
-      for ((fld, i) <- emodb.referenceSequenceFields().zipWithIndex)
-        cb.assign(fld, sequences(i))
-    }
+    mb.voidWithBuilder(cb => emodb.setRgAttachments(cb, mb.getCodeParam[Array[RgAttachment]](1)))
   }
 
   lazy val threefryRandomEngine: Value[ThreefryRandomEngine] = {
@@ -905,15 +898,9 @@ final class EmitClassBuilder[C](val emodb: EmitModuleBuilder, val cb: ClassBuild
       else
         null
 
-      val liftovers: Array[Liftover] = if (emodb.hasLiftovers) {
-        makeAddLiftovers()
-        emodb.liftovers().toArray
-      } else
-        null
-
-      val sequences: Array[ReferenceSequence] = if (emodb.hasReferenceSequences) {
-        makeAddReferenceSequences()
-        emodb.referenceSequences().toArray
+      val rgAttachments: Array[RgAttachment] = if (emodb.hasRgAttachments) {
+        makeAddRgAttachments()
+        emodb.rgAttachments().toArray
       } else
         null
 
@@ -951,13 +938,9 @@ final class EmitClassBuilder[C](val emodb: EmitModuleBuilder, val cb: ClassBuild
             f.asInstanceOf[FunctionWithLiterals].addAndDecodeLiterals(literalsBc.value)
           if (hasReferences)
             f.asInstanceOf[FunctionWithReferences].addReferenceGenomes(references)
-          if (liftovers != null) {
-            liftovers.foreach(_.restore(fs, localTmpdir))
-            f.asInstanceOf[FunctionWithLiftovers].addLiftovers(liftovers)
-          }
-          if (sequences != null) {
-            sequences.foreach(_.restore(fs, localTmpdir))
-            f.asInstanceOf[FunctionWithReferenceSequences].addReferenceSequences(sequences)
+          if (rgAttachments != null) {
+            rgAttachments.foreach(_.restore(fs, localTmpdir))
+            f.asInstanceOf[FunctionWithRgAttachments].addRgAttachments(rgAttachments)
           }
           if (nSerializedAggs != 0)
             f.asInstanceOf[FunctionWithAggRegion].setNumSerialized(nSerializedAggs)
@@ -1236,12 +1219,8 @@ trait FunctionWithReferences {
   def addReferenceGenomes(rgs: Array[ReferenceGenome]): Unit
 }
 
-trait FunctionWithLiftovers {
-  def addLiftovers(liftovers: Array[Liftover]): Unit
-}
-
-trait FunctionWithReferenceSequences {
-  def addReferenceSequences(sequences: Array[ReferenceSequence]): Unit
+trait FunctionWithRgAttachments {
+  def addRgAttachments(attachments: Array[RgAttachment]): Unit
 }
 
 trait FunctionWithPartitionRegion {
