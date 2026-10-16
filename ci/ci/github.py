@@ -791,11 +791,6 @@ mkdir -p {shq(repo_dir)}
         return self.batch is not None and self.target_branch.sha == self.batch.attributes['target_sha']
 
     def is_mergeable(self) -> bool:
-        if self.last_known_github_status.get(GITHUB_STATUS_CONTEXT) == GithubStatus.SUCCESS:
-            assert self.build_state == 'success', (
-                self.last_known_github_status[GITHUB_STATUS_CONTEXT],
-                self.build_state,
-            )
         return (
             self.review_state == 'approved'
             and len(self.last_known_github_status) > 0
@@ -1036,6 +1031,12 @@ class WatchedBranch(Code):
     async def try_to_merge(self, gh):
         assert self.mergeable
         for pr in self.prs_in_merge_priority_order():
+            # Only holds here, right after _heal has synced our build state to GitHub
+            if pr.last_known_github_status.get(GITHUB_STATUS_CONTEXT) == GithubStatus.SUCCESS:
+                assert pr.build_state == 'success', (
+                    pr.last_known_github_status[GITHUB_STATUS_CONTEXT],
+                    pr.build_state,
+                )
             if pr.is_mergeable():
                 if await pr.merge(gh):
                     self.github_changed = True
