@@ -5,7 +5,7 @@ import is.hail.utils.fatal
 import org.json4s.CustomSerializer
 import org.json4s.JsonAST.JString
 
-/** The reference genomes in scope when parsing a type, by name.
+/** The reference genomes in scope, by name.
   *
   * Builtin reference genomes are always in scope: a name not given here resolves to the cached
   * builtin of that name, if there is one.
@@ -16,6 +16,14 @@ final class ReferenceGenomeEnv(byName: Map[String, ReferenceGenome]) {
     byName.get(name)
       .orElse(ReferenceGenome.builtins.get(name))
       .getOrElse(fatal(s"Reference genome '$name' is not in scope."))
+
+  def apply(name: String): ReferenceGenome = resolve(name)
+
+  /** These reference genomes, plus `rgs`. Fails if any of `rgs` differs from a reference genome of
+    * the same name already here.
+    */
+  def withReferences(rgs: Iterable[ReferenceGenome]): ReferenceGenomeEnv =
+    new ReferenceGenomeEnv(ReferenceGenome.addFatalOnCollision(byName, rgs))
 
   override def toString: String = byName.keys.mkString("ReferenceGenomeEnv(", ", ", ")")
 }

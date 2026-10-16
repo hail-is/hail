@@ -1781,7 +1781,7 @@ object MatrixVCFReader extends Logging {
     val backend = ctx.backend
     val fs = ctx.fs
 
-    val referenceGenome = params.rg.map(ctx.references)
+    val referenceGenome = params.rg.map(ctx.references.resolve)
 
     referenceGenome.foreach(_.validateContigRemap(params.contigRecoding))
 
@@ -1870,7 +1870,7 @@ object MatrixVCFReader extends Logging {
       fileListEntries,
       referenceGenome,
       header1,
-      ctx.referenceGenomes,
+      ctx.references,
     )
   }
 

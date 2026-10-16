@@ -13,7 +13,7 @@ import is.hail.types.physical.stypes.{SType, SValue}
 import is.hail.types.physical.stypes.concrete.SIndexablePointerValue
 import is.hail.types.physical.stypes.primitives.{SInt32, SInt32Value}
 import is.hail.utils.using
-import is.hail.variant.{Locus, ReferenceGenome}
+import is.hail.variant.{Locus, ReferenceGenome, ReferenceGenomeEnv}
 
 import org.junit.jupiter.api.Test
 import org.scalacheck.Arbitrary.arbitrary
@@ -65,7 +65,7 @@ class StagedMinHeapSuite {
 
   @Test def testLocus(implicit ctx: ExecuteContext): Unit =
     check(forAll(loci) { case (rg: ReferenceGenome, loci: IndexedSeq[Locus]) =>
-      ctx.local(references = Map(rg.name -> rg)) { ctx =>
+      ctx.local(references = ReferenceGenomeEnv(Map(rg.name -> rg))) { ctx =>
         implicit val coercions: StagedCoercions[Locus] =
           stagedLocusCoercions(rg)
 
