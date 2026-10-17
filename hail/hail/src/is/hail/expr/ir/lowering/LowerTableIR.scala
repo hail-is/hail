@@ -472,7 +472,7 @@ class TableStage(
       val newTableType = TableType(rowType, newPartitioner.kType.fieldNames, globalType)
       val reader = TableNativeReader.read(
         ec.fs,
-        ec.referenceGenomes,
+        ec.references,
         location,
         Some(NativeReaderOptions(
           intervals = newPartitioner.rangeBounds,
