@@ -90,7 +90,7 @@ object ExtractIntervalFilters extends Logging {
 
   def liftPosIntervalsToLocus(pos: IndexedSeq[Interval], rg: ReferenceGenome, ctx: ExecuteContext)
     : IndexedSeq[Interval] = {
-    val ord = PartitionBoundOrdering(ctx, TTuple(TInt32))
+    val ord = PartitionBoundOrdering(TTuple(TInt32))
     val nonNull = rg.contigs.indices.flatMap { cont =>
       pos.flatMap { i =>
         i.intersect(ord, Interval(RowSeq(1), RowSeq(rg.contigLength(cont)), true, false))
@@ -142,7 +142,7 @@ class KeySetLattice(ctx: ExecuteContext, keyType: TStruct) extends Lattice {
       interval.right != IntervalEndpoint(RowSeq(null), 1)
   }
 
-  def keyOrd: ExtendedOrdering = PartitionBoundOrdering(ctx, keyType)
+  def keyOrd: ExtendedOrdering = PartitionBoundOrdering(keyType)
   val iord: IntervalEndpointOrdering = keyOrd.intervalEndpointOrdering
 
   // l is contained in r
@@ -707,8 +707,8 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) extends Logg
       copy(keySet = KeySetLattice.meet(keySet, k))
   }
 
-  def firstKeyOrd: ExtendedOrdering = keyType.types.head.ordering(ctx.stateManager)
-  def keyOrd: ExtendedOrdering = PartitionBoundOrdering(ctx, keyType)
+  def firstKeyOrd: ExtendedOrdering = keyType.types.head.ordering
+  def keyOrd: ExtendedOrdering = PartitionBoundOrdering(keyType)
   val iord: IntervalEndpointOrdering = keyOrd.intervalEndpointOrdering
 
   private def intervalsFromLiteral(lit: Any, ordering: Ordering[Any], wrapped: Boolean): KeySet =

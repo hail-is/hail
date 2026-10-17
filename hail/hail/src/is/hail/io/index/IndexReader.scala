@@ -149,8 +149,8 @@ class IndexReader(
   val attributes = metadata.attributes
 
   val ordering = keyType match {
-    case ts: TStruct => PartitionBoundOrdering(sm, ts)
-    case t => t.ordering(sm)
+    case ts: TStruct => PartitionBoundOrdering(ts)
+    case t => t.ordering
   }
 
   private val leafDecoder = leafDecoderBuilder(is, theHailClassLoader)

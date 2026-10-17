@@ -113,7 +113,7 @@ class ExprSuite {
   }
 
   @Test def testOrdering(implicit ctx: ExecuteContext): Unit = {
-    val intOrd = TInt32.ordering(ctx.stateManager)
+    val intOrd = TInt32.ordering
 
     assertEq(intOrd.compare(-2, -2), 0)
     assertEq(intOrd.compare(null, null), 0)
@@ -128,7 +128,7 @@ class ExprSuite {
     } yield (t, a, b)
 
     check(forAll(g) { case (t, a, b) =>
-      val ord = t.ordering(ctx.stateManager)
+      val ord = t.ordering
       assertEq(ord.compare(a, b), -ord.compare(b, a))
     })
   }

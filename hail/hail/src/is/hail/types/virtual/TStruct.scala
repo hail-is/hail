@@ -1,7 +1,6 @@
 package is.hail.types.virtual
 
 import is.hail.annotations._
-import is.hail.backend.HailStateManager
 import is.hail.collection.implicits.toRichIterable
 import is.hail.expr.ir.{Env, IRParser, Name}
 import is.hail.sparkextras.implicits.toRichRow
@@ -67,8 +66,8 @@ final case class TStruct(fields: IndexedSeq[Field]) extends TBaseStruct {
 
   override def truncate(newSize: Int): TStruct = TStruct(fields.take(newSize))
 
-  override def mkOrdering(sm: HailStateManager, missingEqual: Boolean): ExtendedOrdering =
-    TBaseStruct.getOrdering(sm, types, missingEqual)
+  override def mkOrdering(missingEqual: Boolean): ExtendedOrdering =
+    TBaseStruct.getOrdering(types, missingEqual)
 
   override def canCompare(other: Type): Boolean = other match {
     case t: TStruct => size == t.size && fields.zip(t.fields).forall { case (f1, f2) =>

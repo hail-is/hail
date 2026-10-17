@@ -2,7 +2,6 @@ package is.hail.types.physical
 
 import is.hail.annotations.UnsafeOrdering
 import is.hail.asm4s.Code
-import is.hail.backend.HailStateManager
 import is.hail.types.physical.stypes.SType
 import is.hail.types.physical.stypes.interfaces.SVoid
 import is.hail.types.virtual.{TVoid, Type}
@@ -22,7 +21,7 @@ case object PVoid extends PType with PUnrealizable {
 
   override def setRequired(required: Boolean) = PVoid
 
-  override def unsafeOrdering(sm: HailStateManager): UnsafeOrdering =
+  override def unsafeOrdering: UnsafeOrdering =
     throw new NotImplementedError()
 
   override def loadFromNested(addr: Code[Long]): Code[Long] = throw new NotImplementedError()

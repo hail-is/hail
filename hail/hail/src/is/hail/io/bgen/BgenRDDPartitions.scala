@@ -18,7 +18,7 @@ object BgenRDDPartitions extends Logging {
   def checkFilesDisjoint(ctx: ExecuteContext, fileMetadata: Seq[BgenFileMetadata], keyType: Type)
     : Array[Interval] = {
     assert(fileMetadata.nonEmpty)
-    val pord = keyType.ordering(ctx.stateManager)
+    val pord = keyType.ordering
     val bounds = fileMetadata.map(md => (md.path, md.rangeBounds))
 
     val overlappingBounds = ArraySeq.newBuilder[(String, Interval, String, Interval)]
@@ -57,7 +57,7 @@ object BgenRDDPartitions extends Logging {
     keyType: Type,
   ): IndexedSeq[FilePartitionInfo] = {
     val fileRangeBounds = checkFilesDisjoint(ctx, files, keyType)
-    val intervalOrdering = TInterval(keyType).ordering(ctx.stateManager)
+    val intervalOrdering = TInterval(keyType).ordering
 
     val sortedFiles = files.zip(fileRangeBounds)
       .sortWith { case ((_, i1), (_, i2)) => intervalOrdering.lt(i1, i2) }

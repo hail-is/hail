@@ -296,12 +296,12 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false)
     aoff
   }
 
-  override def unsafeOrdering(sm: HailStateManager): UnsafeOrdering =
-    unsafeOrdering(sm, this)
+  override def unsafeOrdering: UnsafeOrdering =
+    unsafeOrdering(this)
 
-  override def unsafeOrdering(sm: HailStateManager, rightType: PType): UnsafeOrdering = {
+  override def unsafeOrdering(rightType: PType): UnsafeOrdering = {
     val right = rightType.asInstanceOf[PContainer]
-    val eltOrd = elementType.unsafeOrdering(sm, right.elementType)
+    val eltOrd = elementType.unsafeOrdering(right.elementType)
 
     new UnsafeOrdering {
       override def compare(o1: Long, o2: Long): Int = {

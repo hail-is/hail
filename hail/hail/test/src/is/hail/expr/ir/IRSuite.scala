@@ -4278,7 +4278,7 @@ class IRSuite {
     val v = ctx.backend.execute(ctx, ir)
 
     assert(
-      ir.typ.ordering(ctx.stateManager).equiv(
+      ir.typ.ordering.equiv(
         FastSeq(
           Interval(
             RowSeq(Locus("20", 10277621)),
@@ -4558,7 +4558,7 @@ class IRSuite {
       )
     )
     val kord: ExtendedOrdering =
-      PartitionBoundOrdering(ctx, pivots.typ.asInstanceOf[TArray].elementType)
+      PartitionBoundOrdering(pivots.typ.asInstanceOf[TArray].elementType)
 
     var dataIdx = 0
 

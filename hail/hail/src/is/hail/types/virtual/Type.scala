@@ -1,7 +1,6 @@
 package is.hail.types.virtual
 
 import is.hail.annotations._
-import is.hail.backend.HailStateManager
 import is.hail.collection.FastSeq
 import is.hail.expr.{JSONAnnotationImpex, SparkAnnotationImpex}
 import is.hail.expr.ir._
@@ -96,12 +95,12 @@ abstract class Type extends VType with Serializable {
 
   def canCompare(other: Type): Boolean = this == other
 
-  def mkOrdering(sm: HailStateManager, missingEqual: Boolean = true): ExtendedOrdering
+  def mkOrdering(missingEqual: Boolean = true): ExtendedOrdering
 
   @transient protected var ord: ExtendedOrdering = _
 
-  def ordering(sm: HailStateManager): ExtendedOrdering = {
-    if (ord == null) ord = mkOrdering(sm)
+  def ordering: ExtendedOrdering = {
+    if (ord == null) ord = mkOrdering()
     ord
   }
 
