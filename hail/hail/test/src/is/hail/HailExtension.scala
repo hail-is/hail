@@ -11,7 +11,7 @@ import is.hail.expr.ir.lowering.invariant.Flags.StrictInvariants
 import is.hail.io.fs.{FS, HadoopFS}
 import is.hail.rvd.RVD
 import is.hail.utils.SerializableHadoopConfiguration
-import is.hail.variant.{ReferenceGenome, ReferenceGenomeEnv}
+import is.hail.variant.ReferenceGenomeEnv
 
 import scala.jdk.OptionConverters.RichOptional
 
@@ -52,7 +52,7 @@ final class SharedResources extends AutoCloseable {
 
   val pool: RegionPool = RegionPool()
 
-  val references: ReferenceGenomeEnv = ReferenceGenomeEnv(ReferenceGenome.builtinReferences())
+  val references: ReferenceGenomeEnv = ReferenceGenomeEnv.empty
 
   def newExecuteContext: ExecuteContext =
     new ExecuteContext(
