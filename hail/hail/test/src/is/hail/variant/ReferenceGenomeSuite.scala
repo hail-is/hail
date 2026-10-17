@@ -1,7 +1,7 @@
 package is.hail.variant
 
 import is.hail.TestUtils._
-import is.hail.annotations.{Region, SafeRow}
+import is.hail.annotations.{Region, SafeRow, UnsafeRow}
 import is.hail.asm4s.{classInfo, AsmFunction2RegionLongLong, Code, LongInfo}
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
@@ -14,7 +14,9 @@ import is.hail.io.reference.{
   FASTAReader, FASTAReaderConfig, Liftover, ReferenceSequence, RgAttachments,
 }
 import is.hail.scalacheck.{genLocus, genNonMissing}
-import is.hail.types.physical.{PBaseStruct, PCanonicalLocus, PCanonicalString, PCanonicalTuple}
+import is.hail.types.physical.{
+  PBaseStruct, PCanonicalLocus, PCanonicalString, PCanonicalStruct, PCanonicalTuple, PPackedLocus,
+}
 import is.hail.types.physical.stypes.PTypeReferenceSingleCodeType
 import is.hail.types.virtual.{TBoolean, TInterval, TLocus, TString, TStruct}
 import is.hail.utils._
@@ -622,6 +624,15 @@ class ReferenceGenomeSuite {
     }
   }
 
+  // Unstaged reads of packed loci name the contig through the reference genome the type carries.
+  @Test def testPackedLocusNamesContigAfterRoundTrip(implicit ctx: ExecuteContext): Unit =
+    for (rg <- ArraySeq(builtin(ReferenceGenome.GRCh38), fakeGenome)) {
+      val l = Locus(rg.contigs.last, 5)
+      val t = PCanonicalStruct(true, "l" -> PPackedLocus(rg, true))
+      val off = t.unstagedStoreJavaObject(Row(l), ctx.r)
+      assertEq(new UnsafeRow(roundTrip(t), ctx.r, off).get(0), l)
+    }
+
   // Types reach tasks inside closures, so a type on a builtin reference genome must ship it as a
   // tag: more cheaply than even the smallest user-defined genome, and within the bound on a state
   // manager holding all the builtins.
@@ -632,6 +643,8 @@ class ReferenceGenomeSuite {
       mk <- ArraySeq[ReferenceGenome => AnyRef](
         TLocus(_),
         PCanonicalLocus(_),
+        PPackedLocus(_),
+        PPackedLocus(_).sType,
       )
     } {
       val size = serialize(mk(builtin(n))).length
@@ -673,6 +686,8 @@ class ReferenceGenomeSuite {
     val types = ArraySeq[ReferenceGenome => AnyRef](
       TLocus(_),
       PCanonicalLocus(_, true),
+      PPackedLocus(_),
+      PPackedLocus(_).sType,
       rg => PCanonicalLocus(rg).sType,
     )
     for (mk <- types) {

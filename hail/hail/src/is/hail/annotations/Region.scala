@@ -367,6 +367,8 @@ object Region {
         visit(t.representation, off, v)
       case t: PCanonicalLocus =>
         visit(t.representation, off, v)
+      case t: PPackedLocus =>
+        v.visitPackedLocus(t.contigIdx(off), t.position(off))
       case t: PCanonicalCall =>
         visit(t.representation, off, v)
       case t: PCanonicalNDArray =>
