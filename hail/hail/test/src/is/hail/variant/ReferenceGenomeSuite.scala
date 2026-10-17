@@ -3,7 +3,7 @@ package is.hail.variant
 import is.hail.TestUtils._
 import is.hail.annotations.{Region, SafeRow}
 import is.hail.asm4s.{classInfo, AsmFunction2RegionLongLong, LongInfo}
-import is.hail.backend.{ExecuteContext, HailStateManager}
+import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
 import is.hail.expr.ir.{freshName, invoke, Compile, EmitFunctionBuilder, SingleCodeEmitParamType}
 import is.hail.expr.ir.defs.{F64, GetTupleElement, I32, MakeTuple, Ref}
@@ -303,9 +303,10 @@ class ReferenceGenomeSuite {
       .asInstanceOf[A]
 
   // Batch deserializes every closure in every task, so this bounds the per-task cost of shipping
-  // a state manager there.
+  // the builtin genomes held by locus types there.
   @Test def testBuiltinReferencesSerializeSmall(): Unit = {
-    val size = serialize(HailStateManager(ReferenceGenome.builtinReferences())).length
+    val size =
+      serialize(ReferenceGenome.builtinReferences().values.map(TLocus(_)).toIndexedSeq).length
     assertTrue(size < 2048, s"serialized size $size")
   }
 

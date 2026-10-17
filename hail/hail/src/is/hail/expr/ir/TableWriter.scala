@@ -200,7 +200,7 @@ object TableNativeWriter {
               MakeArray(GetField(writeGlobals, "filePath")),
               RVDSpecWriter(
                 s"$path/globals",
-                RVDSpecMaker(globalSpec, RVDPartitioner.unkeyed(ctx.stateManager, 1)),
+                RVDSpecMaker(globalSpec, RVDPartitioner.unkeyed(1)),
               ),
             ),
             WriteMetadata(
@@ -875,7 +875,7 @@ case class TableNativeFanoutWriter(
               MakeArray(GetField(writeGlobals, "filePath")),
               RVDSpecWriter(
                 s"${target.path}/globals",
-                RVDSpecMaker(globalSpec, RVDPartitioner.unkeyed(ctx.stateManager, 1)),
+                RVDSpecMaker(globalSpec, RVDPartitioner.unkeyed(1)),
               ),
             ),
             WriteMetadata(

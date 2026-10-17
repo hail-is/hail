@@ -140,8 +140,6 @@ class ExecuteContext(
         )
     }
 
-  val stateManager = HailStateManager(references)
-
   val referenceGenomes: ReferenceGenomeEnv = ReferenceGenomeEnv(references)
 
   lazy val fsBc: BroadcastValue[FS] = backend.broadcast(fs)

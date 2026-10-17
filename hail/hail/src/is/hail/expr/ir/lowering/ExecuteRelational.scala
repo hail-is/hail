@@ -42,7 +42,6 @@ object ExecuteRelational {
           val tv = recur(child).asTableValue(ctx)
           val partitioner =
             RVDPartitioner.union(
-              ctx.stateManager,
               tv.typ.keyType,
               intervals,
               tv.typ.keyType.size - 1,

@@ -891,7 +891,7 @@ class BlockMatrixStage2 private (
       letBindings,
       bcFields.map(ref => ref.name -> ref) :+ globals.name -> globals.ir,
       globals,
-      RVDPartitioner.unkeyed(ctx.stateManager, bmTyp.nDefinedBlocks),
+      RVDPartitioner.unkeyed(bmTyp.nDefinedBlocks),
       TableStageDependency.none,
       contextsIR,
       newCtxRef =>

@@ -1,7 +1,7 @@
 package is.hail.expr.ir.lowering
 
 import is.hail.annotations.RowSeq
-import is.hail.backend.{ExecuteContext, HailStateManager}
+import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
 import is.hail.expr.ir.{Memoized => M, _}
 import is.hail.expr.ir.defs._
@@ -792,14 +792,14 @@ case class DistributionSortReader(
 
   override def pathsUsed: Seq[String] = FastSeq()
 
-  def defaultPartitioning(sm: HailStateManager): RVDPartitioner = {
+  def defaultPartitioning: RVDPartitioner = {
     val (partitionerKey, intervals) = if (keyed) {
       (key, orderedOutputPartitions.map(segment => segment.interval))
     } else {
       (TStruct(), orderedOutputPartitions.map(_ => Interval(RowSeq(), RowSeq(), true, false)))
     }
 
-    new RVDPartitioner(sm, partitionerKey, intervals)
+    new RVDPartitioner(partitionerKey, intervals)
   }
 
   override def partitionCounts: Option[IndexedSeq[Long]] = None
@@ -837,7 +837,7 @@ case class DistributionSortReader(
 
     TableStage(
       PruneDeadFields.upcast(ctx, globals, requestedType.globalType),
-      defaultPartitioning(ctx.stateManager).coarsen(requestedType.key.length),
+      defaultPartitioning.coarsen(requestedType.key.length),
       TableStageDependency.none,
       ToStream(Literal(TArray(TArray(partReader.contextType)), contexts)),
       ctxRef =>

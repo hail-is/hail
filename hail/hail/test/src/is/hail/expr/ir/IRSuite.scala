@@ -3784,7 +3784,7 @@ class IRSuite {
         ),
         RelationalLetTable(freshName(), I32(0), read), {
           val structs = MakeStream(FastSeq(), TStream(TStruct()))
-          val partitioner = RVDPartitioner.empty(ctx.stateManager, TStruct())
+          val partitioner = RVDPartitioner.empty(TStruct())
           TableGen(
             structs,
             MakeStruct(FastSeq()),
@@ -4073,7 +4073,7 @@ class IRSuite {
         ctx,
         t1,
         BroadcastRow(ctx, RowSeq(1, 1.1), t1.globalType),
-        RVD.empty(ctx, t1.canonicalRVDType),
+        RVD.empty(t1.canonicalRVDType),
       ),
       ctx.theHailClassLoader,
     )
@@ -4082,7 +4082,7 @@ class IRSuite {
         ctx,
         t2,
         BroadcastRow(ctx, RowSeq(2, 2.2), t2.globalType),
-        RVD.empty(ctx, t2.canonicalRVDType),
+        RVD.empty(t2.canonicalRVDType),
       ),
       ctx.theHailClassLoader,
     )
