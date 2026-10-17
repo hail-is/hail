@@ -732,20 +732,16 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) extends Logg
   private def intervalsFromLiteralContigs(contigs: Any, rg: ReferenceGenome): KeySet = {
     KeySet((contigs: @unchecked) match {
       case x: Map[_, _] => x.keys.asInstanceOf[Iterable[String]].toFastSeq
-          .sortBy(rg.contigsIndex.get(_))(
-            TInt32.ordering(null).toOrdering.asInstanceOf[Ordering[Integer]]
-          )
+          .sortBy(rg.contigIndexOption(_).getOrElse(Int.MaxValue))
           .flatMap(getIntervalFromContig(_, rg))
       case x: Iterable[_] => x.asInstanceOf[Iterable[String]].toArray.toFastSeq
-          .sortBy(rg.contigsIndex.get(_))(
-            TInt32.ordering(null).toOrdering.asInstanceOf[Ordering[Integer]]
-          )
+          .sortBy(rg.contigIndexOption(_).getOrElse(Int.MaxValue))
           .flatMap(getIntervalFromContig(_, rg))
     })
   }
 
   private def getIntervalFromContig(c: String, rg: ReferenceGenome): Option[Interval] = {
-    if (rg.contigsSet.contains(c))
+    if (rg.isValidContig(c))
       Some(Interval(RowSeq(Locus(c, 1)), RowSeq(Locus(c, rg.contigLength(c))), true, false))
     else if (c == null) {
       logger.warn(s"Filtered with null contig")
