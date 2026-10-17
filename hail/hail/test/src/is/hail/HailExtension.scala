@@ -60,6 +60,8 @@ final class SharedResources extends AutoCloseable {
       localTmpdir = "file:///tmp",
       backend = backend,
       references = references,
+      liftovers = Map.empty,
+      sequences = Map.empty,
       fs = fs,
       r = Region(pool = pool),
       tempFileManager = new OwningTempFileManager(fs),

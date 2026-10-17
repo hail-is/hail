@@ -65,8 +65,8 @@ object ReferenceGenomeFunctions extends RegistryFunctions {
           cb,
           r,
           st,
-          rgCode(cb.emb, typeParam.rg).invoke[String, Int, Int, Int, String](
-            "getSequence",
+          cb.emb.getReferenceSequence(typeParam.rg).invoke[String, Int, Int, Int, String](
+            "lookup",
             scontig,
             pos.asInt.value,
             before.asInt.value,

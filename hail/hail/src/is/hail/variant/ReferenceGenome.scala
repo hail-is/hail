@@ -8,9 +8,7 @@ import is.hail.expr.{
 }
 import is.hail.expr.ir.RelationalSpec
 import is.hail.io.fs.FS
-import is.hail.io.reference.{
-  FASTAReader, FASTAReaderConfig, FastaSequenceIndex, IndexedFastaSequenceFile, LiftOver,
-}
+import is.hail.io.reference.FastaSequenceIndex
 import is.hail.types._
 import is.hail.types.virtual.{TLocus, Type}
 import is.hail.utils._
@@ -24,9 +22,7 @@ import java.io.{FileNotFoundException, InputStream}
 import org.json4s.{DefaultFormats, Extraction, Formats, JValue}
 import org.json4s.jackson.{JsonMethods, Serialization}
 
-/** A reference genome's [[ReferenceGenomeLayout]], together with the liftovers and reference
-  * sequence a session has attached to it.
-  */
+/** A reference genome, given by its [[ReferenceGenomeLayout]]. */
 class ReferenceGenome(val layout: ReferenceGenomeLayout) extends Serializable {
 
   def name: String = layout.name
@@ -64,9 +60,6 @@ class ReferenceGenome(val layout: ReferenceGenomeLayout) extends Serializable {
     new ReferenceGenome(
       layout.copy(name, contigs, lengths, xContigs, yContigs, mtContigs, parInput)
     )
-
-  private[this] var fastaFile: IndexedFastaSequenceFile = _
-  @transient private[this] var fastaReaderCfg: FASTAReaderConfig = _
 
   def getGlobalContigEnds: IndexedSeq[Long] = layout.globalContigEnds
 
@@ -244,82 +237,6 @@ class ReferenceGenome(val layout: ReferenceGenomeLayout) extends Serializable {
           s"@1",
         badContigs.truncatable("\n  "),
       )
-  }
-
-  private def hasSequence: Boolean = fastaFile != null
-
-  def addSequence(fasta: IndexedFastaSequenceFile): Unit = {
-    if (hasSequence)
-      fatal(s"FASTA sequence has already been loaded for reference genome '$name'.")
-
-    fasta.raiseIfIncompatible(this)
-    fastaFile = fasta
-  }
-
-  @transient private lazy val realFastaReader: ThreadLocal[FASTAReader] =
-    new ThreadLocal[FASTAReader]
-
-  private def fastaReader(): FASTAReader = {
-    if (!hasSequence)
-      fatal(s"FASTA file has not been loaded for reference genome '$name'.")
-
-    if (realFastaReader.get() == null)
-      realFastaReader.set(fastaReaderCfg.reader)
-    if (realFastaReader.get().cfg != fastaReaderCfg)
-      realFastaReader.set(fastaReaderCfg.reader)
-    realFastaReader.get()
-  }
-
-  def getSequence(contig: String, position: Int, before: Int = 0, after: Int = 0): String =
-    fastaReader().lookup(contig, position, before, after)
-
-  def getSequence(l: Locus, before: Int, after: Int): String =
-    getSequence(l.contig, l.position, before, after)
-
-  def getSequence(i: Interval): String =
-    fastaReader().lookup(i)
-
-  def removeSequence(): Unit = {
-    if (!hasSequence)
-      fatal(s"Reference genome '$name' does not have sequence loaded.")
-    fastaFile = null
-    fastaReaderCfg = null
-  }
-
-  private[this] val liftovers: mutable.Map[String, LiftOver] =
-    mutable.Map.empty
-
-  def addLiftover(destRef: ReferenceGenome, liftOver: LiftOver): Unit = {
-    if (name == destRef.name)
-      fatal(s"Destination reference genome cannot have the same name as this reference '$name'")
-    if (liftovers.contains(destRef.name))
-      fatal(
-        s"LiftOver already exists for source reference '$name' and destination reference '${destRef.name}'."
-      )
-
-    liftOver.checkChainFile(this, destRef)
-    liftovers += destRef.name -> liftOver
-  }
-
-  def removeLiftover(destRGName: String): Unit =
-    liftovers -= destRGName
-
-  def liftoverLocus(destRGName: String, l: Locus, minMatch: Double): (Locus, Boolean) =
-    liftovers(destRGName).queryLocus(l, minMatch)
-
-  def liftoverLocusInterval(destRGName: String, interval: Interval, minMatch: Double)
-    : (Interval, Boolean) =
-    liftovers(destRGName).queryInterval(interval, minMatch)
-
-  def heal(tmpdir: String, fs: FS): Unit = synchronized {
-    liftovers.values.foreach(_.restore(fs))
-    // add sequence
-    if (fastaFile != null) {
-      fastaFile.restore(fs)
-      val fastaPath = fs.parseUrl(fastaFile.path).toString
-      val indexPath = fs.parseUrl(fastaFile.index.path).toString
-      fastaReaderCfg = FASTAReaderConfig(tmpdir, fs, this, fastaPath, indexPath)
-    }
   }
 
   override def hashCode: Int = layout.hashCode

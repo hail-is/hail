@@ -1,25 +1,52 @@
 package is.hail.io.reference
 
 import is.hail.io.fs.FS
-import is.hail.io.reference.LiftOver.MinMatchDefault
+import is.hail.io.reference.Liftover.MinMatchDefault
 import is.hail.utils.{fatal, using, Interval}
 import is.hail.variant.{Locus, ReferenceGenome}
 
+import scala.collection.mutable
 import scala.jdk.CollectionConverters._
 
-object LiftOver {
-  def apply(fs: FS, chainFile: String): LiftOver = {
-    val lo = new LiftOver(chainFile)
+object Liftover {
+
+  /** Loads the liftover from `source` to `dest` defined by `chainFile`, checking that the chain
+    * file's contigs exist in both reference genomes.
+    */
+  def apply(fs: FS, source: ReferenceGenome, dest: ReferenceGenome, chainFile: String): Liftover = {
+    if (source.name == dest.name)
+      fatal(
+        s"Destination reference genome cannot have the same name as this reference '${source.name}'"
+      )
+
+    val lo = new Liftover(source.name, dest.name, chainFile)
     lo.restore(fs)
+    lo.checkChainFile(source, dest)
     lo
+  }
+
+  /** Adds `lo` to a session's liftovers, which hold at most one per source and destination. */
+  def addFatalOnCollision(existing: mutable.Map[(String, String), Liftover], lo: Liftover): Unit = {
+    if (existing.contains(lo.key))
+      fatal(
+        s"LiftOver already exists for source reference '${lo.source}' and destination reference '${lo.dest}'."
+      )
+
+    existing += lo.key -> lo
   }
 
   val MinMatchDefault: Double = htsjdk.samtools.liftover.LiftOver.DEFAULT_LIFTOVER_MINMATCH
 }
 
-class LiftOver private (chainFile: String) extends Serializable {
+/** A mapping of loci from the reference genome named `source` to the one named `dest`, defined by
+  * `chainFile`. The chain is not serialized: [[restore]] reloads it.
+  */
+class Liftover private (val source: String, val dest: String, val chainFile: String)
+    extends Serializable {
 
-  @transient var asJava: htsjdk.samtools.liftover.LiftOver = _
+  def key: (String, String) = (source, dest)
+
+  @transient @volatile private[this] var asJava: htsjdk.samtools.liftover.LiftOver = _
 
   def queryInterval(interval: Interval, minMatch: Double = MinMatchDefault): (Interval, Boolean) = {
     val start = interval.start.asInstanceOf[Locus]
@@ -64,13 +91,13 @@ class LiftOver private (chainFile: String) extends Serializable {
     else null
   }
 
-  def checkChainFile(srcRG: ReferenceGenome, destRG: ReferenceGenome): Unit =
+  private def checkChainFile(srcRG: ReferenceGenome, destRG: ReferenceGenome): Unit =
     asJava.getContigMap.asScala.foreach { case (srcContig, destContigs) =>
       srcRG.checkContig(srcContig)
       destContigs.asScala.foreach(destRG.checkContig)
     }
 
-  def restore(fs: FS): Unit =
+  def restore(fs: FS): Unit = synchronized {
     if (asJava == null) {
       if (!fs.isFile(chainFile))
         fatal(s"Chain file '$chainFile' does not exist, is not a file, or you do not have access.")
@@ -79,4 +106,5 @@ class LiftOver private (chainFile: String) extends Serializable {
         asJava = new htsjdk.samtools.liftover.LiftOver(is, chainFile)
       }
     }
+  }
 }
