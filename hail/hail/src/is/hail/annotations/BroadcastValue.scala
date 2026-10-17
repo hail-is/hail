@@ -100,7 +100,8 @@ trait BroadcastRegionValue extends Logging {
 case class BroadcastRow(ctx: ExecuteContext, value: RegionValue, t: PStruct)
     extends BroadcastRegionValue {
 
-  override def javaValue: UnsafeRow = UnsafeRow.readBaseStruct(t, value.region, value.offset)
+  override def javaValue: UnsafeRow =
+    UnsafeRow.readBaseStruct(t, value.region, value.offset)
 
   override def safeJavaValue: Row = SafeRow.read(t, value).asInstanceOf[Row]
 
@@ -129,9 +130,11 @@ case class BroadcastIndexedSeq(
   t: PArray,
 ) extends BroadcastRegionValue {
 
-  override def safeJavaValue: IndexedSeq[Row] = SafeRow.read(t, value).asInstanceOf[IndexedSeq[Row]]
+  override def safeJavaValue: IndexedSeq[Row] =
+    SafeRow.read(t, value).asInstanceOf[IndexedSeq[Row]]
 
-  override def javaValue: UnsafeIndexedSeq = new UnsafeIndexedSeq(t, value.region, value.offset)
+  override def javaValue: UnsafeIndexedSeq =
+    new UnsafeIndexedSeq(t, value.region, value.offset)
 
   def cast(newT: PArray): BroadcastIndexedSeq = {
     assert(t.virtualType == newT.virtualType)

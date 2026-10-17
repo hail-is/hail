@@ -1,9 +1,12 @@
 package is.hail.backend.driver
 
 import is.hail.ParameterizedTest
-import is.hail.TestUtils.{assertEq, interceptFatal}
+import is.hail.TestUtils.{assertEq, getTestResource, interceptFatal}
+import is.hail.backend.ExecuteContext
+import is.hail.expr.ir.EmitFunctionBuilder
 import is.hail.io.fs.RequesterPaysConfig
-import is.hail.variant.{ReferenceGenome, ReferenceGenomeEnv}
+import is.hail.io.reference.RgAttachments
+import is.hail.variant.{Locus, ReferenceGenome, ReferenceGenomeEnv}
 
 import scala.collection.immutable.ArraySeq
 
@@ -54,8 +57,7 @@ class BatchQueryDriverSpec {
       fs = null,
       tmpdir = null,
       references = references,
-      liftovers = Map.empty,
-      sequences = Map.empty,
+      attachments = RgAttachments.empty,
       outputUrl = null,
       action = 0,
       payload = JNothing,
@@ -73,6 +75,37 @@ class BatchQueryDriverSpec {
     }
     interceptFatal("a different reference with that name already exists") {
       BatchQueryDriver.Context.putReferences(env)(Seq(mk(ReferenceGenome.GRCh38, 10)))
+    }
+  }
+
+  // Python may still record an attachment to a reference genome it has removed. Launching must not
+  // fail every RPC for it: only a use of the attachment fails.
+  @Test def testLaunchSkipsAttachmentsToAGenomeNotInScope(implicit ctx: ExecuteContext): Unit = {
+    val grch37 = ReferenceGenome.builtinReferences()(ReferenceGenome.GRCh37)
+    val grch38 = ReferenceGenome.builtinReferences()(ReferenceGenome.GRCh38)
+    val removed =
+      ReferenceGenome("removed", ArraySeq("chr12", "chr20"), Map("chr12" -> 10, "chr20" -> 10))
+    val chain = getTestResource("grch37_to_grch38_chr20.over.chain.gz")
+
+    val attachments =
+      BatchQueryDriver.loadAttachments(
+        ctx.fs,
+        ReferenceGenomeEnv.empty,
+        Map(ReferenceGenome.GRCh37 -> Map(ReferenceGenome.GRCh38 -> chain, "removed" -> chain)),
+        Map("removed" -> SequenceConfig(
+          getTestResource("fake_reference.fasta"),
+          getTestResource("fake_reference.fasta.fai"),
+        )),
+      )
+
+    assertEq(attachments.liftovers.keySet, Set((grch37, grch38)))
+    assertEq(attachments.sequences, Map.empty)
+
+    ctx.local(attachments = attachments) { ctx =>
+      val fb = EmitFunctionBuilder[Locus, Double, (Locus, Boolean)](ctx, "lift_to_removed")
+      interceptFatal("No liftover from reference genome 'GRCh37' to 'removed'") {
+        fb.getLiftover(grch37, removed)
+      }
     }
   }
 }
