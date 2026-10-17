@@ -1,14 +1,13 @@
 package is.hail.annotations
 
-import is.hail.backend.HailStateManager
 import is.hail.collection.{IntArrayStack, LongArrayStack, ObjectArrayStack}
 import is.hail.types.physical._
 import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.utils.implicits.toRichBoolean
 
-class RegionValueBuilder(sm: HailStateManager, var region: Region) {
-  def this(sm: HailStateManager) = this(sm, null)
+class RegionValueBuilder(var region: Region) {
+  def this() = this(null)
 
   var start: Long = _
   var root: PType = _
@@ -276,7 +275,6 @@ class RegionValueBuilder(sm: HailStateManager, var region: Region) {
   def addString(s: String): Unit = {
     assert(currentType().isInstanceOf[PString])
     currentType().asInstanceOf[PString].unstagedStoreJavaObjectAtAddress(
-      sm,
       currentOffset(),
       s,
       region,
@@ -286,7 +284,7 @@ class RegionValueBuilder(sm: HailStateManager, var region: Region) {
 
   def addLocus(contig: String, pos: Int): Unit = {
     assert(currentType().isInstanceOf[PLocus])
-    currentType().asInstanceOf[PLocus].unstagedStoreLocus(sm, currentOffset(), contig, pos, region)
+    currentType().asInstanceOf[PLocus].unstagedStoreLocus(currentOffset(), contig, pos, region)
     advance()
   }
 
@@ -354,7 +352,7 @@ class RegionValueBuilder(sm: HailStateManager, var region: Region) {
     val toT = currentType()
 
     if (typestk.isEmpty) {
-      val r = toT.copyFromAddress(sm, region, t, fromOff, deepCopy)
+      val r = toT.copyFromAddress(region, t, fromOff, deepCopy)
       start = r
       return
     }
@@ -362,7 +360,7 @@ class RegionValueBuilder(sm: HailStateManager, var region: Region) {
     val toOff = currentOffset()
     assert(typestk.nonEmpty || toOff == start)
 
-    toT.unstagedStoreAtAddress(sm, toOff, region, t, fromOff, deepCopy)
+    toT.unstagedStoreAtAddress(toOff, region, t, fromOff, deepCopy)
 
     advance()
   }
@@ -372,7 +370,7 @@ class RegionValueBuilder(sm: HailStateManager, var region: Region) {
     if (a == null) {
       setMissing()
     } else {
-      currentType().unstagedStoreJavaObjectAtAddress(sm, currentOffset(), a, region)
+      currentType().unstagedStoreJavaObjectAtAddress(currentOffset(), a, region)
       advance()
     }
   }

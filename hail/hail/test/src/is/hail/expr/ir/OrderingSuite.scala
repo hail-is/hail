@@ -31,8 +31,6 @@ class OrderingSuite {
 
   implicit val execStrats: hail.ExecStrategy.ValueSet = ExecStrategy.values
 
-  def sm(implicit ctx: ExecuteContext) = ctx.stateManager
-
   def genTypeNonMissingVal2(implicit ctx: ExecuteContext): Gen[(Type, Annotation, Annotation)] =
     for {
       typ <- scale(0.3, arbitrary[Type])
@@ -97,7 +95,7 @@ class OrderingSuite {
       pool.scopedRegion { region =>
         val pType = PType.canonical(t).asInstanceOf[PStruct]
 
-        val v = pType.unstagedStoreJavaObject(sm, a, region)
+        val v = pType.unstagedStoreJavaObject(a, region)
 
         val eordME = t.mkOrdering()
         val eordMNE = t.mkOrdering(missingEqual = false)
@@ -245,9 +243,9 @@ class OrderingSuite {
       pool.scopedRegion { region =>
         val pType = PType.canonical(t)
 
-        val v1 = pType.unstagedStoreJavaObject(sm, a1, region)
+        val v1 = pType.unstagedStoreJavaObject(a1, region)
 
-        val v2 = pType.unstagedStoreJavaObject(sm, a2, region)
+        val v2 = pType.unstagedStoreJavaObject(a2, region)
 
         val compare = java.lang.Integer.signum(t.ordering.compare(a1, a2))
         val fcompare = getStagedOrderingFunction(pType, CodeOrdering.Compare(), region)
@@ -292,9 +290,9 @@ class OrderingSuite {
       pool.scopedRegion { region =>
         val pType = PType.canonical(t)
 
-        val v1 = pType.unstagedStoreJavaObject(sm, a1, region)
+        val v1 = pType.unstagedStoreJavaObject(a1, region)
 
-        val v2 = pType.unstagedStoreJavaObject(sm, a2, region)
+        val v2 = pType.unstagedStoreJavaObject(a2, region)
 
         val reversedExtendedOrdering = t.ordering.reverse
 
@@ -470,9 +468,9 @@ class OrderingSuite {
       val pArray = PCanonicalArray(pt)
 
       ctx.r.pool.scopedRegion { region =>
-        val soff = pset.unstagedStoreJavaObject(sm, set, region)
+        val soff = pset.unstagedStoreJavaObject(set, region)
 
-        val eoff = pTuple.unstagedStoreJavaObject(sm, RowSeq(elem), region)
+        val eoff = pTuple.unstagedStoreJavaObject(RowSeq(elem), region)
 
         val fb = EmitFunctionBuilder[Region, Long, Long, Int](ctx, "binary_search")
         val cset = fb.getCodeParam[Long](2)
@@ -522,10 +520,10 @@ class OrderingSuite {
       val pDict = PType.canonical(tDict).asInstanceOf[PDict]
 
       ctx.r.pool.scopedRegion { region =>
-        val soff = pDict.unstagedStoreJavaObject(sm, dict, region)
+        val soff = pDict.unstagedStoreJavaObject(dict, region)
 
         val ptuple = PCanonicalTuple(false, FastSeq(pDict.keyType): _*)
-        val eoff = ptuple.unstagedStoreJavaObject(sm, RowSeq(key), region)
+        val eoff = ptuple.unstagedStoreJavaObject(RowSeq(key), region)
 
         val fb = EmitFunctionBuilder[Region, Long, Long, Int](ctx, "binary_search_dict")
         val cdict = fb.getCodeParam[Long](2)
@@ -573,8 +571,8 @@ class OrderingSuite {
     check(forAll(genTypeNonMissingVal2) { case (t, a1, a2) =>
       pool.scopedRegion { region =>
         val pType = PType.canonical(t)
-        val v1 = pType.unstagedStoreJavaObject(sm, a1, region)
-        val v2 = pType.unstagedStoreJavaObject(sm, a2, region)
+        val v1 = pType.unstagedStoreJavaObject(a1, region)
+        val v2 = pType.unstagedStoreJavaObject(a2, region)
         val fcompare = getStagedOrderingFunction(pType, CodeOrdering.Compare(), region)
         val result = java.lang.Integer.signum(fcompare(region, v1, v2))
 
