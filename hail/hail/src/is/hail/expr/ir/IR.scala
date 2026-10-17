@@ -23,6 +23,7 @@ import is.hail.types.physical.stypes.concrete.SJavaString
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.virtual._
 import is.hail.utils._
+import is.hail.variant.ReferenceGenomeEnv
 
 import java.io.OutputStream
 
@@ -367,7 +368,16 @@ package defs {
   }
 
   object PartitionReader {
-    implicit val formats: Formats =
+
+    /** Formats that read types, parsing them against `rgs`. */
+    def formats(rgs: ReferenceGenomeEnv): Formats = typeFormats(Some(rgs))
+
+    /** Formats that write types but cannot read them. */
+    def formats: Formats = writeOnlyFormats
+
+    private[this] lazy val writeOnlyFormats: Formats = typeFormats(None)
+
+    private def typeFormats(rgs: Option[ReferenceGenomeEnv]): Formats =
       new DefaultFormats() {
         override val typeHints = ShortTypeHints(
           List(
@@ -389,17 +399,18 @@ package defs {
           typeHintFieldName = "name",
         ) + BufferSpec.shortTypeHints
       } +
-        new TStructSerializer +
-        new TypeSerializer +
-        new PTypeSerializer +
+        new TStructSerializer(rgs) +
+        new TypeSerializer(rgs) +
+        new PTypeSerializer(rgs) +
         new ETypeSerializer +
         new AvroSchemaSerializer
 
     def extract(ctx: ExecuteContext, jv: JValue): PartitionReader = {
+      implicit val formats: Formats = PartitionReader.formats(ctx.referenceGenomes)
       (jv \ "name").extract[String] match {
         case "PartitionNativeIntervalReader" =>
           val path = (jv \ "path").extract[String]
-          val spec = TableNativeReader.read(ctx.fs, path, None).spec
+          val spec = TableNativeReader.read(ctx.fs, ctx.referenceGenomes, path, None).spec
           PartitionNativeIntervalReader(
             ctx.stateManager,
             path,
@@ -408,7 +419,8 @@ package defs {
           )
         case "PartitionZippedNativeIntervalReader" =>
           val path = (jv \ "path").extract[String]
-          val spec = RelationalSpec.read(ctx.fs, path).asInstanceOf[AbstractMatrixTableSpec]
+          val spec = RelationalSpec.read(ctx.fs, ctx.referenceGenomes, path)
+            .asInstanceOf[AbstractMatrixTableSpec]
           PartitionZippedNativeIntervalReader(
             ctx.stateManager,
             path,
@@ -416,9 +428,10 @@ package defs {
             (jv \ "uidFieldName").extract[String],
           )
         case "GVCFPartitionReader" =>
-          val header = VCFHeaderInfo.fromJSON((jv \ "header"))
+          val header = VCFHeaderInfo.fromJSON(jv \ "header", ctx.referenceGenomes)
           val callFields = (jv \ "callFields").extract[Set[String]]
-          val entryFloatType = IRParser.parseType((jv \ "entryFloatType").extract[String])
+          val entryFloatType =
+            IRParser.parseType((jv \ "entryFloatType").extract[String], ctx.referenceGenomes)
           val arrayElementsRequired = (jv \ "arrayElementsRequired").extract[Boolean]
           val rg = (jv \ "rg") match {
             case JString(s) => Some(s)
@@ -440,7 +453,16 @@ package defs {
   }
 
   object PartitionWriter {
-    implicit val formats: Formats =
+
+    /** Formats that read types, parsing them against `rgs`. */
+    def formats(rgs: ReferenceGenomeEnv): Formats = typeFormats(Some(rgs))
+
+    /** Formats that write types but cannot read them. */
+    def formats: Formats = writeOnlyFormats
+
+    private[this] lazy val writeOnlyFormats: Formats = typeFormats(None)
+
+    private def typeFormats(rgs: Option[ReferenceGenomeEnv]): Formats =
       new DefaultFormats() {
         override val typeHints = ShortTypeHints(
           List(
@@ -454,15 +476,24 @@ package defs {
           typeHintFieldName = "name",
         ) + BufferSpec.shortTypeHints
       } +
-        new TStructSerializer +
-        new TypeSerializer +
-        new PTypeSerializer +
-        new PStructSerializer +
+        new TStructSerializer(rgs) +
+        new TypeSerializer(rgs) +
+        new PTypeSerializer(rgs) +
+        new PStructSerializer(rgs) +
         new ETypeSerializer
   }
 
   object MetadataWriter {
-    implicit val formats: Formats =
+
+    /** Formats that read types, parsing them against `rgs`. */
+    def formats(rgs: ReferenceGenomeEnv): Formats = typeFormats(Some(rgs))
+
+    /** Formats that write types but cannot read them. */
+    def formats: Formats = writeOnlyFormats
+
+    private[this] lazy val writeOnlyFormats: Formats = typeFormats(None)
+
+    private def typeFormats(rgs: Option[ReferenceGenomeEnv]): Formats =
       new DefaultFormats() {
         override val typeHints = ShortTypeHints(
           List(
@@ -479,9 +510,9 @@ package defs {
           typeHintFieldName = "name",
         ) + BufferSpec.shortTypeHints
       } +
-        new TStructSerializer +
-        new TypeSerializer +
-        new PTypeSerializer +
+        new TStructSerializer(rgs) +
+        new TypeSerializer(rgs) +
+        new PTypeSerializer(rgs) +
         new ETypeSerializer
   }
 

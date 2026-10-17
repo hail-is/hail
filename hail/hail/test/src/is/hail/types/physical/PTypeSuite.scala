@@ -7,10 +7,11 @@ import is.hail.collection.FastSeq
 import is.hail.rvd.AbstractRVDSpec
 import is.hail.types.virtual._
 import is.hail.utils._
-import is.hail.variant.ReferenceGenome
+import is.hail.variant.{ReferenceGenome, ReferenceGenomeEnv}
 
 import scala.collection.immutable.ArraySeq
 
+import org.json4s.Formats
 import org.json4s.jackson.Serialization
 import org.junit.jupiter.api.Test
 
@@ -46,7 +47,7 @@ class PTypeSuite {
 
   @ParameterizedTest("ptypes")
   def testSerialization(ptype: PType): Unit = {
-    implicit val formats = AbstractRVDSpec.formats
+    implicit val formats: Formats = AbstractRVDSpec.formats(ReferenceGenomeEnv.empty)
     val s = Serialization.write(ptype)
     assertEq(Serialization.read[PType](s), ptype)
   }

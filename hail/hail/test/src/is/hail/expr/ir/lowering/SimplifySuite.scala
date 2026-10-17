@@ -757,10 +757,11 @@ class SimplifySuite {
   @Test def testSimplifyReadFilterIntervals(fs: FS)(implicit ctx: ExecuteContext): Unit = {
     val src = getTestResource("sample-indexed-0.2.52.mt")
 
-    val mnr = MatrixNativeReader(fs, src, None)
+    val mnr = MatrixNativeReader(fs, ctx.referenceGenomes, src, None)
     val mr = MatrixRead(mnr.fullMatrixType, false, false, mnr)
 
-    val tnr = TableNativeReader(fs, TableNativeReaderParameters(src + "/rows", None))
+    val tnr =
+      TableNativeReader(fs, ctx.referenceGenomes, TableNativeReaderParameters(src + "/rows", None))
     val tr = TableRead(tnr.fullType, false, tnr)
 
     val tzr = mr.lower(ctx).asInstanceOf[TableMapGlobals].child.asInstanceOf[TableRead]
@@ -785,6 +786,7 @@ class SimplifySuite {
         false,
         TableNativeReader(
           fs,
+          ctx.referenceGenomes,
           TableNativeReaderParameters(
             src + "/rows",
             Some(NativeReaderOptions(intervals1, tnr.fullType.keyType, true)),
@@ -800,6 +802,7 @@ class SimplifySuite {
         false,
         TableNativeReader(
           fs,
+          ctx.referenceGenomes,
           TableNativeReaderParameters(
             src + "/rows",
             Some(NativeReaderOptions(intersection, tnr.fullType.keyType, true)),

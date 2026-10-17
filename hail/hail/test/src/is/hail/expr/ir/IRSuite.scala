@@ -31,6 +31,7 @@ import scala.collection.immutable.ArraySeq
 import scala.collection.mutable
 
 import org.apache.spark.sql.Row
+import org.json4s.Formats
 import org.json4s.jackson.{JsonMethods, Serialization}
 import org.junit.jupiter.api.Test
 
@@ -3687,9 +3688,16 @@ class IRSuite {
     try {
       val fs = ctx.fs
 
-      val read = TableIR.read(fs, getTestResource("backward_compatability/1.1.0/table/0.ht"))
-      val mtRead =
-        MatrixIR.read(fs, getTestResource("backward_compatability/1.0.0/matrix_table/0.hmt"))
+      val read = TableIR.read(
+        fs,
+        ctx.referenceGenomes,
+        getTestResource("backward_compatability/1.1.0/table/0.ht"),
+      )
+      val mtRead = MatrixIR.read(
+        fs,
+        ctx.referenceGenomes,
+        getTestResource("backward_compatability/1.0.0/matrix_table/0.hmt"),
+      )
       val b = True()
 
       val xs: Array[TableIR] = Array(
@@ -3809,9 +3817,16 @@ class IRSuite {
         ),
       )
 
-      val tableRead = TableIR.read(fs, getTestResource("backward_compatability/1.1.0/table/0.ht"))
-      val read =
-        MatrixIR.read(fs, getTestResource("backward_compatability/1.0.0/matrix_table/0.hmt"))
+      val tableRead = TableIR.read(
+        fs,
+        ctx.referenceGenomes,
+        getTestResource("backward_compatability/1.1.0/table/0.ht"),
+      )
+      val read = MatrixIR.read(
+        fs,
+        ctx.referenceGenomes,
+        getTestResource("backward_compatability/1.0.0/matrix_table/0.hmt"),
+      )
       val range = MatrixIR.range(ctx, 3, 7, None)
       val vcf = importVCF(getTestResource("sample.vcf"))(ctx)
 
@@ -4129,7 +4144,7 @@ class IRSuite {
 
   def testRelationalFunctionsSerialize(ctx: ExecuteContext) = Seq[Any](
     TableFilterPartitions(ArraySeq(1, 2, 3), keep = true),
-    VEP(ctx.fs, getTestResource("dummy_vep_config.json"), false, 1, true),
+    VEP(ctx.fs, ctx.referenceGenomes, getTestResource("dummy_vep_config.json"), false, 1, true),
     WrappedMatrixToTableFunction(
       LinearRegressionRowsSingle(ArraySeq("foo"), "bar", ArraySeq("baz"), 1, ArraySeq("a", "b")),
       "foo",
@@ -4179,7 +4194,7 @@ class IRSuite {
 
   @ParameterizedTest
   def testRelationalFunctionsSerialize(x: Any)(implicit ctx: ExecuteContext): Unit = {
-    implicit val formats = RelationalFunctions.formats
+    implicit val formats: Formats = RelationalFunctions.formats(ctx.referenceGenomes)
 
     x match {
       case x: MatrixToMatrixFunction =>
@@ -4217,7 +4232,7 @@ class IRSuite {
     val t = TTuple(FastSeq(TupleField(1, TInt64)))
     val lit = Literal(t, RowSeq(1L))
 
-    assert(IRParser.parseType(t.parsableString()) == t)
+    assert(IRParser.parseType(t.parsableString(), ctx.referenceGenomes) == t)
     assert(IRParser.parse_value_ir(ctx, Pretty.sexprStyle(lit, elideLiterals = false)) == lit)
   }
 

@@ -8,6 +8,7 @@ import is.hail.expr.ir.IRParser
 import is.hail.scalacheck._
 import is.hail.types.virtual._
 import is.hail.utils.StringEscapeUtils._
+import is.hail.variant.ReferenceGenomeEnv
 
 import org.json4s.jackson.JsonMethods._
 import org.junit.jupiter.api.Test
@@ -27,7 +28,7 @@ class ExprSuite {
       sb.clear()
       t.pretty(sb, 0, compact = true)
       val res = sb.result()
-      val parsed = IRParser.parseType(res)
+      val parsed = IRParser.parseType(res, ReferenceGenomeEnv.empty)
       t == parsed
     })
 
@@ -35,13 +36,13 @@ class ExprSuite {
       sb.clear()
       t.pretty(sb, 0, compact = false)
       val res = sb.result()
-      val parsed = IRParser.parseType(res)
+      val parsed = IRParser.parseType(res, ReferenceGenomeEnv.empty)
       t == parsed
     })
 
     check(forAll { (t: Type) =>
       val s = t.parsableString()
-      val parsed = IRParser.parseType(s)
+      val parsed = IRParser.parseType(s, ReferenceGenomeEnv.empty)
       assert(t == parsed)
     })
   }

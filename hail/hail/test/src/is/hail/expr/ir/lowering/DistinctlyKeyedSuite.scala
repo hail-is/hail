@@ -38,14 +38,14 @@ class DistinctlyKeyedSuite {
     val keyedByConst = TableKeyBy(at, IndexedSeq("const"))
     val pathConst = ctx.createTmpPath("test-table-distinctly-keyed", "ht")
     Interpret[Unit](ctx, TableWrite(keyedByConst, TableNativeWriter(pathConst)))
-    val readConst = TableIR.read(ctx.fs, pathConst)
+    val readConst = TableIR.read(ctx.fs, ctx.referenceGenomes, pathConst)
     val distinctlyKeyedAnalysis1 = DistinctlyKeyed.apply(readConst)
     assert(!distinctlyKeyedAnalysis1.contains(readConst))
 
     val keyedByIdxAndHalf = TableKeyBy(at, IndexedSeq("idx", "half"))
     val pathIdxAndHalf = ctx.createTmpPath("test-table-write-distinctness", "ht")
     Interpret[Unit](ctx, TableWrite(keyedByIdxAndHalf, TableNativeWriter(pathIdxAndHalf)))
-    val readIdxAndHalf = TableIR.read(ctx.fs, pathIdxAndHalf)
+    val readIdxAndHalf = TableIR.read(ctx.fs, ctx.referenceGenomes, pathIdxAndHalf)
     val distinctlyKeyedAnalysis2 = DistinctlyKeyed.apply(readIdxAndHalf)
     assert(distinctlyKeyedAnalysis2.contains(readIdxAndHalf))
 

@@ -4,21 +4,21 @@ import is.hail.collection.FastSeq
 import is.hail.collection.implicits.toRichIterable
 import is.hail.expr.ir.{Env, IRParser, MatrixIR, Name}
 import is.hail.expr.ir.lowering.LowerMatrixIR
+import is.hail.types.TypeStringSerializer
 import is.hail.types.physical.{PArray, PStruct}
 import is.hail.utils._
+import is.hail.variant.ReferenceGenomeEnv
 
 import scala.collection.immutable.ArraySeq
 
 import org.apache.spark.sql.Row
-import org.json4s.{CustomSerializer, JValue}
+import org.json4s.JValue
 import org.json4s.JsonAST.{JArray, JObject, JString}
 
-class MatrixTypeSerializer extends CustomSerializer[MatrixType](format =>
-      (
-        { case JString(s) => IRParser.parseMatrixType(s) },
-        { case mt: MatrixType => JString(mt.toString) },
-      )
-    )
+class MatrixTypeSerializer(rgs: Option[ReferenceGenomeEnv])
+    extends TypeStringSerializer[MatrixType](rgs, IRParser.parseMatrixType, _.toString) {
+  def this(rgs: ReferenceGenomeEnv) = this(Some(rgs))
+}
 
 object MatrixType {
   val entriesIdentifier = "the entries! [877f12a8827e18f61222c6c8c5fb04a8]"

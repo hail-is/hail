@@ -18,6 +18,7 @@ import is.hail.types.encoded.ETypeSerializer
 import is.hail.types.physical._
 import is.hail.types.virtual._
 import is.hail.utils._
+import is.hail.variant.ReferenceGenomeEnv
 
 import scala.collection.immutable.ArraySeq
 
@@ -27,7 +28,16 @@ import org.json4s.{DefaultFormats, Formats, JValue, ShortTypeHints}
 import org.json4s.jackson.{JsonMethods, Serialization}
 
 object AbstractRVDSpec {
-  implicit val formats: Formats =
+
+  /** Formats that read types, parsing them against `rgs`. */
+  def formats(rgs: ReferenceGenomeEnv): Formats = typeFormats(Some(rgs))
+
+  /** Formats that write types but cannot read them. */
+  def formats: Formats = writeOnlyFormats
+
+  private[this] lazy val writeOnlyFormats: Formats = typeFormats(None)
+
+  private def typeFormats(rgs: Option[ReferenceGenomeEnv]): Formats =
     new DefaultFormats() {
       override val typeHints = ShortTypeHints(
         List(
@@ -45,13 +55,16 @@ object AbstractRVDSpec {
         typeHintFieldName = "name",
       ) + BufferSpec.shortTypeHints
     } +
-      new TStructSerializer +
-      new TypeSerializer +
-      new PTypeSerializer +
-      new RVDTypeSerializer +
-      new ETypeSerializer
+      new TStructSerializer(rgs) +
+      new TypeSerializer(rgs) +
+      new PTypeSerializer(rgs) +
+      new RVDTypeSerializer(rgs) +
+      new ETypeSerializer +
+      new compatibility.LegacyEncodedTypeSerializer(rgs) +
+      new compatibility.LegacyRVDTypeSerializer(rgs)
 
-  def read(fs: FS, path: String): AbstractRVDSpec = {
+  def read(fs: FS, rgs: ReferenceGenomeEnv, path: String): AbstractRVDSpec = {
+    implicit val formats: Formats = AbstractRVDSpec.formats(rgs)
     try {
       val metadataFile = path + "/metadata.json.gz"
       using(fs.open(metadataFile))(in => JsonMethods.parse(in))
@@ -273,8 +286,7 @@ abstract class AbstractRVDSpec {
 
   def write(fs: FS, path: String): Unit =
     using(fs.create(path + "/metadata.json.gz")) { out =>
-      import AbstractRVDSpec.formats
-      Serialization.write(this, out)
+      Serialization.write(this, out)(AbstractRVDSpec.formats)
     }
 }
 

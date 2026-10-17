@@ -17,6 +17,7 @@ import scala.util.Random
 import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
 
 import org.apache.spark.sql.Row
+import org.json4s.Formats
 import org.json4s.jackson.Serialization
 import org.junit.jupiter.api.Test
 import org.scalacheck._
@@ -69,7 +70,7 @@ class UnsafeSuite {
 
   @ParameterizedTest
   def testCodecSerialization(codec: Spec)(implicit ctx: ExecuteContext): Unit = {
-    implicit val formats = AbstractRVDSpec.formats
+    implicit val formats: Formats = AbstractRVDSpec.formats(ctx.referenceGenomes)
     assert(Serialization.read[Spec](codec.toString) == codec)
   }
 

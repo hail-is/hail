@@ -18,6 +18,7 @@ import is.hail.types.physical.stypes.concrete.{SJavaString, SStackStruct, SStack
 import is.hail.types.physical.stypes.interfaces.{SBaseStructValue, SStreamValue}
 import is.hail.types.physical.stypes.primitives.{SInt64, SInt64Value}
 import is.hail.types.virtual._
+import is.hail.variant.ReferenceGenomeEnv
 
 import scala.collection.immutable.ArraySeq
 
@@ -43,8 +44,8 @@ object StringTableReader {
     new StringTableReader(params, fileListEntries)
   }
 
-  def fromJValue(fs: FS, jv: JValue): StringTableReader = {
-    implicit val formats: Formats = TableReader.formats
+  def fromJValue(fs: FS, rgs: ReferenceGenomeEnv, jv: JValue): StringTableReader = {
+    implicit val formats: Formats = TableReader.formats(rgs)
     val params = jv.extract[StringTableReaderParameters]
     StringTableReader(fs, params)
   }
