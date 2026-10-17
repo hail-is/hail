@@ -24,7 +24,7 @@ import is.hail.types.physical.stypes.interfaces.{primitive, NoBoxLongIterator, S
 import is.hail.types.physical.stypes.primitives.SInt64
 import is.hail.types.virtual._
 import is.hail.utils.CompressionUtils
-import is.hail.variant.Call2
+import is.hail.variant.{Call2, ReferenceGenome}
 
 import scala.collection.immutable.ArraySeq
 
@@ -75,7 +75,7 @@ object StagedBGENReader {
     skipInvalidLoci: Value[Boolean],
     contigRecoding: Value[Map[String, String]],
     requestedType: TStruct,
-    rg: Option[String],
+    rg: Option[ReferenceGenome],
   ): EmitCode = {
     var out: EmitSettable = null // defined and assigned inside method
     val emb = cb.emb.ecb.genEmitMethod(
@@ -902,7 +902,7 @@ object BGENFunctions extends RegistryFunctions {
           ]](
             BGENFunctions.getClass,
             "wrapAttrs",
-            mb.getObject(rg.orNull),
+            mb.getObject(rg.map(_.name).orNull),
             recoding,
             skipInvalidLoci,
           )),

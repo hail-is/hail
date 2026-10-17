@@ -18,6 +18,7 @@ import is.hail.methods.{ForceCountTable, NPartitionsTable}
 import is.hail.rvd.RVDPartitioner
 import is.hail.types.virtual._
 import is.hail.utils._
+import is.hail.variant.BuiltinLoci.tlocus
 import is.hail.variant.Locus
 
 import scala.collection.immutable.ArraySeq
@@ -700,7 +701,7 @@ class TableIRSuite {
     val i1 = Interval(RowSeq(Locus("20", 10200000)), RowSeq(Locus("20", 10500000)), true, true)
 
     def test(filterIntervals: Boolean, expectedNParts: Int): Unit = {
-      val opts = NativeReaderOptions(FastSeq(i1), TLocus("GRCh37"), filterIntervals)
+      val opts = NativeReaderOptions(FastSeq(i1), tlocus("GRCh37"), filterIntervals)
       val tr = TableNativeReader(
         ctx.fs,
         ctx.referenceGenomes,

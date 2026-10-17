@@ -11,6 +11,7 @@ import is.hail.rvd.RVDPartitioner
 import is.hail.types.virtual._
 import is.hail.utils.{Interval, IntervalEndpoint}
 import is.hail.variant.{Locus, ReferenceGenome}
+import is.hail.variant.BuiltinLoci.tlocus
 
 import org.apache.spark.sql.Row
 import org.junit.jupiter.api.Test
@@ -472,7 +473,7 @@ class ExtractIntervalFiltersSuite {
   }
 
   @Test def testLocusContigComparison(implicit ctx: ExecuteContext): Unit = {
-    val ref = Ref(freshName(), TStruct("x" -> TLocus(ReferenceGenome.GRCh38)))
+    val ref = Ref(freshName(), TStruct("x" -> tlocus(ReferenceGenome.GRCh38)))
     val k = GetField(ref, "x")
 
     val ir1 = eq(Str("chr2"), invoke("contig", TString, k))
@@ -509,7 +510,7 @@ class ExtractIntervalFiltersSuite {
   }
 
   @Test def testLocusPositionComparison(implicit ctx: ExecuteContext): Unit = {
-    val ref = Ref(freshName(), TStruct("x" -> TLocus(ReferenceGenome.GRCh38)))
+    val ref = Ref(freshName(), TStruct("x" -> tlocus(ReferenceGenome.GRCh38)))
     val k = GetField(ref, "x")
     val pos = invoke("position", TInt32, k)
 
@@ -651,7 +652,7 @@ class ExtractIntervalFiltersSuite {
   }
 
   @Test def testLocusContigContains(implicit ctx: ExecuteContext): Unit = {
-    val ref = Ref(freshName(), TStruct("x" -> TLocus(ReferenceGenome.GRCh38)))
+    val ref = Ref(freshName(), TStruct("x" -> tlocus(ReferenceGenome.GRCh38)))
     val k = GetField(ref, "x")
     val contig = invoke("contig", TString, k)
 

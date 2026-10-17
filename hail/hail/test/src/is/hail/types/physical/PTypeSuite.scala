@@ -8,6 +8,7 @@ import is.hail.rvd.AbstractRVDSpec
 import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.variant.{ReferenceGenome, ReferenceGenomeEnv}
+import is.hail.variant.BuiltinLoci.pcanonicalLocus
 
 import scala.collection.immutable.ArraySeq
 
@@ -28,7 +29,7 @@ class PTypeSuite {
     PCanonicalCall(true),
     PCanonicalBinary(false),
     PCanonicalString(true),
-    PCanonicalLocus(ReferenceGenome.GRCh37, false),
+    pcanonicalLocus(ReferenceGenome.GRCh37, false),
     PCanonicalArray(PInt32Required, true),
     PCanonicalSet(PInt32Required, false),
     PCanonicalDict(PInt32Required, PCanonicalString(true), true),

@@ -486,7 +486,7 @@ case class RelationalCommit(path: String) extends MetadataWriter {
 case class RelationalWriter(
   path: String,
   overwrite: Boolean,
-  maybeRefs: Option[(String, Set[String])],
+  maybeRefs: Option[(String, Set[ReferenceGenome])],
 ) extends MetadataWriter {
   override def annotationType: Type = TVoid
 

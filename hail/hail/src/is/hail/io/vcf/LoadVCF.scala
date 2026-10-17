@@ -1941,7 +1941,7 @@ class MatrixVCFReader(
     colKey = ArraySeq("s"),
     rowType = TStruct(
       ArraySeq(
-        "locus" -> TLocus.schemaFromRG(referenceGenome.map(_.name)),
+        "locus" -> TLocus.schemaFromRG(referenceGenome),
         "alleles" -> TArray(TString),
       )
         ++ rowValuePType.fields.map(f => f.name -> f.typ.virtualType): _*
@@ -1955,7 +1955,7 @@ class MatrixVCFReader(
     PCanonicalStruct(
       true,
       FastSeq(
-        "locus" -> PCanonicalLocus.schemaFromRG(referenceGenome.map(_.name), true),
+        "locus" -> PCanonicalLocus.schemaFromRG(referenceGenome, true),
         "alleles" -> PCanonicalArray(PCanonicalString(true), true),
       )
         ++ rowValuePType.fields.map(f => f.name -> f.typ)
@@ -2166,7 +2166,7 @@ case class GVCFPartitionReader(
   callFields: Set[String],
   entryFloatType: Type,
   arrayElementsRequired: Boolean,
-  rg: Option[String],
+  rg: Option[ReferenceGenome],
   contigRecoding: Map[String, String],
   skipInvalidLoci: Boolean,
   filterAndReplace: TextInputFilterAndReplace,
@@ -2206,7 +2206,7 @@ case class GVCFPartitionReader(
     ]
 
   override def toJValue: JValue = {
-    implicit val formats: Formats = DefaultFormats
+    implicit val formats: Formats = DefaultFormats + new ReferenceGenomeNameSerializer(None)
     decomposeWithName(this, "MatrixVCFReader")
   }
 

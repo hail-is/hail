@@ -197,7 +197,7 @@ object MatrixPLINKReader extends Logging {
     val referenceGenome = params.rg.map(ctx.references)
     referenceGenome.foreach(_.validateContigRemap(params.contigRecoding))
 
-    val locusType = TLocus.schemaFromRG(params.rg)
+    val locusType = TLocus.schemaFromRG(referenceGenome)
     val locusAllelesType = TStruct(
       "locus" -> locusType,
       "alleles" -> TArray(TString),
@@ -405,7 +405,7 @@ class MatrixPLINKReader(
     val localNSamples = nSamples
     val sm = ctx.stateManager
 
-    val localLocusType = TLocus.schemaFromRG(referenceGenome.map(_.name))
+    val localLocusType = TLocus.schemaFromRG(referenceGenome)
 
     val contextType = TStruct(
       "bed" -> TString,
@@ -423,7 +423,7 @@ class MatrixPLINKReader(
 
     val fullRowPType = PCanonicalStruct(
       true,
-      "locus" -> PCanonicalLocus.schemaFromRG(referenceGenome.map(_.name), true),
+      "locus" -> PCanonicalLocus.schemaFromRG(referenceGenome, true),
       "alleles" -> PCanonicalArray(PCanonicalString(true), true),
       "rsid" -> PCanonicalString(true),
       "cm_position" -> PFloat64(true),

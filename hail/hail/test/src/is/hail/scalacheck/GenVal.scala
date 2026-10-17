@@ -68,7 +68,7 @@ private[scalacheck] trait GenVal {
             }
           }
         case p: PLocus =>
-          genLocus(ctx.references(p.rg))
+          genLocus(p.rg)
         case t: PNDArray =>
           for {
             shape <- partition(t.nDims)
