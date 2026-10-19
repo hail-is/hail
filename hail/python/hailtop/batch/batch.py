@@ -154,9 +154,9 @@ class Batch:
         from hailtop.batch.backend import ServiceBackend  # pylint: disable=import-outside-toplevel
 
         b = Batch(*args, **kwargs)
-        assert isinstance(b._backend, ServiceBackend), repr(b._backend)
 
         async def get_batch():
+            assert isinstance(b._backend, ServiceBackend), repr(b._backend)
             bc = await b._backend._batch_client()
             return await bc.get_batch(batch_id)
 
