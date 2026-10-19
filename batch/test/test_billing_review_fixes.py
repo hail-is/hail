@@ -9,17 +9,20 @@ import pytest
 
 from batch import billing_project_management
 from batch.billing_project_management import (
+    get_billing_project_events,
+    get_quote_events,
+)
+from batch.exceptions import BatchOperationAlreadyCompletedError, BillingValidationError
+
+from .billing_writes import (
     change_billing_project_quote,
     close_billing_project,
     create_billing_project,
     create_quote,
     delete_billing_project,
     edit_quote,
-    get_billing_project_events,
-    get_quote_events,
     patch_billing_project,
 )
-from batch.exceptions import BatchOperationAlreadyCompletedError, BillingValidationError
 
 
 async def _quote(db, name, authorized_amount=1000.0) -> int:
