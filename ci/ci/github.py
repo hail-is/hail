@@ -853,6 +853,12 @@ mkdir -p {shq(repo_dir)}
         )
 
     async def merge(self, gh) -> Tuple[MergeResult, Optional[str]]:
+        # Only called from try_to_merge, right after _heal has synced our build state to GitHub
+        if self.last_known_github_status.get(GITHUB_STATUS_CONTEXT) == GithubStatus.SUCCESS:
+            assert self.build_state == 'success', (
+                self.last_known_github_status[GITHUB_STATUS_CONTEXT],
+                self.build_state,
+            )
         url = _async_merge_url(self.target_branch.branch.repo.short_str(), self.number)
         try:
             response = await gh.put(
@@ -1122,12 +1128,6 @@ class WatchedBranch(Code):
                 return
             self._record_failed_merge(MergeAttempt(pending.pr_number, pending.source_sha, pending.target_sha))
         for pr in self.prs_in_merge_priority_order():
-            # Only holds here, right after _heal has synced our build state to GitHub
-            if pr.last_known_github_status.get(GITHUB_STATUS_CONTEXT) == GithubStatus.SUCCESS:
-                assert pr.build_state == 'success', (
-                    pr.last_known_github_status[GITHUB_STATUS_CONTEXT],
-                    pr.build_state,
-                )
             if pr.is_mergeable() and not self._backing_off(pr):
                 result, uuid = await pr.merge(gh)
                 if result == 'merged':
