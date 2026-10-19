@@ -7,8 +7,21 @@ import json
 
 import pytest
 
+from batch.billing_grants import BillingAuthorizationError
 from batch.billing_project_management import (
     INTERNAL_QUOTE_ID,
+    get_billing_role_for_quote,
+    get_billing_role_for_quote_id,
+    get_quote,
+    get_quote_events,
+    list_quotes_for_user,
+)
+from batch.exceptions import BatchOperationAlreadyCompletedError, BatchUserError
+
+# ---------------------------------------------------------------------------
+# create_quote
+# ---------------------------------------------------------------------------
+from .billing_writes import (
     add_quote_manager,
     close_billing_project,
     close_quote,
@@ -16,19 +29,9 @@ from batch.billing_project_management import (
     create_quote,
     delete_billing_project,
     edit_quote,
-    get_billing_role_for_quote,
-    get_billing_role_for_quote_id,
-    get_quote,
-    get_quote_events,
-    list_quotes_for_user,
     remove_quote_manager,
     reopen_quote,
 )
-from batch.exceptions import BatchOperationAlreadyCompletedError, BatchUserError
-
-# ---------------------------------------------------------------------------
-# create_quote
-# ---------------------------------------------------------------------------
 
 
 async def test_create_quote_returns_id(db, unique_name):
@@ -253,7 +256,7 @@ async def test_edit_quote_rejects_finite_amount_when_unlimited_bp_exists(db, uni
 
 
 async def test_edit_quote_unlimited_requires_global_bm(db):
-    with pytest.raises(BatchUserError, match='Only global billing managers'):
+    with pytest.raises(BillingAuthorizationError):
         await edit_quote(db, 'INTERNAL', {'authorized_amount': None}, actor='admin', billing_role='quote_owner')
 
 

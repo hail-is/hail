@@ -7,12 +7,6 @@ import datetime
 
 import pytest
 
-from batch.billing_project_management import (
-    add_billing_project_user,
-    add_quote_manager,
-    create_billing_project,
-    create_quote,
-)
 from batch.billing_reporting import (
     query_billing_breakdown,
     query_billing_history,
@@ -22,6 +16,12 @@ from batch.billing_reporting import (
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+from .billing_writes import (
+    add_billing_project_user,
+    add_quote_manager,
+    create_billing_project,
+    create_quote,
+)
 
 
 async def _make_bp(db, quote_name, bp_name, limit=100.0):
