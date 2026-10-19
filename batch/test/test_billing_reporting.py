@@ -126,7 +126,7 @@ async def test_can_view_quote_global_bm(db, unique_name):
     q_cvq_gbm = unique_name('q-cvq-gbm')
     bp_cvq_gbm = unique_name('bp-cvq-gbm')
     await _make_bp(db, q_cvq_gbm, bp_cvq_gbm)
-    results = await query_billing_projects_with_cost(db, billing_project=bp_cvq_gbm, quote_manager_user=None)
+    results = await query_billing_projects_with_cost(db, billing_project=bp_cvq_gbm, is_global_bm=True)
     assert results[0]['can_view_quote'] is True
 
 
