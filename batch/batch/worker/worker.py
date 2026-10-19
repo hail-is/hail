@@ -1154,7 +1154,6 @@ class Container:
             'CAP_FSETID',
             'CAP_FOWNER',
             'CAP_MKNOD',
-            'CAP_NET_RAW',
             'CAP_SETGID',
             'CAP_SETUID',
             'CAP_SETFCAP',
