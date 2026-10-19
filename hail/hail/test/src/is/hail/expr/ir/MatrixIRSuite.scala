@@ -402,6 +402,31 @@ class MatrixIRSuite {
     interceptAssertion("ApplyScanOp outside a scan scope")(getCols(mapped))
   }
 
+  // knownLength is an init arg, so it drops its own agg (scan) scope.
+  def testSameKindInKnownLengthOnRows() = {
+    val a = Literal(TArray(TInt32), FastSeq(0))
+    FastSeq(
+      (
+        aggArrayPerElement(a, Some(ApplyAggOp(Count())().toI))((_, _) => ApplyAggOp(Count())()),
+        "ApplyAggOp outside an agg scope",
+      ),
+      (
+        aggArrayPerElement(a, Some(ApplyScanOp(Count())().toI), isScan = true) { (_, _) =>
+          ApplyScanOp(Count())()
+        },
+        "ApplyScanOp outside a scan scope",
+      ),
+    )
+  }
+
+  @ParameterizedTest
+  def testSameKindInKnownLengthOnRows(v: IR, error: String)(implicit ctx: ExecuteContext): Unit = {
+    val mt = rangeMatrix(5, 3, Some(2))
+    val row = Ref(MatrixIR.rowName, mt.typ.rowType)
+    val mapped = MatrixMapRows(mt, InsertFields(row, FastSeq("v" -> v)))
+    interceptAssertion(error)(getRows(mapped))
+  }
+
   @Test def testScanInitArgBoundInNewCol(implicit ctx: ExecuteContext): Unit = {
     val mt = rangeMatrix(3, 5, Some(2))
     val col = Ref(MatrixIR.colName, mt.typ.colType)

@@ -365,7 +365,11 @@ object Bindings {
             agg = if (isScan) AggEnv.NoOp else AggEnv.Bind(FastSeq(0, 1)),
             scan = if (!isScan) AggEnv.NoOp else AggEnv.Bind(FastSeq(0, 1)),
           )
-        } else Bindings.empty
+        } else
+          Bindings(
+            agg = if (isScan) AggEnv.NoOp else AggEnv.Drop,
+            scan = if (!isScan) AggEnv.NoOp else AggEnv.Drop,
+          )
       case AggFold(zero, _, _, accumName, otherAccumName, isScan) =>
         if (i == 0)
           Bindings(
@@ -380,9 +384,7 @@ object Bindings {
             scan = if (!isScan) AggEnv.NoOp else AggEnv.Promote,
           )
         else
-          Bindings.inFreshScope(
-            FastSeq(accumName -> zero.typ, otherAccumName -> zero.typ)
-          )
+          Bindings.inFreshScope(FastSeq(accumName -> zero.typ, otherAccumName -> zero.typ))
       case NDArrayMap(nd, name, _) if i == 1 =>
         Bindings.inEval(FastSeq(name -> tcoerce[TNDArray](nd.typ).elementType))
       case NDArrayMap2(l, r, lName, rName, _, _) if i == 2 =>
@@ -447,7 +449,6 @@ object Bindings {
           scan = AggEnv.Drop,
           relational = FastSeq(0),
         )
-
       case _ =>
         if (UsesAggEnv(ir, i))
           Bindings(agg = AggEnv.Promote)
