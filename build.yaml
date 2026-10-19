@@ -829,7 +829,10 @@ steps:
       export COURSIER_ARCHIVE_CACHE='/io/cache/coursier/arc'
       export MILL_DOWNLOAD_PATH=/io/cache/mill
       # force download of mill binary and coursier dependencies
-      sh mill --no-daemon 'hail.__.{prepareOffline,scalaCompilerClasspath,javaHome}'
+      sh mill --no-daemon \
+        'hail.__.prepareOffline' + \
+        'hail.__.scalaCompilerClasspath' + \
+        'hail.__.javaHome'
       tar -C /io -czf /io/mill-cache.tgz cache
     inputs:
       - from: /repo/hail
@@ -1033,7 +1036,7 @@ steps:
       export COURSIER_CACHE='/io/cache/coursier/v1'
       export COURSIER_ARCHIVE_CACHE='/io/cache/coursier/arc'
       export MILL_DOWNLOAD_PATH=/io/cache/mill
-      time sh mill --no-daemon hail.test.{compile,testForkGrouping}
+      time sh mill --no-daemon hail.test.compile + hail.test.testForkGrouping
     inputs:
       - from: /repo/hail
         to: /io/repo/hail
