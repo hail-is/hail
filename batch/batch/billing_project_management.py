@@ -8,9 +8,9 @@ from gear import Database
 from gear.database import retry_transient_mysql_errors
 from hailtop.utils import time_msecs
 
+from .billing_grants import BillingGrant, BillingPermission, BillingProjectTarget, GlobalTarget, QuoteTarget, expect
 from .exceptions import (
     BatchOperationAlreadyCompletedError,
-    BatchUserError,
     BillingValidationError,
     ClosedBillingProjectError,
     InvalidBillingLimitError,
@@ -235,6 +235,11 @@ LIMIT 1000;
 # ---------------------------------------------------------------------------
 
 
+async def get_quote_id(db: Database, name: str) -> Optional[int]:
+    row = await db.select_and_fetchone('SELECT id FROM quotes WHERE name_cs = %s', (name,))
+    return row['id'] if row else None
+
+
 async def get_billing_role_for_quote(db: Database, username: str, is_global_bm: bool, quote_name: str) -> Optional[str]:
     if is_global_bm:
         return 'global_bm'
@@ -292,6 +297,9 @@ async def get_billing_role_for_quote_id(
 
 # ---------------------------------------------------------------------------
 # Quote writes
+#
+# Every write takes a BillingGrant for the permission it needs on the object it changes (see billing_grants),
+# plus extra grants for sensitive parts of an operation, and records the grant's actor in the audit log.
 # ---------------------------------------------------------------------------
 
 
@@ -300,7 +308,7 @@ async def create_quote(
     db: Database,
     name: str,
     cost_object: str,
-    actor: str,
+    grant: BillingGrant,
     authorized_amount: Optional[float] = None,
     pi_name: Optional[str] = None,
     pm_designee: Optional[str] = None,
@@ -313,6 +321,7 @@ async def create_quote(
     Raises BatchOperationAlreadyCompletedError if the name already exists.
     Raises BatchUserError if authorized_amount is missing: only the INTERNAL quote may be unlimited.
     """
+    actor = expect(grant, BillingPermission.CREATE_QUOTE, GlobalTarget())
     if authorized_amount is None:
         raise BillingValidationError('Quotes must have an authorized_amount. Only the INTERNAL quote is unlimited.')
 
@@ -340,13 +349,16 @@ async def edit_quote(
     db: Database,
     name: str,
     updates: dict,
-    actor: str,
-    billing_role: str,
+    grant: BillingGrant,
+    *,
+    amount_grant: Optional[BillingGrant] = None,
+    unlimited_grant: Optional[BillingGrant] = None,
     comment: Optional[str] = None,
 ) -> None:
     """Edit quote fields. updates keys: cost_object, pi_name, pm_designee, description, authorized_amount (float|None), quote_number (str|None).
 
-    Raises BatchUserError for authorization or capacity violations.
+    Changing authorized_amount needs amount_grant (EDIT_QUOTE_AMOUNT); making it unlimited also needs unlimited_grant.
+    Raises BatchUserError for capacity violations.
     """
     async with db.start() as tx:
         row = await tx.execute_and_fetchone(
@@ -357,6 +369,7 @@ async def edit_quote(
             raise NonExistentQuoteError(name)
 
         quote_id = row['id']
+        actor = expect(grant, BillingPermission.EDIT_QUOTE, QuoteTarget(quote_id))
         db_updates: dict = {}
 
         if 'cost_object' in updates:
@@ -370,11 +383,12 @@ async def edit_quote(
         if 'quote_number' in updates:
             db_updates['quote_number'] = updates['quote_number']
         if 'authorized_amount' in updates:
+            expect(amount_grant, BillingPermission.EDIT_QUOTE_AMOUNT, QuoteTarget(quote_id), actor)
             new_amount = updates['authorized_amount']
             if new_amount is None and quote_id != INTERNAL_QUOTE_ID:
                 raise BillingValidationError('Only the INTERNAL quote can have unlimited funding.')
-            if new_amount is None and billing_role != 'global_bm':
-                raise BatchUserError('Only global billing managers can set a quote to unlimited funding.', 'error')
+            if new_amount is None:
+                expect(unlimited_grant, BillingPermission.SET_UNLIMITED, GlobalTarget(), actor)
             if new_amount is not None:
                 unlimited_bp_row = await tx.execute_and_fetchone(
                     """
@@ -411,7 +425,7 @@ LIMIT 1;
 async def close_quote(
     db: Database,
     name: str,
-    actor: str,
+    grant: BillingGrant,
     comment: Optional[str] = None,
 ) -> None:
     """Close a quote. All billing projects under the quote must be closed or deleted first.
@@ -426,6 +440,7 @@ async def close_quote(
         )
         if not row:
             raise NonExistentQuoteError(name)
+        actor = expect(grant, BillingPermission.CLOSE_QUOTE, QuoteTarget(row['id']))
         if row['state'] == 'closed':
             raise BatchOperationAlreadyCompletedError(f'Quote {name} is already closed.', 'info')
 
@@ -448,7 +463,7 @@ async def close_quote(
 async def reopen_quote(
     db: Database,
     name: str,
-    actor: str,
+    grant: BillingGrant,
     comment: Optional[str] = None,
 ) -> None:
     """Reopen a closed quote.
@@ -462,6 +477,7 @@ async def reopen_quote(
         )
         if not row:
             raise NonExistentQuoteError(name)
+        actor = expect(grant, BillingPermission.CLOSE_QUOTE, QuoteTarget(row['id']))
         if row['state'] == 'open':
             raise BatchOperationAlreadyCompletedError(f'Quote {name} is already open.', 'info')
 
@@ -476,7 +492,7 @@ async def add_quote_manager(
     quote_name: str,
     target_user: str,
     role: str,
-    actor: str,
+    grant: BillingGrant,
     comment: Optional[str] = None,
 ) -> None:
     """Add a user as owner or manager of a quote.
@@ -488,6 +504,7 @@ async def add_quote_manager(
         if not quote_row:
             raise NonExistentQuoteError(quote_name)
         quote_id = quote_row['id']
+        actor = expect(grant, BillingPermission.ADD_MANAGER, QuoteTarget(quote_id))
 
         existing = await tx.execute_and_fetchone(
             'SELECT role FROM quote_managers WHERE quote_id = %s AND user = %s;',
@@ -512,7 +529,7 @@ async def remove_quote_manager(
     db: Database,
     quote_name: str,
     target_user: str,
-    actor: str,
+    grant: BillingGrant,
     comment: Optional[str] = None,
 ) -> None:
     """Remove a user from a quote's managers.
@@ -524,6 +541,7 @@ async def remove_quote_manager(
         if not quote_row:
             raise NonExistentQuoteError(quote_name)
         quote_id = quote_row['id']
+        actor = expect(grant, BillingPermission.MANAGE_MANAGERS, QuoteTarget(quote_id))
 
         existing = await tx.execute_and_fetchone(
             'SELECT role FROM quote_managers WHERE quote_id = %s AND user = %s FOR UPDATE;',
@@ -560,19 +578,26 @@ async def create_billing_project(
     name: str,
     quote_id: int,
     limit: Optional[float],
-    actor: str,
-    billing_role: str,
+    grant: BillingGrant,
+    *,
+    unlimited_grant: Optional[BillingGrant] = None,
+    members_grant: Optional[BillingGrant] = None,
     initial_users: Optional[list] = None,
     description: Optional[str] = None,
     comment: Optional[str] = None,
 ) -> None:
     """Create a billing project under a quote.
 
+    An unlimited billing project needs unlimited_grant; initial_users need members_grant (ADD_BP_MEMBER on the new
+    billing project).
     Raises BatchOperationAlreadyCompletedError if name already exists.
-    Raises BatchUserError for authorization or capacity violations.
+    Raises BatchUserError for capacity violations.
     """
+    actor = expect(grant, BillingPermission.CREATE_BP, QuoteTarget(quote_id))
     if initial_users is None:
         initial_users = []
+    if initial_users:
+        expect(members_grant, BillingPermission.ADD_BP_MEMBER, BillingProjectTarget(name), actor)
 
     async with db.start() as tx:
         quote_row = await tx.execute_and_fetchone(
@@ -586,8 +611,7 @@ async def create_billing_project(
         quote_authorized = quote_row['authorized_amount']
 
         if limit is None:
-            if billing_role != 'global_bm':
-                raise BatchUserError('Only global billing managers can create unlimited billing projects.', 'error')
+            expect(unlimited_grant, BillingPermission.SET_UNLIMITED, GlobalTarget(), actor)
             if quote_id != INTERNAL_QUOTE_ID or quote_authorized is not None:
                 raise BillingValidationError('Unlimited billing projects can only be created under the INTERNAL quote.')
 
@@ -628,15 +652,21 @@ async def patch_billing_project(
     db: Database,
     bp_name: str,
     updates: dict,
-    actor: str,
-    billing_role: str,
+    grant: BillingGrant,
+    *,
+    limit_grant: Optional[BillingGrant] = None,
+    unlimited_grant: Optional[BillingGrant] = None,
     comment: Optional[str] = None,
 ) -> None:
     """Patch billing project limit and/or description.
 
     updates keys: 'limit' (raw value passed to _parse_billing_limit), 'description' (str|None).
-    Raises BatchUserError for authorization or capacity violations.
+    Changing the limit needs limit_grant (EDIT_BP_LIMIT); making it unlimited also needs unlimited_grant.
+    Raises BatchUserError for capacity violations.
     """
+    actor = expect(grant, BillingPermission.EDIT_BP_METADATA, BillingProjectTarget(bp_name))
+    if 'limit' in updates:
+        expect(limit_grant, BillingPermission.EDIT_BP_LIMIT, BillingProjectTarget(bp_name), actor)
     async with db.start() as tx:
         await _lock_quotes_then_billing_project(tx, bp_name)
         row = await tx.execute_and_fetchone(
@@ -661,10 +691,7 @@ FOR UPDATE;
         if 'limit' in updates:
             new_limit = _parse_billing_limit(updates['limit'])
             if new_limit is None:
-                if billing_role != 'global_bm':
-                    raise BatchUserError(
-                        'Only global billing managers can set a billing project to unlimited.', 'error'
-                    )
+                expect(unlimited_grant, BillingPermission.SET_UNLIMITED, GlobalTarget(), actor)
                 if row['quote_id'] != INTERNAL_QUOTE_ID or row['authorized_amount'] is not None:
                     raise BillingValidationError('Unlimited billing projects can only exist under the INTERNAL quote.')
             elif row['authorized_amount'] is not None:
@@ -706,13 +733,17 @@ async def change_billing_project_quote(
     db: Database,
     bp_name: str,
     dest_quote_id: int,
-    actor: str,
+    grant: BillingGrant,
+    dest_grant: BillingGrant,
     comment: Optional[str] = None,
 ) -> None:
     """Move a billing project to a different quote.
 
+    Needs CHANGE_BP_QUOTE on both the billing project (grant) and the destination quote (dest_grant).
     Raises BatchUserError for capacity violations or invalid state.
     """
+    actor = expect(grant, BillingPermission.CHANGE_BP_QUOTE, BillingProjectTarget(bp_name))
+    expect(dest_grant, BillingPermission.CHANGE_BP_QUOTE, QuoteTarget(dest_quote_id), actor)
     async with db.start() as tx:
         await _lock_quotes_then_billing_project(tx, bp_name, other_quote_id=dest_quote_id)
         row = await tx.execute_and_fetchone(
@@ -784,7 +815,7 @@ async def add_billing_project_user(
     db: Database,
     bp_name: str,
     user: str,
-    actor: str,
+    grant: BillingGrant,
     comment: Optional[str] = None,
 ) -> None:
     """Add a user to a billing project.
@@ -792,6 +823,7 @@ async def add_billing_project_user(
     Raises BatchOperationAlreadyCompletedError if already a member.
     Raises NonExistentBillingProjectError / ClosedBillingProjectError on bad state.
     """
+    actor = expect(grant, BillingPermission.ADD_BP_MEMBER, BillingProjectTarget(bp_name))
     async with db.start() as tx:
         row = await tx.execute_and_fetchone(
             """
@@ -832,14 +864,18 @@ async def remove_billing_project_user(
     db: Database,
     bp_name: str,
     user: str,
-    actor: str,
+    grant: BillingGrant,
     comment: Optional[str] = None,
 ) -> None:
     """Remove a user from a billing project.
 
+    Removing someone else needs MANAGE_BP_MEMBERS; anyone who can see a billing project (VIEW_BP) can leave it.
     Raises BatchOperationAlreadyCompletedError if user is not a member.
     Raises NonExistentBillingProjectError / BatchUserError on bad state.
     """
+    leaving = grant is not None and user == grant.actor
+    permission = BillingPermission.VIEW_BP if leaving else BillingPermission.MANAGE_BP_MEMBERS
+    actor = expect(grant, permission, BillingProjectTarget(bp_name))
     async with db.start() as tx:
         row = await tx.execute_and_fetchone(
             """
@@ -886,7 +922,7 @@ WHERE billing_projects.name_cs = %s AND user_cs = %s;
 async def close_billing_project(
     db: Database,
     bp_name: str,
-    actor: str,
+    grant: BillingGrant,
     comment: Optional[str] = None,
 ) -> None:
     """Close a billing project.
@@ -894,6 +930,7 @@ async def close_billing_project(
     Raises BatchOperationAlreadyCompletedError if already closed.
     Raises BatchUserError if there are running batches.
     """
+    actor = expect(grant, BillingPermission.CLOSE_REOPEN_BP, BillingProjectTarget(bp_name))
     async with db.start() as tx:
         await _lock_quotes_then_billing_project(tx, bp_name)
         row = await tx.execute_and_fetchone(
@@ -931,7 +968,7 @@ FOR UPDATE;
 async def reopen_billing_project(
     db: Database,
     bp_name: str,
-    actor: str,
+    grant: BillingGrant,
     comment: Optional[str] = None,
 ) -> None:
     """Reopen a closed billing project.
@@ -939,6 +976,7 @@ async def reopen_billing_project(
     Raises BatchOperationAlreadyCompletedError if already open.
     Raises BatchUserError if deleted.
     """
+    actor = expect(grant, BillingPermission.CLOSE_REOPEN_BP, BillingProjectTarget(bp_name))
     async with db.start() as tx:
         await _lock_quotes_then_billing_project(tx, bp_name)
         row = await tx.execute_and_fetchone(
@@ -973,7 +1011,7 @@ FOR UPDATE;
 async def delete_billing_project(
     db: Database,
     bp_name: str,
-    actor: str,
+    grant: BillingGrant,
     comment: Optional[str] = None,
 ) -> None:
     """Delete (soft-delete) a closed billing project.
@@ -981,6 +1019,7 @@ async def delete_billing_project(
     Raises BatchOperationAlreadyCompletedError if already deleted.
     Raises BatchUserError if open.
     """
+    actor = expect(grant, BillingPermission.DELETE_BP, BillingProjectTarget(bp_name))
     async with db.start() as tx:
         await _lock_quotes_then_billing_project(tx, bp_name)
         row = await tx.execute_and_fetchone(
