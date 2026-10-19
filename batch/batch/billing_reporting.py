@@ -94,8 +94,8 @@ GROUP BY billing_projects.name, billing_projects.`status`, billing_projects.`lim
     if quote_ids:
         placeholders = ', '.join(['%s'] * len(quote_ids))
         async for row in db.select_and_fetchall(
-            f'SELECT qm.quote_id, qm.user, qm.role, q.name AS quote_name'
-            f' FROM quote_managers qm JOIN quotes q ON q.id = qm.quote_id'
+            'SELECT qm.quote_id, qm.user, qm.role, q.name AS quote_name'
+            ' FROM quote_managers qm JOIN quotes q ON q.id = qm.quote_id'
             f' WHERE qm.quote_id IN ({placeholders})',
             tuple(quote_ids),
         ):
