@@ -844,11 +844,6 @@ mkdir -p {shq(repo_dir)}
         return self.batch is not None and self.target_branch.sha == self.batch.attributes['target_sha']
 
     def is_mergeable(self) -> bool:
-        if self.last_known_github_status.get(GITHUB_STATUS_CONTEXT) == GithubStatus.SUCCESS:
-            assert self.build_state == 'success', (
-                self.last_known_github_status[GITHUB_STATUS_CONTEXT],
-                self.build_state,
-            )
         return (
             self.review_state == 'approved'
             and len(self.last_known_github_status) > 0
@@ -858,6 +853,12 @@ mkdir -p {shq(repo_dir)}
         )
 
     async def merge(self, gh) -> Tuple[MergeResult, Optional[str]]:
+        # Only called from try_to_merge, right after _heal has synced our build state to GitHub
+        if self.last_known_github_status.get(GITHUB_STATUS_CONTEXT) == GithubStatus.SUCCESS:
+            assert self.build_state == 'success', (
+                self.last_known_github_status[GITHUB_STATUS_CONTEXT],
+                self.build_state,
+            )
         url = _async_merge_url(self.target_branch.branch.repo.short_str(), self.number)
         try:
             response = await gh.put(
