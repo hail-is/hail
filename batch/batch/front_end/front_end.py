@@ -3757,11 +3757,11 @@ async def api_reopen_billing_projects(request: web.Request, userdata: UserData) 
 
 @routes.post('/api/v1alpha/billing_projects/{billing_project}/delete')
 @auth.authenticated_users_with_permission(SystemPermission.DELETE_ALL_BILLING_PROJECTS, redirect=False)
-async def api_delete_billing_projects(request: web.Request, _: UserData) -> web.Response:
+async def api_delete_billing_projects(request: web.Request, userdata: UserData) -> web.Response:
     db: Database = request.app['db']
     billing_project = request.match_info['billing_project']
 
-    await _handle_api_error(billing_dao.delete_billing_project, db, billing_project)
+    await _handle_api_error(billing_dao.delete_billing_project, db, billing_project, userdata['username'])
     return json_response(billing_project)
 
 
