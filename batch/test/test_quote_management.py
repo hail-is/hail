@@ -338,7 +338,7 @@ async def test_close_quote_allowed_when_bps_deleted(db, unique_name):
     q_row = await db.select_and_fetchone('SELECT id FROM quotes WHERE name = %s', (q_bp_deleted,))
     await create_billing_project(db, bp_del, q_row['id'], 100.0, 'admin', 'global_bm')
     await close_billing_project(db, bp_del, actor='admin')
-    await delete_billing_project(db, bp_del)
+    await delete_billing_project(db, bp_del, 'admin')
     await close_quote(db, q_bp_deleted, actor='admin')
     row = await db.select_and_fetchone('SELECT state FROM quotes WHERE name = %s', (q_bp_deleted,))
     assert row['state'] == 'closed'
