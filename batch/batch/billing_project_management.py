@@ -873,7 +873,7 @@ async def remove_billing_project_user(
     Raises BatchOperationAlreadyCompletedError if user is not a member.
     Raises NonExistentBillingProjectError / BatchUserError on bad state.
     """
-    leaving = grant is not None and user == grant.actor
+    leaving = grant is not None and user == grant.actor and grant.permission is BillingPermission.VIEW_BP
     permission = BillingPermission.VIEW_BP if leaving else BillingPermission.MANAGE_BP_MEMBERS
     actor = expect(grant, permission, BillingProjectTarget(bp_name))
     async with db.start() as tx:
