@@ -103,7 +103,7 @@ from ..billing_auth import (
     require,
 )
 from ..billing_grants import BillingGrant, BillingProjectTarget, GlobalTarget, QuoteTarget
-from ..billing_project_management import INTERNAL_QUOTE_ID, _parse_billing_limit, invariant_violations_as_user_errors
+from ..billing_project_management import _parse_billing_limit, invariant_violations_as_user_errors
 from ..billing_reporting import (
     query_billing_breakdown,
     query_billing_history,
