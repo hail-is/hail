@@ -15,7 +15,7 @@ import org.apache.spark.rdd.RDD
 import org.junit.jupiter.api.Test
 import org.scalacheck.{Gen, Properties}
 import org.scalacheck.Gen._
-import org.scalacheck.Prop.forAll
+import org.scalacheck.Prop.{forAll, forAllNoShrink}
 import org.scalatest.matchers.should.Matchers.convertToAnyShouldWrapper
 
 object LocalLDPruneSuite {
@@ -305,8 +305,9 @@ class LocalLDPruneSuite extends Logging {
         }
       }): Unit
 
+    // Shrinking nSamples, v1 and v2 independently produces inconsistent inputs.
     (property("R2 bitPacked same as BVector") =
-      forAll(vectorGen) {
+      forAllNoShrink(vectorGen) {
         case (nSamples: Int, v1: IndexedSeq[BoxedCall], v2: IndexedSeq[BoxedCall]) =>
           val bv1 = LocalLDPruneSuite.fromCalls(v1)
           val bv2 = LocalLDPruneSuite.fromCalls(v2)
@@ -322,8 +323,10 @@ class LocalLDPruneSuite extends Logging {
               val r2Breeze = rBreeze * rBreeze
               val r2BitPacked = LocalLDPrune.computeR2(a, b)
 
+              // computeR cancels terms of magnitude ~N, so r carries a few ulps of error.
+              // When r2 is near 0, 1e-24 allows |r| up to 1e-12.
               val isSame =
-                D_==(r2BitPacked, r2Breeze, absTolerance = 1e-30) && D_>=(r2BitPacked, 0d) && D_<=(
+                D_==(r2BitPacked, r2Breeze, absTolerance = 1e-24) && D_>=(r2BitPacked, 0d) && D_<=(
                   r2BitPacked,
                   1d,
                 )
