@@ -125,3 +125,23 @@ async def test_concurrent_writes_under_one_quote_do_not_deadlock(db, unique_name
         "SELECT SUM(`limit`) AS s FROM billing_projects WHERE quote_id = %s AND `status` != 'deleted'", (quote_id,)
     )
     assert total['s'] <= 100_000.0
+
+
+async def test_exact_split_of_quote_is_accepted(db, unique_name):
+    """0.1 + 0.2 is 0.30000000000000004 as a DOUBLE; an exact split must still fit, in the app and the triggers."""
+    q, bp1, bp2 = unique_name('q-split'), unique_name('bp-split1'), unique_name('bp-split2')
+    quote_id = await _quote(db, q, authorized_amount=0.3)
+    await create_billing_project(db, bp1, quote_id, 0.1, 'admin', 'global_bm')
+    await create_billing_project(db, bp2, quote_id, 0.2, 'admin', 'global_bm')
+    with pytest.raises(BillingValidationError):
+        await patch_billing_project(db, bp2, {'limit': 0.21}, 'admin', 'global_bm')
+
+
+async def test_quote_amount_can_be_cut_to_exact_sum_of_limits(db, unique_name):
+    q, bp1, bp2 = unique_name('q-cut'), unique_name('bp-cut1'), unique_name('bp-cut2')
+    quote_id = await _quote(db, q, authorized_amount=1.0)
+    await create_billing_project(db, bp1, quote_id, 0.1, 'admin', 'global_bm')
+    await create_billing_project(db, bp2, quote_id, 0.2, 'admin', 'global_bm')
+    await edit_quote(db, q, {'authorized_amount': 0.3}, 'admin', 'global_bm')
+    with pytest.raises(BillingValidationError):
+        await edit_quote(db, q, {'authorized_amount': 0.29}, 'admin', 'global_bm')
