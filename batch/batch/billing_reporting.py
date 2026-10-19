@@ -23,6 +23,7 @@ async def query_billing_projects_with_cost(
     billing_project=None,
     status=None,
     quote_manager_user=None,
+    is_global_bm: bool = False,
 ) -> List[Dict[str, Any]]:
     where_conditions = ["billing_projects.`status` != 'deleted'"]
     args = []
@@ -110,10 +111,8 @@ GROUP BY billing_projects.name, billing_projects.`status`, billing_projects.`lim
         # `users` stays the plain list of member usernames (as returned before quotes existed); the richer view,
         # which also includes the managers of the billing project's quote, is `user_roles`.
         bp['user_roles'] = [{'user': u, 'roles': roles} for u, roles in merged.items()]
-        if quote_manager_user is None:
-            bp['can_view_quote'] = True
-        else:
-            bp['can_view_quote'] = any(qm['user'] == quote_manager_user for qm in qms_for_bp)
+        # Mirrors the VIEW_QUOTE check in billing_auth: global billing managers, or managers of this quote.
+        bp['can_view_quote'] = is_global_bm or any(qm['user'] == quote_manager_user for qm in qms_for_bp)
 
     return billing_projects
 

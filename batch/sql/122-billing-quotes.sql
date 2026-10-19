@@ -24,6 +24,8 @@ CREATE TABLE IF NOT EXISTS `quote_managers` (
 ) ENGINE = InnoDB;
 CREATE INDEX `quote_managers_user` ON `quote_managers` (`user`);
 
+-- Event tables are audit history: RESTRICT makes a hard delete of a quote or billing project fail rather than
+-- silently taking its events with it. (Both are only ever soft-deleted in normal operation.)
 CREATE TABLE IF NOT EXISTS `quote_events` (
   `id` BIGINT NOT NULL AUTO_INCREMENT,
   `quote_id` INT NOT NULL,
@@ -35,7 +37,7 @@ CREATE TABLE IF NOT EXISTS `quote_events` (
   `detail` JSON DEFAULT NULL,
   `comment` VARCHAR(1000) DEFAULT NULL,
   PRIMARY KEY (`id`),
-  FOREIGN KEY (`quote_id`) REFERENCES `quotes`(`id`) ON DELETE CASCADE
+  FOREIGN KEY (`quote_id`) REFERENCES `quotes`(`id`) ON DELETE RESTRICT
 ) ENGINE = InnoDB;
 CREATE INDEX `quote_events_quote_id_timestamp` ON `quote_events` (`quote_id`, `timestamp`);
 
@@ -49,7 +51,7 @@ CREATE TABLE IF NOT EXISTS `billing_project_events` (
   `detail` JSON DEFAULT NULL,
   `comment` VARCHAR(1000) DEFAULT NULL,
   PRIMARY KEY (`id`),
-  FOREIGN KEY (`billing_project`) REFERENCES `billing_projects`(`name`) ON DELETE CASCADE
+  FOREIGN KEY (`billing_project`) REFERENCES `billing_projects`(`name`) ON DELETE RESTRICT
 ) ENGINE = InnoDB;
 CREATE INDEX `billing_project_events_bp_timestamp` ON `billing_project_events` (`billing_project`, `timestamp`);
 

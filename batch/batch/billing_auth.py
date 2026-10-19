@@ -66,13 +66,13 @@ BILLING_ROLE_PERMISSIONS: dict[str, set[BillingPermission]] = {
 }
 
 
-def _is_global_bm(userdata: UserData) -> bool:
+def is_global_billing_manager(userdata: UserData) -> bool:
     return userdata['system_permissions'].get(SystemPermission.UPDATE_ALL_BILLING_PROJECTS, False)
 
 
 async def resolve_billing_role(db: Database, username: str, userdata: UserData, request: web.Request) -> Optional[str]:
     """Determine the caller's billing role for this request's resource context."""
-    is_gbm = _is_global_bm(userdata)
+    is_gbm = is_global_billing_manager(userdata)
     quote_name = request.match_info.get('name')
     billing_project_name = request.match_info.get('billing_project')
 
@@ -89,7 +89,7 @@ async def resolve_billing_role_for_quote_id(
     db: Database, username: str, userdata: UserData, quote_id: int
 ) -> Optional[str]:
     """Resolve billing role given an explicit quote_id (for create-BP flow)."""
-    return await billing_dao.get_billing_role_for_quote_id(db, username, _is_global_bm(userdata), quote_id)
+    return await billing_dao.get_billing_role_for_quote_id(db, username, is_global_billing_manager(userdata), quote_id)
 
 
 def billing_permission_required(

@@ -85,6 +85,49 @@ VALUES (%s, %s, %s, %s, %s, %s, %s);
     )
 
 
+async def _lock_quotes_then_billing_project(tx, bp_name: str, other_quote_id: Optional[int] = None) -> Optional[int]:
+    """Lock a billing project's quote (and other_quote_id, if given), then the billing project itself.
+
+    Returns the billing project's quote id, or None if there is no such billing project. Writes take quote locks
+    before billing project locks because the DB triggers lock a quote and then read its billing projects; taking
+    them in the other order deadlocks against concurrent writes under the same quote.
+    """
+    row = await tx.execute_and_fetchone('SELECT quote_id FROM billing_projects WHERE name_cs = %s;', (bp_name,))
+    if row is None:
+        return None
+    quote_ids = {row['quote_id']}
+    if other_quote_id is not None:
+        quote_ids.add(other_quote_id)
+    for quote_id in sorted(quote_ids):
+        await tx.execute_and_fetchone('SELECT id FROM quotes WHERE id = %s FOR UPDATE;', (quote_id,))
+    locked = await tx.execute_and_fetchone(
+        'SELECT quote_id FROM billing_projects WHERE name_cs = %s FOR UPDATE;', (bp_name,)
+    )
+    if locked is None:
+        return None
+    if locked['quote_id'] != row['quote_id']:
+        # Moved to another quote between the two reads. Rare enough to just take that quote's lock late.
+        await tx.execute_and_fetchone('SELECT id FROM quotes WHERE id = %s FOR UPDATE;', (locked['quote_id'],))
+    return locked['quote_id']
+
+
+async def _sum_of_limits(tx, quote_id: int, excluding_billing_project: Optional[str] = None) -> float:
+    """Sum of the limits of a quote's non-deleted billing projects.
+
+    A locking read, so it sees the latest committed limits rather than the transaction's snapshot.
+    """
+    row = await tx.execute_and_fetchone(
+        """
+SELECT COALESCE(SUM(`limit`), 0) AS total_limit
+FROM billing_projects
+WHERE quote_id = %s AND `status` != 'deleted' AND NOT (name_cs <=> %s)
+FOR SHARE;
+""",
+        (quote_id, excluding_billing_project),
+    )
+    return row['total_limit']
+
+
 # ---------------------------------------------------------------------------
 # Quote reads
 # ---------------------------------------------------------------------------
@@ -279,13 +322,14 @@ async def create_quote(
             raise BatchOperationAlreadyCompletedError(f'Quote {name} already exists.', 'info')
 
         now = time_msecs()
-        quote_id = await tx.execute_insertone(
-            """
+        with invariant_violations_as_user_errors():
+            quote_id = await tx.execute_insertone(
+                """
 INSERT INTO quotes (name, name_cs, quote_number, cost_object, authorized_amount, pi_name, pm_designee, description, time_created)
 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s);
 """,
-            (name, name, quote_number, cost_object, authorized_amount, pi_name, pm_designee, description, now),
-        )
+                (name, name, quote_number, cost_object, authorized_amount, pi_name, pm_designee, description, now),
+            )
         assert quote_id is not None
         await _log_quote_event(tx, quote_id, actor, 'quote_created', detail=json.dumps(cost_object), comment=comment)
         return quote_id
@@ -345,15 +389,7 @@ LIMIT 1;
                         f'Cannot set a finite authorized_amount on a quote that contains unlimited billing project '
                         f'"{unlimited_bp_row["name"]}". Set a limit on the billing project first.'
                     )
-                limits_sum_row = await tx.execute_and_fetchone(
-                    """
-SELECT COALESCE(SUM(`limit`), 0) AS total_limit
-FROM billing_projects
-WHERE quote_id = %s AND `status` != 'deleted' AND `limit` IS NOT NULL;
-""",
-                    (quote_id,),
-                )
-                total = limits_sum_row['total_limit'] if limits_sum_row else 0
+                total = await _sum_of_limits(tx, quote_id)
                 if total > new_amount:
                     raise BillingValidationError(
                         f'New authorized_amount {new_amount} is less than sum of BP limits {total}.'
@@ -362,10 +398,11 @@ WHERE quote_id = %s AND `status` != 'deleted' AND `limit` IS NOT NULL;
 
         if db_updates:
             set_clause = ', '.join(f'`{k}` = %s' for k in db_updates)
-            await tx.execute_update(
-                f'UPDATE quotes SET {set_clause} WHERE id = %s;',
-                (*db_updates.values(), quote_id),
-            )
+            with invariant_violations_as_user_errors():
+                await tx.execute_update(
+                    f'UPDATE quotes SET {set_clause} WHERE id = %s;',
+                    (*db_updates.values(), quote_id),
+                )
             changes = {k: {'old': row[k], 'new': v} for k, v in db_updates.items()}
             await _log_quote_event(tx, quote_id, actor, 'quote_edited', detail=json.dumps(changes), comment=comment)
 
@@ -402,7 +439,8 @@ async def close_quote(
                 'Close or migrate all billing projects first.'
             )
 
-        await tx.execute_update("UPDATE quotes SET state = 'closed' WHERE id = %s;", (row['id'],))
+        with invariant_violations_as_user_errors():
+            await tx.execute_update("UPDATE quotes SET state = 'closed' WHERE id = %s;", (row['id'],))
         await _log_quote_event(tx, row['id'], actor, 'quote_closed', comment=comment)
 
 
@@ -427,7 +465,8 @@ async def reopen_quote(
         if row['state'] == 'open':
             raise BatchOperationAlreadyCompletedError(f'Quote {name} is already open.', 'info')
 
-        await tx.execute_update("UPDATE quotes SET state = 'open' WHERE id = %s;", (row['id'],))
+        with invariant_violations_as_user_errors():
+            await tx.execute_update("UPDATE quotes SET state = 'open' WHERE id = %s;", (row['id'],))
         await _log_quote_event(tx, row['id'], actor, 'quote_reopened', comment=comment)
 
 
@@ -553,15 +592,7 @@ async def create_billing_project(
                 raise BillingValidationError('Unlimited billing projects can only be created under the INTERNAL quote.')
 
         if limit is not None and quote_authorized is not None:
-            existing_sum_row = await tx.execute_and_fetchone(
-                """
-SELECT COALESCE(SUM(`limit`), 0) AS total_limit
-FROM billing_projects
-WHERE quote_id = %s AND `status` != 'deleted' AND `limit` IS NOT NULL;
-""",
-                (quote_id,),
-            )
-            existing_sum = existing_sum_row['total_limit'] if existing_sum_row else 0
+            existing_sum = await _sum_of_limits(tx, quote_id)
             if existing_sum + limit > quote_authorized:
                 raise BillingValidationError(
                     f'Creating billing project with limit {limit} would exceed quote authorized amount {quote_authorized} '
@@ -572,10 +603,11 @@ WHERE quote_id = %s AND `status` != 'deleted' AND `limit` IS NOT NULL;
         if row is not None:
             raise BatchOperationAlreadyCompletedError(f'Billing project {row["name_cs"]} already exists.', 'info')
 
-        await tx.execute_insertone(
-            'INSERT INTO billing_projects(name, name_cs, quote_id, `limit`, description) VALUES (%s, %s, %s, %s, %s);',
-            (name, name, quote_id, limit, description),
-        )
+        with invariant_violations_as_user_errors():
+            await tx.execute_insertone(
+                'INSERT INTO billing_projects(name, name_cs, quote_id, `limit`, description) VALUES (%s, %s, %s, %s, %s);',
+                (name, name, quote_id, limit, description),
+            )
 
         bp_created_detail = json.dumps({'limit': limit})
         await _log_bp_event(tx, name, actor, 'bp_created', detail=bp_created_detail, comment=comment)
@@ -606,15 +638,12 @@ async def patch_billing_project(
     Raises BatchUserError for authorization or capacity violations.
     """
     async with db.start() as tx:
+        await _lock_quotes_then_billing_project(tx, bp_name)
         row = await tx.execute_and_fetchone(
             """
 SELECT billing_projects.name_cs, billing_projects.`status`, billing_projects.quote_id,
   billing_projects.`limit`, billing_projects.description,
-  q.authorized_amount,
-  COALESCE((SELECT SUM(other_bp.`limit`) FROM billing_projects other_bp
-    WHERE other_bp.quote_id = billing_projects.quote_id
-      AND other_bp.name_cs != billing_projects.name_cs
-      AND other_bp.`status` != 'deleted'), 0) AS other_bp_limits_sum
+  q.authorized_amount
 FROM billing_projects
 JOIN quotes q ON q.id = billing_projects.quote_id
 WHERE billing_projects.name_cs = %s AND billing_projects.`status` != 'deleted'
@@ -639,11 +668,11 @@ FOR UPDATE;
                 if row['quote_id'] != INTERNAL_QUOTE_ID or row['authorized_amount'] is not None:
                     raise BillingValidationError('Unlimited billing projects can only exist under the INTERNAL quote.')
             elif row['authorized_amount'] is not None:
-                proposed_sum = row['other_bp_limits_sum'] + new_limit
-                if proposed_sum > row['authorized_amount']:
+                other_bp_limits_sum = await _sum_of_limits(tx, row['quote_id'], excluding_billing_project=bp_name)
+                if other_bp_limits_sum + new_limit > row['authorized_amount']:
                     raise BillingValidationError(
                         f'Setting limit to {new_limit} would exceed quote authorized amount {row["authorized_amount"]} '
-                        f'(other BPs use {row["other_bp_limits_sum"]}).'
+                        f'(other BPs use {other_bp_limits_sum}).'
                     )
             db_updates['limit'] = new_limit
             limit_detail = json.dumps({'old': row['limit'], 'new': new_limit})
@@ -665,10 +694,11 @@ FOR UPDATE;
 
         if db_updates:
             set_clause = ', '.join(f'`{k}` = %s' for k in db_updates)
-            await tx.execute_update(
-                f'UPDATE billing_projects SET {set_clause} WHERE name_cs = %s;',
-                (*db_updates.values(), bp_name),
-            )
+            with invariant_violations_as_user_errors():
+                await tx.execute_update(
+                    f'UPDATE billing_projects SET {set_clause} WHERE name_cs = %s;',
+                    (*db_updates.values(), bp_name),
+                )
 
 
 @retry_transient_mysql_errors
@@ -684,6 +714,7 @@ async def change_billing_project_quote(
     Raises BatchUserError for capacity violations or invalid state.
     """
     async with db.start() as tx:
+        await _lock_quotes_then_billing_project(tx, bp_name, other_quote_id=dest_quote_id)
         row = await tx.execute_and_fetchone(
             """
 SELECT billing_projects.name_cs, billing_projects.`status`,
@@ -692,20 +723,21 @@ SELECT billing_projects.name_cs, billing_projects.`status`,
   q_src.name AS src_quote_name,
   q_dest.name AS dest_quote_name,
   q_dest.authorized_amount AS dest_authorized_amount,
-  q_dest.state AS dest_quote_state,
-  COALESCE((SELECT SUM(other_bp.`limit`) FROM billing_projects other_bp
-    WHERE other_bp.quote_id = %s
-      AND other_bp.`status` != 'deleted'), 0) AS dest_bp_limits_sum
+  q_dest.state AS dest_quote_state
 FROM billing_projects
 LEFT JOIN quotes q_src ON q_src.id = billing_projects.quote_id
 LEFT JOIN quotes q_dest ON q_dest.id = %s
 WHERE billing_projects.name_cs = %s AND billing_projects.`status` != 'deleted'
 FOR UPDATE;
 """,
-            (dest_quote_id, dest_quote_id, bp_name),
+            (dest_quote_id, bp_name),
         )
         if not row:
             raise NonExistentBillingProjectError(bp_name)
+        if row['src_quote_id'] == dest_quote_id:
+            raise BatchOperationAlreadyCompletedError(
+                f'Billing project {bp_name} is already under quote {row["dest_quote_name"]}.', 'info'
+            )
         if row['dest_quote_name'] is None:
             raise NonExistentQuoteError(dest_quote_id)
         if row['status'] == 'closed':
@@ -717,18 +749,19 @@ FOR UPDATE;
             raise BillingValidationError('An unlimited billing project cannot be moved to a quote with finite funding.')
 
         if row['limit'] is not None and row['dest_authorized_amount'] is not None:
-            new_sum = row['dest_bp_limits_sum'] + row['limit']
-            if new_sum > row['dest_authorized_amount']:
+            dest_bp_limits_sum = await _sum_of_limits(tx, dest_quote_id)
+            if dest_bp_limits_sum + row['limit'] > row['dest_authorized_amount']:
                 raise BillingValidationError(
                     f'Moving billing project would exceed destination quote authorized amount '
-                    f'{row["dest_authorized_amount"]} (existing BPs use {row["dest_bp_limits_sum"]}).'
+                    f'{row["dest_authorized_amount"]} (existing BPs use {dest_bp_limits_sum}).'
                 )
 
         src_quote_id = row['src_quote_id']
-        await tx.execute_update(
-            'UPDATE billing_projects SET quote_id = %s WHERE name_cs = %s;',
-            (dest_quote_id, bp_name),
-        )
+        with invariant_violations_as_user_errors():
+            await tx.execute_update(
+                'UPDATE billing_projects SET quote_id = %s WHERE name_cs = %s;',
+                (dest_quote_id, bp_name),
+            )
         await _log_quote_event(tx, src_quote_id, actor, 'bp_unassigned', target_project=bp_name, comment=comment)
         await _log_quote_event(tx, dest_quote_id, actor, 'bp_assigned', target_project=bp_name, comment=comment)
         await _log_bp_event(
@@ -862,6 +895,7 @@ async def close_billing_project(
     Raises BatchUserError if there are running batches.
     """
     async with db.start() as tx:
+        await _lock_quotes_then_billing_project(tx, bp_name)
         row = await tx.execute_and_fetchone(
             """
 SELECT name_cs, `status`, quote_id, batches.id as batch_id
@@ -880,14 +914,15 @@ FOR UPDATE;
         if not row:
             raise NonExistentBillingProjectError(bp_name)
         assert row['name_cs'] == bp_name
-        if row['status'] == 'closed':
+        if row['status'] in {'closed', 'deleted'}:
             raise BatchOperationAlreadyCompletedError(
                 f'Billing project {bp_name} is already closed or deleted.', 'info'
             )
         if row['batch_id'] is not None:
             raise BillingValidationError(f'Billing project {bp_name} has running batches.')
 
-        await tx.execute_update("UPDATE billing_projects SET `status` = 'closed' WHERE name_cs = %s;", (bp_name,))
+        with invariant_violations_as_user_errors():
+            await tx.execute_update("UPDATE billing_projects SET `status` = 'closed' WHERE name_cs = %s;", (bp_name,))
         await _log_bp_event(tx, bp_name, actor, 'bp_closed', comment=comment)
         await _log_quote_event(tx, row['quote_id'], actor, 'bp_closed', target_project=bp_name, comment=comment)
 
@@ -905,6 +940,7 @@ async def reopen_billing_project(
     Raises BatchUserError if deleted.
     """
     async with db.start() as tx:
+        await _lock_quotes_then_billing_project(tx, bp_name)
         row = await tx.execute_and_fetchone(
             """
 SELECT billing_projects.name_cs, billing_projects.`status`, billing_projects.quote_id, quotes.state AS quote_state
@@ -927,7 +963,8 @@ FOR UPDATE;
                 f'Billing project {bp_name} is under a closed quote. Reopen the quote or move the billing project first.'
             )
 
-        await tx.execute_update("UPDATE billing_projects SET `status` = 'open' WHERE name_cs = %s;", (bp_name,))
+        with invariant_violations_as_user_errors():
+            await tx.execute_update("UPDATE billing_projects SET `status` = 'open' WHERE name_cs = %s;", (bp_name,))
         await _log_bp_event(tx, bp_name, actor, 'bp_reopened', comment=comment)
         await _log_quote_event(tx, row['quote_id'], actor, 'bp_reopened', target_project=bp_name, comment=comment)
 
@@ -936,6 +973,8 @@ FOR UPDATE;
 async def delete_billing_project(
     db: Database,
     bp_name: str,
+    actor: str,
+    comment: Optional[str] = None,
 ) -> None:
     """Delete (soft-delete) a closed billing project.
 
@@ -943,8 +982,9 @@ async def delete_billing_project(
     Raises BatchUserError if open.
     """
     async with db.start() as tx:
+        await _lock_quotes_then_billing_project(tx, bp_name)
         row = await tx.execute_and_fetchone(
-            'SELECT name_cs, `status` FROM billing_projects WHERE name_cs = %s FOR UPDATE;', (bp_name,)
+            'SELECT name_cs, `status`, quote_id FROM billing_projects WHERE name_cs = %s FOR UPDATE;', (bp_name,)
         )
         if not row:
             raise NonExistentBillingProjectError(bp_name)
@@ -954,4 +994,7 @@ async def delete_billing_project(
         if row['status'] == 'open':
             raise BillingValidationError(f'Billing project {bp_name} is open and cannot be deleted.')
 
-        await tx.execute_update("UPDATE billing_projects SET `status` = 'deleted' WHERE name_cs = %s;", (bp_name,))
+        with invariant_violations_as_user_errors():
+            await tx.execute_update("UPDATE billing_projects SET `status` = 'deleted' WHERE name_cs = %s;", (bp_name,))
+        await _log_bp_event(tx, bp_name, actor, 'bp_deleted', comment=comment)
+        await _log_quote_event(tx, row['quote_id'], actor, 'bp_deleted', target_project=bp_name, comment=comment)

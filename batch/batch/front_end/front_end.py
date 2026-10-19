@@ -93,6 +93,7 @@ from web_common import (
 from ..batch import batch_record_to_dict, cancel_job_group_in_db, job_group_record_to_dict, job_record_to_dict
 from ..batch_configuration import BATCH_STORAGE_URI, CLOUD, DEFAULT_NAMESPACE, DOCKERHUB_PREFIX, SCOPE
 from ..batch_format_version import BatchFormatVersion
+from ..billing_auth import is_global_billing_manager
 from ..billing_project_management import invariant_violations_as_user_errors
 from ..billing_reporting import query_billing_projects_with_cost, query_billing_projects_without_cost
 from ..cloud.azure.resource_utils import azure_cores_mcpu_to_memory_bytes
@@ -3495,7 +3496,9 @@ async def get_billing_projects(request, userdata):
     if status is not None and status not in ('open', 'closed'):
         raise web.HTTPBadRequest(reason=f"Invalid value for status '{status}'; must be 'open' or 'closed'.")
 
-    billing_projects = await query_billing_projects_with_cost(db, user=user, status=status)
+    billing_projects = await query_billing_projects_with_cost(
+        db, user=user, status=status, is_global_bm=is_global_billing_manager(userdata)
+    )
     return json_response(billing_projects)
 
 
@@ -3510,7 +3513,9 @@ async def get_billing_project(request, userdata):
     else:
         user = None
 
-    billing_projects = await query_billing_projects_with_cost(db, user=user, billing_project=billing_project)
+    billing_projects = await query_billing_projects_with_cost(
+        db, user=user, billing_project=billing_project, is_global_bm=is_global_billing_manager(userdata)
+    )
 
     if not billing_projects:
         raise web.HTTPForbidden(reason=f'Unknown Hail Batch billing project {billing_project}.')
