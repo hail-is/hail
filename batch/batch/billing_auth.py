@@ -1,4 +1,3 @@
-from enum import Enum
 from functools import wraps
 from typing import Any, Awaitable, Callable, Optional
 
@@ -7,27 +6,17 @@ from aiohttp import web
 from gear import Database, SystemPermission, UserData
 
 from . import billing_project_management as billing_dao
+from .billing_grants import (
+    BillingGrant,
+    BillingPermission,
+    BillingProjectTarget,
+    BillingTarget,
+    GlobalTarget,
+    QuoteTarget,
+    issue_grant,
+)
 
-
-class BillingPermission(str, Enum):
-    VIEW_QUOTE = 'view_quote'
-    EDIT_QUOTE = 'edit_quote'
-    EDIT_QUOTE_AMOUNT = 'edit_quote_amount'
-    CLOSE_QUOTE = 'close_quote'
-    ADD_MANAGER = 'add_manager'
-    MANAGE_MANAGERS = 'manage_managers'
-    VIEW_BP = 'view_bp'
-    CREATE_BP = 'create_bp'
-    EDIT_BP_LIMIT = 'edit_bp_limit'
-    EDIT_BP_METADATA = 'edit_bp_metadata'
-    ADD_BP_MEMBER = 'add_bp_member'
-    MANAGE_BP_MEMBERS = 'manage_bp_members'
-    CLOSE_REOPEN_BP = 'close_reopen_bp'
-    CHANGE_BP_QUOTE = 'change_bp_quote'
-    VIEW_EVENTS = 'view_events'
-
-
-_ALL_BILLING_PERMISSIONS: set['BillingPermission'] = set(BillingPermission)
+_ALL_BILLING_PERMISSIONS: set[BillingPermission] = set(BillingPermission)
 
 BILLING_ROLE_PERMISSIONS: dict[str, set[BillingPermission]] = {
     # Removing other users from a billing project (MANAGE_BP_MEMBERS) is global-billing-manager only; any member can
@@ -70,42 +59,74 @@ def is_global_billing_manager(userdata: UserData) -> bool:
     return userdata['system_permissions'].get(SystemPermission.UPDATE_ALL_BILLING_PROJECTS, False)
 
 
-async def resolve_billing_role(db: Database, username: str, userdata: UserData, request: web.Request) -> Optional[str]:
-    """Determine the caller's billing role for this request's resource context."""
+async def billing_role_on(db: Database, userdata: UserData, target: BillingTarget) -> Optional[str]:
+    """The caller's billing role on target, or None if they have none."""
+    username = userdata['username']
     is_gbm = is_global_billing_manager(userdata)
+    if isinstance(target, QuoteTarget):
+        return await billing_dao.get_billing_role_for_quote_id(db, username, is_gbm, target.quote_id)
+    if isinstance(target, BillingProjectTarget):
+        return await billing_dao.get_billing_role_for_bp(db, username, is_gbm, target.name)
+    return 'global_bm' if is_gbm else None
+
+
+def _forbidden(permission: BillingPermission) -> web.HTTPForbidden:
+    return web.HTTPForbidden(reason=f'Insufficient billing permissions for {permission.value}')
+
+
+async def require(
+    db: Database, userdata: UserData, permission: BillingPermission, target: BillingTarget
+) -> BillingGrant:
+    """Check the caller's billing role grants permission on target, raising 403 if not."""
+    role = await billing_role_on(db, userdata, target)
+    if role is None or permission not in BILLING_ROLE_PERMISSIONS.get(role, set()):
+        raise _forbidden(permission)
+    return issue_grant(userdata['username'], permission, target)
+
+
+def grant_from_system_permission(
+    userdata: UserData, system_permission: SystemPermission, permission: BillingPermission, target: BillingTarget
+) -> BillingGrant:
+    """For routes authorized by a system permission rather than a billing role (legacy and admin-only routes)."""
+    if not userdata['system_permissions'].get(system_permission, False):
+        raise _forbidden(permission)
+    return issue_grant(userdata['username'], permission, target)
+
+
+async def _route_target(db: Database, userdata: UserData, request: web.Request) -> BillingTarget:
     quote_name = request.match_info.get('name')
-    billing_project_name = request.match_info.get('billing_project')
-
     if quote_name:
-        return await billing_dao.get_billing_role_for_quote(db, username, is_gbm, quote_name)
-    if billing_project_name:
-        return await billing_dao.get_billing_role_for_bp(db, username, is_gbm, billing_project_name)
-    if is_gbm:
-        return 'global_bm'
-    return None
-
-
-async def resolve_billing_role_for_quote_id(
-    db: Database, username: str, userdata: UserData, quote_id: int
-) -> Optional[str]:
-    """Resolve billing role given an explicit quote_id (for create-BP flow)."""
-    return await billing_dao.get_billing_role_for_quote_id(db, username, is_global_billing_manager(userdata), quote_id)
+        quote_id = await billing_dao.get_quote_id(db, quote_name)
+        if quote_id is None:
+            # Only global billing managers may learn that a quote doesn't exist.
+            if is_global_billing_manager(userdata):
+                raise web.HTTPNotFound(reason=f'Unknown quote {quote_name}.')
+            raise web.HTTPForbidden(reason='Insufficient billing permissions')
+        return QuoteTarget(quote_id)
+    billing_project = request.match_info.get('billing_project')
+    if billing_project:
+        return BillingProjectTarget(billing_project)
+    return GlobalTarget()
 
 
 def billing_permission_required(
     permission: BillingPermission,
 ) -> Callable[[Callable[..., Any]], Callable[[web.Request, UserData], Awaitable[web.StreamResponse]]]:
-    """Decorator that checks billing role permissions. Must be stacked under @auth.authenticated_users_only()."""
+    """Decorator that checks billing role permissions on the route's quote or billing project.
+
+    Sets request['billing_role'] and request['billing_grant']. Must be stacked under @auth.authenticated_users_only().
+    """
 
     def decorator(handler: Callable[..., Any]) -> Callable[[web.Request, UserData], Awaitable[web.StreamResponse]]:
         @wraps(handler)
         async def inner(request: web.Request, userdata: UserData) -> web.StreamResponse:
             db: Database = request.app['db']
-            username = userdata['username']
-            billing_role = await resolve_billing_role(db, username, userdata, request)
-            if billing_role is None or permission not in BILLING_ROLE_PERMISSIONS.get(billing_role, set()):
-                raise web.HTTPForbidden(reason=f'Insufficient billing permissions for {permission.value}')
-            request['billing_role'] = billing_role
+            target = await _route_target(db, userdata, request)
+            role = await billing_role_on(db, userdata, target)
+            if role is None or permission not in BILLING_ROLE_PERMISSIONS.get(role, set()):
+                raise _forbidden(permission)
+            request['billing_role'] = role
+            request['billing_grant'] = issue_grant(userdata['username'], permission, target)
             return await handler(request, userdata)
 
         return inner
