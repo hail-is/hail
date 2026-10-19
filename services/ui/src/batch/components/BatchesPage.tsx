@@ -137,16 +137,19 @@ function TermFilterButton({ field, value, q, onSearch }: {
 }
 
 // Each preset replaces the whole query, and shows as on while the query is exactly that preset —
-// so Mine is on at page load, since it's the default query.
+// so All my batches is on at page load, since it's the default query.
 function QuickFilters({ q, username, onSearch }: {
   q: string;
   username: string;
   onSearch: (_q: string) => void;
 }): JSX.Element {
   const presets = [
-    ...(username ? [{ label: 'Mine', query: defaultBatchQuery(username) }] : []),
-    { label: 'Running', query: 'state = running' },
-    { label: 'Failed', query: 'state = failure' },
+    ...(username ? [
+      { label: 'All my batches', query: defaultBatchQuery(username) },
+      { label: 'My running batches', query: `${defaultBatchQuery(username)}\nstate = running` },
+      { label: 'My failed batches', query: `${defaultBatchQuery(username)}\nstate = failure` },
+    ] : []),
+    { label: 'All running batches', query: 'state = running' },
   ];
   return (
     <div className="flex flex-wrap items-center gap-1.5">
