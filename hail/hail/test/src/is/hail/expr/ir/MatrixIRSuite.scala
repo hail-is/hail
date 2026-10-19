@@ -427,6 +427,36 @@ class MatrixIRSuite {
     interceptAssertion(error)(getRows(mapped))
   }
 
+  def testInitArgReadsResultOnRows() =
+    initArgsReadingResult(isScan = false)(
+      Ref(MatrixIR.colName, TStruct("col_idx" -> TInt32)).get("col_idx")
+    ) ++ initArgsReadingResult(isScan = true)(
+      Ref(MatrixIR.rowName, TStruct("row_idx" -> TInt32)).get("row_idx")
+    )
+
+  @ParameterizedTest
+  def testInitArgReadsResultOnRows(v: IR)(implicit ctx: ExecuteContext): Unit = {
+    val mt = rangeMatrix(5, 3, Some(2))
+    val row = Ref(MatrixIR.rowName, mt.typ.rowType)
+    val mapped = MatrixMapRows(mt, InsertFields(row, FastSeq("v" -> v)))
+    interceptFatal("depends on an? (aggregation|scan) result")(unoptimized(getRows(mapped)(_)))
+  }
+
+  def testInitArgReadsResultOnCols() =
+    initArgsReadingResult(isScan = false)(
+      Ref(MatrixIR.rowName, TStruct("row_idx" -> TInt32)).get("row_idx")
+    ) ++ initArgsReadingResult(isScan = true)(
+      Ref(MatrixIR.colName, TStruct("col_idx" -> TInt32)).get("col_idx")
+    )
+
+  @ParameterizedTest
+  def testInitArgReadsResultOnCols(v: IR)(implicit ctx: ExecuteContext): Unit = {
+    val mt = rangeMatrix(3, 5, Some(2))
+    val col = Ref(MatrixIR.colName, mt.typ.colType)
+    val mapped = MatrixMapCols(mt, InsertFields(col, FastSeq("v" -> v)), None)
+    interceptFatal("depends on an? (aggregation|scan) result")(unoptimized(getCols(mapped)(_)))
+  }
+
   @Test def testScanInitArgBoundInNewCol(implicit ctx: ExecuteContext): Unit = {
     val mt = rangeMatrix(3, 5, Some(2))
     val col = Ref(MatrixIR.colName, mt.typ.colType)

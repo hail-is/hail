@@ -401,6 +401,10 @@ object LowerMatrixIR extends Logging {
               _ <- globalName -> global.select(child.typ.globalType.fieldNames)
               _ <- rowName -> row.select(child.typ.rowType.fieldNames)
 
+              (body, liftedScans) =
+                liftScans(lower(ctx, newRow, liftedRelationalLets))
+
+              // always emit scan bindings, even if there are none
               _ <- M.lift[SCAN.type] {
                 M.sequence(
                   globalName -> global.select(child.typ.globalType.fieldNames),
@@ -409,9 +413,7 @@ object LowerMatrixIR extends Logging {
                 )
               }
 
-              (body, bindings) = liftScans(lower(ctx, newRow, liftedRelationalLets))
-
-              _ <- bindings
+              _ <- liftedScans
 
               newRow <-
                 if (!ContainsAgg(body)) body

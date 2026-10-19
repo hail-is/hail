@@ -1509,6 +1509,26 @@ class TableIRSuite {
     assertEq(res, RowSeq(FastSeq(0), 2))
   }
 
+  def testTableAggregateInitArgReadsAggResult() =
+    initArgsReadingResult(isScan = false)(Ref(TableIR.rowName, TStruct("idx" -> TInt32)).get("idx"))
+
+  @ParameterizedTest
+  def testTableAggregateInitArgReadsAggResult(v: IR)(implicit ctx: ExecuteContext): Unit =
+    interceptFatal("depends on an aggregation result") {
+      unoptimized(Interpret[Any](_, TableAggregate(TableRange(5, 2), v)))
+    }
+
+  def testTableScanInitArgReadsScanResult() =
+    initArgsReadingResult(isScan = true)(Ref(TableIR.rowName, TStruct("idx" -> TInt32)).get("idx"))
+
+  @ParameterizedTest
+  def testTableScanInitArgReadsScanResult(v: IR)(implicit ctx: ExecuteContext): Unit = {
+    val t = TableRange(5, 2)
+    val row = Ref(TableIR.rowName, t.typ.rowType)
+    val mapped = TableMapRows(t, InsertFields(row, FastSeq("v" -> v)))
+    interceptFatal("depends on a scan result")(unoptimized(Interpret(mapped, _).rdd.collect()))
+  }
+
   @Test def testIssue9016(implicit ctx: ExecuteContext): Unit = {
     val rows =
       mapIR(ToStream(MakeArray(makestruct("a" -> MakeTuple.ordered(FastSeq(I32(0), I32(1))))))) {

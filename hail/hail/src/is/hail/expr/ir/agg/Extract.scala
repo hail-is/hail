@@ -14,6 +14,7 @@ import is.hail.io.index.IndexType
 import is.hail.types.{tcoerce, TypeWithRequiredness, VirtualTypeWithReq}
 import is.hail.types.physical.stypes.EmitType
 import is.hail.types.virtual._
+import is.hail.utils.fatal
 
 import scala.collection.immutable.ArraySeq
 import scala.collection.mutable
@@ -509,7 +510,7 @@ object Extract {
       ctx,
       initBindings.result(),
       Begin(initOps),
-      Let.void(seqBuilder.result()),
+      Let(seqBuilder.result(), Void()),
       Let(FastSeq(resultName -> sigs.resultsOp), postAggIR),
       new AggSignatures(pAggSigs),
     )
@@ -572,7 +573,14 @@ object Extract {
         val newBindings = bindingsTemp.result()
         bindingsTemp.clear()
         newBindings.reverseIterator.foreach { case (name, f) =>
-          if (newEnv.eval(name).usedInInitOp) bindInitArgRefs(FastSeq(f), newEnv)
+          if (newEnv.eval(name).usedInInitOp) {
+            if (Exists.inIR(f, { case Ref(`result`, _) => true; case _ => false }))
+              fatal(
+                if (isScan) s"scan init argument depends on a scan result: $name"
+                else s"init argument depends on an aggregation result: $name"
+              )
+            bindInitArgRefs(FastSeq(f), newEnv)
+          }
         }
         newBindings.foreach { case b @ (name, f) =>
           if (newEnv.eval(name).usedInInitOp) initBindings += ((name, f))
