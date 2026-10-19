@@ -4,14 +4,27 @@ Requires local MySQL (make local-mysql). The db fixture is provided by conftest.
 """
 
 import json
-from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from aiohttp import web
 
-from batch.billing_auth import BILLING_ROLE_PERMISSIONS, BillingPermission, billing_permission_required
+from batch.billing_auth import BILLING_ROLE_PERMISSIONS, BillingPermission
+from batch.billing_grants import BillingAuthorizationError
 from batch.billing_project_management import (
     INTERNAL_QUOTE_ID,
+    get_billing_project_events,
+    get_billing_role_for_bp,
+    get_quote,
+    get_quote_events,
+)
+from batch.exceptions import (
+    BatchOperationAlreadyCompletedError,
+    BatchUserError,
+    BillingValidationError,
+    NonExistentBillingProjectError,
+    NonExistentQuoteError,
+)
+
+from .billing_writes import (
     add_billing_project_user,
     add_quote_manager,
     change_billing_project_quote,
@@ -20,20 +33,9 @@ from batch.billing_project_management import (
     create_billing_project,
     create_quote,
     delete_billing_project,
-    get_billing_project_events,
-    get_billing_role_for_bp,
-    get_quote,
-    get_quote_events,
     patch_billing_project,
     remove_billing_project_user,
     reopen_billing_project,
-)
-from batch.exceptions import (
-    BatchOperationAlreadyCompletedError,
-    BatchUserError,
-    BillingValidationError,
-    NonExistentBillingProjectError,
-    NonExistentQuoteError,
 )
 
 
@@ -135,7 +137,7 @@ async def test_create_billing_project_unlimited_allowed_under_internal(db, uniqu
 
 async def test_create_billing_project_unlimited_under_internal_requires_global_bm(db, unique_name):
     bp_ul_internal_qo = unique_name('bp-ul-internal-qo')
-    with pytest.raises(BatchUserError, match='Only global billing managers'):
+    with pytest.raises(BillingAuthorizationError):
         await create_billing_project(db, bp_ul_internal_qo, INTERNAL_QUOTE_ID, None, 'admin', 'quote_owner')
 
 
@@ -163,14 +165,6 @@ async def test_unknown_quote_is_not_found(db, unique_name):
     with pytest.raises(NonExistentQuoteError) as exc_info:
         await create_billing_project(db, bp_404, 999999, 100.0, 'admin', 'global_bm')
     assert exc_info.value.http_response().status == 404
-
-
-async def test_permission_failure_is_forbidden(db, unique_name):
-    bp_403 = unique_name('bp-403')
-    with pytest.raises(BatchUserError) as exc_info:
-        await create_billing_project(db, bp_403, INTERNAL_QUOTE_ID, None, 'admin', 'quote_owner')
-    assert not isinstance(exc_info.value, (BillingValidationError, NonExistentQuoteError))
-    assert exc_info.value.http_response().status == 403
 
 
 async def test_create_billing_project_duplicate_raises(db, unique_name):
@@ -277,7 +271,7 @@ async def test_patch_billing_project_unlimited_requires_global_bm(db, unique_nam
     await create_quote(db, q_patch_ul, cost_object='CO', actor='admin', authorized_amount=500.0)
     q_row = await db.select_and_fetchone('SELECT id FROM quotes WHERE name = %s', (q_patch_ul,))
     await create_billing_project(db, bp_patch_ul, q_row['id'], 100.0, 'admin', 'global_bm')
-    with pytest.raises(BatchUserError, match='Only global billing managers'):
+    with pytest.raises(BillingAuthorizationError):
         await patch_billing_project(db, bp_patch_ul, {'limit': None}, actor='admin', billing_role='quote_owner')
 
 
@@ -501,41 +495,6 @@ def test_manage_managers_available_to_quote_owner():
     assert BillingPermission.MANAGE_MANAGERS in BILLING_ROLE_PERMISSIONS['quote_owner']
     assert BillingPermission.MANAGE_MANAGERS not in BILLING_ROLE_PERMISSIONS['quote_manager']
     assert BillingPermission.MANAGE_MANAGERS not in BILLING_ROLE_PERMISSIONS['bp_member']
-
-
-# ---------------------------------------------------------------------------
-# billing_permission_required decorator
-# ---------------------------------------------------------------------------
-
-
-async def test_billing_permission_required_rejects_none_role():
-    @billing_permission_required(BillingPermission.VIEW_QUOTE)
-    async def handler(_request, _userdata):
-        return web.Response(text='ok')
-
-    request = MagicMock(spec=web.Request)
-    request.app = {'db': MagicMock()}
-    userdata = {'username': 'test', 'system_permissions': {}}  # type: ignore[arg-type]
-
-    with patch('batch.billing_auth.resolve_billing_role', new_callable=AsyncMock, return_value=None):
-        with pytest.raises(web.HTTPForbidden):
-            await handler(request, userdata)  # type: ignore[arg-type]
-
-
-async def test_billing_permission_required_calls_handler_with_sufficient_role():
-    @billing_permission_required(BillingPermission.VIEW_QUOTE)
-    async def handler(_request, _userdata):
-        return web.Response(text='ok')
-
-    request = MagicMock(spec=web.Request)
-    request.app = {'db': MagicMock()}
-    request.__setitem__ = MagicMock()
-    userdata = {'username': 'test', 'system_permissions': {}}  # type: ignore[arg-type]
-
-    with patch('batch.billing_auth.resolve_billing_role', new_callable=AsyncMock, return_value='global_bm'):
-        response = await handler(request, userdata)  # type: ignore[arg-type]
-    assert isinstance(response, web.Response)
-    assert response.text == 'ok'
 
 
 # ---------------------------------------------------------------------------

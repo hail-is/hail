@@ -3215,6 +3215,7 @@ steps:
               -o timeout_func_only=true \
               /io/test/test_db_framework.py \
               /io/test/test_billing_invariant_triggers.py \
+              /io/test/test_billing_grants.py \
               /io/test/test_billing_project_management.py \
               /io/test/test_billing_reporting.py \
               /io/test/test_billing_review_fixes.py \
