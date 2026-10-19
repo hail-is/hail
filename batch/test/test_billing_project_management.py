@@ -32,6 +32,7 @@ from batch.exceptions import (
     BatchOperationAlreadyCompletedError,
     BatchUserError,
     BillingValidationError,
+    NonExistentBillingProjectError,
     NonExistentQuoteError,
 )
 
@@ -695,7 +696,7 @@ async def test_reopen_billing_project_deleted_raises(db, unique_name):
     bp_reopen_del = unique_name('bp-reopen-del')
     await _make_bp(db, q_reopen_del, bp_reopen_del)
     await close_billing_project(db, bp_reopen_del, 'admin')
-    await delete_billing_project(db, bp_reopen_del)
+    await delete_billing_project(db, bp_reopen_del, 'admin')
     with pytest.raises(BatchUserError, match='deleted'):
         await reopen_billing_project(db, bp_reopen_del, 'admin')
 
@@ -733,7 +734,7 @@ async def test_delete_billing_project_happy_path(db, unique_name):
     bp_del = unique_name('bp-del')
     await _make_bp(db, q_del, bp_del)
     await close_billing_project(db, bp_del, 'admin')
-    await delete_billing_project(db, bp_del)
+    await delete_billing_project(db, bp_del, 'admin')
     row = await db.select_and_fetchone('SELECT `status` FROM billing_projects WHERE name = %s', (bp_del,))
     assert row['status'] == 'deleted'
 
@@ -743,7 +744,7 @@ async def test_delete_billing_project_open_raises(db, unique_name):
     bp_del_open = unique_name('bp-del-open')
     await _make_bp(db, q_del_open, bp_del_open)
     with pytest.raises(BatchUserError, match='open'):
-        await delete_billing_project(db, bp_del_open)
+        await delete_billing_project(db, bp_del_open, 'admin')
 
 
 async def test_delete_billing_project_already_deleted_raises(db, unique_name):
@@ -751,11 +752,11 @@ async def test_delete_billing_project_already_deleted_raises(db, unique_name):
     bp_del_dup = unique_name('bp-del-dup')
     await _make_bp(db, q_del_dup, bp_del_dup)
     await close_billing_project(db, bp_del_dup, 'admin')
-    await delete_billing_project(db, bp_del_dup)
+    await delete_billing_project(db, bp_del_dup, 'admin')
     with pytest.raises(BatchOperationAlreadyCompletedError):
-        await delete_billing_project(db, bp_del_dup)
+        await delete_billing_project(db, bp_del_dup, 'admin')
 
 
 async def test_delete_billing_project_not_found_raises(db):
-    with pytest.raises(Exception):  # NonExistentBillingProjectError
-        await delete_billing_project(db, 'no-such-bp')
+    with pytest.raises(NonExistentBillingProjectError):
+        await delete_billing_project(db, 'no-such-bp', 'admin')
