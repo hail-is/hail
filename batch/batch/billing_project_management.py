@@ -35,6 +35,11 @@ def invariant_violations_as_user_errors() -> Iterator[None]:
         raise
 
 
+def _exceeds(total: float, cap: float) -> bool:
+    """Whether a sum of dollar amounts exceeds a cap, compared in cents as the DB triggers do."""
+    return round(total, 2) > round(cap, 2)
+
+
 def _parse_billing_limit(limit: Optional[Union[str, float, int]]) -> Optional[float]:
     assert isinstance(limit, (str, float, int)) or limit is None, (limit, type(limit))
 
@@ -404,7 +409,7 @@ LIMIT 1;
                         f'"{unlimited_bp_row["name"]}". Set a limit on the billing project first.'
                     )
                 total = await _sum_of_limits(tx, quote_id)
-                if total > new_amount:
+                if _exceeds(total, new_amount):
                     raise BillingValidationError(
                         f'New authorized_amount {new_amount} is less than sum of BP limits {total}.'
                     )
@@ -617,7 +622,7 @@ async def create_billing_project(
 
         if limit is not None and quote_authorized is not None:
             existing_sum = await _sum_of_limits(tx, quote_id)
-            if existing_sum + limit > quote_authorized:
+            if _exceeds(existing_sum + limit, quote_authorized):
                 raise BillingValidationError(
                     f'Creating billing project with limit {limit} would exceed quote authorized amount {quote_authorized} '
                     f'(existing BPs use {existing_sum}).'
@@ -696,7 +701,7 @@ FOR UPDATE;
                     raise BillingValidationError('Unlimited billing projects can only exist under the INTERNAL quote.')
             elif row['authorized_amount'] is not None:
                 other_bp_limits_sum = await _sum_of_limits(tx, row['quote_id'], excluding_billing_project=bp_name)
-                if other_bp_limits_sum + new_limit > row['authorized_amount']:
+                if _exceeds(other_bp_limits_sum + new_limit, row['authorized_amount']):
                     raise BillingValidationError(
                         f'Setting limit to {new_limit} would exceed quote authorized amount {row["authorized_amount"]} '
                         f'(other BPs use {other_bp_limits_sum}).'
@@ -781,7 +786,7 @@ FOR UPDATE;
 
         if row['limit'] is not None and row['dest_authorized_amount'] is not None:
             dest_bp_limits_sum = await _sum_of_limits(tx, dest_quote_id)
-            if dest_bp_limits_sum + row['limit'] > row['dest_authorized_amount']:
+            if _exceeds(dest_bp_limits_sum + row['limit'], row['dest_authorized_amount']):
                 raise BillingValidationError(
                     f'Moving billing project would exceed destination quote authorized amount '
                     f'{row["dest_authorized_amount"]} (existing BPs use {dest_bp_limits_sum}).'

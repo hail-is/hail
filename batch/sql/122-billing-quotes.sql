@@ -114,7 +114,8 @@ BEGIN
       WHERE quote_id = in_quote_id AND name != in_name AND `status` != 'deleted'
       FOR SHARE;
 
-      IF other_limits_sum + in_limit > cur_authorized_amount THEN
+      -- Amounts are DOUBLE dollars: compare in cents so an exact split (0.1 + 0.2 vs 0.3) isn't rejected.
+      IF ROUND(other_limits_sum + in_limit, 2) > ROUND(cur_authorized_amount, 2) THEN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'sum of billing project limits would exceed quote authorized_amount';
       END IF;
     END IF;
@@ -183,7 +184,7 @@ BEGIN
     IF n_unlimited_bps > 0 THEN
       SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'a quote with unlimited billing projects cannot be given an authorized_amount';
     END IF;
-    IF limits_sum > NEW.authorized_amount THEN
+    IF ROUND(limits_sum, 2) > ROUND(NEW.authorized_amount, 2) THEN
       SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'quote authorized_amount cannot be less than the sum of its billing project limits';
     END IF;
   END IF;
