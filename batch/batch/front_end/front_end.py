@@ -96,13 +96,14 @@ from ..batch import batch_record_to_dict, cancel_job_group_in_db, job_group_reco
 from ..batch_configuration import BATCH_STORAGE_URI, CLOUD, DEFAULT_NAMESPACE, DOCKERHUB_PREFIX, SCOPE
 from ..batch_format_version import BatchFormatVersion
 from ..billing_auth import (
-    BILLING_ROLE_PERMISSIONS,
     BillingPermission,
     billing_permission_required,
+    grant_from_system_permission,
     is_global_billing_manager,
-    resolve_billing_role_for_quote_id,
+    require,
 )
-from ..billing_project_management import _parse_billing_limit, invariant_violations_as_user_errors
+from ..billing_grants import BillingGrant, BillingProjectTarget, GlobalTarget, QuoteTarget
+from ..billing_project_management import INTERNAL_QUOTE_ID, _parse_billing_limit, invariant_violations_as_user_errors
 from ..billing_reporting import (
     query_billing_breakdown,
     query_billing_history,
@@ -3535,11 +3536,16 @@ async def post_billing_projects_remove_user(request: web.Request, userdata: User
     db: Database = request.app['db']
     billing_project = request.match_info['billing_project']
     user = request.match_info['user']
-    actor = userdata['username']
+    grant = grant_from_system_permission(
+        userdata,
+        SystemPermission.ASSIGN_USERS_TO_ALL_BILLING_PROJECTS,
+        BillingPermission.MANAGE_BP_MEMBERS,
+        BillingProjectTarget(billing_project),
+    )
 
     session = await aiohttp_session.get_session(request)
     try:
-        await _handle_ui_error(session, billing_dao.remove_billing_project_user, db, billing_project, user, actor)
+        await _handle_ui_error(session, billing_dao.remove_billing_project_user, db, billing_project, user, grant)
         set_message(session, f'Removed user {user} from billing project {billing_project}.', 'info')
     finally:
         raise web.HTTPFound(deploy_config.external_url('batch', '/billing_projects'))  # pylint: disable=lost-exception
@@ -3552,14 +3558,12 @@ async def api_get_billing_projects_remove_user(request: web.Request, userdata: U
     db: Database = request.app['db']
     billing_project = request.match_info['billing_project']
     user = request.match_info['user']
-    actor = userdata['username']
-    # Anyone can leave a billing project; removing someone else needs MANAGE_BP_MEMBERS.
-    if user != actor and BillingPermission.MANAGE_BP_MEMBERS not in BILLING_ROLE_PERMISSIONS.get(
-        request['billing_role'], set()
-    ):
-        raise web.HTTPForbidden(reason='Insufficient billing permissions to remove other users from billing projects.')
+    # Anyone who can see a billing project can leave it; removing someone else needs MANAGE_BP_MEMBERS.
+    grant = request['billing_grant']
+    if user != userdata['username']:
+        grant = await require(db, userdata, BillingPermission.MANAGE_BP_MEMBERS, BillingProjectTarget(billing_project))
     comment = _optional_str(await _json_body(request, required=False), 'comment')
-    await _handle_api_error(billing_dao.remove_billing_project_user, db, billing_project, user, actor, comment)
+    await _handle_api_error(billing_dao.remove_billing_project_user, db, billing_project, user, grant, comment)
     return json_response({'billing_project': billing_project, 'user': user})
 
 
@@ -3577,11 +3581,16 @@ async def _verify_user_exists(request: web.Request, user: str) -> None:
 
 
 async def _add_user_to_billing_project(
-    request: web.Request, db: Database, billing_project: str, user: str, actor: str, comment: Optional[str] = None
+    request: web.Request,
+    db: Database,
+    billing_project: str,
+    user: str,
+    grant: BillingGrant,
+    comment: Optional[str] = None,
 ):
     """Verify the user exists via auth service, then insert into billing_project_users."""
     await _verify_user_exists(request, user)
-    await billing_dao.add_billing_project_user(db, billing_project, user, actor, comment)
+    await billing_dao.add_billing_project_user(db, billing_project, user, grant, comment)
 
 
 @routes.post('/billing_projects/{billing_project}/users/add')
@@ -3593,11 +3602,16 @@ async def post_billing_projects_add_user(request: web.Request, userdata: UserDat
     post = await request.post()
     user = str(post['user'])
     billing_project = request.match_info['billing_project']
-    actor = userdata['username']
+    grant = grant_from_system_permission(
+        userdata,
+        SystemPermission.ASSIGN_USERS_TO_ALL_BILLING_PROJECTS,
+        BillingPermission.ADD_BP_MEMBER,
+        BillingProjectTarget(billing_project),
+    )
 
     session = await aiohttp_session.get_session(request)
     try:
-        await _handle_ui_error(session, _add_user_to_billing_project, request, db, billing_project, user, actor)
+        await _handle_ui_error(session, _add_user_to_billing_project, request, db, billing_project, user, grant)
         set_message(session, f'Added user {user} to billing project {billing_project}.', 'info')  # type: ignore
     finally:
         raise web.HTTPFound(deploy_config.external_url('batch', '/billing_projects'))  # pylint: disable=lost-exception
@@ -3606,13 +3620,14 @@ async def post_billing_projects_add_user(request: web.Request, userdata: UserDat
 @routes.post('/api/v1alpha/billing_projects/{billing_project}/users/{user}/add')
 @auth.authenticated_users_only()
 @billing_permission_required(BillingPermission.ADD_BP_MEMBER)
-async def api_billing_projects_add_user(request: web.Request, userdata: UserData) -> web.Response:
+async def api_billing_projects_add_user(request: web.Request, _: UserData) -> web.Response:
     db: Database = request.app['db']
     user = request.match_info['user']
     billing_project = request.match_info['billing_project']
-    actor = userdata['username']
     comment = _optional_str(await _json_body(request, required=False), 'comment')
-    await _handle_api_error(_add_user_to_billing_project, request, db, billing_project, user, actor, comment)
+    await _handle_api_error(
+        _add_user_to_billing_project, request, db, billing_project, user, request['billing_grant'], comment
+    )
     return json_response({'billing_project': billing_project, 'user': user})
 
 
@@ -3624,13 +3639,25 @@ async def post_create_billing_projects(request: web.Request, userdata: UserData)
     db: Database = request.app['db']
     post = await request.post()
     billing_project = str(post['billing_project'])
-    actor = userdata['username']
+    grant = grant_from_system_permission(
+        userdata, SystemPermission.CREATE_BILLING_PROJECTS, BillingPermission.CREATE_BP, QuoteTarget(INTERNAL_QUOTE_ID)
+    )
+    unlimited_grant = grant_from_system_permission(
+        userdata, SystemPermission.CREATE_BILLING_PROJECTS, BillingPermission.SET_UNLIMITED, GlobalTarget()
+    )
 
     session = await aiohttp_session.get_session(request)
     try:
-        # Legacy UI path: always uses INTERNAL quote (id=1), no limit
+        # Legacy UI path: always uses the INTERNAL quote, no limit
         await _handle_ui_error(
-            session, billing_dao.create_billing_project, db, billing_project, 1, None, actor, 'global_bm'
+            session,
+            billing_dao.create_billing_project,
+            db,
+            billing_project,
+            INTERNAL_QUOTE_ID,
+            None,
+            grant,
+            unlimited_grant=unlimited_grant,
         )
         set_message(session, f'Added billing project {billing_project}.', 'info')  # type: ignore
     finally:
@@ -3642,7 +3669,6 @@ async def post_create_billing_projects(request: web.Request, userdata: UserData)
 async def api_get_create_billing_projects(request: web.Request, userdata: UserData) -> web.Response:
     db: Database = request.app['db']
     billing_project = request.match_info['billing_project']
-    username = userdata['username']
 
     body = await _json_body(request, required=False)
 
@@ -3668,15 +3694,16 @@ async def api_get_create_billing_projects(request: web.Request, userdata: UserDa
         raise web.HTTPBadRequest(reason=f'Unknown quote {quote_name}.')
     quote_id = quote_row['id']
 
-    billing_role = await resolve_billing_role_for_quote_id(db, username, userdata, quote_id)
-    if billing_role is None:
-        raise web.HTTPForbidden(reason='Insufficient billing permissions to create billing projects.')
-    role_permissions = BILLING_ROLE_PERMISSIONS.get(billing_role, set())
-    if BillingPermission.CREATE_BP not in role_permissions:
-        raise web.HTTPForbidden(reason='Insufficient billing permissions to create billing projects.')
+    grant = await require(db, userdata, BillingPermission.CREATE_BP, QuoteTarget(quote_id))
+    unlimited_grant = None
+    if limit is None:
+        unlimited_grant = await require(db, userdata, BillingPermission.SET_UNLIMITED, GlobalTarget())
     # Creating with members must not bypass the restriction on who can add members to a billing project.
-    if initial_users and BillingPermission.ADD_BP_MEMBER not in role_permissions:
-        raise web.HTTPForbidden(reason='Insufficient billing permissions to add users to billing projects.')
+    members_grant = None
+    if initial_users:
+        members_grant = await require(
+            db, userdata, BillingPermission.ADD_BP_MEMBER, BillingProjectTarget(billing_project)
+        )
 
     # Check every user before creating anything, so a typo fails the whole request.
     for user in initial_users:
@@ -3688,11 +3715,12 @@ async def api_get_create_billing_projects(request: web.Request, userdata: UserDa
         billing_project,
         quote_id,
         limit,
-        username,
-        billing_role,
-        initial_users,
-        description,
-        comment,
+        grant,
+        unlimited_grant=unlimited_grant,
+        members_grant=members_grant,
+        initial_users=initial_users,
+        description=description,
+        comment=comment,
     )
     return json_response(billing_project)
 
@@ -3704,11 +3732,16 @@ async def api_get_create_billing_projects(request: web.Request, userdata: UserDa
 async def post_close_billing_projects(request: web.Request, userdata: UserData) -> NoReturn:
     db: Database = request.app['db']
     billing_project = request.match_info['billing_project']
-    actor = userdata['username']
+    grant = grant_from_system_permission(
+        userdata,
+        SystemPermission.DELETE_ALL_BILLING_PROJECTS,
+        BillingPermission.CLOSE_REOPEN_BP,
+        BillingProjectTarget(billing_project),
+    )
 
     session = await aiohttp_session.get_session(request)
     try:
-        await _handle_ui_error(session, billing_dao.close_billing_project, db, billing_project, actor)
+        await _handle_ui_error(session, billing_dao.close_billing_project, db, billing_project, grant)
         set_message(session, f'Closed billing project {billing_project}.', 'info')
     finally:
         raise web.HTTPFound(deploy_config.external_url('batch', '/billing_projects'))  # pylint: disable=lost-exception
@@ -3717,12 +3750,11 @@ async def post_close_billing_projects(request: web.Request, userdata: UserData) 
 @routes.post('/api/v1alpha/billing_projects/{billing_project}/close')
 @auth.authenticated_users_only()
 @billing_permission_required(BillingPermission.CLOSE_REOPEN_BP)
-async def api_close_billing_projects(request: web.Request, userdata: UserData) -> web.Response:
+async def api_close_billing_projects(request: web.Request, _: UserData) -> web.Response:
     db: Database = request.app['db']
     billing_project = request.match_info['billing_project']
-    actor = userdata['username']
     comment = _optional_str(await _json_body(request, required=False), 'comment')
-    await _handle_api_error(billing_dao.close_billing_project, db, billing_project, actor, comment)
+    await _handle_api_error(billing_dao.close_billing_project, db, billing_project, request['billing_grant'], comment)
     return json_response(billing_project)
 
 
@@ -3733,11 +3765,16 @@ async def api_close_billing_projects(request: web.Request, userdata: UserData) -
 async def post_reopen_billing_projects(request: web.Request, userdata: UserData) -> NoReturn:
     db: Database = request.app['db']
     billing_project = request.match_info['billing_project']
-    actor = userdata['username']
+    grant = grant_from_system_permission(
+        userdata,
+        SystemPermission.UPDATE_ALL_BILLING_PROJECTS,
+        BillingPermission.CLOSE_REOPEN_BP,
+        BillingProjectTarget(billing_project),
+    )
 
     session = await aiohttp_session.get_session(request)
     try:
-        await _handle_ui_error(session, billing_dao.reopen_billing_project, db, billing_project, actor)
+        await _handle_ui_error(session, billing_dao.reopen_billing_project, db, billing_project, grant)
         set_message(session, f'Re-opened billing project {billing_project}.', 'info')
     finally:
         raise web.HTTPFound(deploy_config.external_url('batch', '/billing_projects'))  # pylint: disable=lost-exception
@@ -3746,12 +3783,11 @@ async def post_reopen_billing_projects(request: web.Request, userdata: UserData)
 @routes.post('/api/v1alpha/billing_projects/{billing_project}/reopen')
 @auth.authenticated_users_only()
 @billing_permission_required(BillingPermission.CLOSE_REOPEN_BP)
-async def api_reopen_billing_projects(request: web.Request, userdata: UserData) -> web.Response:
+async def api_reopen_billing_projects(request: web.Request, _: UserData) -> web.Response:
     db: Database = request.app['db']
     billing_project = request.match_info['billing_project']
-    actor = userdata['username']
     comment = _optional_str(await _json_body(request, required=False), 'comment')
-    await _handle_api_error(billing_dao.reopen_billing_project, db, billing_project, actor, comment)
+    await _handle_api_error(billing_dao.reopen_billing_project, db, billing_project, request['billing_grant'], comment)
     return json_response(billing_project)
 
 
@@ -3761,7 +3797,13 @@ async def api_delete_billing_projects(request: web.Request, userdata: UserData) 
     db: Database = request.app['db']
     billing_project = request.match_info['billing_project']
 
-    await _handle_api_error(billing_dao.delete_billing_project, db, billing_project, userdata['username'])
+    grant = grant_from_system_permission(
+        userdata,
+        SystemPermission.DELETE_ALL_BILLING_PROJECTS,
+        BillingPermission.DELETE_BP,
+        BillingProjectTarget(billing_project),
+    )
+    await _handle_api_error(billing_dao.delete_billing_project, db, billing_project, grant)
     return json_response(billing_project)
 
 
@@ -3771,22 +3813,31 @@ async def api_delete_billing_projects(request: web.Request, userdata: UserData) 
 async def api_patch_billing_project(request: web.Request, userdata: UserData) -> web.Response:
     db: Database = request.app['db']
     billing_project = request.match_info['billing_project']
-    actor = userdata['username']
-    billing_role: str = request['billing_role']
+    target = BillingProjectTarget(billing_project)
 
     body = await _json_body(request)
     comment = _optional_str(body, 'comment')
 
     updates: dict = {}
+    limit_grant = None
+    unlimited_grant = None
     if 'limit' in body:
-        if BillingPermission.EDIT_BP_LIMIT not in BILLING_ROLE_PERMISSIONS.get(billing_role, set()):
-            raise web.HTTPForbidden(reason='Insufficient billing permissions to edit billing project limit.')
+        limit_grant = await require(db, userdata, BillingPermission.EDIT_BP_LIMIT, target)
         updates['limit'] = _parse_billing_limit_or_400(body['limit'])
+        if updates['limit'] is None:
+            unlimited_grant = await require(db, userdata, BillingPermission.SET_UNLIMITED, GlobalTarget())
     if 'description' in body:
         updates['description'] = _optional_str(body, 'description')
 
     await _handle_api_error(
-        billing_dao.patch_billing_project, db, billing_project, updates, actor, billing_role, comment
+        billing_dao.patch_billing_project,
+        db,
+        billing_project,
+        updates,
+        request['billing_grant'],
+        limit_grant=limit_grant,
+        unlimited_grant=unlimited_grant,
+        comment=comment,
     )
     return json_response({'billing_project': billing_project})
 
@@ -3797,7 +3848,6 @@ async def api_patch_billing_project(request: web.Request, userdata: UserData) ->
 async def api_change_billing_project_quote(request: web.Request, userdata: UserData) -> web.Response:
     db: Database = request.app['db']
     billing_project = request.match_info['billing_project']
-    actor = userdata['username']
     body = await _json_body(request)
     dest_quote_name = _optional_str(body, 'quote_name')
     comment = _optional_str(body, 'comment')
@@ -3809,14 +3859,21 @@ async def api_change_billing_project_quote(request: web.Request, userdata: UserD
         raise web.HTTPBadRequest(reason=f'Unknown quote {dest_quote_name}.')
     dest_quote_id = dest_quote_row['id']
 
-    dest_role = await resolve_billing_role_for_quote_id(db, actor, userdata, dest_quote_id)
-    if dest_role is None or BillingPermission.CHANGE_BP_QUOTE not in BILLING_ROLE_PERMISSIONS.get(dest_role, set()):
+    try:
+        dest_grant = await require(db, userdata, BillingPermission.CHANGE_BP_QUOTE, QuoteTarget(dest_quote_id))
+    except web.HTTPForbidden as e:
         raise web.HTTPForbidden(
             reason='You must be a manager of the destination quote to move a billing project there.'
-        )
+        ) from e
 
     await _handle_api_error(
-        billing_dao.change_billing_project_quote, db, billing_project, dest_quote_id, actor, comment
+        billing_dao.change_billing_project_quote,
+        db,
+        billing_project,
+        dest_quote_id,
+        request['billing_grant'],
+        dest_grant,
+        comment,
     )
     return json_response({'billing_project': billing_project, 'quote_name': dest_quote_name})
 
@@ -3851,7 +3908,9 @@ async def list_quotes(request: web.Request, userdata) -> web.Response:
 async def create_quote(request: web.Request, userdata: UserData) -> web.Response:
     db: Database = request.app['db']
     quote_name = request.match_info['name']
-    actor = userdata['username']
+    grant = grant_from_system_permission(
+        userdata, SystemPermission.CREATE_QUOTES, BillingPermission.CREATE_QUOTE, GlobalTarget()
+    )
     body = await _json_body(request)
 
     cost_object = _optional_str(body, 'cost_object')
@@ -3874,7 +3933,7 @@ async def create_quote(request: web.Request, userdata: UserData) -> web.Response
         db,
         quote_name,
         cost_object,
-        actor,
+        grant,
         authorized_amount=authorized_amount,
         pi_name=pi_name,
         pm_designee=pm_designee,
@@ -3904,12 +3963,13 @@ async def get_quote(request: web.Request, _: UserData) -> web.Response:
 async def edit_quote(request: web.Request, userdata: UserData) -> web.Response:
     db: Database = request.app['db']
     quote_name = request.match_info['name']
-    actor = userdata['username']
-    billing_role: str = request['billing_role']
+    grant = request['billing_grant']
     body = await _json_body(request)
     comment = _optional_str(body, 'comment')
 
     updates: dict = {}
+    amount_grant = None
+    unlimited_grant = None
     if 'cost_object' in body:
         cost_object = _optional_str(body, 'cost_object')
         if not cost_object:
@@ -3919,51 +3979,57 @@ async def edit_quote(request: web.Request, userdata: UserData) -> web.Response:
         if field in body:
             updates[field] = _optional_str(body, field)
     if 'authorized_amount' in body:
-        if BillingPermission.EDIT_QUOTE_AMOUNT not in BILLING_ROLE_PERMISSIONS.get(billing_role, set()):
-            raise web.HTTPForbidden(reason="Insufficient billing permissions to change a quote's authorized_amount.")
+        amount_grant = await require(db, userdata, BillingPermission.EDIT_QUOTE_AMOUNT, grant.target)
         aa = body['authorized_amount']
         if aa == 'unlimited' or aa is None:
             updates['authorized_amount'] = None
+            unlimited_grant = await require(db, userdata, BillingPermission.SET_UNLIMITED, GlobalTarget())
         else:
             updates['authorized_amount'] = _parse_authorized_amount(aa)
 
-    await _handle_api_error(billing_dao.edit_quote, db, quote_name, updates, actor, billing_role, comment)
+    await _handle_api_error(
+        billing_dao.edit_quote,
+        db,
+        quote_name,
+        updates,
+        grant,
+        amount_grant=amount_grant,
+        unlimited_grant=unlimited_grant,
+        comment=comment,
+    )
     return json_response({'name': quote_name})
 
 
 @routes.post('/api/v1alpha/quotes/{name}/close')
 @auth.authenticated_users_only()
 @billing_permission_required(BillingPermission.CLOSE_QUOTE)
-async def close_quote(request: web.Request, userdata: UserData) -> web.Response:
+async def close_quote(request: web.Request, _: UserData) -> web.Response:
     db: Database = request.app['db']
     quote_name = request.match_info['name']
-    actor = userdata['username']
     comment = _optional_str(await _json_body(request, required=False), 'comment')
 
-    await _handle_api_error(billing_dao.close_quote, db, quote_name, actor, comment)
+    await _handle_api_error(billing_dao.close_quote, db, quote_name, request['billing_grant'], comment)
     return json_response({'name': quote_name})
 
 
 @routes.post('/api/v1alpha/quotes/{name}/reopen')
 @auth.authenticated_users_only()
 @billing_permission_required(BillingPermission.CLOSE_QUOTE)
-async def reopen_quote(request: web.Request, userdata: UserData) -> web.Response:
+async def reopen_quote(request: web.Request, _: UserData) -> web.Response:
     db: Database = request.app['db']
     quote_name = request.match_info['name']
-    actor = userdata['username']
     comment = _optional_str(await _json_body(request, required=False), 'comment')
 
-    await _handle_api_error(billing_dao.reopen_quote, db, quote_name, actor, comment)
+    await _handle_api_error(billing_dao.reopen_quote, db, quote_name, request['billing_grant'], comment)
     return json_response({'name': quote_name})
 
 
 @routes.post('/api/v1alpha/quotes/{name}/managers')
 @auth.authenticated_users_only()
 @billing_permission_required(BillingPermission.ADD_MANAGER)
-async def add_quote_manager(request: web.Request, userdata: UserData) -> web.Response:
+async def add_quote_manager(request: web.Request, _: UserData) -> web.Response:
     db: Database = request.app['db']
     quote_name = request.match_info['name']
-    actor = userdata['username']
     body = await _json_body(request)
     target_user = _optional_str(body, 'user')
     role = body.get('role', 'manager')
@@ -3973,21 +4039,24 @@ async def add_quote_manager(request: web.Request, userdata: UserData) -> web.Res
     if role not in ('owner', 'manager'):
         raise web.HTTPBadRequest(reason="'role' must be 'owner' or 'manager'.")
 
-    await _handle_api_error(billing_dao.add_quote_manager, db, quote_name, target_user, role, actor, comment)
+    await _handle_api_error(
+        billing_dao.add_quote_manager, db, quote_name, target_user, role, request['billing_grant'], comment
+    )
     return json_response({'quote': quote_name, 'user': target_user, 'role': role})
 
 
 @routes.delete('/api/v1alpha/quotes/{name}/managers/{user}')
 @auth.authenticated_users_only()
 @billing_permission_required(BillingPermission.MANAGE_MANAGERS)
-async def remove_quote_manager(request: web.Request, userdata: UserData) -> web.Response:
+async def remove_quote_manager(request: web.Request, _: UserData) -> web.Response:
     db: Database = request.app['db']
     quote_name = request.match_info['name']
     target_user = request.match_info['user']
-    actor = userdata['username']
     comment = _optional_str(await _json_body(request, required=False), 'comment')
 
-    await _handle_api_error(billing_dao.remove_quote_manager, db, quote_name, target_user, actor, comment)
+    await _handle_api_error(
+        billing_dao.remove_quote_manager, db, quote_name, target_user, request['billing_grant'], comment
+    )
     return json_response({'quote': quote_name, 'user': target_user})
 
 
