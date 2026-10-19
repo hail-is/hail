@@ -7,15 +7,20 @@ process: clients and credentials are tied to the loop that created them.
 
 import asyncio
 import inspect
+import logging
 import os
 import sys
 import threading
-from typing import Any, Awaitable, Optional, TypeVar
+from typing import Any, Awaitable, Coroutine, Optional, Set, TypeVar
 
 T = TypeVar('T')
 
+log = logging.getLogger('hailtop.hail_event_loop')
+
 _lock = threading.Lock()
 _loop: Optional[asyncio.AbstractEventLoop] = None
+# The loop only keeps weak references to tasks, so tasks nobody awaits are kept alive here.
+_background_tasks: Set[asyncio.Task[Any]] = set()
 
 
 def _hail_loop() -> asyncio.AbstractEventLoop:
@@ -36,9 +41,10 @@ def _hail_loop() -> asyncio.AbstractEventLoop:
 
 def _forget_loop_after_fork() -> None:
     # The loop's thread doesn't exist in a forked child, so the child starts its own.
-    global _lock, _loop
+    global _lock, _loop, _background_tasks
     _lock = threading.Lock()
     _loop = None
+    _background_tasks = set()
 
 
 if hasattr(os, 'register_at_fork'):  # not on Windows
@@ -104,6 +110,30 @@ async def run_on_hail_loop(coro: Awaitable[T]) -> T:
     if not inspect.iscoroutine(coro):
         coro = _await(coro)
     return await asyncio.wrap_future(asyncio.run_coroutine_threadsafe(coro, loop))
+
+
+def on_hail_loop() -> bool:
+    """Whether the caller is running on the Hail event loop, where `async_to_blocking` would deadlock."""
+    loop = _loop
+    return loop is not None and _running_loop() is loop
+
+
+def _spawn_on_hail_loop(coro: Coroutine[Any, Any, Any]) -> None:
+    """Start `coro` on the Hail event loop without waiting for it. Only call this from the loop.
+
+    For code that can't await or block, such as a finalizer the cycle collector runs on the loop's
+    thread. Nothing can receive a failure, so it is logged.
+    """
+    assert on_hail_loop()
+    task = asyncio.get_running_loop().create_task(coro)
+    _background_tasks.add(task)
+    task.add_done_callback(_background_task_done)
+
+
+def _background_task_done(task: asyncio.Task[Any]) -> None:
+    _background_tasks.discard(task)
+    if not task.cancelled() and (exc := task.exception()) is not None:
+        log.error('a background task on the Hail event loop failed', exc_info=exc)
 
 
 def _close(awaitable: Awaitable[Any]) -> None:

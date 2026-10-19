@@ -7,10 +7,12 @@ import subprocess
 import sys
 import textwrap
 import threading
+import time
 
 import pytest
 
-from hailtop.utils import async_to_blocking, run_on_hail_loop
+from hailtop.hail_event_loop import _spawn_on_hail_loop
+from hailtop.utils import async_to_blocking, on_hail_loop, run_on_hail_loop
 
 pytestmark = pytest.mark.timeout(20)
 
@@ -166,6 +168,47 @@ def test_run_on_hail_loop_awaits_directly_when_already_on_the_hail_loop():
 
     caller_loop, work_loop = async_to_blocking(from_hail_async_code())
     assert work_loop is caller_loop
+
+
+def test_on_hail_loop_is_true_only_on_the_hail_loop():
+    async def check():
+        return on_hail_loop()
+
+    assert not on_hail_loop()
+    assert async_to_blocking(check())
+    assert not asyncio.run(check())
+
+
+def test_spawn_on_hail_loop_runs_work_nobody_awaits():
+    ran = threading.Event()
+
+    async def work():
+        await asyncio.sleep(0)
+        ran.set()
+
+    async def from_hail_async_code():
+        _spawn_on_hail_loop(work())
+
+    async_to_blocking(from_hail_async_code())
+    assert ran.wait(5)
+
+
+def test_spawn_on_hail_loop_logs_failures(caplog):
+    async def fails():
+        raise ValueError('from the work')
+
+    async def from_hail_async_code():
+        _spawn_on_hail_loop(fails())
+
+    def logged():
+        return [r for r in caplog.records if r.name == 'hailtop.hail_event_loop' and r.exc_info is not None]
+
+    async_to_blocking(from_hail_async_code())
+    deadline = time.monotonic() + 5
+    while not logged() and time.monotonic() < deadline:
+        time.sleep(0.01)
+    (record,) = logged()
+    assert isinstance(record.exc_info[1], ValueError)
 
 
 def test_raises_instead_of_hanging_during_interpreter_shutdown():

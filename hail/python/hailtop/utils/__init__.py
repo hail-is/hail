@@ -1,4 +1,4 @@
-from ..hail_event_loop import async_to_blocking, run_on_hail_loop
+from ..hail_event_loop import async_to_blocking, on_hail_loop, run_on_hail_loop
 from . import rich_progress_bar, serialization
 from .process import (
     CalledProcessError,
@@ -107,6 +107,7 @@ __all__ = [
     'is_delayed_warning_error',
     'is_limited_retries_error',
     'is_transient_error',
+    'on_hail_loop',
     'parse_docker_image_reference',
     'parse_timestamp_msecs',
     'partition',

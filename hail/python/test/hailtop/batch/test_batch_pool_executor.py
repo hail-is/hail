@@ -58,6 +58,15 @@ def test_simple_submit_result(backend):
     assert 21 == future_twenty_one.result()
 
 
+def test_submit_with_an_any_region_backend():
+    # The Batch for each submission is created on the Hail event loop, so it must not block to look up the region.
+    backend = RecordingServiceBackend(regions=ServiceBackend.ANY_REGION)
+    with BatchPoolExecutor(backend=backend, project='hail-vdc', image=PYTHON_DILL_IMAGE) as bpe:
+        future_twenty_one = bpe.submit(lambda: 7 * 3)
+        assert bpe.batches[0]._default_regions == [backend.default_region()]
+    assert 21 == future_twenty_one.result()
+
+
 def test_cancel_future(backend):
     with BatchPoolExecutor(backend=backend, project='hail-vdc', image=PYTHON_DILL_IMAGE) as bpe:
 
