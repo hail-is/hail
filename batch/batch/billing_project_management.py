@@ -622,9 +622,10 @@ async def create_billing_project(
         quote_authorized = quote_row['authorized_amount']
 
         if limit is None:
-            expect(unlimited_grant, BillingPermission.SET_UNLIMITED, GlobalTarget(), actor)
+            # Rule check before grant check: a missing limit on an ordinary quote is a bad request, not a caller bug.
             if quote_id != INTERNAL_QUOTE_ID or quote_authorized is not None:
                 raise BillingValidationError('Unlimited billing projects can only be created under the INTERNAL quote.')
+            expect(unlimited_grant, BillingPermission.SET_UNLIMITED, GlobalTarget(), actor)
 
         if limit is not None and quote_authorized is not None:
             existing_sum = await _sum_of_limits(tx, quote_id)
@@ -702,9 +703,10 @@ FOR UPDATE;
         if 'limit' in updates:
             new_limit = _parse_billing_limit(updates['limit'])
             if new_limit is None:
-                expect(unlimited_grant, BillingPermission.SET_UNLIMITED, GlobalTarget(), actor)
+                # Rule check before grant check: a null limit on an ordinary quote is a bad request, not a caller bug.
                 if row['quote_id'] != INTERNAL_QUOTE_ID or row['authorized_amount'] is not None:
                     raise BillingValidationError('Unlimited billing projects can only exist under the INTERNAL quote.')
+                expect(unlimited_grant, BillingPermission.SET_UNLIMITED, GlobalTarget(), actor)
             elif row['authorized_amount'] is not None:
                 other_bp_limits_sum = await _sum_of_limits(tx, row['quote_id'], excluding_billing_project=bp_name)
                 if _exceeds(other_bp_limits_sum + new_limit, row['authorized_amount']):
