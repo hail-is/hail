@@ -120,9 +120,7 @@ from ..cloud.utils import ACCEPTABLE_QUERY_JAR_URL_PREFIX, SPARK_ARCHIVE_URL_PRE
 from ..exceptions import (
     BatchOperationAlreadyCompletedError,
     BatchUserError,
-    ClosedBillingProjectError,
     InvalidBillingLimitError,
-    NonExistentBillingProjectError,
     NonExistentJobGroupError,
     NonExistentUserError,
     QueryError,
@@ -3254,46 +3252,30 @@ async def ui_get_billing_limits(request, userdata):
     return await render_template('batch', request, userdata, 'billing_limits.html', page_context)
 
 
-async def _edit_billing_limit(db, billing_project, limit):
-    limit = _parse_billing_limit(limit)
-
-    @transaction(db)
-    async def insert(tx):
-        row = await tx.execute_and_fetchone(
-            """
-SELECT billing_projects.name as billing_project,
-    billing_projects.`status` as `status`
-FROM billing_projects
-WHERE billing_projects.name_cs = %s AND billing_projects.`status` != 'deleted'
-FOR UPDATE;
-        """,
-            (billing_project,),
-        )
-        if row is None:
-            raise NonExistentBillingProjectError(billing_project)
-
-        if row['status'] == 'closed':
-            raise ClosedBillingProjectError(billing_project)
-
-        with invariant_violations_as_user_errors():
-            await tx.execute_update(
-                """
-UPDATE billing_projects SET `limit` = %s WHERE name_cs = %s;
-""",
-                (limit, billing_project),
-            )
-
-    await insert()
+async def _edit_billing_limit(db: Database, userdata: UserData, billing_project: str, limit) -> None:
+    # Legacy route, authorized by a system permission: goes through the DB layer so the change is checked and audited.
+    target = BillingProjectTarget(billing_project)
+    permission = SystemPermission.UPDATE_ALL_BILLING_PROJECTS
+    await billing_dao.patch_billing_project(
+        db,
+        billing_project,
+        {'limit': limit},
+        grant_from_system_permission(userdata, permission, BillingPermission.EDIT_BP_METADATA, target),
+        limit_grant=grant_from_system_permission(userdata, permission, BillingPermission.EDIT_BP_LIMIT, target),
+        unlimited_grant=grant_from_system_permission(
+            userdata, permission, BillingPermission.SET_UNLIMITED, GlobalTarget()
+        ),
+    )
 
 
 @routes.post('/api/v1alpha/billing_limits/{billing_project}/edit')
 @auth.authenticated_users_with_permission(SystemPermission.UPDATE_ALL_BILLING_PROJECTS, redirect=False)
-async def post_edit_billing_limits(request: web.Request, _: UserData) -> web.Response:
+async def post_edit_billing_limits(request: web.Request, userdata: UserData) -> web.Response:
     db: Database = request.app['db']
     billing_project = request.match_info['billing_project']
     data = await json_request(request)
     limit = data['limit']
-    await _handle_api_error(_edit_billing_limit, db, billing_project, limit)
+    await _handle_api_error(_edit_billing_limit, db, userdata, billing_project, limit)
     return json_response({'billing_project': billing_project, 'limit': limit})
 
 
@@ -3301,14 +3283,14 @@ async def post_edit_billing_limits(request: web.Request, _: UserData) -> web.Res
 @web_security_headers
 @auth.authenticated_users_with_permission(SystemPermission.UPDATE_ALL_BILLING_PROJECTS, redirect=False)
 @catch_ui_error_in_dev
-async def post_edit_billing_limits_ui(request: web.Request, _) -> NoReturn:
+async def post_edit_billing_limits_ui(request: web.Request, userdata: UserData) -> NoReturn:
     db: Database = request.app['db']
     billing_project = request.match_info['billing_project']
     post = await request.post()
     limit = post['limit']
     session = await aiohttp_session.get_session(request)
     try:
-        await _handle_ui_error(session, _edit_billing_limit, db, billing_project, limit)
+        await _handle_ui_error(session, _edit_billing_limit, db, userdata, billing_project, limit)
         set_message(session, f'Modified limit {limit} for billing project {billing_project}.', 'info')  # type: ignore
     finally:
         raise web.HTTPFound(deploy_config.external_url('batch', '/billing_limits'))  # pylint: disable=lost-exception
