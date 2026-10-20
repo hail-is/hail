@@ -198,6 +198,7 @@ export function BillingProjectPage({ basePath, bpName, username }: Props) {
 
   const billingRole = bp?.billing_role ?? null;
   const canEditLimit = can(billingRole, 'edit_bp_limit');
+  const canEditDescription = can(billingRole, 'edit_bp_metadata');
   const canBeUnlimited = bp.quote_name === INTERNAL_QUOTE_NAME && billingRole === 'global_bm';
   const canAddMembers = can(billingRole, 'add_bp_member');
   const canManageMembers = can(billingRole, 'manage_bp_members');
@@ -250,7 +251,7 @@ export function BillingProjectPage({ basePath, bpName, username }: Props) {
             <EditableRow
               label="Description"
               value={bp.description ?? ''}
-              canEdit={bp.status === 'open'}
+              canEdit={canEditDescription}
               onSave={(val) => patch({ description: val || null })}
             />
             <EditableRow
