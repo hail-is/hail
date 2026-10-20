@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { GanttChart, GanttRow } from '../../shared/GanttChart';
 import { ToggleSwitch } from '../../shared/ToggleSwitch';
+import { CLOCK_TIME, TimeAxisToggle } from '../../shared/timeAxis';
 import { formatTimestamp } from '../../shared/timeUtils';
 import { Job, Attempt, ContainerStatus, TERMINAL_STATES } from './jobModels';
 
@@ -164,7 +165,7 @@ interface Props {
 
 export function JobTimelineGantt({ job, attempts, isTerminal }: Props): JSX.Element | null {
   const [showPriorAttempts, setShowPriorAttempts] = useState(true);
-  const [relativeTime, setRelativeTime] = useState(false);
+  const [axis, setAxis] = useState(CLOCK_TIME);
   const hasPriorAttempts = attempts.length > 1;
   const { rows, ruleXs } = buildGanttRows(job, attempts, showPriorAttempts);
   const colorMap = buildColorMap(rows);
@@ -177,9 +178,9 @@ export function JobTimelineGantt({ job, attempts, isTerminal }: Props): JSX.Elem
         {hasPriorAttempts && (
           <ToggleSwitch checked={showPriorAttempts} onChange={setShowPriorAttempts} label="Show prior attempts" />
         )}
-        <ToggleSwitch checked={relativeTime} onChange={setRelativeTime} label="Relative time" />
+        <TimeAxisToggle mode={axis} onChange={setAxis} />
       </div>
-      <GanttChart rows={rows} colorMap={colorMap} ruleXs={ruleXs} extendToNow={!isTerminal} relativeTime={relativeTime} />
+      <GanttChart rows={rows} colorMap={colorMap} ruleXs={ruleXs} extendToNow={!isTerminal} axis={axis} />
     </div>
   );
 }

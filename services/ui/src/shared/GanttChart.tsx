@@ -1,6 +1,6 @@
 import * as Plot from '@observablehq/plot';
 import { useEffect, useRef, useState } from 'react';
-import { formatClockTick, formatDuration } from './timeUtils';
+import { TimeAxisMode } from './timeAxis';
 
 export interface GanttRow {
   label: string;
@@ -20,8 +20,8 @@ interface Props {
   colorMap: Map<string, string>;
   ruleXs?: RuleMark[];
   extendToNow?: boolean;
-  // Label the x-axis with time elapsed since the earliest bar instead of wall-clock timestamps
-  relativeTime?: boolean;
+  // Relative modes measure from the earliest bar
+  axis: TimeAxisMode;
 }
 
 interface TooltipState { text: string; x: number; y: number }
@@ -31,7 +31,7 @@ const RULE_LABEL_MARGIN_PX = 50; // extra top margin when rule labels are shown
 const MAX_BAR_HEIGHT = 200;
 const MIN_BAR_HEIGHT = 20;
 
-export function GanttChart({ rows, colorMap, ruleXs, extendToNow, relativeTime }: Props): JSX.Element {
+export function GanttChart({ rows, colorMap, ruleXs, extendToNow, axis }: Props): JSX.Element {
   const containerRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState<number | null>(null);
   const [tooltip, setTooltip] = useState<TooltipState | null>(null);
@@ -58,7 +58,7 @@ export function GanttChart({ rows, colorMap, ruleXs, extendToNow, relativeTime }
     const marginTop = hasRules ? RULE_LABEL_MARGIN_PX : 10;
 
     const originMs = Math.min(...rows.map((r) => r.start.getTime()));
-    const toX = (d: Date): Date | number => (relativeTime ? (d.getTime() - originMs) / 1000 : d);
+    const toX = (d: Date): number => axis.toX(d.getTime(), originMs);
     const xDomain = extendToNow ? [toX(new Date(originMs)), toX(new Date())] : undefined;
 
     const yDomain = [...new Set(rows.map((r) => r.label))];
@@ -73,7 +73,7 @@ export function GanttChart({ rows, colorMap, ruleXs, extendToNow, relativeTime }
       marginRight: 20,
       marginBottom: 50, // extra space for the two-line first tick label
       color: { domain: [...colorMap.keys()], range: [...colorMap.values()], legend: true },
-      x: { type: relativeTime ? 'linear' : 'time', axis: null, domain: xDomain }, // disable auto axis; we add it explicitly below
+      x: { type: axis.scale, axis: null, domain: xDomain }, // disable auto axis; we add it explicitly below
       y: { label: null, domain: yDomain },
       marks: [
         Plot.barX(rows, {
@@ -86,8 +86,9 @@ export function GanttChart({ rows, colorMap, ruleXs, extendToNow, relativeTime }
         // Explicit bottom axis so it is always pinned to the bottom of the element
         Plot.axisX({
           anchor: 'bottom',
-          label: relativeTime ? 'Elapsed' : 'Time',
-          tickFormat: relativeTime ? (s: number) => formatDuration(s * 1000) : formatClockTick,
+          label: axis.axisTitle,
+          // Plot passes Dates on a time scale
+          tickFormat: (x: number | Date, i: number) => axis.formatTick(Number(x), i),
         }),
         ...(hasRules ? [
           Plot.ruleX(rules, {
@@ -133,7 +134,7 @@ export function GanttChart({ rows, colorMap, ruleXs, extendToNow, relativeTime }
       plot.remove();
       setTooltip(null);
     };
-  }, [rows, colorMap, ruleXs, extendToNow, relativeTime, width]);
+  }, [rows, colorMap, ruleXs, extendToNow, axis, width]);
 
   return (
     <>

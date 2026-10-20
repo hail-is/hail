@@ -10,8 +10,7 @@ import {
   XAxisTickContentProps,
 } from 'recharts';
 import { useState } from 'react';
-import { ToggleSwitch } from '../../shared/ToggleSwitch';
-import { formatClockTick, formatDuration, formatTimestamp } from '../../shared/timeUtils';
+import { CLOCK_TIME, TimeAxisMode, TimeAxisToggle } from '../../shared/timeAxis';
 
 // orient='split' format from pandas DataFrame.to_dict()
 export interface SplitDataFrame {
@@ -45,13 +44,14 @@ function containerColor(name: string, index: number): string {
 interface ContainerSeries {
   name: string;
   color: string;
-  // t is epoch ms, or seconds since the earliest sample when relativeTime is set
+  // t is an axis value from TimeAxisMode.toX
   data: { t: number; value: number | null }[];
 }
 
 // Recharts doesn't break tick labels on newlines, so render each line as its own tspan
-function ClockTick({ x, y, payload, index }: XAxisTickContentProps): JSX.Element {
-  const lines = formatClockTick(payload.value as number | Date, index).split('\n');
+function AxisTick({ x, y, payload, index, format }: XAxisTickContentProps & { format: TimeAxisMode['formatTick'] }): JSX.Element {
+  // Recharts passes Dates on a time scale
+  const lines = format(Number(payload.value), index).split('\n');
   return (
     <text x={x} y={y} textAnchor="middle" fontSize={10} fill="#666">
       {lines.map((line, i) => (
@@ -67,10 +67,10 @@ interface MetricChartProps {
   valueFormatter: (_v: number) => string;
   tickFormatter: (_v: number) => string;
   xDomain: [number, number];
-  relativeTime: boolean;
+  axis: TimeAxisMode;
 }
 
-function MetricChart({ title, containers, valueFormatter, tickFormatter, xDomain, relativeTime }: MetricChartProps): JSX.Element | null {
+function MetricChart({ title, containers, valueFormatter, tickFormatter, xDomain, axis }: MetricChartProps): JSX.Element | null {
   if (containers.every((c) => c.data.length === 0)) return null;
 
   return (
@@ -82,19 +82,17 @@ function MetricChart({ title, containers, valueFormatter, tickFormatter, xDomain
           <XAxis
             dataKey="t"
             type="number"
-            scale={relativeTime ? 'linear' : 'time'}
+            scale={axis.scale}
             domain={xDomain}
             interval="preserveStart"
-            // Fixed so the plot area doesn't shift when toggling; fits the two-line first clock tick
+            // Fixed so the plot area doesn't shift when toggling; fits a two-line tick label
             height={42}
-            {...(relativeTime
-              ? { tickFormatter: (v: number) => formatDuration(v * 1000), tick: { fontSize: 10 } }
-              : { tick: ClockTick })}
+            tick={(props: XAxisTickContentProps) => <AxisTick {...props} format={axis.formatTick} />}
           />
           <YAxis tickFormatter={tickFormatter} tick={{ fontSize: 10 }} />
           <Tooltip
             formatter={(v) => (typeof v === 'number' ? valueFormatter(v) : String(v))}
-            labelFormatter={(t) => (relativeTime ? `+${formatDuration(Number(t) * 1000)}` : formatTimestamp(Number(t)))}
+            labelFormatter={(t) => axis.formatTooltip(Number(t))}
           />
           <Legend />
           {containers.map(({ name, color, data }) => (
@@ -109,7 +107,7 @@ function MetricChart({ title, containers, valueFormatter, tickFormatter, xDomain
 interface Props { data: ResourceUsageData }
 
 export function ResourceCharts({ data }: Props): JSX.Element {
-  const [relativeTime, setRelativeTime] = useState(false);
+  const [axis, setAxis] = useState(CLOCK_TIME);
   const containers = Object.entries(data).filter(([, df]) => df !== null) as [string, SplitDataFrame][];
 
   if (containers.length === 0) {
@@ -137,7 +135,7 @@ export function ResourceCharts({ data }: Props): JSX.Element {
   }
   if (!isFinite(globalMaxTime)) globalMaxTime = globalBaseTime;
 
-  const toX = (ms: number): number => (relativeTime ? (ms - globalBaseTime) / 1000 : ms);
+  const toX = (ms: number): number => axis.toX(ms, globalBaseTime);
   const xDomain: [number, number] = [toX(globalBaseTime), toX(globalMaxTime)];
 
   function buildSeries(df: SplitDataFrame, colName: string): Array<{ t: number; value: number | null }> {
@@ -163,7 +161,7 @@ export function ResourceCharts({ data }: Props): JSX.Element {
   return (
     <div>
       <div className="flex mb-2">
-        <ToggleSwitch checked={relativeTime} onChange={setRelativeTime} label="Relative time" />
+        <TimeAxisToggle mode={axis} onChange={setAxis} />
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <MetricChart
@@ -172,7 +170,7 @@ export function ResourceCharts({ data }: Props): JSX.Element {
           valueFormatter={(v) => `${(v * 100).toFixed(1)}%`}
           tickFormatter={(v) => `${(v * 100).toFixed(0)}%`}
           xDomain={xDomain}
-          relativeTime={relativeTime}
+          axis={axis}
         />
         <MetricChart
           title="Memory"
@@ -180,7 +178,7 @@ export function ResourceCharts({ data }: Props): JSX.Element {
           valueFormatter={formatBytes}
           tickFormatter={formatBytes}
           xDomain={xDomain}
-          relativeTime={relativeTime}
+          axis={axis}
         />
         <MetricChart
           title="Network Download"
@@ -188,7 +186,7 @@ export function ResourceCharts({ data }: Props): JSX.Element {
           valueFormatter={(v) => `${formatBytes(v)}/s`}
           tickFormatter={formatBytes}
           xDomain={xDomain}
-          relativeTime={relativeTime}
+          axis={axis}
         />
         <MetricChart
           title="Network Upload"
@@ -196,7 +194,7 @@ export function ResourceCharts({ data }: Props): JSX.Element {
           valueFormatter={(v) => `${formatBytes(v)}/s`}
           tickFormatter={formatBytes}
           xDomain={xDomain}
-          relativeTime={relativeTime}
+          axis={axis}
         />
         <MetricChart
           title="Storage (Container Overlay)"
@@ -204,7 +202,7 @@ export function ResourceCharts({ data }: Props): JSX.Element {
           valueFormatter={formatBytes}
           tickFormatter={formatBytes}
           xDomain={xDomain}
-          relativeTime={relativeTime}
+          axis={axis}
         />
         {hasIoStorage && (
           <MetricChart
@@ -213,7 +211,7 @@ export function ResourceCharts({ data }: Props): JSX.Element {
             valueFormatter={formatBytes}
             tickFormatter={formatBytes}
             xDomain={xDomain}
-            relativeTime={relativeTime}
+            axis={axis}
           />
         )}
       </div>
