@@ -135,7 +135,19 @@ async def test_can_view_quote_quote_manager(db, unique_name):
     bp_cvq_qm = unique_name('bp-cvq-qm')
     await _make_bp(db, q_cvq_qm, bp_cvq_qm)
     await add_quote_manager(db, q_cvq_qm, 'piuser', 'manager', actor='admin')
-    results = await query_billing_projects_with_cost(db, billing_project=bp_cvq_qm, quote_manager_user='piuser')
+    results = await query_billing_projects_with_cost(
+        db, caller='piuser', restrict_to_caller=True, billing_project=bp_cvq_qm
+    )
+    assert len(results) == 1
+    assert results[0]['can_view_quote'] is True
+
+
+async def test_can_view_quote_quote_manager_unrestricted(db, unique_name):
+    q_cvq_qmu = unique_name('q-cvq-qmu')
+    bp_cvq_qmu = unique_name('bp-cvq-qmu')
+    await _make_bp(db, q_cvq_qmu, bp_cvq_qmu)
+    await add_quote_manager(db, q_cvq_qmu, 'piuser', 'manager', actor='admin')
+    results = await query_billing_projects_with_cost(db, caller='piuser', billing_project=bp_cvq_qmu)
     assert results[0]['can_view_quote'] is True
 
 
@@ -145,7 +157,7 @@ async def test_can_view_quote_bp_member_only(db, unique_name):
     await _make_bp(db, q_cvq_bpm, bp_cvq_bpm)
     await add_billing_project_user(db, bp_cvq_bpm, 'regular', 'admin')
     results = await query_billing_projects_with_cost(
-        db, user='regular', billing_project=bp_cvq_bpm, quote_manager_user='regular'
+        db, caller='regular', restrict_to_caller=True, billing_project=bp_cvq_bpm
     )
     assert results[0]['can_view_quote'] is False
 
