@@ -96,7 +96,8 @@ export function QuotePage({ basePath, quoteName }: Props) {
   const billingRole = quote.billing_role;
   const canEdit = can(billingRole, 'edit_quote');
   const canBeUnlimited = quote.name === INTERNAL_QUOTE_NAME && billingRole === 'global_bm';
-  const canAddManagers = can(billingRole, 'add_manager');
+  // INTERNAL is managed by global billing managers only, so it never has quote owners or managers.
+  const canAddManagers = can(billingRole, 'add_manager') && quote.name !== INTERNAL_QUOTE_NAME;
   const canManageManagers = can(billingRole, 'manage_managers');
   const canCreateBp = can(billingRole, 'create_bp');
   const canCloseQuote = can(billingRole, 'close_quote');
