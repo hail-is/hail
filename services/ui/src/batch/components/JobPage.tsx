@@ -318,7 +318,7 @@ export function JobPage({ basePath, batchId, jobId }: Props): JSX.Element {
               resources={job.spec?.resources}
               activeSubTab={
                 attemptSubTabs[activeAttempt.attempt_id]
-                ?? (topTab === 'current_attempt' ? attemptSubTabs.current_attempt : undefined)
+                ?? (activeAttempt.attempt_id === latestAttempt?.attempt_id ? attemptSubTabs.current_attempt : undefined)
                 ?? 'main'
               }
               setActiveSubTab={(sub) => { updateAttemptSubTab(activeAttempt.attempt_id, sub); }}

@@ -44,11 +44,9 @@ export function formatClockTime(d: Date | number): string {
 export function formatClockTick(d: Date | number, i: number): string {
   const time = formatClockTime(d);
   if (i === 0) {
-    const date = new Date(d);
-    const dd = String(date.getDate()).padStart(2, '0');
-    const mo = String(date.getMonth() + 1).padStart(2, '0');
-    const yyyy = date.getFullYear();
-    return `${dd}/${mo}/${yyyy}\n${time}`;
+    // Short month name keeps the date unambiguous across locales
+    const date = new Date(d).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+    return `${date}\n${time}`;
   }
   return time;
 }
