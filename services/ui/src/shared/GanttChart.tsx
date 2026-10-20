@@ -1,6 +1,6 @@
 import * as Plot from '@observablehq/plot';
 import { useEffect, useRef, useState } from 'react';
-import { formatClockTime, formatElapsed } from './timeUtils';
+import { formatClockTick, formatElapsed } from './timeUtils';
 
 export interface GanttRow {
   label: string;
@@ -30,17 +30,6 @@ const BOTTOM_MARGINS_PX = 65; // bottom axis + legend
 const RULE_LABEL_MARGIN_PX = 50; // extra top margin when rule labels are shown
 const MAX_BAR_HEIGHT = 200;
 const MIN_BAR_HEIGHT = 20;
-
-function formatXTick(d: Date, i: number): string {
-  const time = formatClockTime(d);
-  if (i === 0) {
-    const dd = String(d.getDate()).padStart(2, '0');
-    const mo = String(d.getMonth() + 1).padStart(2, '0');
-    const yyyy = d.getFullYear();
-    return `${dd}/${mo}/${yyyy}\n${time}`;
-  }
-  return time;
-}
 
 export function GanttChart({ rows, colorMap, ruleXs, extendToNow, relativeTime }: Props): JSX.Element {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -98,7 +87,7 @@ export function GanttChart({ rows, colorMap, ruleXs, extendToNow, relativeTime }
         Plot.axisX({
           anchor: 'bottom',
           label: relativeTime ? 'Elapsed' : 'Time',
-          tickFormat: relativeTime ? formatElapsed : formatXTick,
+          tickFormat: relativeTime ? formatElapsed : formatClockTick,
         }),
         ...(hasRules ? [
           Plot.ruleX(rules, {

@@ -142,8 +142,9 @@ export function JobPage({ basePath, batchId, jobId }: Props): JSX.Element {
     const attemptId = params.get('attempt_id');
     const sub = params.get('subtab');
     const validSub = sub === 'details' || sub === 'charts' || sub === 'input' || sub === 'main' || sub === 'output' ? sub : null;
-    if (attemptId && validSub) return { [attemptId]: validSub };
-    return {};
+    if (!validSub) return {};
+    // Without an attempt_id the URL refers to the default (latest) attempt
+    return { [attemptId ?? 'current_attempt']: validSub };
   });
 
   const setTopTab = useCallback((tab: TopTab) => {
@@ -315,7 +316,11 @@ export function JobPage({ basePath, batchId, jobId }: Props): JSX.Element {
               hasInput={(job.spec?.input_files ?? []).length > 0}
               hasOutput={(job.spec?.output_files ?? []).length > 0}
               resources={job.spec?.resources}
-              activeSubTab={attemptSubTabs[activeAttempt.attempt_id] ?? 'main'}
+              activeSubTab={
+                attemptSubTabs[activeAttempt.attempt_id]
+                ?? (topTab === 'current_attempt' ? attemptSubTabs.current_attempt : undefined)
+                ?? 'main'
+              }
               setActiveSubTab={(sub) => { updateAttemptSubTab(activeAttempt.attempt_id, sub); }}
               attemptData={getAttemptData(activeAttempt.attempt_id)}
               onEnsureLoaded={() => { ensureAttemptLoaded(activeAttempt.attempt_id); }}

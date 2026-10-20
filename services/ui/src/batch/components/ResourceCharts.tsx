@@ -7,10 +7,11 @@ import {
   Tooltip,
   Legend,
   ResponsiveContainer,
+  XAxisTickContentProps,
 } from 'recharts';
 import { useState } from 'react';
 import { ToggleSwitch } from '../../shared/ToggleSwitch';
-import { formatClockTime, formatElapsed, formatTime } from '../../shared/timeUtils';
+import { formatClockTick, formatElapsed, formatTime } from '../../shared/timeUtils';
 
 // orient='split' format from pandas DataFrame.to_dict()
 export interface SplitDataFrame {
@@ -48,6 +49,18 @@ interface ContainerSeries {
   data: { t: number; value: number | null }[];
 }
 
+// Recharts doesn't break tick labels on newlines, so render each line as its own tspan
+function ClockTick({ x, y, payload, index }: XAxisTickContentProps): JSX.Element {
+  const lines = formatClockTick(payload.value as number | Date, index).split('\n');
+  return (
+    <text x={x} y={y} textAnchor="middle" fontSize={10} fill="#666">
+      {lines.map((line, i) => (
+        <tspan key={i} x={x} dy={i === 0 ? 10 : 12}>{line}</tspan>
+      ))}
+    </text>
+  );
+}
+
 interface MetricChartProps {
   title: string;
   containers: ContainerSeries[];
@@ -71,8 +84,12 @@ function MetricChart({ title, containers, valueFormatter, tickFormatter, xDomain
             type="number"
             scale={relativeTime ? 'linear' : 'time'}
             domain={xDomain}
-            tickFormatter={(v: number | Date) => (relativeTime ? formatElapsed(Number(v)) : formatClockTime(v))}
-            tick={{ fontSize: 10 }}
+            interval="preserveStart"
+            // Fixed so the plot area doesn't shift when toggling; fits the two-line first clock tick
+            height={42}
+            {...(relativeTime
+              ? { tickFormatter: (v: number) => formatElapsed(v), tick: { fontSize: 10 } }
+              : { tick: ClockTick })}
           />
           <YAxis tickFormatter={tickFormatter} tick={{ fontSize: 10 }} />
           <Tooltip
@@ -145,7 +162,7 @@ export function ResourceCharts({ data }: Props): JSX.Element {
 
   return (
     <div>
-      <div className="flex justify-end mb-2">
+      <div className="flex mb-2">
         <ToggleSwitch checked={relativeTime} onChange={setRelativeTime} label="Relative time" />
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

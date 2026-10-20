@@ -40,6 +40,19 @@ export function formatClockTime(d: Date | number): string {
   return `${hh}:${mm}:${ss}`;
 }
 
+// Axis tick label: HH:MM:SS, with the date on a second line above the first tick.
+export function formatClockTick(d: Date | number, i: number): string {
+  const time = formatClockTime(d);
+  if (i === 0) {
+    const date = new Date(d);
+    const dd = String(date.getDate()).padStart(2, '0');
+    const mo = String(date.getMonth() + 1).padStart(2, '0');
+    const yyyy = date.getFullYear();
+    return `${dd}/${mo}/${yyyy}\n${time}`;
+  }
+  return time;
+}
+
 // Compact elapsed-time label for chart axes, e.g. "45s", "2m 5s", "1h 30m".
 export function formatElapsed(seconds: number): string {
   if (seconds < 60) return `${Math.round(seconds * 10) / 10}s`;
