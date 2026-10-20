@@ -510,6 +510,11 @@ async def add_quote_manager(
             raise NonExistentQuoteError(quote_name)
         quote_id = quote_row['id']
         actor = expect(grant, BillingPermission.ADD_MANAGER, QuoteTarget(quote_id))
+        if quote_id == INTERNAL_QUOTE_ID:
+            # INTERNAL holds every pre-quotes billing project, so a manager of it could manage all of them.
+            raise BillingValidationError(
+                'The INTERNAL quote is managed by global billing managers only and cannot have quote owners or managers.'
+            )
 
         existing = await tx.execute_and_fetchone(
             'SELECT role FROM quote_managers WHERE quote_id = %s AND user = %s;',
@@ -520,10 +525,11 @@ async def add_quote_manager(
                 f'User {target_user} is already a {existing["role"]} of quote {quote_name}.', 'info'
             )
 
-        await tx.execute_insertone(
-            'INSERT INTO quote_managers (quote_id, user, role) VALUES (%s, %s, %s);',
-            (quote_id, target_user, role),
-        )
+        with invariant_violations_as_user_errors():
+            await tx.execute_insertone(
+                'INSERT INTO quote_managers (quote_id, user, role) VALUES (%s, %s, %s);',
+                (quote_id, target_user, role),
+            )
         await _log_quote_event(
             tx, quote_id, actor, 'manager_added', target_user=target_user, detail=json.dumps(role), comment=comment
         )
