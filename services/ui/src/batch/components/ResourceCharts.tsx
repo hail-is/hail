@@ -8,6 +8,9 @@ import {
   Legend,
   ResponsiveContainer,
 } from 'recharts';
+import { useState } from 'react';
+import { ToggleSwitch } from '../../shared/ToggleSwitch';
+import { formatClockTime, formatElapsed, formatTime } from '../../shared/timeUtils';
 
 // orient='split' format from pandas DataFrame.to_dict()
 export interface SplitDataFrame {
@@ -41,7 +44,8 @@ function containerColor(name: string, index: number): string {
 interface ContainerSeries {
   name: string;
   color: string;
-  data: { t_s: number; value: number | null }[];
+  // t is epoch ms, or seconds since the earliest sample when relativeTime is set
+  data: { t: number; value: number | null }[];
 }
 
 interface MetricChartProps {
@@ -50,9 +54,10 @@ interface MetricChartProps {
   valueFormatter: (_v: number) => string;
   tickFormatter: (_v: number) => string;
   xDomain: [number, number];
+  relativeTime: boolean;
 }
 
-function MetricChart({ title, containers, valueFormatter, tickFormatter, xDomain }: MetricChartProps): JSX.Element | null {
+function MetricChart({ title, containers, valueFormatter, tickFormatter, xDomain, relativeTime }: MetricChartProps): JSX.Element | null {
   if (containers.every((c) => c.data.length === 0)) return null;
 
   return (
@@ -62,14 +67,18 @@ function MetricChart({ title, containers, valueFormatter, tickFormatter, xDomain
         <LineChart>
           <CartesianGrid strokeDasharray="3 3" />
           <XAxis
-            dataKey="t_s"
+            dataKey="t"
             type="number"
+            scale={relativeTime ? 'linear' : 'time'}
             domain={xDomain}
-            tickFormatter={(v) => `${v}s`}
+            tickFormatter={(v: number | Date) => (relativeTime ? formatElapsed(Number(v)) : formatClockTime(v))}
             tick={{ fontSize: 10 }}
           />
           <YAxis tickFormatter={tickFormatter} tick={{ fontSize: 10 }} />
-          <Tooltip formatter={(v) => (typeof v === 'number' ? valueFormatter(v) : String(v))} />
+          <Tooltip
+            formatter={(v) => (typeof v === 'number' ? valueFormatter(v) : String(v))}
+            labelFormatter={(t) => (relativeTime ? `+${formatElapsed(Number(t))}` : formatTime(Number(t)))}
+          />
           <Legend />
           {containers.map(({ name, color, data }) => (
             <Line key={name} data={data} type="monotone" dataKey="value" dot={false} stroke={color} name={name} />
@@ -83,6 +92,7 @@ function MetricChart({ title, containers, valueFormatter, tickFormatter, xDomain
 interface Props { data: ResourceUsageData }
 
 export function ResourceCharts({ data }: Props): JSX.Element {
+  const [relativeTime, setRelativeTime] = useState(false);
   const containers = Object.entries(data).filter(([, df]) => df !== null) as [string, SplitDataFrame][];
 
   if (containers.length === 0) {
@@ -108,14 +118,17 @@ export function ResourceCharts({ data }: Props): JSX.Element {
       if (t > globalMaxTime) globalMaxTime = t;
     }
   }
-  const xDomain: [number, number] = [0, isFinite(globalMaxTime) ? (globalMaxTime - globalBaseTime) / 1000 : 0];
+  if (!isFinite(globalMaxTime)) globalMaxTime = globalBaseTime;
 
-  function buildSeries(df: SplitDataFrame, colName: string): Array<{ t_s: number; value: number | null }> {
+  const toX = (ms: number): number => (relativeTime ? (ms - globalBaseTime) / 1000 : ms);
+  const xDomain: [number, number] = [toX(globalBaseTime), toX(globalMaxTime)];
+
+  function buildSeries(df: SplitDataFrame, colName: string): Array<{ t: number; value: number | null }> {
     const timeIdx = df.columns.indexOf('time_msecs');
     const valIdx = df.columns.indexOf(colName);
     if (valIdx < 0) return [];
     return df.data.map((row) => ({
-      t_s: ((row.at(timeIdx) ?? 0) - globalBaseTime) / 1000,
+      t: toX(row.at(timeIdx) ?? globalBaseTime),
       value: row.at(valIdx) ?? null,
     }));
   }
@@ -131,51 +144,62 @@ export function ResourceCharts({ data }: Props): JSX.Element {
   const hasIoStorage = containers.some(([, df]) => df.columns.includes('io_storage_in_bytes'));
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-      <MetricChart
-        title="CPU"
-        containers={makeContainers('cpu_usage')}
-        valueFormatter={(v) => `${(v * 100).toFixed(1)}%`}
-        tickFormatter={(v) => `${(v * 100).toFixed(0)}%`}
-        xDomain={xDomain}
-      />
-      <MetricChart
-        title="Memory"
-        containers={makeContainers('memory_in_bytes')}
-        valueFormatter={formatBytes}
-        tickFormatter={formatBytes}
-        xDomain={xDomain}
-      />
-      <MetricChart
-        title="Network Download"
-        containers={makeContainers('network_bandwidth_download_in_bytes_per_second')}
-        valueFormatter={(v) => `${formatBytes(v)}/s`}
-        tickFormatter={formatBytes}
-        xDomain={xDomain}
-      />
-      <MetricChart
-        title="Network Upload"
-        containers={makeContainers('network_bandwidth_upload_in_bytes_per_second')}
-        valueFormatter={(v) => `${formatBytes(v)}/s`}
-        tickFormatter={formatBytes}
-        xDomain={xDomain}
-      />
-      <MetricChart
-        title="Storage (Container Overlay)"
-        containers={makeContainers('non_io_storage_in_bytes')}
-        valueFormatter={formatBytes}
-        tickFormatter={formatBytes}
-        xDomain={xDomain}
-      />
-      {hasIoStorage && (
+    <div>
+      <div className="flex justify-end mb-2">
+        <ToggleSwitch checked={relativeTime} onChange={setRelativeTime} label="Relative time" />
+      </div>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <MetricChart
-          title="Storage (Mounted Drive at /io)"
-          containers={makeContainers('io_storage_in_bytes')}
+          title="CPU"
+          containers={makeContainers('cpu_usage')}
+          valueFormatter={(v) => `${(v * 100).toFixed(1)}%`}
+          tickFormatter={(v) => `${(v * 100).toFixed(0)}%`}
+          xDomain={xDomain}
+          relativeTime={relativeTime}
+        />
+        <MetricChart
+          title="Memory"
+          containers={makeContainers('memory_in_bytes')}
           valueFormatter={formatBytes}
           tickFormatter={formatBytes}
           xDomain={xDomain}
+          relativeTime={relativeTime}
         />
-      )}
+        <MetricChart
+          title="Network Download"
+          containers={makeContainers('network_bandwidth_download_in_bytes_per_second')}
+          valueFormatter={(v) => `${formatBytes(v)}/s`}
+          tickFormatter={formatBytes}
+          xDomain={xDomain}
+          relativeTime={relativeTime}
+        />
+        <MetricChart
+          title="Network Upload"
+          containers={makeContainers('network_bandwidth_upload_in_bytes_per_second')}
+          valueFormatter={(v) => `${formatBytes(v)}/s`}
+          tickFormatter={formatBytes}
+          xDomain={xDomain}
+          relativeTime={relativeTime}
+        />
+        <MetricChart
+          title="Storage (Container Overlay)"
+          containers={makeContainers('non_io_storage_in_bytes')}
+          valueFormatter={formatBytes}
+          tickFormatter={formatBytes}
+          xDomain={xDomain}
+          relativeTime={relativeTime}
+        />
+        {hasIoStorage && (
+          <MetricChart
+            title="Storage (Mounted Drive at /io)"
+            containers={makeContainers('io_storage_in_bytes')}
+            valueFormatter={formatBytes}
+            tickFormatter={formatBytes}
+            xDomain={xDomain}
+            relativeTime={relativeTime}
+          />
+        )}
+      </div>
     </div>
   );
 }

@@ -30,3 +30,23 @@ export function formatIsoTime(iso: string | null | undefined): string {
   if (iso == null) return '';
   return formatTime(Date.parse(iso));
 }
+
+// Local wall-clock time as HH:MM:SS.
+export function formatClockTime(d: Date | number): string {
+  const date = new Date(d);
+  const hh = String(date.getHours()).padStart(2, '0');
+  const mm = String(date.getMinutes()).padStart(2, '0');
+  const ss = String(date.getSeconds()).padStart(2, '0');
+  return `${hh}:${mm}:${ss}`;
+}
+
+// Compact elapsed-time label for chart axes, e.g. "45s", "2m 5s", "1h 30m".
+export function formatElapsed(seconds: number): string {
+  if (seconds < 60) return `${Math.round(seconds * 10) / 10}s`;
+  const totalSec = Math.round(seconds);
+  const h = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = totalSec % 60;
+  if (h > 0) return m > 0 ? `${h}h ${m}m` : `${h}h`;
+  return s > 0 ? `${m}m ${s}s` : `${m}m`;
+}

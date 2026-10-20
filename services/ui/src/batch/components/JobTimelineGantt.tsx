@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { GanttChart, GanttRow } from '../../shared/GanttChart';
+import { ToggleSwitch } from '../../shared/ToggleSwitch';
 import { Job, Attempt, ContainerStatus, TERMINAL_STATES } from './jobModels';
 
 // px.colors.qualitative.Prism from Plotly — same palette used in the classic job page
@@ -162,6 +163,7 @@ interface Props {
 
 export function JobTimelineGantt({ job, attempts, isTerminal }: Props): JSX.Element | null {
   const [showPriorAttempts, setShowPriorAttempts] = useState(true);
+  const [relativeTime, setRelativeTime] = useState(false);
   const hasPriorAttempts = attempts.length > 1;
   const { rows, ruleXs } = buildGanttRows(job, attempts, showPriorAttempts);
   const colorMap = buildColorMap(rows);
@@ -170,30 +172,13 @@ export function JobTimelineGantt({ job, attempts, isTerminal }: Props): JSX.Elem
 
   return (
     <div className="w-full lg:flex-1 bg-slate-100 border rounded overflow-hidden max-h-[32rem] overflow-y-auto">
-      {hasPriorAttempts && (
-        <div className="flex items-center gap-2.5 px-3 pt-2 pb-1">
-          <button
-            type="button"
-            role="switch"
-            aria-checked={showPriorAttempts}
-            onClick={() => setShowPriorAttempts((v) => !v)}
-            className={`relative h-5 w-9 flex-shrink-0 rounded-full p-0 transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 ${showPriorAttempts ? 'bg-sky-600' : 'bg-slate-300'}`}
-          >
-            <span
-              className="absolute h-4 w-4 rounded-full bg-white shadow-sm"
-              style={{ top: '2px', left: showPriorAttempts ? '18px' : '2px', transition: 'left 200ms ease-in-out' }}
-            />
-          </button>
-          <button
-            type="button"
-            className="text-sm text-slate-600 bg-transparent border-none p-0 cursor-pointer select-none focus:outline-none focus-visible:underline"
-            onClick={() => setShowPriorAttempts((v) => !v)}
-          >
-            Show prior attempts
-          </button>
-        </div>
-      )}
-      <GanttChart rows={rows} colorMap={colorMap} ruleXs={ruleXs} extendToNow={!isTerminal} />
+      <div className="flex items-center gap-4 px-3 pt-2 pb-1">
+        {hasPriorAttempts && (
+          <ToggleSwitch checked={showPriorAttempts} onChange={setShowPriorAttempts} label="Show prior attempts" />
+        )}
+        <ToggleSwitch checked={relativeTime} onChange={setRelativeTime} label="Relative time" />
+      </div>
+      <GanttChart rows={rows} colorMap={colorMap} ruleXs={ruleXs} extendToNow={!isTerminal} relativeTime={relativeTime} />
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import * as Plot from '@observablehq/plot';
 import { useEffect, useRef, useState } from 'react';
+import { formatClockTime, formatElapsed } from './timeUtils';
 
 export interface GanttRow {
   label: string;
@@ -19,6 +20,8 @@ interface Props {
   colorMap: Map<string, string>;
   ruleXs?: RuleMark[];
   extendToNow?: boolean;
+  // Label the x-axis with time elapsed since the earliest bar instead of wall-clock timestamps
+  relativeTime?: boolean;
 }
 
 interface TooltipState { text: string; x: number; y: number }
@@ -29,10 +32,7 @@ const MAX_BAR_HEIGHT = 200;
 const MIN_BAR_HEIGHT = 20;
 
 function formatXTick(d: Date, i: number): string {
-  const hh = String(d.getHours()).padStart(2, '0');
-  const mm = String(d.getMinutes()).padStart(2, '0');
-  const ss = String(d.getSeconds()).padStart(2, '0');
-  const time = `${hh}:${mm}:${ss}`;
+  const time = formatClockTime(d);
   if (i === 0) {
     const dd = String(d.getDate()).padStart(2, '0');
     const mo = String(d.getMonth() + 1).padStart(2, '0');
@@ -42,7 +42,7 @@ function formatXTick(d: Date, i: number): string {
   return time;
 }
 
-export function GanttChart({ rows, colorMap, ruleXs, extendToNow }: Props): JSX.Element {
+export function GanttChart({ rows, colorMap, ruleXs, extendToNow, relativeTime }: Props): JSX.Element {
   const containerRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState<number | null>(null);
   const [tooltip, setTooltip] = useState<TooltipState | null>(null);
@@ -68,10 +68,9 @@ export function GanttChart({ rows, colorMap, ruleXs, extendToNow }: Props): JSX.
     const hasRules = rules.length > 0;
     const marginTop = hasRules ? RULE_LABEL_MARGIN_PX : 10;
 
-    const now = new Date();
-    const xDomain: [Date, Date] | undefined = extendToNow
-      ? [new Date(Math.min(...rows.map((r) => r.start.getTime()))), now]
-      : undefined;
+    const originMs = Math.min(...rows.map((r) => r.start.getTime()));
+    const toX = (d: Date): Date | number => (relativeTime ? (d.getTime() - originMs) / 1000 : d);
+    const xDomain = extendToNow ? [toX(new Date(originMs)), toX(new Date())] : undefined;
 
     const yDomain = [...new Set(rows.map((r) => r.label))];
     const nRows = yDomain.length;
@@ -85,12 +84,12 @@ export function GanttChart({ rows, colorMap, ruleXs, extendToNow }: Props): JSX.
       marginRight: 20,
       marginBottom: 50, // extra space for the two-line first tick label
       color: { domain: [...colorMap.keys()], range: [...colorMap.values()], legend: true },
-      x: { type: 'time', axis: null, domain: xDomain }, // disable auto axis; we add it explicitly below
+      x: { type: relativeTime ? 'linear' : 'time', axis: null, domain: xDomain }, // disable auto axis; we add it explicitly below
       y: { label: null, domain: yDomain },
       marks: [
         Plot.barX(rows, {
-          x1: 'start',
-          x2: 'end',
+          x1: (r: GanttRow) => toX(r.start),
+          x2: (r: GanttRow) => toX(r.end),
           y: 'label',
           fill: 'category',
           rx: 2,
@@ -98,18 +97,18 @@ export function GanttChart({ rows, colorMap, ruleXs, extendToNow }: Props): JSX.
         // Explicit bottom axis so it is always pinned to the bottom of the element
         Plot.axisX({
           anchor: 'bottom',
-          label: 'Time',
-          tickFormat: formatXTick,
+          label: relativeTime ? 'Elapsed' : 'Time',
+          tickFormat: relativeTime ? formatElapsed : formatXTick,
         }),
         ...(hasRules ? [
           Plot.ruleX(rules, {
-            x: 'x',
+            x: (r: RuleMark) => toX(r.x),
             stroke: '#94a3b8',
             strokeWidth: 1,
             strokeDasharray: '4,3',
           }),
           Plot.text(rules, {
-            x: 'x',
+            x: (r: RuleMark) => toX(r.x),
             text: 'label',
             frameAnchor: 'top',
             textAnchor: 'end',
@@ -145,7 +144,7 @@ export function GanttChart({ rows, colorMap, ruleXs, extendToNow }: Props): JSX.
       plot.remove();
       setTooltip(null);
     };
-  }, [rows, colorMap, ruleXs, extendToNow, width]);
+  }, [rows, colorMap, ruleXs, extendToNow, relativeTime, width]);
 
   return (
     <>
