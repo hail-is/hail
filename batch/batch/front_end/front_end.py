@@ -3174,12 +3174,11 @@ async def ui_get_billing_limits(request, userdata):
     app = request.app
     db: Database = app['db']
 
-    if not userdata['system_permissions'].get(SystemPermission.READ_ALL_BILLING_PROJECTS, False):
-        user = userdata['username']
-    else:
-        user = None
-
-    billing_projects = await query_billing_projects_with_cost(db, user=user)
+    billing_projects = await query_billing_projects_with_cost(
+        db,
+        caller=userdata['username'],
+        restrict_to_caller=not userdata['system_permissions'].get(SystemPermission.READ_ALL_BILLING_PROJECTS, False),
+    )
 
     open_billing_projects = [bp for bp in billing_projects if bp['status'] == 'open']
     closed_billing_projects = [bp for bp in billing_projects if bp['status'] == 'closed']
@@ -3487,17 +3486,16 @@ async def ui_get_billing_projects(request, userdata):
 async def get_billing_projects(request, userdata):
     db: Database = request.app['db']
 
-    if not userdata['system_permissions'].get(SystemPermission.READ_ALL_BILLING_PROJECTS, False):
-        user = userdata['username']
-    else:
-        user = None
-
     status = request.query.get('status')
     if status is not None and status not in ('open', 'closed'):
         raise web.HTTPBadRequest(reason=f"Invalid value for status '{status}'; must be 'open' or 'closed'.")
 
     billing_projects = await query_billing_projects_with_cost(
-        db, user=user, status=status, is_global_bm=is_global_billing_manager(userdata)
+        db,
+        caller=userdata['username'],
+        restrict_to_caller=not userdata['system_permissions'].get(SystemPermission.READ_ALL_BILLING_PROJECTS, False),
+        status=status,
+        is_global_bm=is_global_billing_manager(userdata),
     )
     return json_response(billing_projects)
 
@@ -3508,13 +3506,12 @@ async def get_billing_project(request, userdata):
     db: Database = request.app['db']
     billing_project = request.match_info['billing_project']
 
-    if not userdata['system_permissions'].get(SystemPermission.READ_ALL_BILLING_PROJECTS, False):
-        user = userdata['username']
-    else:
-        user = None
-
     billing_projects = await query_billing_projects_with_cost(
-        db, user=user, billing_project=billing_project, is_global_bm=is_global_billing_manager(userdata)
+        db,
+        caller=userdata['username'],
+        restrict_to_caller=not userdata['system_permissions'].get(SystemPermission.READ_ALL_BILLING_PROJECTS, False),
+        billing_project=billing_project,
+        is_global_bm=is_global_billing_manager(userdata),
     )
 
     if not billing_projects:

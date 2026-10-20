@@ -19,31 +19,26 @@ from gear import Database
 
 async def query_billing_projects_with_cost(
     db,
-    user=None,
+    caller: Optional[str] = None,
+    restrict_to_caller: bool = False,
     billing_project=None,
     status=None,
-    quote_manager_user=None,
     is_global_bm: bool = False,
 ) -> List[Dict[str, Any]]:
+    """`caller` is who is asking, for the per-project `can_view_quote`. With `restrict_to_caller`, only the billing
+    projects `caller` is a member of, or manages the quote of, are returned."""
     where_conditions = ["billing_projects.`status` != 'deleted'"]
     args = []
 
-    if user and quote_manager_user:
+    if restrict_to_caller:
+        assert caller is not None
         where_conditions.append(
             "(JSON_CONTAINS(users, JSON_QUOTE(%s)) OR EXISTS ("
             "SELECT 1 FROM quote_managers qm "
             "WHERE qm.quote_id = billing_projects.quote_id AND qm.user = %s))"
         )
-        args.append(user)
-        args.append(quote_manager_user)
-    elif user:
-        where_conditions.append("JSON_CONTAINS(users, JSON_QUOTE(%s))")
-        args.append(user)
-    elif quote_manager_user:
-        where_conditions.append(
-            "EXISTS (SELECT 1 FROM quote_managers qm WHERE qm.quote_id = billing_projects.quote_id AND qm.user = %s)"
-        )
-        args.append(quote_manager_user)
+        args.append(caller)
+        args.append(caller)
 
     if billing_project:
         where_conditions.append('billing_projects.name_cs = %s')
@@ -112,7 +107,7 @@ GROUP BY billing_projects.name, billing_projects.`status`, billing_projects.`lim
         # which also includes the managers of the billing project's quote, is `user_roles`.
         bp['user_roles'] = [{'user': u, 'roles': roles} for u, roles in merged.items()]
         # Mirrors the VIEW_QUOTE check in billing_auth: global billing managers, or managers of this quote.
-        bp['can_view_quote'] = is_global_bm or any(qm['user'] == quote_manager_user for qm in qms_for_bp)
+        bp['can_view_quote'] = is_global_bm or (caller is not None and any(qm['user'] == caller for qm in qms_for_bp))
 
     return billing_projects
 
