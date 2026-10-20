@@ -39,7 +39,8 @@ The INTERNAL Quote
 
 Every Batch deployment includes a built-in quote named ``INTERNAL``. It is the only quote that
 may be unlimited (that is, have no ``authorized_amount``), and it acts as the default container
-for billing projects that predate the quotes system.
+for billing projects that predate the quotes system. ``INTERNAL`` is managed by global billing
+managers only: it cannot have quote owners or managers.
 
 A quote must be specified explicitly whenever a billing project is created. The only exception is
 the legacy (pre-quotes) billing project creation API, which is deprecated. When it is called without

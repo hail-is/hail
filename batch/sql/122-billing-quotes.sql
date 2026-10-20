@@ -201,4 +201,24 @@ BEGIN
   END IF;
 END $$
 
+-- INTERNAL holds every pre-quotes billing project, so a manager of it could manage all of them. Only global
+-- billing managers manage INTERNAL.
+DROP TRIGGER IF EXISTS quote_managers_before_insert $$
+CREATE TRIGGER quote_managers_before_insert BEFORE INSERT ON quote_managers
+FOR EACH ROW
+BEGIN
+  IF NEW.quote_id = 1 THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'the INTERNAL quote cannot have quote owners or managers';
+  END IF;
+END $$
+
+DROP TRIGGER IF EXISTS quote_managers_before_update $$
+CREATE TRIGGER quote_managers_before_update BEFORE UPDATE ON quote_managers
+FOR EACH ROW
+BEGIN
+  IF NEW.quote_id = 1 THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'the INTERNAL quote cannot have quote owners or managers';
+  END IF;
+END $$
+
 DELIMITER ;
