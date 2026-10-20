@@ -9,7 +9,7 @@ import is.hail.services.oauth2.GoogleCloudCredentials
 import scala.collection.immutable.ArraySeq
 import scala.jdk.CollectionConverters._
 
-import java.io.{FileNotFoundException, IOException}
+import java.io.{FileNotFoundException, IOException, OutputStream}
 import java.nio.ByteBuffer
 import java.nio.file.{Path, Paths}
 
@@ -234,7 +234,10 @@ class GoogleStorageFS(
     val blobInfo = BlobInfo.newBuilder(blobId)
       .build()
 
-    val os: PositionedOutputStream = new FSPositionedOutputStream(8 * 1024 * 1024) {
+    val os: PositionedOutputStream = new OutputStream with Positioned {
+      private[this] var closed: Boolean = false
+      private[this] var pos: Long = 0
+      private[this] val oneByte: ByteBuffer = ByteBuffer.allocate(1)
       private[this] var writer: WriteChannel = null
 
       private[this] def doHandlingRequesterPays(f: => Unit): Unit = {
@@ -252,21 +255,33 @@ class GoogleStorageFS(
         }
       }
 
-      override def flush(): Unit = {
-        bb.flip(): Unit
-
+      private[this] def writeFully(bb: ByteBuffer): Unit =
         while (bb.remaining() > 0)
           doHandlingRequesterPays {
             writer.write(bb): Unit
           }
 
-        bb.clear(): Unit
+      override def write(i: Int): Unit = {
+        oneByte.clear(): Unit
+        oneByte.put(i.toByte): Unit
+        oneByte.flip(): Unit
+        writeFully(oneByte)
+        pos += 1
       }
+
+      override def write(bytes: Array[Byte], off: Int, len: Int): Unit = {
+        writeFully(ByteBuffer.wrap(bytes, off, len))
+        pos += len
+      }
+
+      // WriteChannel has no flush; bytes are durable only after close.
+      override def flush(): Unit = ()
+
+      override def getPosition: Long = pos
 
       override def close(): Unit = {
         logger.info(f"close: $url")
         if (!closed) {
-          flush()
           retryTransientErrors {
             doHandlingRequesterPays {
               writer.close()
