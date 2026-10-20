@@ -695,7 +695,7 @@ FOR UPDATE;
         )
         if not row:
             raise NonExistentBillingProjectError(bp_name)
-        if row['status'] == 'closed':
+        if row['status'] == 'closed' and 'limit' in updates:
             raise ClosedBillingProjectError(bp_name)
 
         db_updates: dict = {}
