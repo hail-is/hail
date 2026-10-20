@@ -1135,7 +1135,7 @@ paths:
         '401':
           description: Unauthorized
         '403':
-          description: Forbidden - insufficient billing permissions, or the billing project is closed
+          description: Forbidden - insufficient billing permissions, or a limit change on a closed billing project
         '404':
           description: Billing project not found
   '/api/v1alpha/billing_projects/{billing_project}/create':
@@ -1584,8 +1584,10 @@ paths:
     post:
       summary: Add a quote manager
       description: >
-        Add a user as a manager or owner of a quote. Requires MANAGE_MANAGERS
-        billing permission.
+        Add a user as a manager or owner of a quote. Requires ADD_MANAGER
+        billing permission (global billing managers only, for now). The INTERNAL
+        quote is managed by global billing managers only and cannot have owners
+        or managers.
       tags: [Billing]
       parameters:
         - name: name
@@ -1628,7 +1630,7 @@ paths:
                   role:
                     type: string
         '400':
-          description: Bad request (missing user, invalid role)
+          description: Bad request (missing user, invalid role, or the quote is INTERNAL)
         '401':
           description: Unauthorized
         '403':
@@ -1853,10 +1855,14 @@ paths:
                   limit:
                     type: number
                     description: Updated billing limit
+        '400':
+          description: >
+            Bad request (invalid limit, limit would exceed the quote's authorized_amount, or unlimited limit outside
+            the INTERNAL quote)
         '401':
           description: Unauthorized
         '403':
-          description: Forbidden - requires developer privileges
+          description: Forbidden - the billing project is closed
         '404':
           description: Billing project not found
   '/api/v1alpha/batches/{batch_id}/jobs/{job_id}/jvm_profile':
