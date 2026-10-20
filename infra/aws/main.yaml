@@ -74,11 +74,14 @@ Resources:
     Type: "AWS::EC2::LaunchTemplate"
     Properties:
       LaunchTemplateData:
+        MetadataOptions:
+          HttpTokens: required
+          HttpPutResponseHopLimit: 1
         BlockDeviceMappings:
           - DeviceName: /dev/xvda
             Ebs:
               VolumeType: gp3
-              Iops: 2000
+              Iops: 3000
               VolumeSize: 30
               DeleteOnTermination: true
         ImageId: "{{resolve:ssm:/aws/service/eks/optimized-ami/1.35/amazon-linux-2023/x86_64/standard/recommended/image_id}}"
@@ -129,11 +132,14 @@ Resources:
     Type: "AWS::EC2::LaunchTemplate"
     Properties:
       LaunchTemplateData:
+        MetadataOptions:
+          HttpTokens: required
+          HttpPutResponseHopLimit: 1
         BlockDeviceMappings:
           - DeviceName: /dev/xvda
             Ebs:
               VolumeType: gp3
-              Iops: 2000
+              Iops: 3000
               VolumeSize: 30
               DeleteOnTermination: true
         ImageId: "{{resolve:ssm:/aws/service/eks/optimized-ami/1.35/amazon-linux-2023/x86_64/standard/recommended/image_id}}"
@@ -299,6 +305,7 @@ Resources:
       VpcId: !Ref VdcVpc
   VdcInternetAccessRoute:
     Type: "AWS::EC2::Route"
+    DependsOn: VdcInternetGatewayAttachment
     Properties:
       RouteTableId: !Ref VdcRouteTable
       DestinationCidrBlock: "0.0.0.0/0"
@@ -485,14 +492,6 @@ Resources:
         Namespace: "kube-system"
       ClusterName: !Ref VdcCluster
       AddonName: "metrics-server"
-  VdcClusterAddonSecretsStoreCsiProvider:
-    Type: "AWS::EKS::Addon"
-    Properties:
-      NamespaceConfig:
-        Namespace: "aws-secrets-manager"
-      ServiceAccountRoleArn: !GetAtt VdcClusterCsiDriverRole.Arn
-      ClusterName: !Ref VdcCluster
-      AddonName: "aws-secrets-store-csi-driver-provider"
 
   VdcClusterCsiDriverRole:
     Type: "AWS::IAM::Role"
@@ -531,6 +530,7 @@ Resources:
               Service: "pods.eks.amazonaws.com"
   VdcClusterVpcCniRole:
     Type: "AWS::IAM::Role"
+    DependsOn: VdcClusterOidcProvider
     Properties:
       Path: "/"
       ManagedPolicyArns:
