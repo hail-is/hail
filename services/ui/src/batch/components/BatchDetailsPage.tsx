@@ -1,12 +1,11 @@
 import { useState } from 'react';
 import type { Batch, BatchJob } from '../../shared/batchApi';
-import { formatDurationMs } from './batchModels';
 import { StateIcon, BatchStateIcon } from './StateIcon';
 import { CollapsibleItem } from './CollapsibleItem';
 import { CostDisplay } from './CostDisplay';
 import { AutoRefreshBar } from '../../shared/AutoRefreshBar';
 import { SpinnerIcon } from '../../shared/SpinnerIcon';
-import { formatIsoTime } from '../../shared/timeUtils';
+import { formatDuration, formatTimestamp } from '../../shared/timeUtils';
 import { QueryBuilder } from '../../shared/QueryBuilder';
 import { jobQueryFields } from '../../shared/queryFields';
 import { useBatchDetails } from '../hooks/useBatchDetails';
@@ -133,7 +132,7 @@ function JobRow({ basePath, job }: { basePath: string; job: BatchJob }): JSX.Ele
       </td>
       <td className="hidden lg:table-cell font-light">
         {job.duration != null
-          ? formatDurationMs(job.duration)
+          ? formatDuration(job.duration)
           : job.state === 'Running' ? <SpinnerIcon className="text-zinc-400" /> : <span className="text-zinc-400">--</span>}
       </td>
       <td className="hidden md:table-cell font-light"><CostDisplay cost={job.cost} /></td>
@@ -308,8 +307,8 @@ export function BatchDetailsPage({ basePath, batchId }: Props): JSX.Element {
             <CollapsibleItem title="Duration" summary={batch.duration ?? ''}>
               <table className="text-xs w-full">
                 <tbody className="divide-y">
-                  <tr><td className="py-1 pr-2 text-zinc-500">Created</td><td className="py-1 text-right">{formatIsoTime(batch.time_created)}</td></tr>
-                  <tr><td className="py-1 pr-2 text-zinc-500">Completed</td><td className="py-1 text-right">{formatIsoTime(batch.time_completed)}</td></tr>
+                  <tr><td className="py-1 pr-2 text-zinc-500">Created</td><td className="py-1 text-right">{formatTimestamp(batch.time_created)}</td></tr>
+                  <tr><td className="py-1 pr-2 text-zinc-500">Completed</td><td className="py-1 text-right">{formatTimestamp(batch.time_completed)}</td></tr>
                 </tbody>
               </table>
             </CollapsibleItem>

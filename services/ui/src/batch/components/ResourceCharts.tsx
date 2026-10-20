@@ -11,7 +11,7 @@ import {
 } from 'recharts';
 import { useState } from 'react';
 import { ToggleSwitch } from '../../shared/ToggleSwitch';
-import { formatClockTick, formatElapsed, formatTime } from '../../shared/timeUtils';
+import { formatClockTick, formatDuration, formatTimestamp } from '../../shared/timeUtils';
 
 // orient='split' format from pandas DataFrame.to_dict()
 export interface SplitDataFrame {
@@ -88,13 +88,13 @@ function MetricChart({ title, containers, valueFormatter, tickFormatter, xDomain
             // Fixed so the plot area doesn't shift when toggling; fits the two-line first clock tick
             height={42}
             {...(relativeTime
-              ? { tickFormatter: (v: number) => formatElapsed(v), tick: { fontSize: 10 } }
+              ? { tickFormatter: (v: number) => formatDuration(v * 1000), tick: { fontSize: 10 } }
               : { tick: ClockTick })}
           />
           <YAxis tickFormatter={tickFormatter} tick={{ fontSize: 10 }} />
           <Tooltip
             formatter={(v) => (typeof v === 'number' ? valueFormatter(v) : String(v))}
-            labelFormatter={(t) => (relativeTime ? `+${formatElapsed(Number(t))}` : formatTime(Number(t)))}
+            labelFormatter={(t) => (relativeTime ? `+${formatDuration(Number(t) * 1000)}` : formatTimestamp(Number(t)))}
           />
           <Legend />
           {containers.map(({ name, color, data }) => (

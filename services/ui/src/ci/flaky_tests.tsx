@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, Fragment } from 'react';
 import { createRoot } from 'react-dom/client';
 import { PieChart, Pie, Cell, Tooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
+import { formatTimestamp } from '../shared/timeUtils';
 
 interface RetriedTest {
   id: number;
@@ -254,7 +255,7 @@ function LeaderboardTable({ tests, maxCount, expanded, toggleExpanded, batchBase
                   <td className="px-4 py-2 text-right font-semibold" style={{ color: '#a855f7' }}>{t.retry_count}</td>
                   <td className="px-4 py-2 text-right font-semibold" style={{ color: '#0ea5e9' }}>{t.distinct_builds.size}</td>
                   <td className="px-4 py-2 text-right font-semibold" style={{ color: '#10b981' }}>{t.distinct_prs.size}</td>
-                  <td className="px-4 py-2 text-slate-500">{new Date(t.last_retried_at).toLocaleString()}</td>
+                  <td className="px-4 py-2 text-slate-500">{formatTimestamp(t.last_retried_at)}</td>
                 </tr>
                 {expanded.has(t.job_name) && (
                   <InstanceRows instances={t.instances} batchBaseUrl={batchBaseUrl} />
@@ -296,7 +297,7 @@ function InstanceRows({ instances, batchBaseUrl }: { instances: RetriedTest[]; b
           </td>
           <td className="py-1.5 pr-4 text-right text-slate-400">—</td>
           <td className="py-1.5 pr-4 text-right text-slate-400">—</td>
-          <td className="py-1.5 pr-4 text-slate-400">{new Date(r.retried_at).toLocaleString()}</td>
+          <td className="py-1.5 pr-4 text-slate-400">{formatTimestamp(r.retried_at)}</td>
         </tr>
       ))}
     </>

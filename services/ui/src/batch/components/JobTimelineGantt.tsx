@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { GanttChart, GanttRow } from '../../shared/GanttChart';
 import { ToggleSwitch } from '../../shared/ToggleSwitch';
+import { formatTimestamp } from '../../shared/timeUtils';
 import { Job, Attempt, ContainerStatus, TERMINAL_STATES } from './jobModels';
 
 // px.colors.qualitative.Prism from Plotly — same palette used in the classic job page
@@ -55,8 +56,8 @@ function buildGanttRows(job: Job, attempts: Attempt[], showPriorAttempts: boolea
         tooltip: [
           `Row: attempt ${a.attempt_id.slice(0, 8)}`,
           `Task: prior attempt`,
-          `Start: ${new Date(startMs).toLocaleString()}`,
-          `Finish: ${new Date(endMs).toLocaleString()}`,
+          `Start: ${formatTimestamp(startMs)}`,
+          `Finish: ${formatTimestamp(endMs)}`,
           `Duration: ${(durationMs / 1000).toFixed(1)}s`,
           a.reason ? `Detail: ${a.reason}` : '',
         ].filter(Boolean).join('\n'),
@@ -103,8 +104,8 @@ function buildGanttRows(job: Job, attempts: Attempt[], showPriorAttempts: boolea
         tooltip: [
           `Row: ${latestLabel}`,
           `Task: creating`,
-          `Start: ${new Date(latest.start_time_ms).toLocaleString()}`,
-          `Finish: ${new Date(schedEndMs).toLocaleString()}`,
+          `Start: ${formatTimestamp(latest.start_time_ms)}`,
+          `Finish: ${formatTimestamp(schedEndMs)}`,
           `Duration: ${(creatingDurationMs / 1000).toFixed(1)}s`,
         ].join('\n'),
       });
@@ -128,8 +129,8 @@ function buildGanttRows(job: Job, attempts: Attempt[], showPriorAttempts: boolea
           tooltip: [
             `Row: ${latestLabel}`,
             `Task: ${stepName} (${container})`,
-            `Start: ${new Date(startMs).toLocaleString()}`,
-            `Finish: ${new Date(endMs).toLocaleString()}`,
+            `Start: ${formatTimestamp(startMs)}`,
+            `Finish: ${formatTimestamp(endMs)}`,
             `Duration: ${(durationMs / 1000).toFixed(1)}s`,
           ].join('\n'),
         });

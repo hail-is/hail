@@ -1,6 +1,6 @@
 import * as Plot from '@observablehq/plot';
 import { useEffect, useRef, useState } from 'react';
-import { formatClockTick, formatElapsed } from './timeUtils';
+import { formatClockTick, formatDuration } from './timeUtils';
 
 export interface GanttRow {
   label: string;
@@ -87,7 +87,7 @@ export function GanttChart({ rows, colorMap, ruleXs, extendToNow, relativeTime }
         Plot.axisX({
           anchor: 'bottom',
           label: relativeTime ? 'Elapsed' : 'Time',
-          tickFormat: relativeTime ? formatElapsed : formatClockTick,
+          tickFormat: relativeTime ? (s: number) => formatDuration(s * 1000) : formatClockTick,
         }),
         ...(hasRules ? [
           Plot.ruleX(rules, {
