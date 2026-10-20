@@ -16,7 +16,7 @@ from batch.billing_project_management import (
     get_quote_events,
     list_quotes_for_user,
 )
-from batch.exceptions import BatchOperationAlreadyCompletedError, BatchUserError
+from batch.exceptions import BatchOperationAlreadyCompletedError, BatchUserError, BillingValidationError
 
 # ---------------------------------------------------------------------------
 # create_quote
@@ -433,6 +433,16 @@ async def test_add_quote_manager_duplicate_raises(db, unique_name):
     await add_quote_manager(db, q_dup_mgr, 'dave', 'manager', actor='admin')
     with pytest.raises(BatchOperationAlreadyCompletedError):
         await add_quote_manager(db, q_dup_mgr, 'dave', 'owner', actor='admin')
+
+
+@pytest.mark.parametrize('role', ['owner', 'manager'])
+async def test_add_quote_manager_to_internal_rejected(db, role):
+    with pytest.raises(BillingValidationError, match='INTERNAL quote is managed by global billing managers only'):
+        await add_quote_manager(db, 'INTERNAL', 'mallory', role, actor='admin')
+    row = await db.select_and_fetchone(
+        'SELECT 1 FROM quote_managers WHERE quote_id = %s AND user = %s', (INTERNAL_QUOTE_ID, 'mallory')
+    )
+    assert row is None
 
 
 async def test_remove_quote_manager(db, unique_name):
