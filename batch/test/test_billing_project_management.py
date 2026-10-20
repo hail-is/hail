@@ -20,6 +20,7 @@ from batch.exceptions import (
     BatchOperationAlreadyCompletedError,
     BatchUserError,
     BillingValidationError,
+    ClosedBillingProjectError,
     NonExistentBillingProjectError,
     NonExistentQuoteError,
 )
@@ -139,6 +140,16 @@ async def test_create_billing_project_unlimited_under_internal_requires_global_b
     bp_ul_internal_qo = unique_name('bp-ul-internal-qo')
     with pytest.raises(BillingAuthorizationError):
         await create_billing_project(db, bp_ul_internal_qo, INTERNAL_QUOTE_ID, None, 'admin', 'quote_owner')
+
+
+async def test_create_billing_project_unlimited_under_limited_quote_is_user_error_for_quote_owner(db, unique_name):
+    # The quote rule is checked before the SET_UNLIMITED grant, so this is a 400, not a BillingAuthorizationError.
+    q_ul_qo = unique_name('q-ul-qo')
+    bp_ul_qo = unique_name('bp-ul-qo')
+    await create_quote(db, q_ul_qo, cost_object='CO', actor='admin', authorized_amount=1000.0)
+    q_row = await db.select_and_fetchone('SELECT id FROM quotes WHERE name = %s', (q_ul_qo,))
+    with pytest.raises(BillingValidationError, match='only be created under the INTERNAL quote'):
+        await create_billing_project(db, bp_ul_qo, q_row['id'], None, 'alice', 'quote_owner')
 
 
 async def test_create_billing_project_under_closed_quote_raises(db, unique_name):
@@ -266,13 +277,21 @@ async def test_patch_billing_project_limit_exceeds_quote_raises(db, unique_name)
 
 
 async def test_patch_billing_project_unlimited_requires_global_bm(db, unique_name):
-    q_patch_ul = unique_name('q-patch-ul')
     bp_patch_ul = unique_name('bp-patch-ul')
-    await create_quote(db, q_patch_ul, cost_object='CO', actor='admin', authorized_amount=500.0)
-    q_row = await db.select_and_fetchone('SELECT id FROM quotes WHERE name = %s', (q_patch_ul,))
-    await create_billing_project(db, bp_patch_ul, q_row['id'], 100.0, 'admin', 'global_bm')
+    await create_billing_project(db, bp_patch_ul, INTERNAL_QUOTE_ID, 100.0, 'admin', 'global_bm')
     with pytest.raises(BillingAuthorizationError):
         await patch_billing_project(db, bp_patch_ul, {'limit': None}, actor='admin', billing_role='quote_owner')
+
+
+async def test_patch_billing_project_unlimited_under_limited_quote_is_user_error_for_quote_owner(db, unique_name):
+    # The quote rule is checked before the SET_UNLIMITED grant, so this is a 400, not a BillingAuthorizationError.
+    q_patch_ul_qo = unique_name('q-patch-ul-qo')
+    bp_patch_ul_qo = unique_name('bp-patch-ul-qo')
+    await create_quote(db, q_patch_ul_qo, cost_object='CO', actor='admin', authorized_amount=500.0)
+    q_row = await db.select_and_fetchone('SELECT id FROM quotes WHERE name = %s', (q_patch_ul_qo,))
+    await create_billing_project(db, bp_patch_ul_qo, q_row['id'], 100.0, 'admin', 'global_bm')
+    with pytest.raises(BillingValidationError, match='only exist under the INTERNAL quote'):
+        await patch_billing_project(db, bp_patch_ul_qo, {'limit': None}, actor='alice', billing_role='quote_owner')
 
 
 async def test_patch_billing_project_unlimited_rejected_under_limited_quote(db, unique_name):
@@ -283,6 +302,25 @@ async def test_patch_billing_project_unlimited_rejected_under_limited_quote(db, 
     await create_billing_project(db, bp_patch_ul_lim, q_row['id'], 100.0, 'admin', 'global_bm')
     with pytest.raises(BatchUserError, match='only exist under the INTERNAL quote'):
         await patch_billing_project(db, bp_patch_ul_lim, {'limit': None}, actor='admin', billing_role='global_bm')
+
+
+async def test_patch_closed_billing_project_description_allowed(db, unique_name):
+    bp_closed_desc = unique_name('bp-closed-desc')
+    await create_billing_project(db, bp_closed_desc, INTERNAL_QUOTE_ID, 100.0, 'admin', 'global_bm')
+    await close_billing_project(db, bp_closed_desc, 'admin')
+    await patch_billing_project(
+        db, bp_closed_desc, {'description': 'wrapped up'}, actor='admin', billing_role='bp_member'
+    )
+    row = await db.select_and_fetchone('SELECT description FROM billing_projects WHERE name = %s', (bp_closed_desc,))
+    assert row['description'] == 'wrapped up'
+
+
+async def test_patch_closed_billing_project_limit_rejected(db, unique_name):
+    bp_closed_limit = unique_name('bp-closed-limit')
+    await create_billing_project(db, bp_closed_limit, INTERNAL_QUOTE_ID, 100.0, 'admin', 'global_bm')
+    await close_billing_project(db, bp_closed_limit, 'admin')
+    with pytest.raises(ClosedBillingProjectError):
+        await patch_billing_project(db, bp_closed_limit, {'limit': 50.0}, actor='admin', billing_role='global_bm')
 
 
 async def test_patch_billing_project_logs_limit_event_on_both_quote_and_bp(db, unique_name):
