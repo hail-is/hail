@@ -119,6 +119,36 @@ async def test_close_quote_with_closed_bp_allowed(db, unique_name):
 
 
 # ---------------------------------------------------------------------------
+# quote_managers
+# ---------------------------------------------------------------------------
+
+
+async def test_insert_internal_quote_manager_rejected(db):
+    with pytest.raises(pymysql.err.OperationalError) as exc_info:
+        await _execute(
+            db,
+            "INSERT INTO quote_managers (quote_id, user, role) VALUES (%s, 'mallory', 'owner');",
+            (INTERNAL_QUOTE_ID,),
+        )
+    _assert_rejected(exc_info, 'the INTERNAL quote cannot have quote owners or managers')
+
+
+async def test_move_quote_manager_onto_internal_rejected(db, unique_name):
+    q_qm_move = unique_name('q-qm-move')
+    quote_id = await _insert_quote(db, q_qm_move, 500.0)
+    await _execute(
+        db, "INSERT INTO quote_managers (quote_id, user, role) VALUES (%s, 'mallory', 'owner');", (quote_id,)
+    )
+    with pytest.raises(pymysql.err.OperationalError) as exc_info:
+        await _execute(
+            db,
+            "UPDATE quote_managers SET quote_id = %s WHERE quote_id = %s AND user = 'mallory';",
+            (INTERNAL_QUOTE_ID, quote_id),
+        )
+    _assert_rejected(exc_info, 'the INTERNAL quote cannot have quote owners or managers')
+
+
+# ---------------------------------------------------------------------------
 # billing_projects
 # ---------------------------------------------------------------------------
 
