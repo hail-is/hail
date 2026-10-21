@@ -124,6 +124,7 @@ _LOCAL_REACT_ROUTES: list[tuple[str, str, str, str, dict]] = [
     ('batch-driver', 'GET', '/batch-driver', 'index_react.html', {}),
     ('batch-driver', 'GET', '/batch-driver/swagger', 'swagger/index.html', {}),
     ('ci',           'GET', '/ci/flaky_tests', 'flaky_tests.html', {}),
+    ('ci',           'GET', '/ci/watched_branches/{watched_branch_index}/prs', 'prs.html', {}),
     # classic page_context holds `pr`/`wb` directly (a PR/WatchedBranch instance, not a dict) — not JSON-serializable
     ('ci',           'GET', '/ci/watched_branches/{watched_branch_index}/pr/{pr_number}', 'pr_react.html', {}),
     ('batch',        'GET', '/batch/swagger', 'swagger/index.html', {}),
@@ -150,6 +151,14 @@ for _service, _verb, _path, _template, _extra_ctx in _LOCAL_REACT_ROUTES:
     else:
         _decorator = web_security_headers
     routes.route(_verb, _path)(_decorator(_local_handler))
+
+
+# The real /ci/prs redirects to the only watched branch's list, or lists the branches when there
+# are several. Redirect locally so the browser lands on the local branch URL without needing the
+# route deployed upstream; assumes the single-branch case.
+@routes.get('/ci/prs')
+async def ci_prs_redirect(_request: web.Request) -> web.Response:
+    raise web.HTTPFound('/ci/watched_branches/0/prs')
 
 
 @routes.view('/{service:[^/]+}/api/{route:.*}')

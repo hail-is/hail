@@ -951,6 +951,32 @@ async def get_flaky_tests(request: web.Request, userdata: UserData) -> web.Respo
     return await render_template('ci', request, userdata, 'flaky_tests.html', {'use_tailwind': True})
 
 
+@routes.get('/prs')
+@web_security_headers
+@auth.authenticated_users_with_permission(SystemPermission.READ_CI)
+async def get_all_prs(request: web.Request, userdata: UserData) -> web.Response:
+    if len(watched_branches) == 1:
+        raise web.HTTPFound(deploy_config.external_url('ci', '/watched_branches/0/prs'))
+    page_context = {'branches': [{'index': i, 'name': wb.branch.short_str()} for i, wb in enumerate(watched_branches)]}
+    return await render_template('ci', request, userdata, 'prs-index.html', page_context)
+
+
+@routes.get('/watched_branches/{watched_branch_index}/prs')
+@web_security_headers
+@auth.authenticated_users_with_permission(SystemPermission.READ_CI)
+async def get_prs(request: web.Request, userdata: UserData) -> web.Response:
+    watched_branch_index = int(request.match_info['watched_branch_index'])
+    if watched_branch_index < 0 or watched_branch_index >= len(watched_branches):
+        raise web.HTTPNotFound()
+    return await render_template(
+        'ci',
+        request,
+        userdata,
+        'prs.html',
+        {'use_tailwind': True, 'watched_branch_index': watched_branch_index},
+    )
+
+
 @routes.get('/api/v1alpha/retried_tests')
 @auth.authenticated_users_with_permission(SystemPermission.READ_CI, redirect=False)
 async def api_retried_tests(request: web.Request, _) -> web.Response:
