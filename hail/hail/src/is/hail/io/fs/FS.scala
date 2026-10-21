@@ -256,6 +256,10 @@ abstract class FSPositionedOutputStream(val capacity: Int) extends OutputStream 
   override def getPosition: Long = pos
 }
 
+object FS {
+  val DefaultReadBufferSize: Int = 8 * 1024 * 1024
+}
+
 trait FS extends Serializable with Logging {
   type URL <: FSURL[URL]
 
@@ -313,7 +317,17 @@ trait FS extends Serializable with Logging {
   final def openNoCompression(filename: String): SeekableDataInputStream =
     openNoCompression(parseUrl(filename))
 
-  def openNoCompression(url: URL): SeekableDataInputStream
+  final def openNoCompression(filename: String, bufferSize: Int): SeekableDataInputStream =
+    openNoCompression(parseUrl(filename), bufferSize)
+
+  final def openNoCompression(url: URL): SeekableDataInputStream =
+    openNoCompression(url, FS.DefaultReadBufferSize)
+
+  /** Open `url` for reading with a read buffer of `bufferSize` bytes. 0 means unbuffered: every
+    * read goes to the underlying storage. Implementations that buffer on their own may ignore
+    * `bufferSize`.
+    */
+  def openNoCompression(url: URL, bufferSize: Int): SeekableDataInputStream
 
   final def createNoCompression(filename: String): PositionedDataOutputStream =
     createNoCompression(parseUrl(filename))

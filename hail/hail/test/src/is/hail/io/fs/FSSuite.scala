@@ -446,6 +446,44 @@ trait FSSuite {
     }
   }
 
+  @Test def testOpenWithBufferSize(): Unit = {
+    val data = Array.tabulate(251)(_.toByte)
+    val f = t()
+    using(fs.createNoCompression(f)) { os =>
+      var i = 0
+      while (i < 100) {
+        os.write(data)
+        i += 1
+      }
+    }
+    val size = 251L * 100
+
+    for (bufferSize <- Seq(0, 1000)) {
+      using(fs.openNoCompression(f, bufferSize)) { is =>
+        assertEq(is.read(), 0)
+        assertEq(is.readInt(), 0x01020304)
+
+        is.seek(12345)
+        assertEq(is.getPosition, 12345L)
+        assertEq(is.read(), 12345 % 251)
+
+        is.seek(7)
+        assertEq(is.read(), 7)
+
+        val bytes = new Array[Byte](5000)
+        is.readFully(bytes)
+        bytes.indices.foreach(i => assertEq(bytes(i), ((8 + i) % 251).toByte))
+        assertEq(is.getPosition, 5008L)
+
+        is.seek(size - 1)
+        assertEq(is.read(), ((size - 1) % 251).toInt)
+        assertEq(is.read(), -1)
+      }
+    }
+
+    fs.delete(f, false)
+  }
+
   @Test def largeDirectoryOperations(): Unit = {
     val prefix = s"$tmpdir/fs-suite/delete-many-files/${java.util.UUID.randomUUID()}"
     for (i <- 0 until 2000)

@@ -198,7 +198,10 @@ class ServiceBackend(
 
       private[this] def readPartitionResult(root: String, partition: Int) = {
         val filename = s"$root/result.$partition"
-        try using(ctx.fs.openNoCompression(filename))(WireProtocol.read)
+        /* Results are read once, front to back, and up to DefaultMaxReadParallelism of these
+         * streams are open at a time, so a read buffer would only cost memory. Only GCS honours
+         * bufferSize = 0; Azure streams still allocate their own buffer. */
+        try using(ctx.fs.openNoCompression(filename, bufferSize = 0))(WireProtocol.read)
         catch {
           case t: Throwable =>
             throw new HailException(

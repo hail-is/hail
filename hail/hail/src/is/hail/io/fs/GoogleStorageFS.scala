@@ -9,7 +9,7 @@ import is.hail.services.oauth2.GoogleCloudCredentials
 import scala.collection.immutable.ArraySeq
 import scala.jdk.CollectionConverters._
 
-import java.io.{FileNotFoundException, IOException, OutputStream}
+import java.io.{FileNotFoundException, IOException, InputStream, OutputStream}
 import java.nio.ByteBuffer
 import java.nio.file.{Path, Paths}
 
@@ -165,67 +165,83 @@ class GoogleStorageFS(
       .getService
   }
 
-  override def openNoCompression(url: URL): SeekableDataInputStream = retryTransientErrors {
-    val is: SeekableInputStream = new FSSeekableInputStream {
-      private[this] var reader: ReadChannel = null
-      private[this] var options: Option[Seq[BlobSourceOption]] = None
+  override def openNoCompression(url: URL, bufferSize: Int): SeekableDataInputStream =
+    retryTransientErrors {
+      require(bufferSize >= 0, s"bufferSize must be non-negative: $bufferSize")
 
-      private[this] def readHandlingRequesterPays(bb: ByteBuffer): Int = {
-        while (true) {
-          try {
-            if (reader == null) {
-              val opts = options.getOrElse(FastSeq())
-              reader = storage.reader(url.bucket, url.path, opts: _*)
-              reader.seek(getPosition)
+      val raw: SeekableInputStream = new InputStream with Seekable {
+        private[this] var closed: Boolean = false
+        private[this] var pos: Long = 0
+        private[this] val oneByte: ByteBuffer = ByteBuffer.allocate(1)
+        private[this] var reader: ReadChannel = null
+        private[this] var options: Option[Seq[BlobSourceOption]] = None
+
+        // Reads at least one byte into bb, or returns -1 at end of file.
+        private[this] def readHandlingRequesterPays(bb: ByteBuffer): Int = {
+          val start = bb.position()
+          while (true) {
+            try {
+              if (reader == null) {
+                val opts = options.getOrElse(FastSeq())
+                reader = storage.reader(url.bucket, url.path, opts: _*)
+                /* Turn off the reader's buffer. Any seek that changes position discards it, so it
+                 * cannot make short seeks cheap; BufferedSeekableInputStream does that instead. */
+                reader.setChunkSize(0)
+                reader.seek(pos)
+              }
+              val n = reader.read(bb)
+              if (n != 0)
+                return n
+            } catch {
+              case RequesterPaysFailure(_) if options.isEmpty =>
+                reader = null
+                bb.position(start): Unit
+                options = Some(requesterPaysOptions(url.bucket, BlobSourceOption.userProject))
+              case exc: Exception if isTransientError(exc) =>
+                reader = null
+                bb.position(start): Unit
             }
-            return reader.read(bb)
-          } catch {
-            case RequesterPaysFailure(_) if options.isEmpty =>
-              reader = null
-              bb.clear()
-              options = Some(requesterPaysOptions(url.bucket, BlobSourceOption.userProject))
-            case exc: Exception if isTransientError(exc) =>
-              reader = null
-              bb.clear()
           }
+          throw new RuntimeException("unreachable")
         }
-        throw new RuntimeException("unreachable")
-      }
 
-      override def close(): Unit = {
-        if (!closed) {
-          if (reader != null) {
-            reader.close()
-          }
-          closed = true
-        }
-      }
-
-      override def fill(): Int = {
-        bb.clear()
-
-        // read some bytes
-        var n = 0
-        while (n == 0) {
-          n = readHandlingRequesterPays(bb)
-          if (n == -1) {
+        override def read(): Int = {
+          oneByte.clear(): Unit
+          if (readHandlingRequesterPays(oneByte) == -1)
             return -1
-          }
+          pos += 1
+          oneByte.get(0) & 0xff
         }
-        bb.flip()
 
-        assert(bb.position() == 0 && bb.remaining() > 0)
-        return n
+        override def read(bytes: Array[Byte], off: Int, len: Int): Int = {
+          if (len == 0)
+            return 0
+          val n = readHandlingRequesterPays(ByteBuffer.wrap(bytes, off, len))
+          if (n > 0)
+            pos += n
+          n
+        }
+
+        override def seek(newPos: Long): Unit = {
+          if (reader != null)
+            reader.seek(newPos)
+          pos = newPos
+        }
+
+        override def getPosition: Long = pos
+
+        override def close(): Unit =
+          if (!closed) {
+            if (reader != null)
+              reader.close()
+            closed = true
+          }
       }
 
-      override def physicalSeek(newPos: Long): Unit =
-        if (reader != null) {
-          reader.seek(newPos)
-        }
+      new WrappedSeekableDataInputStream(
+        if (bufferSize == 0) raw else new BufferedSeekableInputStream(raw, bufferSize)
+      )
     }
-
-    new WrappedSeekableDataInputStream(is)
-  }
 
   override def createNoCompression(url: URL): PositionedDataOutputStream = retryTransientErrors {
     logger.info(f"createNoCompression: $url")
