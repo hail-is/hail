@@ -13,10 +13,13 @@ do
     uv pip compile \
         --python-version 3.12 \
         --python-platform linux \
+        --generate-hashes \
         --quiet $reqs $pinned --output-file=$new_pinned
-    # Get rid of comments that might differ despite requirements being the same
-    cat $pinned | sed '/#/d' > $pinned_no_comments
-    cat $new_pinned | sed '/#/d' > $new_pinned_no_comments
+    # Compare versions only. Comments can differ despite requirements being the same, and the
+    # hash list for a pinned version grows if PyPI later gains new files for it (pip checks
+    # hashes at install time).
+    sed -e '/#/d' -e '/--hash=/d' -e 's/[[:space:]]*\\$//' $pinned > $pinned_no_comments
+    sed -e '/#/d' -e '/--hash=/d' -e 's/[[:space:]]*\\$//' $new_pinned > $new_pinned_no_comments
     diff $pinned_no_comments $new_pinned_no_comments || {
         echo '>>> up-to-date pinned requirements <<<'
         cat $new_pinned

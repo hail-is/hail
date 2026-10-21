@@ -9,4 +9,5 @@ package=$1
 uv pip compile \
     --python-version 3.12 \
     --python-platform linux \
+    --generate-hashes \
     --upgrade $package/requirements.txt --output-file=$package/pinned-requirements.txt

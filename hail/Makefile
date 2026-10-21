@@ -343,7 +343,7 @@ python/hailtop/hailctl/deploy.yaml: $(resources)
 	done
 	echo "  wheel: $(wheel_cloud_path)" >> $@
 	echo "  pip_dependencies:" >> $@
-	sed '/^[[:blank:]]*#/d;s/#.*//;s/^/    - /' python/pinned-requirements.txt | grep -v pyspark >> $@
+	grep -E '^[A-Za-z0-9]' python/pinned-requirements.txt | sed 's/[[:space:]]*\\$$//;s/^/    - /' | grep -v pyspark >> $@
 
 .PHONY: upload-artifacts
 upload-artifacts: $(WHEEL)
@@ -416,7 +416,10 @@ install: $(WHEEL)
 
 .PHONY: install-on-cluster
 install-on-cluster: $(WHEEL) check-pip-lockfile
-	sed '/^pyspark/d' python/pinned-requirements.txt | grep -v -e '^[[:space:]]*#' -e '^$$' | tr '\n' '\0' | xargs -0 $(PIP) install -U
+	reqs=$$(mktemp) && \
+	awk '/^[A-Za-z0-9]/ { skip = /^pyspark==/ } !skip' python/pinned-requirements.txt > $$reqs && \
+	$(PIP) install -U -r $$reqs; \
+	rc=$$?; rm -f $$reqs; exit $$rc
 	-$(PIP) uninstall -y hail
 	$(PIP) install $(WHEEL) --no-deps
 	hailctl config set query/backend spark

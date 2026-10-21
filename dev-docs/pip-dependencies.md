@@ -18,3 +18,19 @@ Note that the full dependency tree for a pip package can
 differ on different operating systems. All services and docker images in CI
 use the fully pinned requirements on a Linux platform, so the pinned requirements
 files are only generated for Linux.
+
+## Hashes
+
+The `pinned-requirements.txt` files include a `--hash` for every published file of each
+pinned version, so pip refuses to install anything whose contents don't match what was
+recorded when the lockfile was generated. Pip turns on hash checking for a whole
+`pip install` call as soon as any requirement *or constraint* has a hash, so:
+
+- Don't mix a pinned file with unpinned packages in a single `pip install`; install
+  the extras in a separate call.
+- When using a pinned file only as a `--constraint` for an unpinned package, pass
+  `--no-require-hashes`.
+
+If an install fails with a hash mismatch, don't just regenerate the lockfile.
+PyPI files are immutable, so a mismatch means the downloaded file is not the one we
+pinned (a tampered download, a bad mirror, or a corrupted cache). Investigate first.

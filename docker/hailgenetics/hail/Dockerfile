@@ -10,7 +10,8 @@ RUN hail-apt-get-install \
     openjdk-21-jre-headless
 
 COPY hail/python/pinned-requirements.txt requirements.txt
-RUN hail-pip-install -r requirements.txt scikit-learn ipython
+RUN hail-pip-install -r requirements.txt && \
+    hail-pip-install scikit-learn ipython
 
 RUN export SPARK_HOME=$(find_spark_home.py) && \
     curl --fail --silent --show-error --location \
