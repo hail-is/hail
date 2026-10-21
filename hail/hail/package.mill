@@ -26,7 +26,7 @@ object `package` extends HailScalaModule:
       build.hail.utils,
       build.hail.memory(if buildMode == CI then "debug" else "release"),
     )
-    
+
   override def resources: T[Seq[PathRef]] =
     super.resources() ++ Seq(
       BuildCtx.withFilesystemCheckerDisabled {
@@ -43,25 +43,22 @@ object `package` extends HailScalaModule:
           |package object hail {
           |  // FIXME: This should be a compiler switch/flag
           |  val EmitTracebackInAssertions = ${buildMode != Release}
-          |  
+          |
           |  val PipVersion = "${Settings.hailMajorMinorVersion}.${Settings.hailPatchVersion}"
           |  val Revision = "${VcsVersion.vcsState().currentRevision}"
           |  val SparkVersion = "${Env.sparkVersion()}"
-          |  
+          |
           |  // FIXME: probably should use tags or something to choose English name
           |  val PrettyVersion = PipVersion + "-" + Revision.substring(0, 12)
           |}""".stripMargin,
         createFolders = true,
       )
-      
+
       Seq(
         PathRef(Task.dest),
         build.hail.`ir-gen`.generate(),
       )
     }
-
-  override def unmanagedClasspath: T[Seq[PathRef]] =
-    Seq(build.hail.shadeazure.assembly())
 
   // omit unmanagedClasspath from the jar
   override def jar: T[PathRef] =

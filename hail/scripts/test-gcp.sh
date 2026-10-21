@@ -61,7 +61,6 @@ spark-submit \
   ./hail-test.jar \
   execute \
   --select-package=is.hail \
-  --exclude-package=is.hail.shadedazure \
   --exclude-package=is.hail.io.fs \
   --exclude-package=is.hail.services \
   --fail-if-no-tests \
