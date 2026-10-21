@@ -60,7 +60,7 @@ final case class Bindings[+T](
     eval.isEmpty && agg.isEmpty && scan.isEmpty && relational.isEmpty
 
   def dropBindings[U]: Bindings[U] =
-    Bindings(FastSeq.empty, FastSeq.empty, agg.empty, scan.empty, FastSeq.empty, dropEval)
+    new Bindings(FastSeq(), FastSeq(), agg.empty, scan.empty, FastSeq(), dropEval)
 }
 
 object Bindings {
@@ -72,13 +72,13 @@ object Bindings {
     relational: IndexedSeq[Int] = FastSeq.empty,
     dropEval: Boolean = false,
   ): Bindings[T] =
-    if (eval.isEmpty && agg.isEmpty && scan.isEmpty && relational.isEmpty)
-      new Bindings(bindings, bindings.indices, agg, scan, relational, dropEval)
-    else
-      new Bindings(bindings, eval, agg, scan, relational, dropEval)
+    new Bindings(bindings, eval, agg, scan, relational, dropEval)
+
+  def inEval[T](bindings: IndexedSeq[(Name, T)]): Bindings[T] =
+    Bindings(bindings, eval = bindings.indices)
 
   val empty: Bindings[Nothing] =
-    Bindings(FastSeq.empty, FastSeq.empty, AggEnv.NoOp, AggEnv.NoOp, FastSeq.empty, false)
+    new Bindings(FastSeq(), FastSeq(), AggEnv.NoOp, AggEnv.NoOp, FastSeq(), dropEval = false)
 
   /** Returns the environment of the `i`th child of `ir` given the environment of the parent node
     * `ir`.
@@ -98,14 +98,16 @@ object Bindings {
     agg: Option[IndexedSeq[Int]] = None,
     scan: Option[IndexedSeq[Int]] = None,
     relational: IndexedSeq[Int] = FastSeq.empty,
-  ): Bindings[Type] = Bindings(
-    bindings,
-    eval,
-    agg.map(AggEnv.Create(_)).getOrElse(AggEnv.Drop),
-    scan.map(AggEnv.Create(_)).getOrElse(AggEnv.Drop),
-    relational,
-    dropEval = true,
-  )
+  ): Bindings[Type] =
+    new Bindings(
+      bindings,
+      if (eval.isEmpty && agg.isEmpty && scan.isEmpty && relational.isEmpty) bindings.indices
+      else eval,
+      agg.map(AggEnv.Create(_)).getOrElse(AggEnv.Drop),
+      scan.map(AggEnv.Create(_)).getOrElse(AggEnv.Drop),
+      relational,
+      dropEval = true,
+    )
 
   private def childEnvMatrix(ir: MatrixIR, i: Int): Bindings[Type] = {
     import is.hail.types.virtual.MatrixType.{
@@ -261,62 +263,62 @@ object Bindings {
           Bindings(types.result(), scan.result(), AggEnv.bindOrNoOp(agg.result()), AggEnv.Promote)
 
       case TailLoop(name, args, resultType, _) if i == args.length =>
-        Bindings(
+        Bindings.inEval(
           args.map { case (name, ir) => name -> ir.typ } :+
             name -> TTuple(TTuple(args.map(_._2.typ): _*), resultType)
         )
       case StreamMap(a, name, _) if i == 1 =>
-        Bindings(FastSeq(name -> elementType(a.typ)))
+        Bindings.inEval(FastSeq(name -> elementType(a.typ)))
       case StreamZip(as, names, _, _, _) if i == as.length =>
-        Bindings(names.zip(as.map(a => elementType(a.typ))))
+        Bindings.inEval(names.zip(as.map(a => elementType(a.typ))))
       case StreamZipJoin(as, key, curKey, curVals, _) if i == as.length =>
         val eltType = tcoerce[TStruct](elementType(as.head.typ))
-        Bindings(FastSeq(
+        Bindings.inEval(FastSeq(
           curKey -> eltType.typeAfterSelectNames(key),
           curVals -> TArray(eltType),
         ))
       case StreamZipJoinProducers(contexts, ctxName, makeProducer, key, curKey, curVals, _) =>
         if (i == 1) {
           val contextType = elementType(contexts.typ)
-          Bindings(FastSeq(ctxName -> contextType))
+          Bindings.inEval(FastSeq(ctxName -> contextType))
         } else if (i == 2) {
           val eltType = tcoerce[TStruct](elementType(makeProducer.typ))
-          Bindings(FastSeq(
+          Bindings.inEval(FastSeq(
             curKey -> eltType.typeAfterSelectNames(key),
             curVals -> TArray(eltType),
           ))
         } else Bindings.empty
       case StreamLeftIntervalJoin(left, right, _, _, lEltName, rEltName, _) if i == 2 =>
-        Bindings(FastSeq(
+        Bindings.inEval(FastSeq(
           lEltName -> elementType(left.typ),
           rEltName -> TArray(elementType(right.typ)),
         ))
       case StreamFor(a, name, _) if i == 1 =>
-        Bindings(FastSeq(name -> elementType(a.typ)))
+        Bindings.inEval(FastSeq(name -> elementType(a.typ)))
       case StreamFlatMap(a, name, _) if i == 1 =>
-        Bindings(FastSeq(name -> elementType(a.typ)))
+        Bindings.inEval(FastSeq(name -> elementType(a.typ)))
       case StreamFilter(a, name, _) if i == 1 =>
-        Bindings(FastSeq(name -> elementType(a.typ)))
+        Bindings.inEval(FastSeq(name -> elementType(a.typ)))
       case StreamTakeWhile(a, name, _) if i == 1 =>
-        Bindings(FastSeq(name -> elementType(a.typ)))
+        Bindings.inEval(FastSeq(name -> elementType(a.typ)))
       case StreamDropWhile(a, name, _) if i == 1 =>
-        Bindings(FastSeq(name -> elementType(a.typ)))
+        Bindings.inEval(FastSeq(name -> elementType(a.typ)))
       case StreamFold(a, zero, accumName, valueName, _) if i == 2 =>
-        Bindings(FastSeq(accumName -> zero.typ, valueName -> elementType(a.typ)))
+        Bindings.inEval(FastSeq(accumName -> zero.typ, valueName -> elementType(a.typ)))
       case StreamFold2(a, accum, valueName, _, _) =>
         if (i < accum.length + 1)
           Bindings.empty
         else if (i < 2 * accum.length + 1)
-          Bindings(
+          Bindings.inEval(
             (valueName -> elementType(a.typ)) +:
               accum.map { case (name, value) => (name, value.typ) }
           )
         else
-          Bindings(accum.map { case (name, value) => (name, value.typ) })
+          Bindings.inEval(accum.map { case (name, value) => (name, value.typ) })
       case StreamBufferedAggregate(stream, _, _, _, name, _, _) if i > 0 =>
-        Bindings(FastSeq(name -> elementType(stream.typ)))
+        Bindings.inEval(FastSeq(name -> elementType(stream.typ)))
       case RunAggScan(a, name, _, _, _, _) if i == 2 || i == 3 =>
-        Bindings(FastSeq(name -> elementType(a.typ)))
+        Bindings.inEval(FastSeq(name -> elementType(a.typ)))
       case StreamAgg(a, name, _) if i == 1 =>
         Bindings(
           FastSeq(name -> elementType(a.typ)),
@@ -324,7 +326,7 @@ object Bindings {
           scan = AggEnv.Drop,
         )
       case StreamScan(a, zero, accumName, valueName, _) if i == 2 =>
-        Bindings(FastSeq(accumName -> zero.typ, valueName -> elementType(a.typ)))
+        Bindings.inEval(FastSeq(accumName -> zero.typ, valueName -> elementType(a.typ)))
       case StreamAggScan(a, name, _) if i == 1 =>
         val eltType = elementType(a.typ)
         Bindings(
@@ -334,19 +336,23 @@ object Bindings {
           scan = AggEnv.Create(FastSeq(0)),
         )
       case StreamJoinRightDistinct(ll, rr, _, _, l, r, _, _) if i == 2 =>
-        Bindings(FastSeq(
+        Bindings.inEval(FastSeq(
           l -> elementType(ll.typ),
           r -> elementType(rr.typ),
         ))
       case ArraySort(a, left, right, _) if i == 1 =>
-        Bindings(FastSeq(
+        Bindings.inEval(FastSeq(
           left -> elementType(a.typ),
           right -> elementType(a.typ),
         ))
       case ArrayMaximalIndependentSet(a, Some((left, right, _))) if i == 1 =>
         val typ = tcoerce[TBaseStruct](elementType(a.typ)).types.head
         val tupleType = TTuple(typ)
-        Bindings(FastSeq(left -> tupleType, right -> tupleType), dropEval = true)
+        Bindings(
+          FastSeq(left -> tupleType, right -> tupleType),
+          eval = FastSeq(0, 1),
+          dropEval = true,
+        )
       case AggArrayPerElement(a, elementName, indexName, _, _, isScan) =>
         if (i == 0)
           Bindings(
@@ -373,20 +379,22 @@ object Bindings {
         else if (i == 1)
           Bindings(
             FastSeq(accumName -> zero.typ),
+            eval = FastSeq(0),
             agg = if (isScan) AggEnv.NoOp else AggEnv.Promote,
             scan = if (!isScan) AggEnv.NoOp else AggEnv.Promote,
           )
         else
           Bindings(
             FastSeq(accumName -> zero.typ, otherAccumName -> zero.typ),
+            eval = FastSeq(0, 1),
             agg = if (isScan) AggEnv.NoOp else AggEnv.Drop,
             scan = if (!isScan) AggEnv.NoOp else AggEnv.Drop,
             dropEval = true,
           )
       case NDArrayMap(nd, name, _) if i == 1 =>
-        Bindings(FastSeq(name -> tcoerce[TNDArray](nd.typ).elementType))
+        Bindings.inEval(FastSeq(name -> tcoerce[TNDArray](nd.typ).elementType))
       case NDArrayMap2(l, r, lName, rName, _, _) if i == 2 =>
-        Bindings(FastSeq(
+        Bindings.inEval(FastSeq(
           lName -> tcoerce[TNDArray](l.typ).elementType,
           rName -> tcoerce[TNDArray](r.typ).elementType,
         ))
