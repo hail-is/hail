@@ -347,6 +347,39 @@ trait FSSuite {
     assert(!fs.exists(f))
   }
 
+  @Test def testWritePosition(): Unit = {
+    val f = t()
+
+    using(fs.createNoCompression(f)) { os =>
+      assertEq(os.getPosition, 0L)
+      os.write(1)
+      assertEq(os.getPosition, 1L)
+      os.write(Array[Byte](2, 3, 4, 5))
+      assertEq(os.getPosition, 5L)
+      os.write(Array[Byte](6, 7, 8, 9), 1, 2)
+      assertEq(os.getPosition, 7L)
+      os.flush()
+      assertEq(os.getPosition, 7L)
+    }
+
+    using(fs.openNoCompression(f)) { is =>
+      assertEq(IOUtils.toByteArray(is).toSeq, Seq[Byte](1, 2, 3, 4, 5, 7, 8))
+    }
+
+    fs.delete(f, false)
+  }
+
+  @Test def testWriteEmpty(): Unit = {
+    val f = t()
+
+    using(fs.createNoCompression(f))(_ => ())
+
+    assert(fs.exists(f))
+    assertEq(fs.getFileSize(f), 0L)
+
+    fs.delete(f, false)
+  }
+
   @Test def testDropTrailingSlash(): Unit = {
     assertEq(dropTrailingSlash(""), "")
     assertEq(dropTrailingSlash("/foo/bar"), "/foo/bar")
