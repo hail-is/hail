@@ -165,7 +165,7 @@ hail-run-image: base-image hail/Dockerfile.hail-run hail/python/pinned-requireme
 	./docker-build.sh . hail/Dockerfile.hail-run $(IMAGE_NAME) --build-arg BASE_IMAGE=$(shell cat base-image)
 	echo $(IMAGE_NAME) > $@
 
-hailgenetics-hail-image: hail-ubuntu-image docker/hailgenetics/hail/Dockerfile $(shell git ls-files hail/src/main hail/python)
+hailgenetics-hail-image: hail-ubuntu-image docker/hailgenetics/hail/Dockerfile docker/hailgenetics/hail/pinned-requirements.txt $(shell git ls-files hail/src/main hail/python)
 	$(MAKE) HAIL_BUILD_MODE=Release -C hail wheel
 	./docker-build.sh . docker/hailgenetics/hail/Dockerfile $(IMAGE_NAME) \
 		--build-arg BASE_IMAGE=$(shell cat hail-ubuntu-image)
