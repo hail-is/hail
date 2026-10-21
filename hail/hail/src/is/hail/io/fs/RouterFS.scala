@@ -1,7 +1,7 @@
 package is.hail.io.fs
 
 import is.hail.collection.FastSeq
-import is.hail.services.oauth2.{AzureCloudCredentials, GoogleCloudCredentials}
+import is.hail.services.oauth2.GoogleCloudCredentials
 import is.hail.utils.{fatal, SerializableHadoopConfiguration}
 
 import java.io.Serializable
@@ -21,7 +21,6 @@ class RouterFSURL(val fs: FS, _url: FSURL[_]) extends FSURL[RouterFSURL] {
 }
 
 case class CloudStorageConfig(
-  azure: Option[AzureStorageConfig] = None,
   google: Option[GoogleStorageConfig] = None,
 ) extends Serializable
 
@@ -29,8 +28,6 @@ object CloudStorageConfig {
   def readEnv(credentialsFile: Option[Path], env: Map[String, String] = sys.env)
     : CloudStorageConfig =
     env.get("HAIL_CLOUD") match {
-      case Some("azure") =>
-        CloudStorageConfig(azure = Some(AzureStorageConfig(credentialsFile)))
       case Some("gcp") | None =>
         CloudStorageConfig(google = Some(GoogleStorageConfig(credentialsFile, None)))
       case unknown =>
@@ -48,18 +45,6 @@ object RouterFS {
             GoogleCloudCredentials(path).scoped(GoogleStorageFS.RequiredOAuthScopes),
             rpConfig,
           )
-        },
-        cloudConfig.azure.map { case AzureStorageConfig(path) =>
-          if (env.contains("HAIL_TERRA"))
-            new TerraAzureStorageFS(
-              AzureCloudCredentials(path, env)
-                .scoped(TerraAzureStorageFS.RequiredOAuthScopes)
-            )
-          else
-            new AzureStorageFS(
-              AzureCloudCredentials(path, env)
-                .scoped(AzureStorageFS.RequiredOAuthScopes)
-            )
         },
         FastSeq(new HadoopFS(new SerializableHadoopConfiguration(new Configuration()))),
       )
