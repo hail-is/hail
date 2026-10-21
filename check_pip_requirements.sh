@@ -10,6 +10,15 @@ do
     pinned_no_comments=$(mktemp)
     new_pinned_no_comments=$(mktemp)
 
+    missing=$(awk '/^[A-Za-z0-9]/ { if (req) print req; req = $1; next } /^[[:space:]]*--hash=/ { req = "" } END { if (req) print req }' $pinned)
+    if [ -n "$missing" ]; then
+        echo "$pinned has requirements without hashes:"
+        echo "$missing"
+        echo "Please regenerate the pinned requirements file by running:"
+        echo "> make generate-pip-lockfiles"
+        exit 1
+    fi
+
     uv pip compile \
         --python-version 3.12 \
         --python-platform linux \

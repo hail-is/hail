@@ -5,12 +5,11 @@ RUN hail-apt-get-install git google-cloud-cli kubectl mysql-client
 
 COPY hail/python/hailtop/pinned-requirements.txt hailtop-requirements.txt
 COPY gear/pinned-requirements.txt gear-requirements.txt
+COPY ci/ci-utils/pinned-requirements.txt ci-utils-requirements.txt
 RUN hail-pip-install \
       -r hailtop-requirements.txt \
-      -r gear-requirements.txt && \
-    hail-pip-install \
-      'twine>=6.2.0,<7' \
-      'Jinja2>3,<4'
+      -r gear-requirements.txt \
+      -r ci-utils-requirements.txt
 
 FROM {% if global.dockerhub_prefix %}{{ global.dockerhub_prefix }}/library/{% endif %}golang:1.18 AS skopeo-build
 

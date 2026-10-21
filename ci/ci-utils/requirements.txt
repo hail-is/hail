@@ -1,0 +1,4 @@
+-c ../../hail/python/hailtop/pinned-requirements.txt
+-c ../../gear/pinned-requirements.txt
+twine>=6.2.0,<7
+Jinja2>3,<4

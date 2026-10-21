@@ -1779,6 +1779,8 @@ steps:
         to: /io/repo/batch
       - from: /repo/ci
         to: /io/repo/ci
+      - from: /repo/docker/hailgenetics/hail
+        to: /io/repo/docker/hailgenetics/hail
     dependsOn:
       - hail_linting_image
       - merge_code

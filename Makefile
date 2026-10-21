@@ -100,7 +100,9 @@ check-pip-requirements:
 		gear \
 		web_common \
 		batch \
-		ci
+		ci \
+		ci/ci-utils \
+		docker/hailgenetics/hail
 
 .PHONY: install-dev-requirements
 install-dev-requirements:
@@ -140,6 +142,8 @@ generate-pip-lockfiles:
 	./generate-pip-lockfile.sh web_common
 	./generate-pip-lockfile.sh batch
 	./generate-pip-lockfile.sh ci
+	./generate-pip-lockfile.sh ci/ci-utils
+	./generate-pip-lockfile.sh docker/hailgenetics/hail
 
 $(HAILTOP_VERSION):
 	$(MAKE) -C hail python-version-info

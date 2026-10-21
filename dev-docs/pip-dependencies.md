@@ -26,8 +26,10 @@ pinned version, so pip refuses to install anything whose contents don't match wh
 recorded when the lockfile was generated. Pip turns on hash checking for a whole
 `pip install` call as soon as any requirement *or constraint* has a hash, so:
 
-- Don't mix a pinned file with unpinned packages in a single `pip install`; install
-  the extras in a separate call.
+- Don't mix a pinned file with unpinned packages in a single `pip install`. Give
+  extra packages their own `requirements.txt` (constrained with `-c` by the pinned
+  files they're installed alongside) and add it to `generate-pip-lockfiles` and
+  `check-pip-requirements`; see `ci/ci-utils/` and `docker/hailgenetics/hail/`.
 - When using a pinned file only as a `--constraint` for an unpinned package, pass
   `--no-require-hashes`.
 
