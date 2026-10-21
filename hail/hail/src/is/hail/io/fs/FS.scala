@@ -8,7 +8,6 @@ import scala.collection.immutable.ArraySeq
 import scala.io.Source
 
 import java.io._
-import java.nio.ByteBuffer
 import java.nio.file.FileSystems
 import java.util.zip.GZIPOutputStream
 
