@@ -131,7 +131,7 @@ final class ReferenceGenome(
 
   val extendedLocusOrdering = ExtendedOrdering.extendToNull(locusOrdering)
 
-  lazy val locusType: TLocus = TLocus(name)
+  lazy val locusType: TLocus = TLocus(this)
 
   val par = parInput.map { case (start, end) =>
     if (start.contig != end.contig)
@@ -552,8 +552,8 @@ object ReferenceGenome {
       rg.write(fs, rgPath)
   }
 
-  def getReferences(t: Type): Set[String] = {
-    var rgs = Set[String]()
+  def getReferences(t: Type): Set[ReferenceGenome] = {
+    var rgs = Set[ReferenceGenome]()
     MapTypes.foreach {
       case tl: TLocus =>
         rgs += tl.rg

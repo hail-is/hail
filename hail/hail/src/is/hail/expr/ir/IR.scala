@@ -23,7 +23,7 @@ import is.hail.types.physical.stypes.concrete.SJavaString
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.virtual._
 import is.hail.utils._
-import is.hail.variant.ReferenceGenomeEnv
+import is.hail.variant.{ReferenceGenomeEnv, ReferenceGenomeNameSerializer}
 
 import java.io.OutputStream
 
@@ -403,7 +403,8 @@ package defs {
         new TypeSerializer(rgs) +
         new PTypeSerializer(rgs) +
         new ETypeSerializer +
-        new AvroSchemaSerializer
+        new AvroSchemaSerializer +
+        new ReferenceGenomeNameSerializer(rgs)
 
     def extract(ctx: ExecuteContext, jv: JValue): PartitionReader = {
       implicit val formats: Formats = PartitionReader.formats(ctx.referenceGenomes)
@@ -434,7 +435,7 @@ package defs {
             IRParser.parseType((jv \ "entryFloatType").extract[String], ctx.referenceGenomes)
           val arrayElementsRequired = (jv \ "arrayElementsRequired").extract[Boolean]
           val rg = (jv \ "rg") match {
-            case JString(s) => Some(s)
+            case JString(s) => Some(ctx.referenceGenomes.resolve(s))
             case JNothing => None
           }
           val contigRecoding = (jv \ "contigRecoding").extract[Map[String, String]]
@@ -480,7 +481,8 @@ package defs {
         new TypeSerializer(rgs) +
         new PTypeSerializer(rgs) +
         new PStructSerializer(rgs) +
-        new ETypeSerializer
+        new ETypeSerializer +
+        new ReferenceGenomeNameSerializer(rgs)
   }
 
   object MetadataWriter {
@@ -513,7 +515,8 @@ package defs {
         new TStructSerializer(rgs) +
         new TypeSerializer(rgs) +
         new PTypeSerializer(rgs) +
-        new ETypeSerializer
+        new ETypeSerializer +
+        new ReferenceGenomeNameSerializer(rgs)
   }
 
   abstract class PartitionReader {

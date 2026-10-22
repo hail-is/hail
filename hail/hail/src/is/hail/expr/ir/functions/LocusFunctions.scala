@@ -15,7 +15,7 @@ import is.hail.variant._
 
 object LocusFunctions extends RegistryFunctions {
 
-  def rgCode(mb: EmitMethodBuilder[_], rg: String): Code[ReferenceGenome] =
+  def rgCode(mb: EmitMethodBuilder[_], rg: ReferenceGenome): Code[ReferenceGenome] =
     mb.getReferenceGenome(rg)
 
   def tlocus(name: String): Type = tv(name, "locus")
@@ -638,7 +638,7 @@ object LocusFunctions extends RegistryFunctions {
             val locusObj = loc.getLocusObj(cb)
             val lifted = cb.newLocal[(Locus, Boolean)](
               "lifterover_locus_ lifted",
-              cb.emb.getLiftover(srcRG, destRG).invoke[Locus, Double, (Locus, Boolean)](
+              cb.emb.getLiftover(srcRG.name, destRG.name).invoke[Locus, Double, (Locus, Boolean)](
                 "queryLocus",
                 locusObj,
                 minMatch.asDouble.value,
@@ -710,7 +710,11 @@ object LocusFunctions extends RegistryFunctions {
             val intervalObj = Code.checkcast[Interval](svalueToJavaValue(cb, r, interval))
             val lifted = cb.newLocal[(Interval, Boolean)](
               "liftover_locus_interval_lifted",
-              cb.emb.getLiftover(srcRG, destRG).invoke[Interval, Double, (Interval, Boolean)](
+              cb.emb.getLiftover(srcRG.name, destRG.name).invoke[
+                Interval,
+                Double,
+                (Interval, Boolean),
+              ](
                 "queryInterval",
                 intervalObj,
                 minMatch.asDouble.value,
