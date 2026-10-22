@@ -42,6 +42,7 @@ Resources:
             }
             trap send_error_signal ERR
 
+            export HOME=/root
             cd $HOME
             git clone https://github.com/${GithubOrganizationName}/hail.git
             cd hail
@@ -51,8 +52,9 @@ Resources:
             ./install_bootstrap_dependencies.sh
             export AWS_DEFAULT_REGION=${AWS::Region}
             aws eks update-kubeconfig --region ${AWS::Region} --name ${ClusterName}
-            aws ecr get-login-password | docker login --username AWS --password-stdin "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/default"
+            aws ecr get-login-password | docker login --username AWS --password-stdin "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com"
             
+            export HAIL=$HOME/hail
             export NAMESPACE=default
             export KUBECONFIG=/root/.kube/config
 
