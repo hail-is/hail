@@ -223,11 +223,12 @@ users:
                         env_options.extend(['-e', 'KUBECONFIG=/.kube/config'])
 
                     secrets = j._secrets or []
-                    secrets.append({
-                        'name': 'ci-gsa-key',
-                        'namespace': 'default',
-                        'mount_path': '/gsa-key',
-                    })
+                    if CLOUD != 'aws':
+                        secrets.append({
+                            'name': 'ci-gsa-key',
+                            'namespace': 'default',
+                            'mount_path': '/gsa-key',
+                        })
                     if secrets:
                         k8s_secrets = await asyncio.gather(*[
                             k8s_cache.read_secret(secret['name'], secret['namespace']) for secret in secrets
