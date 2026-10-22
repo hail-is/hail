@@ -21,6 +21,9 @@ Parameters:
   DomainName:
     Type: String
     Description: The domain name for the cluster
+  OrganizationDomain:
+    Type: String
+    Description: The domain name of the organization which manages Google SSO
 Resources:
   VdcGlobalConfigParameter:
     Type: "AWS::SecretsManager::Secret"
@@ -42,7 +45,7 @@ Resources:
           internal_ip: !GetAtt VdcInternalGatewayAddress.PrimaryPrivateIpAddress
           ip: !GetAtt VdcCluster.Endpoint                       # use the cluster endpoint in place of a static endpoint
           kubernetes_server_url: !GetAtt VdcCluster.Endpoint
-          organization_domain: !Ref DomainName
+          organization_domain: !Ref OrganizationDomain
 
   VdcNonpreemptibleNodeGroup:
     Type: "AWS::EKS::Nodegroup"
