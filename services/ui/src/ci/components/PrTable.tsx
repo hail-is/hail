@@ -68,7 +68,7 @@ export function PrTable({ prs, statusNames, repo, basePath, wbIndex }: {
                       title="CI details"
                       className="group inline-flex items-center gap-1.5 text-sky-600"
                     >
-                      <img src={`${basePath}/common_static/hail_logo_sq.ico`} alt="" className="w-4 h-4" />
+                      <img src={`${basePath}/common_static/hail_logo_sq.ico`} alt="" width={16} height={16} className="w-4 h-4" />
                       <BuildStateIcon state={pr.build_state} />
                       <span className="group-hover:underline">{buildStateLabel(pr)}</span>
                     </a>

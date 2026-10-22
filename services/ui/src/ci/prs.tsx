@@ -21,13 +21,15 @@ function PrsPage({ basePath, wbIndex }: { basePath: string; wbIndex: number }): 
     let cancelled = false;
     const api = createCiApi(basePath);
     api.getWatchedBranches()
-      .then(async (r) => {
+      .then((r) => {
         const entry = Number.isInteger(wbIndex) && wbIndex >= 0 ? r.branches.at(wbIndex) : undefined;
         if (entry === undefined) throw new Error(`No watched branch at index ${wbIndex}`);
-        if (cancelled) return;
+        if (cancelled) return null;
         setWb(entry);
-        const branchPrs = await api.getWatchedBranchPrs(entry.branch);
-        if (!cancelled) setPrs(branchPrs);
+        return api.getWatchedBranchPrs(entry.branch);
+      })
+      .then((branchPrs) => {
+        if (!cancelled && branchPrs !== null) setPrs(branchPrs);
       })
       .catch((e: unknown) => {
         if (!cancelled) setError(errorMessage(e));
@@ -39,8 +41,8 @@ function PrsPage({ basePath, wbIndex }: { basePath: string; wbIndex: number }): 
   useEffect(() => {
     const onKeyUp = (e: KeyboardEvent) => {
       if (e.key !== '/') return;
-      const target = e.target as HTMLElement | null;
-      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return;
+      const t = e.target;
+      if (t instanceof HTMLElement && (t.matches('input, textarea') || t.isContentEditable)) return;
       searchRef.current?.focus();
     };
     document.addEventListener('keyup', onKeyUp);

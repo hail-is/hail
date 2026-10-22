@@ -961,12 +961,12 @@ async def get_all_prs(request: web.Request, userdata: UserData) -> web.Response:
     return await render_template('ci', request, userdata, 'prs-index.html', page_context)
 
 
-@routes.get('/watched_branches/{watched_branch_index}/prs')
+@routes.get(r'/watched_branches/{watched_branch_index:\d+}/prs')
 @web_security_headers
 @auth.authenticated_users_with_permission(SystemPermission.READ_CI)
 async def get_prs(request: web.Request, userdata: UserData) -> web.Response:
     watched_branch_index = int(request.match_info['watched_branch_index'])
-    if watched_branch_index < 0 or watched_branch_index >= len(watched_branches):
+    if watched_branch_index >= len(watched_branches):
         raise web.HTTPNotFound()
     return await render_template(
         'ci',
