@@ -410,7 +410,7 @@ object Nirvana extends Logging {
     val localRowType = tv.rvd.rowPType
     val localBlockSize = blockSize
 
-    val rowKeyOrd = tv.typ.keyType.ordering(ctx.stateManager)
+    val rowKeyOrd = tv.typ.keyType.ordering
 
     logger.info("Running Nirvana")
 

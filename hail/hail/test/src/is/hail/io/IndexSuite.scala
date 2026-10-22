@@ -391,7 +391,7 @@ class IndexSuite {
 
       val endPoints = (stringsWithDups.distinct ++ Array("aardvark", "boar", "elk", "oppossum",
         "snail", "zoo")).combinations(2)
-      val ordering = TString.ordering(ctx.stateManager)
+      val ordering = TString.ordering
 
       for (bounds <- endPoints) {
         for (includesStart <- Array(true, false)) {

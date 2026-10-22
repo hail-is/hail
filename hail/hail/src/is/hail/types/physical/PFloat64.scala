@@ -22,7 +22,7 @@ class PFloat64(override val required: Boolean) extends PNumeric with PPrimitive 
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean): Unit =
     sb ++= "PFloat64"
 
-  override def unsafeOrdering(sm: HailStateManager): UnsafeOrdering = new UnsafeOrdering {
+  override def unsafeOrdering: UnsafeOrdering = new UnsafeOrdering {
     override def compare(o1: Long, o2: Long): Int =
       java.lang.Double.compare(Region.loadDouble(o1), Region.loadDouble(o2))
   }
