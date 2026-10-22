@@ -64,6 +64,8 @@ export type Job = {
   duration?: string;
   cost?: number;
   cost_breakdown?: { resource: string; cost: number }[] | null;
+  retried_attempts_cost?: number | null;
+  projected_nonpreemptible_cost?: number | null;
   user?: string;
   billing_project?: string;
   always_run?: boolean;
