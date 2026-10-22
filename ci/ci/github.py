@@ -283,6 +283,25 @@ class FailedMerge(NamedTuple):
     retry_after_ms: int
 
 
+class LastUpdate(NamedTuple):
+    started_ms: int
+    finished_ms: int
+    error: Optional[str]
+
+
+class GitHubApiError(NamedTuple):
+    at_ms: int
+    operation: str
+    status: Optional[int]
+    message: str
+
+
+class RestRateLimit(NamedTuple):
+    remaining: int
+    limit: int
+    reset_at: str  # ISO 8601
+
+
 MERGE_RETRY_BACKOFF_SECS = [60, 600, 3600]
 
 
@@ -573,9 +592,11 @@ class PR(Code):
             log.exception(
                 f'{self.short_str()}: notify github of build state failed due to exception: {f"/repos/{self.target_branch.branch.repo.short_str()}/statuses/{self.source_sha}"} / {data} / {e}'
             )
+            self.target_branch.record_github_api_error(f'post status {self.number}', e)
             await self._record_status_post_failed(db, gh_status, e)
         except aiohttp.client_exceptions.ClientResponseError as e:
             log.exception(f'{self.short_str()}: Unexpected exception in post to github: {data}')
+            self.target_branch.record_github_api_error(f'post status {self.number}', e)
             await self._record_status_post_failed(db, gh_status, e)
 
     async def _record_status_post_failed(self, db: Database, gh_status: GithubStatus, e: BaseException):
@@ -609,6 +630,7 @@ class PR(Code):
                     log.exception(f'{self.short_str()}: post assignees to github failed due to exception: {data}')
                 else:
                     log.exception(f'{self.short_str()}: Unexpected exception in post to github: {data}')
+                self.target_branch.record_github_api_error(f'assign reviewers {self.number}', e)
                 await record_event(
                     db,
                     CIEvent.REVIEWER_ASSIGN_FAILED,
@@ -1005,10 +1027,12 @@ mkdir -p {shq(repo_dir)}
                 log.info(f'merge {self.target_branch.branch.short_str()} {self.number} already in flight')
                 return 'pending', None
             log.info(f'merge {self.target_branch.branch.short_str()} {self.number} failed', exc_info=True)
+            self.target_branch.record_github_api_error(f'merge {self.number}', e)
             await record_event(db, CIEvent.MERGE_FAILED, **event_fields, message=describe_exception(e))
             return 'failed', None
         except aiohttp.client_exceptions.ClientResponseError as e:
             log.info(f'merge {self.target_branch.branch.short_str()} {self.number} failed', exc_info=True)
+            self.target_branch.record_github_api_error(f'merge {self.number}', e)
             await record_event(db, CIEvent.MERGE_FAILED, **event_fields, message=describe_exception(e))
             return 'failed', None
 
@@ -1266,6 +1290,13 @@ class WatchedBranch(Code):
         # From the last GitHub update's PR GraphQL query; None until the first one
         self.graphql_rate_limit: Optional[GraphQLRateLimit] = None
 
+        # Recorded for display only; nothing reads these to make a decision
+        self.last_update_started_ms: Optional[int] = None
+        self.last_update: Optional[LastUpdate] = None
+        self.last_github_api_error: Optional[GitHubApiError] = None
+        # Snapshot after the REST calls, before the GraphQL query overwrites gh.rate_limit
+        self.rest_rate_limit: Optional[RestRateLimit] = None
+
         self.merge_candidate: Optional[PR] = None
 
         # Remember an async merge that was requested but not (observed to be) completed yet
@@ -1328,6 +1359,8 @@ class WatchedBranch(Code):
             return
 
         t_update_start = time.monotonic()
+        started_ms = self.last_update_started_ms = time_msecs()
+        error: Optional[str] = None
         try:
             log.info(f'start update {self.short_str()}')
             self.updating = True
@@ -1346,11 +1379,21 @@ class WatchedBranch(Code):
                     await self._heal(db, batch_client, gh, frozen)
                     if self.mergeable and self.merge_paused_reason(frozen) is None:
                         await self.try_to_merge(db, gh)
+        except BaseException as e:
+            error = f'{type(e).__name__}: {e}'
+            raise
         finally:
             t_total = time.monotonic() - t_update_start
             WATCHED_BRANCH_UPDATE_LATENCY.set(t_total)
             log.info(f'update done {self.short_str()} in {t_total:.1f}s')
             self.updating = False
+            self.last_update = LastUpdate(started_ms, time_msecs(), error)
+
+    def record_github_api_error(self, operation: str, e: BaseException):
+        status = getattr(e, 'status_code', None) or getattr(e, 'status', None)
+        self.last_github_api_error = GitHubApiError(
+            time_msecs(), operation, int(status) if status is not None else None, str(e)
+        )
 
     def merge_paused_reason(self, frozen: bool) -> Optional[MergePausedReason]:
         """Why merging is paused branch-wide, if it is. A pending merge isn't a pause."""
@@ -1444,9 +1487,11 @@ class WatchedBranch(Code):
                 self.pending_merge = None
                 return 'failed'
             log.info(f'checking pending merge {self.branch.short_str()} {pr_number} failed', exc_info=True)
+            self.record_github_api_error(f'poll pending merge {pr_number}', e)
             return 'pending'
-        except aiohttp.client_exceptions.ClientResponseError:
+        except aiohttp.client_exceptions.ClientResponseError as e:
             log.info(f'checking pending merge {self.branch.short_str()} {pr_number} failed', exc_info=True)
+            self.record_github_api_error(f'poll pending merge {pr_number}', e)
             return 'pending'
 
         result = _merge_result(response)
@@ -1513,6 +1558,11 @@ class WatchedBranch(Code):
 
         for pr in new_prs.values():
             await pr.assign_gh_reviewer_if_requested(db, gh)
+
+        if gh.rate_limit is not None:
+            self.rest_rate_limit = RestRateLimit(
+                gh.rate_limit.remaining, gh.rate_limit.limit, gh.rate_limit.reset_datetime.isoformat()
+            )
 
         if new_prs:
             pr_github_data, rate_limit = await _fetch_pr_github_data(
