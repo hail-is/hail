@@ -214,7 +214,7 @@ steps:
       kubectl get secret -n {{ default_ns.name }} ssl-config-hail-root \
         --template={% raw %}'{{index .data "hail-root-cert.pem"}}'{% endraw %} \
         | base64 --decode \
-        | openssl x509 -checkend 0 -noout -in -
+        | openssl x509 -checkend 0 -noout
 
       if [ "$?" -ne 0 ]
       then
