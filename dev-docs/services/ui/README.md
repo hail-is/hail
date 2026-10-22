@@ -100,6 +100,11 @@ npm run check    # tsc --noEmit — type-check only, no output
 
 `npm test`/`npm run check` must be run with `services/ui` as the working directory — running `vitest` from a subdirectory silently narrows which test files it picks up, with no error indicating anything was skipped.
 
+### Dependency policy (`services/ui/.npmrc`)
+
+- **Release cooldown:** `min-release-age=7` makes `npm install`/`npm update` ignore package versions published in the last 7 days.
+- **Install scripts:** `strict-allow-scripts=true` fails the install when a dependency has an install script that isn't listed in `allowScripts` in `package.json`. Only `esbuild` is allowed (it needs its script to install its binary); the rest are denied. If an install fails with `ESTRICTALLOWSCRIPTS`, check what the new package's script does, then run `npm approve-scripts --no-allow-scripts-pin <pkg>` or `npm deny-scripts <pkg>`. Approvals are name-only because npm doesn't accept version ranges, and a pinned version would break CI on every patch bump.
+
 ### How artifacts get into a service
 
 Compiled bundles are not committed. Each service that uses a bundle has a Makefile target that builds it and copies it into the service's static tree. For example:
