@@ -133,17 +133,21 @@ update-gateways-envoy:
 	@echo 'If traffic to hail.is services seems degraded, roll back with:'
 	@echo '  kubectl rollout undo deployment gateway-deployment && kubectl rollout undo deployment internal-gateway'
 
+# Packages to exempt from the 7-day release cooldown, e.g. COOLDOWN_EXEMPT="uv aiohttp"
+COOLDOWN_EXEMPT ?=
+COOLDOWN_EXEMPT_ARGS := $(foreach p,$(COOLDOWN_EXEMPT),--exclude-newer-package $(p)=false)
+
 .PHONY: generate-pip-lockfiles
 generate-pip-lockfiles:
-	./generate-pip-lockfile.sh hail/python/hailtop
-	./generate-pip-lockfile.sh hail/python
-	./generate-pip-lockfile.sh hail/python/dev
-	./generate-pip-lockfile.sh gear
-	./generate-pip-lockfile.sh web_common
-	./generate-pip-lockfile.sh batch
-	./generate-pip-lockfile.sh ci
-	./generate-pip-lockfile.sh ci/ci-utils
-	./generate-pip-lockfile.sh docker/hailgenetics/hail
+	./generate-pip-lockfile.sh hail/python/hailtop $(COOLDOWN_EXEMPT_ARGS)
+	./generate-pip-lockfile.sh hail/python $(COOLDOWN_EXEMPT_ARGS)
+	./generate-pip-lockfile.sh hail/python/dev $(COOLDOWN_EXEMPT_ARGS)
+	./generate-pip-lockfile.sh gear $(COOLDOWN_EXEMPT_ARGS)
+	./generate-pip-lockfile.sh web_common $(COOLDOWN_EXEMPT_ARGS)
+	./generate-pip-lockfile.sh batch $(COOLDOWN_EXEMPT_ARGS)
+	./generate-pip-lockfile.sh ci $(COOLDOWN_EXEMPT_ARGS)
+	./generate-pip-lockfile.sh ci/ci-utils $(COOLDOWN_EXEMPT_ARGS)
+	./generate-pip-lockfile.sh docker/hailgenetics/hail $(COOLDOWN_EXEMPT_ARGS)
 
 $(HAILTOP_VERSION):
 	$(MAKE) -C hail python-version-info

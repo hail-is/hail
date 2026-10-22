@@ -19,6 +19,20 @@ differ on different operating systems. All services and docker images in CI
 use the fully pinned requirements on a Linux platform, so the pinned requirements
 files are only generated for Linux.
 
+## Release cooldown
+
+`make generate-pip-lockfiles` ignores any release published in the last 7 days
+(`--exclude-newer "7 days"`), so a compromised release has time to be noticed and
+yanked before we pick it up. If you need something newer, such as a security fix,
+raise the floor in `requirements.txt` and lift the cooldown for that package:
+
+```bash
+make generate-pip-lockfiles COOLDOWN_EXEMPT="<package> [<package> ...]"
+```
+
+The same cooldown applies to npm in `services/ui` through `min-release-age` in
+`services/ui/.npmrc`.
+
 ## Hashes
 
 The `pinned-requirements.txt` files include a `--hash` for every published file of each
