@@ -9,10 +9,11 @@ from typing import Any, Dict, List
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import gidgethub
+import gidgethub.sansio
 import pytest
 
 from ci.constants import GITHUB_STATUS_CONTEXT
-from ci.github import PR, STACKED_PR, WIP, FQBranch, Repo, WatchedBranch
+from ci.github import PR, STACKED_PR, WIP, FQBranch, LastUpdate, Repo, RestRateLimit, WatchedBranch
 from ci.utils import GithubStatus
 
 TARGET_SHA = 'target-sha-0'
@@ -260,3 +261,97 @@ async def test_update_only_merges_when_not_paused():
 
         await heal_then_update(frozen=False)
         try_to_merge.assert_awaited_once()
+
+
+# Bookkeeping: recorded for display only, so each test also checks the existing outcome is unchanged
+
+
+async def test_update_records_timing_and_no_error(monkeypatch):
+    monkeypatch.setattr('ci.github.time_msecs', iter([100, 250]).__next__)
+    wb = make_branch()
+    wb.github_changed = wb.batch_changed = wb.state_changed = False
+
+    await wb._update(MagicMock(), MagicMock(), MagicMock(), frozen=False)
+
+    assert wb.last_update_started_ms == 100
+    assert wb.last_update == LastUpdate(100, 250, None)
+
+
+async def test_update_records_error_and_still_raises():
+    wb = make_branch()
+    wb.batch_changed = wb.state_changed = False
+
+    with (
+        patch.object(wb, '_update_github', new=AsyncMock(side_effect=ValueError('boom'))),
+        pytest.raises(ValueError, match='boom'),
+    ):
+        await wb._update(MagicMock(), MagicMock(), MagicMock(), frozen=False)
+
+    assert wb.last_update is not None
+    assert wb.last_update.error == 'ValueError: boom'
+    assert not wb.updating
+
+
+async def test_update_skipped_while_updating_records_nothing():
+    wb = make_branch()
+    wb.updating = True
+
+    await wb._update(MagicMock(), MagicMock(), MagicMock(), frozen=False)
+
+    assert wb.last_update_started_ms is None
+    assert wb.last_update is None
+
+
+async def test_rejected_merge_records_github_api_error():
+    wb = make_branch()
+    pr = add_mergeable_pr(wb, 1)
+    gh = FakeGH()
+    gh.put = AsyncMock(side_effect=gidgethub.HTTPException(http.HTTPStatus.FORBIDDEN, 'forbidden'))
+
+    assert await pr.merge(gh) == ('failed', None)
+
+    assert wb.last_github_api_error is not None
+    assert wb.last_github_api_error.operation == 'merge 1'
+    assert wb.last_github_api_error.status == 403
+
+
+async def test_merge_already_in_flight_is_not_an_api_error():
+    wb = make_branch()
+    pr = add_mergeable_pr(wb, 1)
+
+    assert await pr.merge(FakeGH(put_conflict=True)) == ('pending', None)
+
+    assert wb.last_github_api_error is None
+
+
+async def test_failed_pending_merge_poll_records_github_api_error():
+    wb = make_branch()
+    add_mergeable_pr(wb, 1)
+    gh = FakeGH()
+    await wb.try_to_merge(gh)
+    gh.getitem = AsyncMock(side_effect=gidgethub.HTTPException(http.HTTPStatus.BAD_GATEWAY, 'bad gateway'))
+
+    await wb.try_to_merge(gh)
+
+    assert gh.merge_requests == [1]
+    assert wb.pending_merge is not None
+    assert wb.last_github_api_error is not None
+    assert wb.last_github_api_error.operation == 'poll pending merge 1'
+    assert wb.last_github_api_error.status == 502
+
+
+async def test_update_github_snapshots_rest_rate_limit():
+    wb = make_branch()
+    gh = MagicMock()
+    gh.getitem = AsyncMock(return_value={'object': {'sha': TARGET_SHA}})
+
+    async def no_prs(_url):
+        return
+        yield
+
+    gh.getiter = no_prs
+    gh.rate_limit = gidgethub.sansio.RateLimit(limit=5000, remaining=4123, reset_epoch=0)
+
+    await wb._update_github(gh)
+
+    assert wb.rest_rate_limit == RestRateLimit(4123, 5000, '1970-01-01T00:00:00+00:00')
