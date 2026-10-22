@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
+import json
 import re
 import sys
 import urllib.request
-import json
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).parent
@@ -11,7 +11,7 @@ DOCKERFILE = REPO_ROOT / 'docker/hail-ubuntu/Dockerfile'
 
 url = 'https://hub.docker.com/v2/repositories/library/ubuntu/tags?page_size=100&name=noble-2'
 print('Querying Docker Hub for latest ubuntu noble tag...')
-with urllib.request.urlopen(url) as r: # nosec B310 - ignore bandit rule because this url is https
+with urllib.request.urlopen(url) as r:  # nosec B310 - ignore bandit rule because this url is https
     data = json.loads(r.read())
 
 pattern = re.compile(r'^noble-(\d{8}(?:\.\d+)?)$')

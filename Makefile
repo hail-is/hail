@@ -2,7 +2,7 @@
 
 include config.mk
 
-SERVICES := auth batch ci monitoring website
+SERVICES := auth batch ci monitoring website devbin
 SERVICES_PLUS_ADMIN_POD := $(SERVICES) admin-pod
 SERVICES_IMAGES := $(patsubst %, %-image, $(SERVICES_PLUS_ADMIN_POD))
 SERVICES_DATABASES := $(patsubst %, %-db, $(SERVICES))

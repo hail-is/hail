@@ -15,7 +15,6 @@ import kubernetes_asyncio.client
 import kubernetes_asyncio.config
 from fswatch import Monitor, libfswatch
 
-from hailtop.aiotools import BackgroundTaskManager
 from hailtop.hail_logging import configure_logging
 from hailtop.utils import CalledProcessError, check_shell, retry_transient_errors
 
@@ -120,7 +119,7 @@ if __name__ == '__main__':
         '--ignore',
         required=False,
         type=str,
-        default='flycheck_.*|.*~|\.#.*',
+        default=r'flycheck_.*|.*~|\.#.*',
         help='A regular expression indicating in which files to ignore changes.',
     )
 
@@ -137,7 +136,7 @@ if __name__ == '__main__':
 
             ignore_re = re.compile(args.ignore)
 
-            def callback(path: bytes, evt_time, flags, flags_num, event_num):
+            def callback(path: bytes, _evt_time, _flags, _flags_num, _event_num):
                 if not ignore_re.fullmatch(os.path.basename(path.decode())):
                     sync_futs.add(asyncio.run_coroutine_threadsafe(sync.should_sync(), loop))
 

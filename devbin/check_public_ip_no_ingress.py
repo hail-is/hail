@@ -49,9 +49,7 @@ def iter_instances_with_public_ip(compute, project: str) -> Iterator[dict]:
                     else:
                         continue
                     break
-        request = compute.instances().aggregatedList_next(
-            previous_request=request, previous_response=response
-        )
+        request = compute.instances().aggregatedList_next(previous_request=request, previous_response=response)
 
 
 def get_firewall_rules(compute, project: str) -> list[dict]:
@@ -76,14 +74,12 @@ def main():
     public_ip_vms = list(iter_instances_with_public_ip(compute, project))
 
     ingress_allow_rules = [
-        r for r in firewall_rules
-        if 'allowed' in r
-        and r.get('direction', 'INGRESS') == 'INGRESS'
-        and not r.get('disabled', False)
+        r
+        for r in firewall_rules
+        if 'allowed' in r and r.get('direction', 'INGRESS') == 'INGRESS' and not r.get('disabled', False)
     ]
     private_firewall_rules = {
-        r['name'] for r in ingress_allow_rules
-        if all(is_private_cidr(cidr) for cidr in r.get('sourceRanges', []))
+        r['name'] for r in ingress_allow_rules if all(is_private_cidr(cidr) for cidr in r.get('sourceRanges', []))
     }
 
     violations = []
@@ -99,8 +95,7 @@ def main():
         ]
         vm_tags = set(instance.get('tags', {}).get('items', []))
         applicable_rules = [
-            r for r in ingress_allow_rules
-            if not set(r.get('targetTags', [])) or set(r.get('targetTags', [])) & vm_tags
+            r for r in ingress_allow_rules if not set(r.get('targetTags', [])) or set(r.get('targetTags', [])) & vm_tags
         ]
         open_rules = [r['name'] for r in applicable_rules if r['name'] not in private_firewall_rules]
         if open_rules:
