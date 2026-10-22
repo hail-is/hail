@@ -400,7 +400,7 @@ class ReferenceGenomeSuite {
       val shipped = roundTrip(compiled)
       ctx.scopedExecution { (hcl, fs, tc, r) =>
         val argsOff =
-          argsPType.unstagedStoreJavaObject(ctx.stateManager, Row(Locus("20", 60001)), r)
+          argsPType.unstagedStoreJavaObject(Row(Locus("20", 60001)), r)
         val off = shipped(hcl, fs, tc, r)(r, argsOff)
         assertEq(
           SafeRow(rt, off).get(0),
@@ -480,7 +480,7 @@ class ReferenceGenomeSuite {
 
       val shipped = roundTrip(compiled)
       ctx.scopedExecution { (hcl, fs, tc, r) =>
-        val argsOff = argsPType.unstagedStoreJavaObject(ctx.stateManager, Row("c"), r)
+        val argsOff = argsPType.unstagedStoreJavaObject(Row("c"), r)
         val off = shipped(hcl, fs, tc, r)(r, argsOff)
         assertEq(SafeRow(rt, off).get(0), "GGATCCGTGC")
       }

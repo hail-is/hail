@@ -1,7 +1,6 @@
 package is.hail.types.physical
 
 import is.hail.annotations.{Annotation, Region, RowSeq}
-import is.hail.backend.HailStateManager
 import is.hail.types.physical.stypes.concrete.{SIndexablePointer, SIndexablePointerValue}
 import is.hail.types.physical.stypes.interfaces.SIndexableValue
 import is.hail.types.virtual.{TDict, Type}
@@ -43,14 +42,13 @@ final case class PCanonicalDict(keyType: PType, valueType: PType, required: Bool
       this.required,
     )
 
-  override def unstagedStoreJavaObject(sm: HailStateManager, annotation: Annotation, region: Region)
-    : Long = {
+  override def unstagedStoreJavaObject(annotation: Annotation, region: Region): Long = {
     val annotMap = annotation.asInstanceOf[Map[Annotation, Annotation]]
     val sortedArray = annotMap.map { case (k, v) => RowSeq(k, v) }
       .toArray
       .sorted(elementType.virtualType.ordering.toOrdering)
       .toIndexedSeq
-    this.arrayRep.unstagedStoreJavaObject(sm, sortedArray, region)
+    this.arrayRep.unstagedStoreJavaObject(sortedArray, region)
   }
 
   def construct(contents: SIndexableValue): SIndexableValue = {

@@ -3,7 +3,6 @@ package is.hail.types.physical
 import is.hail.annotations.{Annotation, Region, UnsafeRow, UnsafeUtils}
 import is.hail.asm4s._
 import is.hail.asm4s.implicits.codeToRichCodeRegion
-import is.hail.backend.HailStateManager
 import is.hail.expr.ir.{EmitCode, EmitCodeBuilder}
 import is.hail.types.BaseStruct
 import is.hail.types.physical.stypes.SValue
@@ -128,14 +127,14 @@ abstract class PCanonicalBaseStruct(val types: IndexedSeq[PType]) extends PBaseS
     }
   }
 
-  def deepPointerCopy(sm: HailStateManager, region: Region, dstStructAddress: Long): Unit = {
+  def deepPointerCopy(region: Region, dstStructAddress: Long): Unit = {
     var i = 0
     while (i < this.size) {
       val dstFieldType = this.fields(i).typ
       if (dstFieldType.containsPointers && this.isFieldDefined(dstStructAddress, i)) {
         val dstFieldAddress = this.fieldOffset(dstStructAddress, i)
         val dstFieldAddressFromNested = dstFieldType.unstagedLoadFromNested(dstFieldAddress)
-        dstFieldType.unstagedStoreAtAddress(sm, dstFieldAddress, region, dstFieldType,
+        dstFieldType.unstagedStoreAtAddress(dstFieldAddress, region, dstFieldType,
           dstFieldAddressFromNested, true)
       }
       i += 1
@@ -143,7 +142,6 @@ abstract class PCanonicalBaseStruct(val types: IndexedSeq[PType]) extends PBaseS
   }
 
   override def _copyFromAddress(
-    sm: HailStateManager,
     region: Region,
     srcPType: PType,
     srcAddress: Long,
@@ -154,7 +152,6 @@ abstract class PCanonicalBaseStruct(val types: IndexedSeq[PType]) extends PBaseS
 
     val newAddr = allocate(region)
     unstagedStoreAtAddress(
-      sm,
       newAddr,
       region,
       srcPType.asInstanceOf[PBaseStruct],
@@ -165,7 +162,6 @@ abstract class PCanonicalBaseStruct(val types: IndexedSeq[PType]) extends PBaseS
   }
 
   override def unstagedStoreAtAddress(
-    sm: HailStateManager,
     addr: Long,
     region: Region,
     srcPType: PType,
@@ -176,7 +172,7 @@ abstract class PCanonicalBaseStruct(val types: IndexedSeq[PType]) extends PBaseS
     if (equalModuloRequired(srcStruct)) {
       Region.copyFrom(srcAddress, addr, byteSize)
       if (deepCopy)
-        deepPointerCopy(sm, region, addr)
+        deepPointerCopy(region, addr)
     } else {
       initialize(addr, setMissing = true)
       var idx = 0
@@ -184,7 +180,6 @@ abstract class PCanonicalBaseStruct(val types: IndexedSeq[PType]) extends PBaseS
         if (srcStruct.isFieldDefined(srcAddress, idx)) {
           setFieldPresent(addr, idx)
           types(idx).unstagedStoreAtAddress(
-            sm,
             fieldOffset(addr, idx),
             region,
             srcStruct.types(idx),
@@ -267,15 +262,13 @@ abstract class PCanonicalBaseStruct(val types: IndexedSeq[PType]) extends PBaseS
     new SBaseStructPointerValue(sType, addr)
   }
 
-  override def unstagedStoreJavaObject(sm: HailStateManager, annotation: Annotation, region: Region)
-    : Long = {
+  override def unstagedStoreJavaObject(annotation: Annotation, region: Region): Long = {
     val addr = allocate(region)
-    unstagedStoreJavaObjectAtAddress(sm, addr, annotation, region)
+    unstagedStoreJavaObjectAtAddress(addr, annotation, region)
     addr
   }
 
   override def unstagedStoreJavaObjectAtAddress(
-    sm: HailStateManager,
     addr: Long,
     annotation: Annotation,
     region: Region,
@@ -284,14 +277,14 @@ abstract class PCanonicalBaseStruct(val types: IndexedSeq[PType]) extends PBaseS
     val row = annotation.asInstanceOf[Row]
     row match {
       case ur: UnsafeRow =>
-        this.unstagedStoreAtAddress(sm, addr, region, ur.t, ur.offset, region.ne(ur.region))
+        this.unstagedStoreAtAddress(addr, region, ur.t, ur.offset, region.ne(ur.region))
       case _: Row =>
         this.types.zipWithIndex.foreach { case (fieldPt, fieldIdx) =>
           if (row(fieldIdx) == null) {
             setFieldMissing(addr, fieldIdx)
           } else {
             val fieldAddress = fieldOffset(addr, fieldIdx)
-            fieldPt.unstagedStoreJavaObjectAtAddress(sm, fieldAddress, row(fieldIdx), region)
+            fieldPt.unstagedStoreJavaObjectAtAddress(fieldAddress, row(fieldIdx), region)
           }
         }
     }

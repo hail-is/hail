@@ -906,7 +906,7 @@ object Interpret extends Logging {
               (rt.get, makeFunction(ctx.theHailClassLoader, ctx.fs, ctx.taskContext, region))
             },
           )
-          val rvb = new RegionValueBuilder(ctx.stateManager)
+          val rvb = new RegionValueBuilder()
           rvb.set(region)
           rvb.start(argTuple)
           rvb.startTuple()

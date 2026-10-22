@@ -1,6 +1,5 @@
 package is.hail.annotations
 
-import is.hail.backend.HailStateManager
 import is.hail.rvd.RVDContext
 import is.hail.types.physical.{PStruct, PType}
 
@@ -9,40 +8,36 @@ import scala.collection.mutable
 import java.io.{ObjectInputStream, ObjectOutputStream}
 
 object WritableRegionValue {
-  def apply(sm: HailStateManager, t: PType, initial: RegionValue, region: Region)
-    : WritableRegionValue =
-    WritableRegionValue(sm, t, initial.region, initial.offset, region)
+  def apply(t: PType, initial: RegionValue, region: Region): WritableRegionValue =
+    WritableRegionValue(t, initial.region, initial.offset, region)
 
-  def apply(sm: HailStateManager, t: PType, initialOffset: Long, targetRegion: Region)
-    : WritableRegionValue = {
-    val wrv = WritableRegionValue(sm, t, targetRegion)
+  def apply(t: PType, initialOffset: Long, targetRegion: Region): WritableRegionValue = {
+    val wrv = WritableRegionValue(t, targetRegion)
     wrv.set(initialOffset, deepCopy = true)
     wrv
   }
 
   def apply(
-    sm: HailStateManager,
     t: PType,
     initialRegion: Region,
     initialOffset: Long,
     targetRegion: Region,
   ): WritableRegionValue = {
-    val wrv = WritableRegionValue(sm, t, targetRegion)
+    val wrv = WritableRegionValue(t, targetRegion)
     wrv.set(initialRegion, initialOffset)
     wrv
   }
 
-  def apply(sm: HailStateManager, t: PType, region: Region): WritableRegionValue =
-    new WritableRegionValue(t, region, sm)
+  def apply(t: PType, region: Region): WritableRegionValue =
+    new WritableRegionValue(t, region)
 }
 
 class WritableRegionValue private (
   val t: PType,
   val region: Region,
-  sm: HailStateManager,
 ) extends UnKryoSerializable {
   val value = RegionValue(region, 0)
-  private val rvb: RegionValueBuilder = new RegionValueBuilder(sm, region)
+  private val rvb: RegionValueBuilder = new RegionValueBuilder(region)
 
   def offset: Long = value.offset
 
@@ -92,13 +87,12 @@ class WritableRegionValue private (
 }
 
 class RegionValuePriorityQueue(
-  sm: HailStateManager,
   val t: PType,
   ctx: RVDContext,
   ord: Ordering[RegionValue],
 ) extends Iterable[RegionValue] {
   private val queue = new mutable.PriorityQueue[RegionValue]()(ord)
-  private val rvb = new RegionValueBuilder(sm)
+  private val rvb = new RegionValueBuilder()
 
   override def isEmpty: Boolean = queue.isEmpty
 
@@ -125,12 +119,12 @@ class RegionValuePriorityQueue(
   override def iterator: Iterator[RegionValue] = queue.iterator
 }
 
-class RegionValueArrayBuffer(val t: PType, region: Region, sm: HailStateManager)
+class RegionValueArrayBuffer(val t: PType, region: Region)
     extends Iterable[RegionValue] with mutable.Growable[RegionValue] {
 
   val value = RegionValue(region, 0)
 
-  private val rvb = new RegionValueBuilder(sm, region)
+  private val rvb = new RegionValueBuilder(region)
   val idx = mutable.ArrayBuffer.empty[Long]
 
   def length = idx.length
