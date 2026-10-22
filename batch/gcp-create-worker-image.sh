@@ -65,6 +65,7 @@ create_build_image_instance() {
         --metadata-from-file startup-script=build-batch-worker-image-startup-gcp.sh.out \
         --no-restart-on-failure \
         --maintenance-policy=MIGRATE \
+        --service-account=batch2-agent@${PROJECT}.iam.gserviceaccount.com \
         --scopes=https://www.googleapis.com/auth/cloud-platform \
         --image=${UBUNTU_IMAGE} \
         --image-project=ubuntu-os-cloud \
