@@ -39,11 +39,10 @@ function PrsPage({ basePath, wbIndex }: { basePath: string; wbIndex: number }): 
 
   // `/` jumps to the search box, as on the classic page.
   useEffect(() => {
-    const onKeyUp = (e: KeyboardEvent) => {
-      if (e.key !== '/') return;
+    const onKeyUp = (e: KeyboardEvent): void => {
       const t = e.target;
-      if (t instanceof HTMLElement && (t.matches('input, textarea') || t.isContentEditable)) return;
-      searchRef.current?.focus();
+      const typing = t instanceof HTMLElement && (t.matches('input, textarea') || t.isContentEditable);
+      if (e.key === '/' && !typing) searchRef.current?.focus();
     };
     document.addEventListener('keyup', onKeyUp);
     return () => { document.removeEventListener('keyup', onKeyUp); };
