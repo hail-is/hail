@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import type { PrConfig } from '../../shared/ciApi';
-import { buildStateLabel, isBuildOutOfDate, matchesSearch, statusColumnNames } from './prTableModel';
+import type { PrConfig, ReviewRequest } from '../../shared/ciApi';
+import {
+  buildStateLabel,
+  formatAge,
+  isBuildOutOfDate,
+  matchesSearch,
+  reviewOne,
+  reviewTwo,
+  statusColumnNames,
+} from './prTableModel';
 
 function pr(overrides: Partial<PrConfig> = {}): PrConfig {
   return {
@@ -16,6 +24,8 @@ function pr(overrides: Partial<PrConfig> = {}): PrConfig {
     out_of_date: false,
     gh_statuses: { 'ci-test': 'success' },
     batch_id: 1,
+    review_requests: [],
+    reviews: [{ author: 'carol', state: 'APPROVED' }],
     ...overrides,
   };
 }
@@ -65,7 +75,7 @@ describe('matchesSearch', () => {
     expect(matchesSearch(pr(), names, '   ')).toBe(true);
   });
 
-  it('matches title, number, branch, author, labels and review state case-insensitively', () => {
+  it('matches title, number, branch, author, labels and review text case-insensitively', () => {
     for (const term of ['FLUX CAP', '#15837', 'alice/flux', 'ALICE', 'prio:high', 'approved']) {
       expect(matchesSearch(pr(), names, term)).toBe(true);
     }
@@ -82,5 +92,90 @@ describe('matchesSearch', () => {
 
   it('does not match unrelated text', () => {
     expect(matchesSearch(pr(), names, 'bob')).toBe(false);
+  });
+});
+
+function request(overrides: Partial<ReviewRequest> = {}): ReviewRequest {
+  return { reviewer: 'appsec', is_team: true, as_code_owner: true, requested_at: '2026-10-18T12:00:00Z', ...overrides };
+}
+
+const approved = (author: string) => ({ author, state: 'APPROVED' });
+
+describe('reviewOne', () => {
+  it('passes on the first non-author approval', () => {
+    expect(reviewOne(pr({ reviews: [approved('alice'), approved('carol')] }))).toEqual({
+      status: 'pass',
+      text: 'approved by carol',
+    });
+  });
+
+  it('fails on any outstanding change request, regardless of approvals', () => {
+    const reviews = [approved('carol'), { author: 'dave', state: 'CHANGES_REQUESTED' }];
+    expect(reviewOne(pr({ reviews }))).toEqual({ status: 'fail', text: 'changes requested by dave' });
+  });
+
+  it('ignores dismissed reviews', () => {
+    expect(reviewOne(pr({ reviews: [{ author: 'carol', state: 'DISMISSED' }] })).status).toBe('pending');
+  });
+
+  it('waits on assignees and non-codeowner requests, with the request age', () => {
+    const cell = reviewOne(pr({
+      reviews: [],
+      assignees: ['carol', 'alice'],
+      review_requests: [request({ reviewer: 'dave', is_team: false, as_code_owner: false }), request()],
+    }));
+    expect(cell).toEqual({ status: 'pending', text: 'awaiting carol, dave', requestedAt: '2026-10-18T12:00:00Z' });
+  });
+
+  it('says when nobody has been asked', () => {
+    expect(reviewOne(pr({ reviews: [] }))).toEqual({ status: 'pending', text: 'no reviewer assigned' });
+  });
+});
+
+describe('reviewTwo', () => {
+  it('waits on an open codeowner request even with an internal approval', () => {
+    expect(reviewTwo(pr({ review_requests: [request()] }))).toEqual({
+      status: 'pending',
+      text: 'awaiting appsec (codeowner)',
+      requestedAt: '2026-10-18T12:00:00Z',
+    });
+  });
+
+  it('waits on the codeowner even with two internal approvals, aged by the oldest request', () => {
+    const cell = reviewTwo(pr({
+      reviews: [approved('carol'), approved('dave')],
+      review_requests: [request(), request({ reviewer: 'compiler', requested_at: '2026-10-17T00:00:00Z' })],
+    }));
+    expect(cell.text).toBe('awaiting appsec, compiler (codeowner)');
+    expect(cell.requestedAt).toBe('2026-10-17T00:00:00Z');
+  });
+
+  it('needs one more review after a single approval (e.g. the codeowner approved first)', () => {
+    expect(reviewTwo(pr())).toEqual({ status: 'pending', text: 'one more review' });
+  });
+
+  it('passes on a second distinct non-author approval', () => {
+    expect(reviewTwo(pr({ reviews: [approved('carol'), approved('alice'), approved('dave')] }))).toEqual({
+      status: 'pass',
+      text: 'approved by dave',
+    });
+  });
+
+  it('is n/a with no approvals and no codeowner request', () => {
+    expect(reviewTwo(pr({ reviews: [] })).status).toBe('na');
+  });
+});
+
+describe('formatAge', () => {
+  const now = Date.parse('2026-10-21T12:00:00Z');
+
+  it('uses minutes, then hours, then days', () => {
+    expect(formatAge('2026-10-21T11:15:00Z', now)).toBe('45m');
+    expect(formatAge('2026-10-20T07:00:00Z', now)).toBe('29h');
+    expect(formatAge('2026-10-18T12:00:00Z', now)).toBe('3d');
+  });
+
+  it('clamps clock skew to zero', () => {
+    expect(formatAge('2026-10-21T12:05:00Z', now)).toBe('0m');
   });
 });

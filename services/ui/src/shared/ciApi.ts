@@ -13,6 +13,18 @@ export interface WatchedBranchesResponse {
   branches: WatchedBranchSummary[];
 }
 
+export interface ReviewRequest {
+  reviewer: string; // user login, or team slug when is_team
+  is_team: boolean;
+  as_code_owner: boolean;
+  requested_at: string | null; // ISO 8601
+}
+
+export interface Review {
+  author: string;
+  state: string; // GitHub PullRequestReviewState: APPROVED, CHANGES_REQUESTED, DISMISSED, ...
+}
+
 export interface PrConfig {
   number: number;
   title: string;
@@ -26,6 +38,8 @@ export interface PrConfig {
   out_of_date: boolean;
   gh_statuses: Record<string, string>;
   batch_id: number | null;
+  review_requests: ReviewRequest[];
+  reviews: Review[];
 }
 
 // A small, hand-written mirror of just the endpoints callers actually use — not the ci
