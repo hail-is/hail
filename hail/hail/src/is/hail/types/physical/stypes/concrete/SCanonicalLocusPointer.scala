@@ -89,7 +89,7 @@ class SCanonicalLocusPointerValue(
   override def contigIdx(cb: EmitCodeBuilder): Value[Int] = {
     val cache = cb.emb.getOrDefineLazyField[ContigIndexCache](
       Code.newInstance[ContigIndexCache, ReferenceGenome](cb.emb.getReferenceGenome(st.rg)),
-      ("contig_index_cache", st.rg),
+      (s"contig_index_cache_${st.rg.name}", st.rg),
     )
     cb.memoize(cache.invoke[Long, Int, Int](
       "contigIndex",
