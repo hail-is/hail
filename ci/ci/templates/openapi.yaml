@@ -299,6 +299,21 @@ components:
           type: string
           nullable: true
           description: "Current merge candidate PR (eg pr-123)"
+        graphql_rate_limit:
+          type: object
+          nullable: true
+          description: "GitHub GraphQL rate limit after the last GitHub update's PR query; null until the first one."
+          properties:
+            last_update_cost:
+              type: integer
+              description: "Points, summed over every request in that update."
+            remaining:
+              type: integer
+            limit:
+              type: integer
+            reset_at:
+              type: string
+              format: date-time
 
     WatchedBranchesResponse:
       type: object
@@ -349,6 +364,35 @@ components:
         batch_id:
           type: integer
           nullable: true
+        review_requests:
+          type: array
+          description: Open review requests (at most 10).
+          items:
+            type: object
+            properties:
+              reviewer:
+                type: string
+                description: User login, or team slug when is_team is true.
+              is_team:
+                type: boolean
+              as_code_owner:
+                type: boolean
+              requested_at:
+                type: string
+                format: date-time
+                nullable: true
+                description: When the request was (last) made; null if not found in recent PR history.
+        reviews:
+          type: array
+          description: Each reviewer's latest approve / request-changes review (at most 10).
+          items:
+            type: object
+            properties:
+              author:
+                type: string
+              state:
+                type: string
+                description: GitHub PullRequestReviewState, e.g. APPROVED, CHANGES_REQUESTED, DISMISSED.
 
     BatchSummary:
       type: object
