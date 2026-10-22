@@ -13,7 +13,17 @@ import gidgethub.sansio
 import pytest
 
 from ci.constants import GITHUB_STATUS_CONTEXT
-from ci.github import PR, STACKED_PR, WIP, FQBranch, LastUpdate, Repo, RestRateLimit, WatchedBranch
+from ci.github import (
+    DO_NOT_TEST,
+    PR,
+    STACKED_PR,
+    WIP,
+    FQBranch,
+    LastUpdate,
+    Repo,
+    RestRateLimit,
+    WatchedBranch,
+)
 from ci.utils import GithubStatus
 
 TARGET_SHA = 'target-sha-0'
@@ -237,6 +247,68 @@ def test_merge_paused_reason(frozen, deploy_batch, deploy_state, reason):
     wb.deploy_batch = deploy_batch
     wb.deploy_state = deploy_state
     assert wb.merge_paused_reason(frozen) == reason
+
+
+def fake_db(authorized: bool):
+    db = MagicMock()
+    db.execute_and_fetchone = AsyncMock(return_value={'sha': 'x'} if authorized else None)
+    return db
+
+
+async def test_could_be_merge_candidate():
+    wb = make_branch()
+    pr = add_mergeable_pr(wb, 1)
+    assert await pr.could_be_merge_candidate(fake_db(True))
+    assert not await pr.could_be_merge_candidate(fake_db(False))
+
+    pr.last_known_github_status = {GITHUB_STATUS_CONTEXT: GithubStatus.PENDING}
+    assert await pr.could_be_merge_candidate(fake_db(True))
+    pr.last_known_github_status = {GITHUB_STATUS_CONTEXT: GithubStatus.FAILURE}
+    assert not await pr.could_be_merge_candidate(fake_db(True))
+
+    pr.last_known_github_status = {GITHUB_STATUS_CONTEXT: GithubStatus.SUCCESS}
+    pr.review_state = 'pending'
+    assert not await pr.could_be_merge_candidate(fake_db(True))
+
+
+@pytest.mark.parametrize(
+    'batch_target_sha, on_deck, needs_build',
+    [
+        (None, False, True),
+        (TARGET_SHA, False, False),
+        (TARGET_SHA, True, False),
+        ('old-target-sha', False, False),
+        ('old-target-sha', True, True),
+    ],
+)
+async def test_needs_build(batch_target_sha, on_deck, needs_build):
+    wb = make_branch()
+    pr = add_mergeable_pr(wb, 1)
+    pr.batch = None if batch_target_sha is None else MagicMock(attributes={'target_sha': batch_target_sha})
+    assert await pr.needs_build(fake_db(True), on_deck) == needs_build
+
+
+async def test_needs_build_only_when_authorized_testable_and_target_known():
+    wb = make_branch()
+    pr = add_mergeable_pr(wb, 1)
+    pr.batch = None
+    assert not await pr.needs_build(fake_db(False), on_deck=True)
+
+    pr.labels = {DO_NOT_TEST}
+    assert not await pr.needs_build(fake_db(True), on_deck=True)
+
+    pr.labels = set()
+    wb.sha = None
+    assert not await pr.needs_build(fake_db(True), on_deck=True)
+
+
+def test_running_prs():
+    wb = make_branch()
+    running = add_mergeable_pr(wb, 1)
+    running.build_state = None
+    add_mergeable_pr(wb, 2)  # finished
+    add_mergeable_pr(wb, 3).batch = None
+    assert wb.running_prs() == [running]
 
 
 async def test_update_only_merges_when_not_paused():

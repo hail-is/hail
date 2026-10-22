@@ -441,6 +441,20 @@ class PR(Code):
     def testable(self):
         return DO_NOT_TEST not in self.labels
 
+    async def could_be_merge_candidate(self, db: Database) -> bool:
+        # an up-to-date passing build, or one that's pending but hasn't failed yet
+        return (
+            self.review_state == 'approved'
+            and not self.build_failed_on_at_least_one_platform()
+            and await self.authorized(db)
+        )
+
+    async def needs_build(self, db: Database, on_deck: bool) -> bool:
+        """Whether _heal should start a build, if a build slot is free. The on-deck PR is rebuilt when out of date."""
+        if self.target_branch.sha is None or not await self.authorized(db) or not self.testable():
+            return False
+        return not self.batch or (on_deck and self.batch.attributes['target_sha'] != self.target_branch.sha)
+
     def merge_priority(self):
         # passed > unknown > failed
         if self.build_succeeding_on_all_platforms():
@@ -874,13 +888,7 @@ mkdir -p {shq(repo_dir)}
                 await self.post_github_status(gh, self.intended_github_status)
                 self.last_known_github_status[GITHUB_STATUS_CONTEXT] = self.intended_github_status
 
-        if not await self.authorized(db):
-            return
-
-        if not self.testable():
-            return
-
-        if not self.batch or (on_deck and self.batch.attributes['target_sha'] != self.target_branch.sha):
+        if await self.needs_build(db, on_deck):
             if self.batch:
                 old_target = self.batch.attributes['target_sha']
                 self.pending_build_reason = f'target sha updated {old_target[:8]} -> {self.target_branch.sha[:8]}'
@@ -1200,6 +1208,9 @@ class WatchedBranch(Code):
 
         # Async merge failures are only observed on a later pass, so remember them to give other PRs a turn
         self.failed_merges: Dict[MergeAttempt, FailedMerge] = {}
+
+    def running_prs(self) -> List[PR]:
+        return [pr for pr in self.prs.values() if pr.batch and not pr.build_state]
 
     def prs_in_merge_priority_order(self) -> Iterable[PR]:
         return sorted(self.prs.values(), key=lambda pr: pr.merge_priority(), reverse=True)
@@ -1545,14 +1556,9 @@ url: {url}
         merge_candidate = None
         merge_candidate_pri = None
         for pr in self.prs.values():
-            # merge candidate if up-to-date build passing, or
-            # pending but haven't failed
-            if pr.review_state == 'approved' and not pr.build_failed_on_at_least_one_platform():
+            if await pr.could_be_merge_candidate(db):
                 pri = pr.merge_priority()
-                is_authorized = await pr.authorized(db)
-                if is_authorized and (
-                    not merge_candidate or (merge_candidate_pri is not None and pri > merge_candidate_pri)
-                ):
+                if not merge_candidate or (merge_candidate_pri is not None and pri > merge_candidate_pri):
                     merge_candidate = pr
                     merge_candidate_pri = pri
 
@@ -1561,7 +1567,7 @@ url: {url}
         if merge_candidate:
             log.info(f'merge candidate {merge_candidate.number}')
 
-        self.n_running_batches = sum(1 for pr in self.prs.values() if pr.batch and not pr.build_state)
+        self.n_running_batches = len(self.running_prs())
 
         prs_by_prio = self.prs_in_merge_priority_order()
 
