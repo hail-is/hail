@@ -10,6 +10,7 @@ import is.hail.rvd.{AbstractIndexSpec, PartitionBoundOrdering}
 import is.hail.types.physical.PStruct
 import is.hail.types.virtual.{TStruct, Type, TypeSerializer}
 import is.hail.utils._
+import is.hail.variant.ReferenceGenomeEnv
 
 import scala.collection.immutable.ArraySeq
 
@@ -71,9 +72,9 @@ object IndexReader {
     untyped.toMetadata(keyType, annotationType)
   }
 
-  def readTypes(fs: FS, path: String): (Type, Type) = {
+  def readTypes(fs: FS, rgs: ReferenceGenomeEnv, path: String): (Type, Type) = {
     val jv = readMetadataRaw(fs, path)
-    implicit val formats: Formats = DefaultFormats + new TypeSerializer
+    implicit val formats: Formats = DefaultFormats + new TypeSerializer(rgs)
     val metadata = jv.extract[IndexMetadata]
     metadata.keyType -> metadata.annotationType
   }

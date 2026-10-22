@@ -3,12 +3,14 @@ package is.hail.compatibility
 import is.hail.collection.FastSeq
 import is.hail.expr.ir.{IRParser, PunctuationToken, TokenIterator}
 import is.hail.expr.ir.IRParser._
+import is.hail.types.TypeStringSerializer
 import is.hail.types.encoded._
 import is.hail.types.virtual._
+import is.hail.variant.ReferenceGenomeEnv
 
 object LegacyEncodedTypeParser {
 
-  def legacy_type_expr(it: TokenIterator): (Type, EType) = {
+  def legacy_type_expr(rgs: ReferenceGenomeEnv)(it: TokenIterator): (Type, EType) = {
     val req = it.head match {
       case x: PunctuationToken if x.value == "+" =>
         punctuation(it, "+")
@@ -19,7 +21,7 @@ object LegacyEncodedTypeParser {
     val (vType, eType) = identifier(it) match {
       case "Interval" =>
         punctuation(it, "[")
-        val (pointType, ePointType) = legacy_type_expr(it)
+        val (pointType, ePointType) = legacy_type_expr(rgs)(it)
         punctuation(it, "]")
         (
           TInterval(pointType),
@@ -41,9 +43,7 @@ object LegacyEncodedTypeParser {
       case "Float64" => (TFloat64, EFloat64(req))
       case "String" => (TString, EBinaryLegacyFullWidthIntegerLength(req))
       case "Locus" =>
-        punctuation(it, "(")
-        val rg = identifier(it)
-        punctuation(it, ")")
+        val rg = reference_genome(rgs)(it).name
         (
           TLocus(rg),
           EBaseStruct(
@@ -57,19 +57,19 @@ object LegacyEncodedTypeParser {
       case "Call" => (TCall, EInt32(req))
       case "Array" =>
         punctuation(it, "[")
-        val (elementType, elementEType) = legacy_type_expr(it)
+        val (elementType, elementEType) = legacy_type_expr(rgs)(it)
         punctuation(it, "]")
         (TArray(elementType), EArrayLegacyFullWidthIntegerLength(elementEType, req))
       case "Set" =>
         punctuation(it, "[")
-        val (elementType, elementEType) = legacy_type_expr(it)
+        val (elementType, elementEType) = legacy_type_expr(rgs)(it)
         punctuation(it, "]")
         (TSet(elementType), EArrayLegacyFullWidthIntegerLength(elementEType, req))
       case "Dict" =>
         punctuation(it, "[")
-        val (keyType, keyEType) = legacy_type_expr(it)
+        val (keyType, keyEType) = legacy_type_expr(rgs)(it)
         punctuation(it, ",")
-        val (valueType, valueEType) = legacy_type_expr(it)
+        val (valueType, valueEType) = legacy_type_expr(rgs)(it)
         punctuation(it, "]")
         (
           TDict(keyType, valueType),
@@ -86,7 +86,8 @@ object LegacyEncodedTypeParser {
         )
       case "Tuple" =>
         punctuation(it, "[")
-        val types = repsepUntil(it, legacy_type_expr, PunctuationToken(","), PunctuationToken("]"))
+        val types =
+          repsepUntil(it, legacy_type_expr(rgs), PunctuationToken(","), PunctuationToken("]"))
         punctuation(it, "]")
         (
           TTuple(types.map(_._1): _*),
@@ -99,7 +100,7 @@ object LegacyEncodedTypeParser {
         punctuation(it, "{")
         val args = repsepUntil(
           it,
-          struct_field(legacy_type_expr),
+          struct_field(legacy_type_expr(rgs)),
           PunctuationToken(","),
           PunctuationToken("}"),
         )
@@ -113,7 +114,8 @@ object LegacyEncodedTypeParser {
     (vType, eType)
   }
 
-  def rvd_type_expr(it: TokenIterator): LegacyRVDType = {
+  def rvd_type_expr(rgs: ReferenceGenomeEnv)(it: TokenIterator)
+    : (TStruct, EType, IndexedSeq[String]) = {
     identifier(it) match {
       case "RVDType" | "OrderedRVDType" =>
         punctuation(it, "{")
@@ -126,13 +128,39 @@ object LegacyEncodedTypeParser {
         punctuation(it, ",")
         identifier(it, "row")
         punctuation(it, ":")
-        val (rowType: TStruct, rowEType) = legacy_type_expr(it)
-        LegacyRVDType(rowType, rowEType, partitionKey ++ restKey)
+        val (rowType: TStruct, rowEType) = legacy_type_expr(rgs)(it)
+        (rowType, rowEType, partitionKey ++ restKey)
     }
   }
 
-  def parseTypeAndEType(str: String): (Type, EType) =
-    IRParser.parse(str, it => legacy_type_expr(it))
+  def parseTypeAndEType(str: String, rgs: ReferenceGenomeEnv): LegacyEncodedType = {
+    val (vType, eType) = IRParser.parse(str, legacy_type_expr(rgs))
+    LegacyEncodedType(str, vType, eType)
+  }
 
-  def parseLegacyRVDType(str: String): LegacyRVDType = IRParser.parse(str, it => rvd_type_expr(it))
+  def parseLegacyRVDType(str: String, rgs: ReferenceGenomeEnv): LegacyRVDType = {
+    val (rowType, rowEType, key) = IRParser.parse(str, rvd_type_expr(rgs))
+    LegacyRVDType(str, rowType, rowEType, key)
+  }
+}
+
+/** A type written in the legacy encoded type syntax, and the string it was parsed from. */
+final case class LegacyEncodedType(repr: String, vType: Type, eType: EType)
+
+class LegacyEncodedTypeSerializer(rgs: Option[ReferenceGenomeEnv])
+    extends TypeStringSerializer[LegacyEncodedType](
+      rgs,
+      LegacyEncodedTypeParser.parseTypeAndEType,
+      _.repr,
+    ) {
+  def this(rgs: ReferenceGenomeEnv) = this(Some(rgs))
+}
+
+class LegacyRVDTypeSerializer(rgs: Option[ReferenceGenomeEnv])
+    extends TypeStringSerializer[LegacyRVDType](
+      rgs,
+      LegacyEncodedTypeParser.parseLegacyRVDType,
+      _.repr,
+    ) {
+  def this(rgs: ReferenceGenomeEnv) = this(Some(rgs))
 }

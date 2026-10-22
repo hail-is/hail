@@ -4,6 +4,7 @@ import is.hail.io.fs.FS
 import is.hail.rvd._
 import is.hail.types.virtual.TableType
 import is.hail.utils._
+import is.hail.variant.ReferenceGenomeEnv
 
 import java.io.OutputStreamWriter
 
@@ -63,20 +64,21 @@ abstract class AbstractTableSpec extends RelationalSpec {
 }
 
 object TableSpec {
-  def apply(fs: FS, path: String, params: TableSpecParameters): TableSpec = {
+  def apply(fs: FS, rgs: ReferenceGenomeEnv, path: String, params: TableSpecParameters)
+    : TableSpec = {
     val globalsComponent = params.components("globals").asInstanceOf[RVDComponentSpec]
-    val globalsSpec = globalsComponent.rvdSpec(fs, path)
+    val globalsSpec = globalsComponent.rvdSpec(fs, rgs, path)
 
     val rowsComponent = params.components("rows").asInstanceOf[RVDComponentSpec]
-    val rowsSpec = rowsComponent.rvdSpec(fs, path)
+    val rowsSpec = rowsComponent.rvdSpec(fs, rgs, path)
 
     new TableSpec(params, globalsSpec, rowsSpec)
   }
 
-  def fromJValue(fs: FS, path: String, jv: JValue): TableSpec = {
-    implicit val formats: Formats = RelationalSpec.formats
+  def fromJValue(fs: FS, rgs: ReferenceGenomeEnv, path: String, jv: JValue): TableSpec = {
+    implicit val formats: Formats = RelationalSpec.formats(rgs)
     val params = jv.extract[TableSpecParameters]
-    TableSpec(fs, path, params)
+    TableSpec(fs, rgs, path, params)
   }
 }
 

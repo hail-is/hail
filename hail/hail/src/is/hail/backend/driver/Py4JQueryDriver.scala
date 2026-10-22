@@ -262,7 +262,8 @@ final class Py4JQueryDriver(backend: Backend) extends Closeable with Logging {
 
       val kvs = JsonMethods.parse(jsonQuery).extract[Map[String, JValue]]
       val paths = kvs("paths").extract[IndexedSeq[String]]
-      val intervalPointType = parseType(kvs("intervalPointType").extract[String])
+      val intervalPointType =
+        parseType(kvs("intervalPointType").extract[String], ctx.referenceGenomes)
       val intervalObjects =
         JSONAnnotationImpex.importAnnotation(kvs("intervals"), TArray(TInterval(intervalPointType)))
           .asInstanceOf[IndexedSeq[Interval]]
@@ -271,7 +272,7 @@ final class Py4JQueryDriver(backend: Backend) extends Closeable with Logging {
       val matrixReaders: util.List[MatrixIR] =
         paths.map { p =>
           logger.info(s"creating MatrixRead node for $p")
-          val mnr = MatrixNativeReader(ctx.fs, p, Some(opts))
+          val mnr = MatrixNativeReader(ctx.fs, ctx.referenceGenomes, p, Some(opts))
           MatrixRead(mnr.fullMatrixTypeWithoutUIDs, false, false, mnr): MatrixIR
         }.asJava
 

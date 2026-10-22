@@ -67,7 +67,7 @@ object VCFHeaderInfo {
 
   val headerTypePType: PType = PType.canonical(headerType, required = false, innerRequired = true)
 
-  def fromJSON(jv: JValue): VCFHeaderInfo = {
+  def fromJSON(jv: JValue, rgs: ReferenceGenomeEnv): VCFHeaderInfo = {
     val sampleIDs =
       (jv \ "sampleIDs").asInstanceOf[JArray].arr.map(_.asInstanceOf[JString].s).to(ArraySeq)
     val infoFlagFields =
@@ -75,7 +75,7 @@ object VCFHeaderInfo {
 
     def lookupFields(name: String) = (jv \ name).asInstanceOf[JArray].arr.map { case elt: JArray =>
       val List(name: JString, typeStr: JString) = elt.arr
-      name.s -> IRParser.parseType(typeStr.s)
+      name.s -> IRParser.parseType(typeStr.s, rgs)
     }.to(ArraySeq)
 
     val infoFields = lookupFields("infoFields")
@@ -1319,8 +1319,8 @@ object LoadVCF extends Logging {
     }
   }
 
-  def getEntryFloatType(entryFloatTypeName: String): TNumeric = {
-    IRParser.parseType(entryFloatTypeName) match {
+  def getEntryFloatType(entryFloatTypeName: String, rgs: ReferenceGenomeEnv): TNumeric = {
+    IRParser.parseType(entryFloatTypeName, rgs) match {
       case TFloat32 => TFloat32
       case TFloat64 => TFloat64
       case _ => fatal(
@@ -1870,6 +1870,7 @@ object MatrixVCFReader extends Logging {
       fileListEntries,
       referenceGenome,
       header1,
+      ctx.referenceGenomes,
     )
   }
 
@@ -1911,6 +1912,7 @@ class MatrixVCFReader(
   fileListEntries: IndexedSeq[FileListEntry],
   referenceGenome: Option[ReferenceGenome],
   header: VCFHeaderInfo,
+  referenceGenomesInScope: ReferenceGenomeEnv,
 ) extends MatrixHybridReader {
   require(
     params.partitionsJSON.isEmpty || fileListEntries.length == 1,
@@ -1926,9 +1928,12 @@ class MatrixVCFReader(
 
   val (infoPType, rowValuePType, formatPType) = header.getPTypes(
     params.arrayElementsRequired,
-    IRParser.parseType(params.entryFloatTypeName),
+    IRParser.parseType(params.entryFloatTypeName, referenceGenomesInScope),
     params.callFields,
   )
+
+  private[this] val partitionsType: Option[Type] =
+    params.partitionsTypeStr.map(IRParser.parseType(_, referenceGenomesInScope))
 
   override def fullMatrixTypeWithoutUIDs: MatrixType = MatrixType(
     globalType = TStruct.empty,
@@ -1972,7 +1977,7 @@ class MatrixVCFReader(
 
   def partitioner(sm: HailStateManager): Option[RVDPartitioner] =
     params.partitionsJSON.map { partitionsJSON =>
-      val indexedPartitionsType = IRParser.parseType(params.partitionsTypeStr.get)
+      val indexedPartitionsType = partitionsType.get
       val jv = JsonMethods.parse(partitionsJSON)
       val rangeBounds = JSONAnnotationImpex.importAnnotation(jv, indexedPartitionsType)
         .asInstanceOf[IndexedSeq[Interval]]
