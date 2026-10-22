@@ -63,10 +63,43 @@ object LowerMatrixIR extends Logging {
     }
 
   // -- NOTE: Rules for lifting agg/scan ops --
+  //
+  // newRow (MatrixMapRows) and newCol (MatrixMapCols) can contain agg and scan ops. Some of
+  // these ops can't be computed where they appear once the node is lowered to table IR. We
+  // "lift" each such op: move it to a place where it can run, bind its result to a fresh name
+  // there, and replace the op with a Ref to that name.
+  //
+  //   MatrixMapRows: aggs (over the row's entries) stay where they are; the body is wrapped in
+  //     a StreamAgg over the row's entries. That StreamAgg has no scan scope, so scans (over
+  //     earlier rows) are lifted out of it, to the top of the TableMapRows body.
+  //   MatrixMapCols: aggs (over each col's entries) are lifted into RunAgg, a TableAggregate
+  //     over all rows that computes every col's aggs in one pass. Scans (over earlier cols)
+  //     are lifted into RunScan, a StreamAggScan over the cols array. Both run once, before
+  //     the map over cols.
+  //
+  // An op's init args are evaluated once, before the op sees any row, col or entry. Extract
+  // later moves them, and the Block EVAL bindings they read, to run before the table or
+  // stream is traversed. So a lifted op's init args may only read names that have the same
+  // value for every row, col and entry: `global`, `n_cols` on rows, and Block EVAL bindings
+  // whose values read only such names. They can't read `n_rows` on cols, which RunAgg
+  // computes, or the result of another op, which doesn't exist yet. `hoist` checks this. It
+  // also moves (scans) or copies (aggs on cols) the Block EVAL bindings init args read, so
+  // they are still bound where the op now runs.
+  //
   // The eval names `hoist` can see at a node inside newRow or newCol:
   //   Some(v): a Block EVAL binding; invariant iff its lifted value v is, checked by `hoist`.
   //   None: varies per row, column, loop iteration or element; an init arg can't read it.
-  // A lifted scan can't contain an agg op, directly or through an EVAL binding an init arg reads.
+  //
+  // A lookup fails only for `global`, or `n_cols` on rows, which are legal. TypeCheck has
+  // already proven the IR has no free variables, so there's no need to check for them here.
+  //
+  // These checks run here, before lifting, because Extract can't make them afterwards.
+  // Lifting moves an op out from under the binders around it. A read of a loop variable,
+  // the row or col, or another op's result then becomes an unbound Ref, which Extract skips
+  // as an outer name.
+  //
+  // A lifted scan can't contain an agg op, directly or through a Block EVAL binding its init
+  // args read: lifted scans run outside any agg scope.
   private type LiftEnv = BindingEnv[Option[IR]]
 
   private def LiftEnv(illegalEvals: Seq[Name], illegalAggs: Seq[Name] = Seq.empty): LiftEnv =
@@ -404,7 +437,8 @@ object LowerMatrixIR extends Logging {
               (body, liftedScans) =
                 liftScans(lower(ctx, newRow, liftedRelationalLets))
 
-              // always emit scan bindings, even if there are none
+              /* emit scan bindings, even if there are no scans; the optimiser will remove them if
+               * unused. */
               _ <- M.lift[SCAN.type] {
                 M.sequence(
                   globalName -> global.select(child.typ.globalType.fieldNames),
@@ -442,8 +476,9 @@ object LowerMatrixIR extends Logging {
         var aggTop: M[EVAL.type] = M.unit
         val movedScan = mutable.Set.empty[Name]
         val copiedAgg = mutable.Set.empty[Name]
-        // Names of lifted ops' results. They aren't in the env, so `hoist` checks them here.
-        val lifted = mutable.Set.empty[Name]
+        // Names of lifted ops' results, and whether each is a scan. They aren't in the env, so
+        // `hoist` checks them here.
+        val lifted = mutable.Map.empty[Name, Boolean]
 
         def extendEnv(env: LiftEnv, ir: IR, i: Int): LiftEnv =
           env.extend(Bindings.get(ir, i).map((_, _) => None))
@@ -451,7 +486,10 @@ object LowerMatrixIR extends Logging {
         // -- See NOTE: Rules for lifting agg/scan ops --
         def hoist(x: IR, env: LiftEnv, isScan: Boolean): Unit =
           FreeVariables(x, supportsAgg = !isScan, supportsScan = isScan).eval.m.keys.foreach { n =>
-            if (lifted.contains(n)) fatal(s"init argument depends on an aggregation result: $n")
+            lifted.get(n).foreach { liftedScan =>
+              val kind = if (liftedScan) "a scan" else "an aggregation"
+              fatal(s"init argument depends on $kind result: $n")
+            }
             env.eval.lookupOption(n).foreach {
               case Some(v) =>
                 if (isScan && movedScan.add(n)) {
@@ -478,7 +516,7 @@ object LowerMatrixIR extends Logging {
           if (!isScan && ContainsScan(x))
             fatal("scans inside aggregations are not supported in MatrixMapCols")
           hoist(x, env, isScan)
-          lifted += name
+          lifted += (name -> isScan)
           builder += (name -> x)
         }
 

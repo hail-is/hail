@@ -1491,23 +1491,37 @@ class TableIRSuite {
     assertEq(rows, (0 until 5).map(i => RowSeq(i, RowSeq(0 until math.min(i, 1), 2))))
   }
 
-  @Test def testTableAggregateTransitiveInitArg(implicit ctx: ExecuteContext): Unit = {
-    val t = TableRange(5, 2)
-    val row = Ref(TableIR.rowName, t.typ.rowType)
-    val v = takeWithTransitiveInitArg(ApplyAggOp(Take(), _)(row.get("idx")))
-    val res = unoptimized(Interpret[Any](_, TableAggregate(t, v)))
+  // One Block with the transitive bindings, and the same bindings in nested Blocks.
+  def testTableAggregateTransitiveInitArg() = {
+    def idx = Ref(TableIR.rowName, TStruct("idx" -> TInt32)).get("idx")
+    FastSeq(
+      takeWithTransitiveInitArg(ApplyAggOp(Take(), _)(idx)),
+      bindIR(I32(3) - I32(1)) { n =>
+        bindIR(n - I32(1))(m => maketuple(ApplyAggOp(Take(), m)(idx), n))
+      },
+    )
+  }
+
+  @ParameterizedTest
+  def testTableAggregateTransitiveInitArg(v: IR)(implicit ctx: ExecuteContext): Unit = {
+    val res = unoptimized(Interpret[Any](_, TableAggregate(TableRange(5, 2), v)))
     assertEq(res, RowSeq(FastSeq(0), 2))
   }
 
-  @Test def testTableAggregateNestedTransitiveInitArg(implicit ctx: ExecuteContext): Unit = {
-    val t = TableRange(5, 2)
-    val row = Ref(TableIR.rowName, t.typ.rowType)
-    val v = bindIR(I32(3) - I32(1)) { n =>
-      bindIR(n - I32(1))(m => maketuple(ApplyAggOp(Take(), m)(row.get("idx")), n))
-    }
-    val res = unoptimized(Interpret[Any](_, TableAggregate(t, v)))
-    assertEq(res, RowSeq(FastSeq(0), 2))
+  // Init args that read a loop variable or an APE index.
+  def testTableAggregateInitArgReadsVarying() = {
+    def idx = Ref(TableIR.rowName, TStruct("idx" -> TInt32)).get("idx")
+    FastSeq(
+      ToArray(mapIR(rangeIR(3))(i => ApplyAggOp(Take(), i)(idx))),
+      aggArrayPerElement(MakeArray(idx, idx))((elt, i) => ApplyAggOp(Take(), i)(elt)),
+    )
   }
+
+  @ParameterizedTest
+  def testTableAggregateInitArgReadsVarying(v: IR)(implicit ctx: ExecuteContext): Unit =
+    interceptFatal("init argument refers to .*, which varies per element") {
+      unoptimized(Interpret[Any](_, TableAggregate(TableRange(5, 2), v)))
+    }
 
   def testTableAggregateInitArgReadsAggResult() =
     initArgsReadingResult(isScan = false)(Ref(TableIR.rowName, TStruct("idx" -> TInt32)).get("idx"))
