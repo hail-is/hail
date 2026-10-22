@@ -226,6 +226,7 @@ DO_NOT_MERGE = {STACKED_PR, WIP}
 GITHUB_ASYNC_MERGE_HEADERS = {'X-GitHub-Api-Version': '2026-03-10'}
 
 MergeResult = Literal['merged', 'pending', 'failed']
+MergePausedReason = Literal['frozen', 'deploying']
 
 
 class PendingMerge(NamedTuple):
@@ -870,14 +871,30 @@ mkdir -p {shq(repo_dir)}
     def is_up_to_date(self):
         return self.batch is not None and self.target_branch.sha == self.batch.attributes['target_sha']
 
-    def is_mergeable(self) -> bool:
-        return (
-            self.review_state == 'approved'
-            and len(self.last_known_github_status) > 0
-            and all(status == GithubStatus.SUCCESS for status in self.last_known_github_status.values())
-            and self.is_up_to_date()
-            and all(label not in DO_NOT_MERGE for label in self.labels)
+    def merge_blockers(self) -> List[str]:
+        """Human-readable reasons this PR can't be merged right now; empty if it can."""
+        blockers = []
+        if self.review_state != 'approved':
+            blockers.append('changes requested' if self.review_state == 'changes_requested' else 'not approved')
+        if not self.last_known_github_status:
+            blockers.append('no status checks reported')
+        failing = sorted(c for c, s in self.last_known_github_status.items() if s == GithubStatus.FAILURE)
+        if failing:
+            blockers.append(f'checks failing: {", ".join(failing)}')
+        pending = sorted(
+            c for c, s in self.last_known_github_status.items() if s not in (GithubStatus.SUCCESS, GithubStatus.FAILURE)
         )
+        if pending:
+            blockers.append(f'checks pending: {", ".join(pending)}')
+        if self.batch is None:
+            blockers.append('not built')
+        elif not self.is_up_to_date():
+            blockers.append(f'not built against current {self.target_branch.branch.name}')
+        blockers.extend(f'label: {label}' for label in sorted(self.labels & DO_NOT_MERGE))
+        return blockers
+
+    def is_mergeable(self) -> bool:
+        return not self.merge_blockers()
 
     async def merge(self, gh) -> Tuple[MergeResult, Optional[str]]:
         # Only called from try_to_merge, right after _heal has synced our build state to GitHub
@@ -1222,13 +1239,21 @@ class WatchedBranch(Code):
                 if self.state_changed:
                     self.state_changed = False
                     await self._heal(db, batch_client, gh, frozen)
-                    if (self.deploy_batch is None or self.deploy_state is not None) and not frozen and self.mergeable:
+                    if self.mergeable and self.merge_paused_reason(frozen) is None:
                         await self.try_to_merge(gh)
         finally:
             t_total = time.monotonic() - t_update_start
             WATCHED_BRANCH_UPDATE_LATENCY.set(t_total)
             log.info(f'update done {self.short_str()} in {t_total:.1f}s')
             self.updating = False
+
+    def merge_paused_reason(self, frozen: bool) -> Optional[MergePausedReason]:
+        """Why merging is paused branch-wide, if it is. A pending merge isn't a pause."""
+        if frozen:
+            return 'frozen'
+        if self.deploy_batch is not None and self.deploy_state is None:
+            return 'deploying'
+        return None
 
     async def try_to_merge(self, gh):
         assert self.mergeable
