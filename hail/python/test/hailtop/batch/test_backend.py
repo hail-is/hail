@@ -12,7 +12,8 @@ pytestmark = pytest.mark.timeout(20)
 class RecordsClose(LocalBackend):
     def __init__(self):
         super().__init__()
-        self.closed = threading.Event()
+        self.closed: threading.Event = threading.Event()
+        self.cycle: RecordsClose | None = None
 
     async def _async_close(self):
         await super()._async_close()
