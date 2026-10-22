@@ -633,6 +633,15 @@ class GoogleStorageAsyncFSURL(AsyncFSURL):
 
 
 class GoogleStorageAsyncFS(AsyncFS):
+    """Async filesystem implementation for Google Cloud Storage.
+
+    This implementation handles ``gs://`` URLs, uses
+    :class:`GoogleStorageClient` for metadata and object operations, and
+    supports requester-pays configuration through the client passed at
+    construction time. ``bucket_allow_list`` records buckets already known to
+    be acceptable hot-storage locations.
+    """
+
     def __init__(
         self,
         *,
