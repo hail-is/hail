@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { createCiApi, type PrConfig, type WatchedBranchSummary } from '../shared/ciApi';
 import { PrTable } from './components/PrTable';
@@ -13,7 +13,6 @@ function PrsPage({ basePath, wbIndex }: { basePath: string; wbIndex: number }): 
   const [prs, setPrs] = useState<PrConfig[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
-  const searchRef = useRef<HTMLInputElement>(null);
 
   // The shell only knows the branch index from the URL; the name the PRs endpoint needs comes
   // from /watched_branches, as on the PR details page.
@@ -36,18 +35,6 @@ function PrsPage({ basePath, wbIndex }: { basePath: string; wbIndex: number }): 
       });
     return () => { cancelled = true; };
   }, [basePath, wbIndex]);
-
-  // `/` jumps to the search box, as on the classic page.
-  useEffect(() => {
-    const onKeyUp = (e: KeyboardEvent): void => {
-      const t = e.target;
-      if (e.key === '/' && !(t instanceof HTMLElement && (t.matches('input, textarea') || t.isContentEditable))) {
-        searchRef.current?.focus();
-      }
-    };
-    document.addEventListener('keyup', onKeyUp);
-    return () => { document.removeEventListener('keyup', onKeyUp); };
-  }, []);
 
   let body: JSX.Element;
   if (error) {
@@ -76,11 +63,10 @@ function PrsPage({ basePath, wbIndex }: { basePath: string; wbIndex: number }): 
         <label htmlFor="prs-search" className="sr-only">Search PRs</label>
         <input
           id="prs-search"
-          ref={searchRef}
           type="search"
           value={search}
           onChange={(e) => { setSearch(e.target.value); }}
-          placeholder="Search terms… (press / to focus)"
+          placeholder="Search terms…"
           className="w-full max-w-md px-3 py-1.5 text-sm border border-zinc-300 rounded focus:outline-none focus:ring-2 focus:ring-sky-500"
         />
       </div>
