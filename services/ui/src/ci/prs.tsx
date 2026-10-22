@@ -41,8 +41,9 @@ function PrsPage({ basePath, wbIndex }: { basePath: string; wbIndex: number }): 
   useEffect(() => {
     const onKeyUp = (e: KeyboardEvent): void => {
       const t = e.target;
-      const typing = t instanceof HTMLElement && (t.matches('input, textarea') || t.isContentEditable);
-      if (e.key === '/' && !typing) searchRef.current?.focus();
+      if (e.key === '/' && !(t instanceof HTMLElement && (t.matches('input, textarea') || t.isContentEditable))) {
+        searchRef.current?.focus();
+      }
     };
     document.addEventListener('keyup', onKeyUp);
     return () => { document.removeEventListener('keyup', onKeyUp); };
