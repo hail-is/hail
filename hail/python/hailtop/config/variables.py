@@ -21,6 +21,8 @@ class ConfigVariable(str, Enum):
     QUERY_BATCH_WORKER_MEMORY = 'query/batch_worker_memory'
     QUERY_NAME_PREFIX = 'query/name_prefix'
     QUERY_DISABLE_PROGRESS_BAR = 'query/disable_progress_bar'
+    EMR_REGION = 'emr/region'
+    EMR_REMOTE_TMPDIR = 'emr/remote_tmpdir'
     HTTP_TIMEOUT_IN_SECONDS = 'http/timeout_in_seconds'
 
     def to_section_option(self) -> Tuple[str, str]:
