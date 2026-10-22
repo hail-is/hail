@@ -5,7 +5,7 @@ import sys
 import urllib.request
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).parent
+REPO_ROOT = Path(__file__).parent.parent
 IMAGES_FILE = REPO_ROOT / 'docker/third-party/images.txt'
 DOCKERFILE = REPO_ROOT / 'docker/hail-ubuntu/Dockerfile'
 

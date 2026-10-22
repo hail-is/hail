@@ -115,12 +115,12 @@ install-dev-requirements:
 .PHONY: update-hail-ubuntu
 update-hail-ubuntu:
 	@command -v skopeo >/dev/null 2>&1 || { echo 'ERROR: skopeo is required. Install with: brew install skopeo'; exit 1; }
-	python3 update-hail-ubuntu.py
+	python3 devbin/update-hail-ubuntu.py
 	NAMESPACE=default $(MAKE) -C docker/third-party copy
 
 .PHONY: update-gateways-envoy
 update-gateways-envoy:
-	python3 update-envoy.py
+	python3 devbin/update-envoy.py
 	NAMESPACE=default $(MAKE) -C docker/third-party copy
 	$(MAKE) -C gateway deploy
 	$(MAKE) -C internal-gateway deploy
