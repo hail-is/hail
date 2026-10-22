@@ -1,35 +1,110 @@
-
 ==========
 Databricks
 ==========
 
-The docker images described below are maintained by Databricks. Please direct questions about them
-to Databricks.
+Hail runs on a Databricks Spark cluster (AWS, Azure, or GCP) using Databricks' standard runtime —
+no custom Docker image is required. Hail is installed at cluster start via an init script, and the
+notebook attaches to the cluster's existing Spark context. The same setup runs on a single-node
+cluster or scales across workers; you change only the worker count.
 
-Hail can be installed on a Databricks Spark cluster on Microsoft Azure, Amazon Web Services, or
-Google Cloud Platform via an open source Docker container located in the `Project Glow Dockerhub
-<https://hub.docker.com/r/projectglow/databricks-hail/tags?page=1&ordering=last_updated>`__.  Docker
-files to build your own Hail container on Databricks can be found in the Glow `Github repository
-<https://github.com/projectglow/glow/tree/master/docker>`__.
+.. note::
 
-Install Hail via Docker with `Databricks Container Services
-<https://docs.databricks.com/clusters/custom-containers.html>`__.
+    Hail is community-supported on Databricks, not officially supported by Databricks. Pin your
+    Databricks Runtime version and re-validate after upgrades.
 
-Use the Docker Image URL, ``projectglow/databricks-hail:<hail_version>``, replacing the tag with an
-available Hail version.  Please match the Databricks Runtime Spark version to the Spark version Hail
-is built with.
+Requirements
+------------
+
+- **Databricks Runtime 15.4 LTS** (Apache Spark 3.5.0, Scala 2.12), non-Photon, Dedicated
+  (single-user) access mode. Do not use runtimes built on Spark 4 / Scala 2.13 (e.g. DBR 17+):
+  Hail is built for Scala 2.12 and Spark 3.5, which are binary-incompatible with those.
+- The cluster must run on **JDK 17**. Hail's jar is Java 11 bytecode and will not load on the
+  runtime's default JDK 8. Set the Spark environment variable below.
+
+Cluster configuration
+----------------------
+
+Under **Advanced options**:
+
+- **Spark → Environment variables:**
+
+  .. code-block:: text
+
+      JNAME=zulu17-ca-amd64
+
+- **Spark → Spark config:**
+
+  .. code-block:: text
+
+      spark.serializer org.apache.spark.serializer.KryoSerializer
+      spark.kryo.registrator is.hail.kryo.HailKryoRegistrator
+
+- **Workers:** ``0`` for single-node, or ``2+`` to distribute Hail jobs across the cluster.
+
+Init script
+-----------
+
+Add the following as a cluster-scoped init script (a workspace file). It runs on the driver and
+every worker, placing Hail's jar on the Spark classpath.
+
+.. warning::
+
+    Do **not** ``pip install hail`` into the cluster's base Python. Hail pulls numpy 2.x, which
+    breaks the runtime's pre-built pyarrow and prevents the notebook Python kernel from starting
+    (this appears as "Could not reach driver"). Install the jar into a scratch directory with
+    ``--target`` so base Python is untouched, and install the Python package from the notebook with
+    ``%pip`` (below).
+
+**Pin the Hail version.** Use the same pinned version in the init script and in the notebook
+``%pip install`` below, so the JAR on the classpath and the notebook's Python package always match.
+A version mismatch between the two causes confusing runtime errors. Replace ``0.2.138`` below with
+the version you intend to use.
+
+.. code-block:: bash
+
+    #!/bin/bash
+    set -euxo pipefail
+    # Install Hail into a scratch dir so base Python (numpy/pyarrow) stays intact.
+    /databricks/python3/bin/pip install --target=/tmp/hailpkg hail==0.2.138
+    # Put Hail's jar on the Spark classpath at JVM startup (driver + all workers).
+    mkdir -p /databricks/jars
+    cp /tmp/hailpkg/hail/backend/hail-all-spark.jar /databricks/jars/
+
+Install the Hail Python package
+-------------------------------
+
+In the first cell of your notebook, install the Hail Python package with ``%pip``, pinned to the
+same version as the init script. ``%pip`` installs into the notebook session and restarts the
+notebook's Python process; it does **not** modify the runtime's base Python environment (which is
+why it avoids the numpy/pyarrow problem described above):
+
+.. code-block:: text
+
+    %pip install hail==0.2.138
 
 Use Hail in a notebook
 ----------------------
 
-For the most part, Hail in Databricks works identically to the Hail documentation. However, there
-are a few modifications that are necessary for the Databricks environment.
+For the most part, Hail in Databricks works identically to the rest of the Hail documentation.
+The only differences are initialization (below) and displaying Bokeh plots.
 
 Initialize Hail
 ---------------
 
-When initializing Hail, pass in the pre-created `SparkContext` and mark the initialization as
-idempotent. This setting enables multiple Databricks notebooks to use the same Hail context.
+Attach Hail to the cluster's pre-created ``SparkContext`` and mark initialization idempotent (this
+lets multiple notebooks share the same Hail context). On a single-node cluster this runs Hail on the
+driver; on a multi-node cluster the same call distributes work across the cluster.
+
+Hail eagerly initializes a Google Cloud filesystem on startup; on AWS/Azure, set
+``GOOGLE_APPLICATION_CREDENTIALS`` to a service-account JSON before calling ``hl.init()`` so this
+initialization succeeds (it is never used for real authentication on AWS/Azure):
+
+.. code-block:: python
+
+    import os
+    with open('/tmp/dummy-gcs-key.json', 'w') as f:
+        f.write('{"type": "service_account"}')
+    os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = '/tmp/dummy-gcs-key.json'
 
 :**note**:
 
@@ -42,6 +117,18 @@ idempotent. This setting enables multiple Databricks notebooks to use the same H
 
     >>> import hail as hl
     >>> hl.init(sc, idempotent=True, quiet=True, skip_logging_configuration=True)  # doctest: +SKIP
+
+Reading and writing data
+-------------------------
+
+- **Read** Hail Tables/MatrixTables and reference datasets directly from cloud storage using Hail's
+  schemes: ``s3://`` (note: not Hadoop's ``s3a://``), ``gs://``, ``hail-az://``. On a Dedicated
+  Unity Catalog cluster, Hail's S3/GCS client uses the node credentials the runtime provides.
+- **Write** Hail outputs to ``/dbfs/...`` (persistent) or node-local ``/local_disk0``. Hail's own
+  I/O cannot write through a Unity Catalog ``/Volumes`` path or to a UC-governed bucket via
+  ``s3://`` (those require Unity Catalog credential vending that Hail's client bypasses). To land
+  results in a governed Delta table, write from Hail to ``/dbfs`` and then read that with Spark and
+  save the table.
 
 Display Bokeh plots
 -------------------
@@ -60,3 +147,11 @@ And then call the Databricks function `displayHTML` with `html` as its argument.
 See Databricks' `Bokeh docs <https://docs.databricks.com/notebooks/visualizations/bokeh.html>`__ for
 more information.
 
+Optional: Databricks Container Services
+---------------------------------------
+
+If your organization requires a locked-down "golden" image, you can instead bake the steps above
+into a custom Docker image based on ``databricksruntime/standard:15.4-LTS`` (install Hail, place the
+jar on the classpath, set JDK 17) and run it via `Databricks Container Services
+<https://docs.databricks.com/clusters/custom-containers.html>`__. If you do, you are responsible for
+building and maintaining that image.
