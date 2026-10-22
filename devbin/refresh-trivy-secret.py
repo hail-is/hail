@@ -29,7 +29,7 @@ GITHUB_SECRET = 'GOOGLE_GAR_CREDENTIALS'
 
 
 def run(args):
-    result = subprocess.run(args, check=True, capture_output=True, text=True)
+    result = subprocess.run(args, check=False, capture_output=True, text=True)
     if result.returncode != 0:
         raise RuntimeError(result.stderr.strip() or f'Command failed: {args}')
     return result.stdout
@@ -99,12 +99,12 @@ def check_prereqs():
 
     def get_gh_user():
         result = subprocess.run(
-            ['gh', 'auth', 'status', '--hostname', 'github.com'], check=True, capture_output=True, text=True
+            ['gh', 'auth', 'status', '--hostname', 'github.com'], check=False, capture_output=True, text=True
         )
         if result.returncode != 0:
             raise RuntimeError(result.stderr.strip() or 'not authenticated')
         user_result = subprocess.run(
-            ['gh', 'api', 'user', '--jq', '.login'], check=True, capture_output=True, text=True
+            ['gh', 'api', 'user', '--jq', '.login'], check=False, capture_output=True, text=True
         )
         return user_result.stdout.strip() if user_result.returncode == 0 else '(authenticated)'
 

@@ -11,7 +11,7 @@ import time
 
 
 def run(args):
-    result = subprocess.run(args, check=True, capture_output=True, text=True)
+    result = subprocess.run(args, check=False, capture_output=True, text=True)
     if result.returncode != 0:
         print(result.stderr, file=sys.stderr)
         sys.exit(1)

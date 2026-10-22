@@ -2,12 +2,12 @@
 
 include config.mk
 
-SERVICES := auth batch ci monitoring website devbin
+SERVICES := auth batch ci monitoring website
 SERVICES_PLUS_ADMIN_POD := $(SERVICES) admin-pod
 SERVICES_IMAGES := $(patsubst %, %-image, $(SERVICES_PLUS_ADMIN_POD))
 SERVICES_DATABASES := $(patsubst %, %-db, $(SERVICES))
 SERVICES_MODULES := $(SERVICES) gear web_common
-CHECK_SERVICES_MODULES := $(patsubst %, check-%, $(SERVICES_MODULES))
+CHECK_SERVICES_MODULES := $(patsubst %, check-%, $(SERVICES_MODULES) devbin)
 SPECIAL_IMAGES := hail-ubuntu batch-worker letsencrypt
 
 HAILGENETICS_IMAGES = $(foreach img,hail vep-grch37-85 vep-grch38-95,hailgenetics-$(img))
