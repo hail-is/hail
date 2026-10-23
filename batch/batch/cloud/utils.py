@@ -2,6 +2,7 @@ import os
 from typing import Any, Dict, Set
 
 from gear.cloud_config import get_azure_config, get_gcp_config
+from hailtop.aiocloud.aioaws import S3AsyncFS
 from hailtop.aiocloud.aioazure import AzureAsyncFS
 from hailtop.aiocloud.aiogoogle import GoogleStorageAsyncFS
 
@@ -41,6 +42,8 @@ def _query_storage_url_prefix(subfolder_envvar: str) -> str:
 
     if cloud == 'gcp':
         assert GoogleStorageAsyncFS.valid_url(url_prefix)
+    elif cloud == 'aws':
+        assert S3AsyncFS.valid_url(url_prefix)
     else:
         assert cloud == 'azure'
         assert AzureAsyncFS.valid_url(url_prefix)

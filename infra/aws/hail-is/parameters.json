@@ -1,0 +1,30 @@
+[
+  {
+    "ParameterKey": "VpcCidrBlock",
+    "ParameterValue": "172.31.0.0/16"
+  },
+  {
+    "ParameterKey": "ClusterServiceCidrBlock",
+    "ParameterValue": "172.20.0.0/16"
+  },
+  {
+    "ParameterKey": "SubnetCidrBlockA",
+    "ParameterValue": "172.31.0.0/20"
+  },
+  {
+    "ParameterKey": "SubnetCidrBlockB",
+    "ParameterValue": "172.31.16.0/20"
+  },
+  {
+    "ParameterKey": "SubnetCidrBlockC",
+    "ParameterValue": "172.31.32.0/20"
+  },
+  {
+    "ParameterKey": "PublicAccessIpList",
+    "ParameterValue": "69.173.64.0/18, 69.173.64.0/19, 69.173.96.0/19, 69.173.95.0/24, 69.173.97.0/24"
+  },
+  {
+    "ParameterKey": "DomainName",
+    "ParameterValue": "aws.hail.is"
+  }
+]
