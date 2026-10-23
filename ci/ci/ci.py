@@ -58,6 +58,7 @@ from web_common import (
     web_security_headers_swagger,
 )
 
+from . import status as ci_status
 from .constants import AUTHORIZED_USERS, TEAMS, User
 from .environment import CLOUD, DEFAULT_NAMESPACE, DOMAIN, STORAGE_URI
 from .envoy import Service, create_cds_response, create_rds_response
@@ -1291,6 +1292,53 @@ async def api_unfreeze(request: web.Request, _) -> web.Response:
     await app[AppKeys.DB].execute_update('UPDATE globals SET frozen_merge_deploy = 0;')
     app[AppKeys.FROZEN_MERGE_DEPLOY] = False
     return json_response({'frozen': False})
+
+
+def _expected_background_loops() -> List[str]:
+    if DEFAULT_NAMESPACE != 'default':
+        return []
+    return [update_envoy_configs.__name__, cleanup_expired_namespaces.__name__]
+
+
+def _health_problems(app: web.Application) -> List[str]:
+    return ci_status.health_problems(
+        watched_branches,
+        now_ms=time_msecs(),
+        started_at_ms=app[AppKeys.STARTED_AT_MS],
+        last_webhook_ms=app[AppKeys.LAST_WEBHOOK_MS],
+        loop_last_success_ms=app[AppKeys.LOOP_LAST_SUCCESS_MS],
+        expected_loops=_expected_background_loops(),
+    )
+
+
+@routes.get('/api/v1alpha/ci_developer_status')
+@auth.authenticated_users_with_permission(SystemPermission.READ_CI, redirect=False)
+async def api_ci_developer_status(request: web.Request, _) -> web.Response:
+    app = request.app
+    frozen = app[AppKeys.FROZEN_MERGE_DEPLOY]
+    return json_response({
+        'started_at_ms': app[AppKeys.STARTED_AT_MS],
+        'ci_unhealthy': bool(_health_problems(app)),
+        'frozen': frozen,
+        'branches': [await ci_status.developer_branch_status(wb, app[AppKeys.DB], frozen) for wb in watched_branches],
+    })
+
+
+@routes.get('/api/v1alpha/ci_operator_status')
+@auth.authenticated_users_with_permission(SystemPermission.READ_DEPLOYED_SYSTEM_STATE, redirect=False)
+async def api_ci_operator_status(request: web.Request, _) -> web.Response:
+    app = request.app
+    loop_last_success_ms = app[AppKeys.LOOP_LAST_SUCCESS_MS]
+    return json_response({
+        'started_at_ms': app[AppKeys.STARTED_AT_MS],
+        'health_problems': _health_problems(app),
+        'github': {
+            'last_webhook_ms': app[AppKeys.LAST_WEBHOOK_MS],
+            'last_api_error': ci_status.latest_github_api_error(watched_branches),
+        },
+        'loops': {loop: {'last_success_ms': loop_last_success_ms.get(loop)} for loop in _expected_background_loops()},
+        'branches': [ci_status.operator_branch_status(wb) for wb in watched_branches],
+    })
 
 
 @routes.post('/api/v1alpha/watched_branches/{branch}/prs/{number}/retry')

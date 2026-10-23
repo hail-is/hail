@@ -31,6 +31,8 @@ tags:
     description: "Web UI pages and related helpers"
   - name: Flaky Tests
     description: "Endpoints for the flaky test dashboard"
+  - name: Status
+    description: "CI's in-memory state, for the CI dashboard"
 
 components:
   schemas:
@@ -325,6 +327,237 @@ components:
         frozen:
           type: boolean
           description: "Whether merges and deploys are frozen"
+
+    RateLimit:
+      type: object
+      properties:
+        remaining:
+          type: integer
+        limit:
+          type: integer
+        reset_at:
+          type: string
+          format: date-time
+
+    DeveloperBranchStatus:
+      type: object
+      properties:
+        branch:
+          type: string
+          description: "Branch name (e.g. main)"
+        sha:
+          type: string
+          nullable: true
+          description: "Current HEAD SHA"
+        deploy_state:
+          type: string
+          nullable: true
+          description: "Latest deploy state; null while deploying"
+        deploy_batch_id:
+          type: integer
+          nullable: true
+        merge_candidate:
+          type: integer
+          nullable: true
+          description: "PR number of the highest-priority approved, authorized PR that hasn't failed"
+        n_prs:
+          type: integer
+        last_update:
+          type: object
+          nullable: true
+          description: "The last finished update of this branch; null until the first one finishes"
+          properties:
+            started_ms:
+              type: integer
+              format: int64
+            finished_ms:
+              type: integer
+              format: int64
+            duration_s:
+              type: number
+        merge_paused_reason:
+          type: string
+          nullable: true
+          enum: [frozen, deploying, null]
+          description: "Why merging is paused branch-wide. A pending merge is not a pause."
+        pending_merge:
+          type: object
+          nullable: true
+          description: "An async merge that was requested but hasn't completed yet"
+          properties:
+            pr:
+              type: integer
+            requested_at_ms:
+              type: integer
+              format: int64
+        build_slots:
+          type: object
+          properties:
+            used:
+              type: integer
+              description: "Running PR builds. Can exceed max: the merge candidate bypasses the cap."
+            max:
+              type: integer
+            running:
+              type: array
+              items:
+                type: integer
+              description: "PR numbers with a running build"
+            on_deck:
+              type: integer
+              nullable: true
+              description: "The merge candidate, which is rebuilt against the current branch and bypasses the cap"
+            queued:
+              type: array
+              description: "Authorized, testable PRs with no build at all, in merge priority order"
+              items:
+                type: object
+                properties:
+                  pr:
+                    type: integer
+                  reason:
+                    type: string
+                    description: "Why the PR needs a build, e.g. 'new commit 1a2b3c4d'"
+        merge_queue:
+          type: array
+          description: "PRs eligible to be the merge candidate, in merge priority order; the first is the merge candidate"
+          items:
+            type: object
+            properties:
+              pr:
+                type: integer
+              blockers:
+                type: array
+                items:
+                  type: string
+                description: "Why the PR can't be merged right now; empty if it can"
+              failures:
+                type: integer
+                description: "Failed async merges of this PR at its current source and target SHAs"
+              backoff_until_ms:
+                type: integer
+                format: int64
+                nullable: true
+                description: "When merging this PR may be retried; null if it has no failed merges"
+
+    CIDeveloperStatus:
+      type: object
+      properties:
+        started_at_ms:
+          type: integer
+          format: int64
+          description: "When this CI process started. Everything in this response resets on restart."
+        ci_unhealthy:
+          type: boolean
+          description: "Whether CI itself looks unhealthy. Details are in ci_operator_status."
+        frozen:
+          type: boolean
+          description: "Whether merges and deploys are frozen"
+        branches:
+          type: array
+          items:
+            $ref: '#/components/schemas/DeveloperBranchStatus'
+
+    OperatorBranchStatus:
+      type: object
+      properties:
+        branch:
+          type: string
+        pip_version:
+          type: string
+          nullable: true
+        updating:
+          type: boolean
+        update_started_ms:
+          type: integer
+          format: int64
+          nullable: true
+          description: "Start of the update in progress; null when not updating"
+        dirty:
+          type: array
+          items:
+            type: string
+            enum: [github, batch, state]
+          description: "What has changed and still needs processing by an update"
+        last_update_error:
+          type: string
+          nullable: true
+          description: "The exception from the last finished update, if it failed"
+        rate_limit:
+          type: object
+          description: "GitHub's REST and GraphQL rate limits are independent budgets"
+          properties:
+            rest:
+              nullable: true
+              description: "Snapshot after the REST calls of the last GitHub update"
+              allOf:
+                - $ref: '#/components/schemas/RateLimit'
+            graphql:
+              nullable: true
+              description: "After the last GitHub update's PR query"
+              allOf:
+                - $ref: '#/components/schemas/RateLimit'
+                - type: object
+                  properties:
+                    last_update_cost:
+                      type: integer
+                      description: "Points, summed over every request in that update"
+        deploy_exception:
+          type: string
+          nullable: true
+          description: "Set when the deploy failed before its batch was created (e.g. checkout failed)"
+
+    CIOperatorStatus:
+      type: object
+      properties:
+        started_at_ms:
+          type: integer
+          format: int64
+        health_problems:
+          type: array
+          items:
+            type: string
+          description: "Why ci_unhealthy is set on ci_developer_status; empty if CI looks healthy"
+        github:
+          type: object
+          properties:
+            last_webhook_ms:
+              type: object
+              additionalProperties:
+                type: integer
+                format: int64
+              description: "Last webhook received since startup, keyed by GitHub event type"
+            last_api_error:
+              type: object
+              nullable: true
+              description: "Most recent GitHub API error across branches"
+              properties:
+                branch:
+                  type: string
+                at_ms:
+                  type: integer
+                  format: int64
+                operation:
+                  type: string
+                status:
+                  type: integer
+                  nullable: true
+                message:
+                  type: string
+        loops:
+          type: object
+          description: "Background loops this CI runs, keyed by name"
+          additionalProperties:
+            type: object
+            properties:
+              last_success_ms:
+                type: integer
+                format: int64
+                nullable: true
+        branches:
+          type: array
+          items:
+            $ref: '#/components/schemas/OperatorBranchStatus'
 
     PRConfig:
       type: object
@@ -1124,6 +1357,40 @@ paths:
           description: Unauthorized
         '403':
           description: Forbidden
+
+  /api/v1alpha/ci_developer_status:
+    get:
+      summary: CI status for developers
+      description: "Build slots, build and merge queues, and whether CI itself looks unhealthy. In memory; resets when CI restarts."
+      tags: [Status]
+      responses:
+        '200':
+          description: Status retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CIDeveloperStatus'
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden - requires read_ci
+
+  /api/v1alpha/ci_operator_status:
+    get:
+      summary: CI status for operators
+      description: "CI's own health: webhooks, GitHub API errors and rate limits, background loops, and update loop state. In memory; resets when CI restarts."
+      tags: [Status]
+      responses:
+        '200':
+          description: Status retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CIOperatorStatus'
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden - requires read_deployed_system_state
 
   /api/v1alpha/watched_branches/{branch}/prs:
     get:
