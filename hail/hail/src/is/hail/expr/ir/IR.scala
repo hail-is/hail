@@ -413,7 +413,6 @@ package defs {
           val path = (jv \ "path").extract[String]
           val spec = TableNativeReader.read(ctx.fs, ctx.referenceGenomes, path, None).spec
           PartitionNativeIntervalReader(
-            ctx.stateManager,
             path,
             spec,
             (jv \ "uidFieldName").extract[String],
@@ -423,7 +422,6 @@ package defs {
           val spec = RelationalSpec.read(ctx.fs, ctx.referenceGenomes, path)
             .asInstanceOf[AbstractMatrixTableSpec]
           PartitionZippedNativeIntervalReader(
-            ctx.stateManager,
             path,
             spec,
             (jv \ "uidFieldName").extract[String],

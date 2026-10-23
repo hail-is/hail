@@ -128,7 +128,7 @@ object TableValue extends Logging {
       else {
         logger.info("TableMultiWayZipJoin: repartitioning children")
         val childRanges = childRVDs.flatMap(_.partitioner.coarsenedRangeBounds(typ.key.length))
-        val newPartitioner = RVDPartitioner.generate(ctx.stateManager, typ.keyType, childRanges)
+        val newPartitioner = RVDPartitioner.generate(typ.keyType, childRanges)
         childRVDs.map(_.repartition(ctx, newPartitioner))
       }
     val newPartitioner = repartitionedRVDs(0).partitioner
@@ -279,7 +279,6 @@ object TableValue extends Logging {
       new RVD(
         RVDType(rowType, ArraySeq("idx")),
         new RVDPartitioner(
-          ctx.stateManager,
           Array("idx"),
           typ.rowType,
           ArraySeq.tabulate(nPartitions) { i =>
@@ -649,7 +648,7 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
     if (pred == True())
       return this
     else if (pred == False())
-      return copy(rvd = RVD.empty(ctx, typ.canonicalRVDType))
+      return copy(rvd = RVD.empty(typ.canonicalRVDType))
 
     val (Some(BooleanSingleCodeType), f) = Compile[AsmFunction3RegionLongLongBoolean](
       ctx,

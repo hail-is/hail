@@ -197,7 +197,7 @@ case class StringTableReader(
     )
     TableStage(
       globals = MakeStruct(FastSeq()),
-      partitioner = RVDPartitioner.unkeyed(ctx.stateManager, lines.nPartitions),
+      partitioner = RVDPartitioner.unkeyed(lines.nPartitions),
       dependency = TableStageDependency.none,
       contexts = ToStream(Literal.coerce(TArray(lines.contextType), lines.contexts)),
       body = partitionContext =>

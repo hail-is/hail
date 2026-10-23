@@ -69,7 +69,7 @@ object TableStage {
     )
   }
 
-  def concatenate(ctx: ExecuteContext, children: IndexedSeq[TableStage]): TableStage = {
+  def concatenate(children: IndexedSeq[TableStage]): TableStage = {
     val keyType = children.head.kType
     assert(keyType.size == 0)
     assert(children.forall(_.kType == keyType))
@@ -85,7 +85,7 @@ object TableStage {
     val newGlobals = children.head.globals
     val globalsRef = Ref(freshName(), newGlobals.typ)
     val newPartitioner =
-      new RVDPartitioner(ctx.stateManager, keyType, children.flatMap(_.partitioner.rangeBounds))
+      new RVDPartitioner(keyType, children.flatMap(_.partitioner.rangeBounds))
 
     TableStage(
       children.flatMap(_.letBindings) :+ globalsRef.name -> newGlobals.ir,
@@ -498,7 +498,7 @@ class TableStage(
     require(newKey.forall(rowType.fieldNames.contains))
 
     val newKeyType = rowType.typeAfterSelectNames(newKey)
-    if (RVDPartitioner.isValid(partitioner.sm, newKeyType, partitioner.rangeBounds)) {
+    if (RVDPartitioner.isValid(newKeyType, partitioner.rangeBounds)) {
       changePartitionerNoRepartition(partitioner.copy(kType = newKeyType))
     } else {
       val adjustedPartitioner = partitioner.strictify()
@@ -526,7 +526,6 @@ class TableStage(
         case "right" => rightPart
         case "inner" => leftPart.intersect(rightPart)
         case "outer" => RVDPartitioner.generate(
-            partitioner.sm,
             this.kType.fieldNames.take(joinKey),
             this.kType,
             leftPart.rangeBounds ++ rightPart.rangeBounds,
@@ -641,7 +640,6 @@ class TableStage(
     val sorted = sortedReader.lower(ctx, sortedReader.fullType)
     assert(sorted.kType.fieldNames == "__partNum" +: right.key)
     val newRightPartitioner = new RVDPartitioner(
-      ctx.stateManager,
       Some(1),
       TStruct.concat(TStruct("__partNum" -> TInt32), right.kType),
       ArraySeq.tabulate(partitioner.numPartitions)(i =>
@@ -652,7 +650,7 @@ class TableStage(
       sorted
         .repartitionNoShuffle(ctx, newRightPartitioner)
         .changePartitionerNoRepartition(
-          RVDPartitioner.unkeyed(ctx.stateManager, newRightPartitioner.numPartitions)
+          RVDPartitioner.unkeyed(newRightPartitioner.numPartitions)
         )
         .mapPartition(None)(_.streamMap(_.select(right.rowType.fieldNames)))
 
@@ -934,7 +932,7 @@ object LowerTableIR extends Logging {
           ),
           FastSeq(global.name -> global.ir),
           global.ir,
-          RVDPartitioner.unkeyed(ctx.stateManager, nPartitionsAdj),
+          RVDPartitioner.unkeyed(nPartitionsAdj),
           TableStageDependency.none,
           M.eval {
             for {
@@ -1037,7 +1035,6 @@ object LowerTableIR extends Logging {
         TableStage(
           makestruct(),
           new RVDPartitioner(
-            ctx.stateManager,
             Array("idx"),
             tir.typ.rowType,
             ranges.map { case (start, end) =>
@@ -1110,7 +1107,6 @@ object LowerTableIR extends Logging {
         val iord = ord.intervalEndpointOrdering
 
         val filterPartitioner = new RVDPartitioner(
-          ctx.stateManager,
           kt,
           Interval.union(intervals, ord.intervalEndpointOrdering),
         )
@@ -1157,7 +1153,7 @@ object LowerTableIR extends Logging {
                 !invoke("partitionerContains", TBoolean, intervals, key),
             )
 
-        val newPart = new RVDPartitioner(ctx.stateManager, kt, newRangeBounds)
+        val newPart = new RVDPartitioner(kt, newRangeBounds)
 
         TableStage(
           letBindings = loweredChild.letBindings,
@@ -1629,10 +1625,9 @@ object LowerTableIR extends Logging {
         val keyType = x.typ.keyType
 
         if (keyType.size == 0) {
-          TableStage.concatenate(ctx, lowered)
+          TableStage.concatenate(lowered)
         } else {
           val newPartitioner = RVDPartitioner.generate(
-            ctx.stateManager,
             keyType,
             lowered.flatMap(_.partitioner.rangeBounds),
           )
@@ -1661,7 +1656,6 @@ object LowerTableIR extends Logging {
         val lowered = children.map(lower)
         val keyType = x.typ.keyType
         val newPartitioner = RVDPartitioner.generate(
-          ctx.stateManager,
           keyType,
           lowered.flatMap(_.partitioner.rangeBounds),
         )
@@ -1704,8 +1698,7 @@ object LowerTableIR extends Logging {
         require(t.definitelyDoesNotShuffle)
         val loweredChild = lower(child)
         loweredChild.changePartitionerNoRepartition(RVDPartitioner.unkeyed(
-          ctx.stateManager,
-          loweredChild.partitioner.numPartitions,
+          loweredChild.partitioner.numPartitions
         ))
 
       case TableExplode(child, path) =>

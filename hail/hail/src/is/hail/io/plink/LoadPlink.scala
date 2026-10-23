@@ -307,7 +307,7 @@ object MatrixPLINKReader extends Logging {
     assert(prevEnd == nVariants)
 
     val contexts = cb.result()
-    val partitioner = new RVDPartitioner(ctx.stateManager, locusAllelesType, ib.result(), 0)
+    val partitioner = new RVDPartitioner(locusAllelesType, ib.result(), 0)
 
     val fullMatrixType: MatrixType = MatrixType(
       globalType = TStruct.empty,

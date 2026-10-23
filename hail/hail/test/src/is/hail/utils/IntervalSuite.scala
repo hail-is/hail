@@ -3,7 +3,6 @@ package is.hail.utils
 import is.hail.ParameterizedTest
 import is.hail.TestUtils.cartesian
 import is.hail.annotations.{ExtendedOrdering, RowSeq}
-import is.hail.backend.ExecuteContext
 import is.hail.collection.implicits.toRichIterable
 import is.hail.rvd.RVDPartitioner
 import is.hail.types.virtual.{TInt32, TStruct}
@@ -31,13 +30,13 @@ class IntervalSuite {
   var test_itrees: IndexedSeq[SetIntervalTree] = _
 
   @BeforeEach
-  def setupIntervalTrees(implicit ctx: ExecuteContext): Unit = {
-    test_itrees = SetIntervalTree(ctx, ArraySeq[(SetInterval, Int)]()) +:
+  def setupIntervalTrees(): Unit = {
+    test_itrees = SetIntervalTree(ArraySeq[(SetInterval, Int)]()) +:
       test_intervals.flatMap { i1 =>
-        SetIntervalTree(ctx, ArraySeq(i1).zipWithIndex) +:
+        SetIntervalTree(ArraySeq(i1).zipWithIndex) +:
           test_intervals.flatMap { i2 =>
             if (i1.end <= i2.start)
-              Some(SetIntervalTree(ctx, ArraySeq(i1, i2).zipWithIndex))
+              Some(SetIntervalTree(ArraySeq(i1, i2).zipWithIndex))
             else
               None
           }
@@ -254,7 +253,7 @@ case class SetInterval(start: Int, end: Int, includesStart: Boolean, includesEnd
   }
 }
 
-case class SetIntervalTree(ctx: ExecuteContext, annotations: IndexedSeq[(SetInterval, Int)]) {
+case class SetIntervalTree(annotations: IndexedSeq[(SetInterval, Int)]) {
 
   val pord: ExtendedOrdering = TInt32.ordering
 
@@ -264,7 +263,7 @@ case class SetIntervalTree(ctx: ExecuteContext, annotations: IndexedSeq[(SetInte
   val (intervals, values) = annotations.unzip
 
   val intervalTree: RVDPartitioner =
-    new RVDPartitioner(ctx.stateManager, TStruct(("i", TInt32)), intervals.map(_.rowInterval))
+    new RVDPartitioner(TStruct(("i", TInt32)), intervals.map(_.rowInterval))
 
   def contains(point: Int): Boolean = doubledPointSet.contains(2 * point)
 
