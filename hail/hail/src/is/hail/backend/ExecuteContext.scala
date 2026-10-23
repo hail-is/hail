@@ -68,7 +68,7 @@ object ExecuteContext {
     theHailClassLoader: HailClassLoader,
     flags: HailFeatureFlags,
     irMetadata: IrMetadata,
-    blockMatrixCache: mutable.Map[String, BlockMatrix],
+    blockMatrixCache: mutable.Map[Any, BlockMatrix],
     compileCache: CompileCache,
     irCache: mutable.Map[Int, BaseIR],
     coercerCache: mutable.Map[Any, LoweredTableReaderCoercer],
@@ -123,7 +123,7 @@ class ExecuteContext(
   val theHailClassLoader: HailClassLoader,
   val flags: HailFeatureFlags,
   val irMetadata: IrMetadata,
-  val BlockMatrixCache: mutable.Map[String, BlockMatrix],
+  val BlockMatrixCache: mutable.Map[Any, BlockMatrix],
   val CompileCache: CompileCache,
   val PersistedIrCache: mutable.Map[Int, BaseIR],
   val PersistedCoercerCache: mutable.Map[Any, LoweredTableReaderCoercer],
@@ -141,8 +141,6 @@ class ExecuteContext(
     }
 
   lazy val fsBc: BroadcastValue[FS] = backend.broadcast(fs)
-
-  val memo: mutable.Map[Any, Any] = new mutable.HashMap[Any, Any]()
 
   val taskContext: HailTaskContext = new LocalTaskContext(0, 0)
 
@@ -182,7 +180,7 @@ class ExecuteContext(
     theHailClassLoader: HailClassLoader = this.theHailClassLoader,
     flags: HailFeatureFlags = this.flags,
     irMetadata: IrMetadata = this.irMetadata,
-    blockMatrixCache: mutable.Map[String, BlockMatrix] = this.BlockMatrixCache,
+    blockMatrixCache: mutable.Map[Any, BlockMatrix] = this.BlockMatrixCache,
     codeCache: CompileCache = this.CompileCache,
     persistedIrCache: mutable.Map[Int, BaseIR] = this.PersistedIrCache,
     persistedCoercerCache: mutable.Map[Any, LoweredTableReaderCoercer] = this.PersistedCoercerCache,

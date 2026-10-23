@@ -136,17 +136,11 @@ class BlockMatrixNativeReader(
     BlockMatrixType(TFloat64, metadata.nRows, metadata.nCols, metadata.blockSize, sparsity)
   }
 
-  override def apply(ctx: ExecuteContext): BlockMatrix = {
-    val key = ("BlockMatrixNativeReader.apply", params.path)
-    if (ctx.memo.contains(key)) {
-      ctx.memo(key).asInstanceOf[BlockMatrix]
-    } else {
-      val bm = BlockMatrix.read(ctx, params.path)
-      ctx.memo.update(key, bm)
-      bm
-    }
-
-  }
+  override def apply(ctx: ExecuteContext): BlockMatrix =
+    ctx.BlockMatrixCache.getOrElseUpdate(
+      ("BlockMatrixNativeReader.apply", params.path),
+      BlockMatrix.read(ctx, params.path),
+    )
 
   override def lower(ctx: ExecuteContext, evalCtx: IRBuilder): BlockMatrixStage2 = {
     val fileNames = Literal(TArray(TString), metadata.partFiles)

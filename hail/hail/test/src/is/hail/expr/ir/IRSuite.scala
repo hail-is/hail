@@ -4017,7 +4017,7 @@ class IRSuite {
   }
 
   @Test def testBlockMatrixIRParserPersist(implicit ctx: ExecuteContext): Unit = {
-    val cache = mutable.Map.empty[String, BlockMatrix]
+    val cache = mutable.Map.empty[Any, BlockMatrix]
     val bm = BlockMatrixRandom(0, gaussian = true, shape = ArraySeq(5L, 6L), blockSize = 3)
     try {
       ctx.local(blockMatrixCache = cache) { ctx =>
