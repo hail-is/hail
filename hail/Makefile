@@ -126,7 +126,7 @@ ifdef HAIL_COMPILE_NATIVES
 fs-jvm-test: native-lib-prebuilt
 endif
 fs-jvm-test: upload-remote-test-resources
-	! [ -z $(HAIL_CLOUD) ]  # call like make fs-jvm-test HAIL_CLOUD=gcp or azure
+	! [ -z $(HAIL_CLOUD) ]  # call like make fs-jvm-test HAIL_CLOUD=gcp
 	! [ -z $(NAMESPACE) ]  # call like make fs-jvm-test NAMEPSPACE=default
 	HAIL_CLOUD=$(HAIL_CLOUD) \
 	HAIL_DEFAULT_NAMESPACE=$(NAMESPACE) \

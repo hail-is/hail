@@ -8,7 +8,6 @@ import scala.collection.immutable.ArraySeq
 import scala.io.Source
 
 import java.io._
-import java.nio.ByteBuffer
 import java.nio.file.FileSystems
 import java.util.zip.GZIPOutputStream
 
@@ -159,101 +158,6 @@ object FSUtil {
 
     false
   }
-}
-
-abstract class FSSeekableInputStream extends InputStream with Seekable {
-  protected[this] var closed: Boolean = false
-  private[this] var pos: Long = 0
-  private[this] var eof: Boolean = false
-
-  protected[this] val bb: ByteBuffer = ByteBuffer.allocate(8 * 1024 * 1024)
-  bb.limit(0)
-
-  def fill(): Int
-
-  override def read(): Int = {
-    if (eof)
-      return -1
-
-    if (bb.remaining() == 0) {
-      val nRead = fill()
-      if (nRead == -1) {
-        eof = true
-        return -1
-      }
-    }
-
-    pos += 1
-    bb.get().toInt & 0xff
-  }
-
-  override def read(bytes: Array[Byte], off: Int, len: Int): Int = {
-    if (eof)
-      return -1
-
-    if (bb.remaining() == 0) {
-      val nRead = fill()
-      if (nRead == -1) {
-        eof = true
-        return -1
-      }
-    }
-
-    val toTransfer = math.min(len, bb.remaining())
-    bb.get(bytes, off, toTransfer)
-    pos += toTransfer
-    toTransfer
-  }
-
-  protected def physicalSeek(newPos: Long): Unit
-
-  override def seek(newPos: Long): Unit = {
-    eof = false
-    val distance = newPos - pos
-    val bufferSeekPosition = bb.position() + distance
-    if (bufferSeekPosition >= 0 && bufferSeekPosition < bb.limit()) {
-      assert(bufferSeekPosition <= Int.MaxValue)
-      bb.position(bufferSeekPosition.toInt)
-    } else {
-      bb.clear()
-      bb.limit(0)
-      physicalSeek(newPos)
-    }
-    pos = newPos
-  }
-
-  override def getPosition: Long = pos
-}
-
-abstract class FSPositionedOutputStream(val capacity: Int) extends OutputStream with Positioned {
-  protected[this] var closed: Boolean = false
-  protected[this] val bb: ByteBuffer = ByteBuffer.allocate(capacity)
-  protected[this] var pos: Long = 0
-
-  override def flush(): Unit
-
-  override def write(i: Int): Unit = {
-    if (bb.remaining() == 0)
-      flush()
-    bb.put(i.toByte)
-    pos += 1
-  }
-
-  override def write(bytes: Array[Byte], off: Int, len: Int): Unit = {
-    var i = off
-    var remaining = len
-    while (remaining > 0) {
-      if (bb.remaining() == 0)
-        flush()
-      val toTransfer = math.min(bb.remaining(), remaining)
-      bb.put(bytes, i, toTransfer)
-      i += toTransfer
-      remaining -= toTransfer
-      pos += toTransfer
-    }
-  }
-
-  override def getPosition: Long = pos
 }
 
 object FS {
