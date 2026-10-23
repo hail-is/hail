@@ -25,18 +25,40 @@ _background_tasks: Set[asyncio.Task[Any]] = set()
 
 def _hail_loop() -> asyncio.AbstractEventLoop:
     global _loop
+    if (existing := _loop) is not None:
+        return existing
+
+    # Built outside the lock: allocating can run the cycle collector, whose finalizers (e.g.
+    # `Backend.__del__`) may call back into this function on this thread and would deadlock on it.
+    loop = asyncio.new_event_loop()
+    thread = threading.Thread(target=loop.run_forever, name='hail-event-loop', daemon=True)
+    if hasattr(thread, '_ipykernel_parent_thread_ident'):
+        # ipykernel sends a thread's output to the cell that created it. This thread outlives that
+        # cell, so ask for the cell that is running instead. Deleting the attribute would stop
+        # ipykernel from running the thread at all.
+        thread._ipykernel_parent_thread_ident = None  # type: ignore[attr-defined]
+
     with _lock:
-        if _loop is None:
-            loop = asyncio.new_event_loop()
-            thread = threading.Thread(target=loop.run_forever, name='hail-event-loop', daemon=True)
-            if hasattr(thread, '_ipykernel_parent_thread_ident'):
-                # ipykernel sends a thread's output to the cell that created it. This thread outlives that
-                # cell, so ask for the cell that is running instead. Deleting the attribute would stop
-                # ipykernel from running the thread at all.
-                thread._ipykernel_parent_thread_ident = None  # type: ignore[attr-defined]
-            thread.start()
+        won = _loop is None
+        if won:
             _loop = loop
-        return _loop
+        result = _loop
+
+    if won:
+        try:
+            thread.start()
+        except Exception:
+            # e.g. "can't start new thread". Don't leave a loop that will never run for later calls to block on.
+            with _lock:
+                if _loop is loop:
+                    _loop = None
+            loop.close()
+            raise
+    else:
+        # Another thread, or a finalizer on this one, installed its loop first.
+        loop.close()
+    assert result is not None
+    return result
 
 
 def _forget_loop_after_fork() -> None:

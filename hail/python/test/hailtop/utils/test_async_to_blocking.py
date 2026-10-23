@@ -227,3 +227,63 @@ def test_raises_instead_of_hanging_during_interpreter_shutdown():
     result = subprocess.run([sys.executable, '-c', script], capture_output=True, text=True, timeout=15, check=False)
     assert result.returncode == 0, result.stderr
     assert 'interpreter is shutting down' in result.stderr
+
+
+# These need a process that hasn't created the Hail event loop yet.
+
+
+def test_a_finalizer_that_runs_while_the_loop_is_being_created_can_use_it():
+    script = textwrap.dedent("""
+        import asyncio
+        import gc
+        import threading
+        from hailtop.utils import async_to_blocking
+
+        class ClosesOnDel:
+            def __del__(self):
+                async_to_blocking(asyncio.sleep(0))
+
+        new_event_loop = asyncio.new_event_loop
+
+        def new_event_loop_then_collect():
+            loop = new_event_loop()
+            gc.collect()  # the cycle collector can run on any allocation
+            return loop
+
+        asyncio.new_event_loop = new_event_loop_then_collect
+        gc.disable()
+        leaked = ClosesOnDel()
+        leaked.cycle = leaked
+        del leaked
+
+        assert async_to_blocking(asyncio.sleep(0, 42)) == 42
+        assert [t.name for t in threading.enumerate()].count('hail-event-loop') == 1
+    """)
+    result = subprocess.run([sys.executable, '-c', script], capture_output=True, text=True, timeout=15, check=False)
+    assert result.returncode == 0, result.stderr
+
+
+def test_works_after_the_loop_thread_fails_to_start():
+    script = textwrap.dedent("""
+        import asyncio
+        import threading
+        from hailtop.utils import async_to_blocking
+
+        start = threading.Thread.start
+
+        def fails_once(self):
+            threading.Thread.start = start
+            raise RuntimeError("can't start new thread")
+
+        threading.Thread.start = fails_once
+        try:
+            async_to_blocking(asyncio.sleep(0))
+        except RuntimeError as e:
+            assert "can't start new thread" in str(e)
+        else:
+            raise AssertionError('expected the first call to fail')
+
+        assert async_to_blocking(asyncio.sleep(0, 42)) == 42
+    """)
+    result = subprocess.run([sys.executable, '-c', script], capture_output=True, text=True, timeout=15, check=False)
+    assert result.returncode == 0, result.stderr
