@@ -430,7 +430,9 @@ Resources:
     Properties:
       NamespaceConfig:
         Namespace: "kube-system"
-      ServiceAccountRoleArn: !GetAtt VdcClusterCsiDriverRole.Arn
+      PodIdentityAssociations:
+        - ServiceAccount: "ebs-csi-controller-sa"
+          RoleArn: !GetAtt VdcClusterCsiDriverRole.Arn
       ClusterName: !Ref VdcCluster
       AddonName: "aws-ebs-csi-driver"
   VdcClusterAddonCloudWatchAgent:
@@ -438,7 +440,9 @@ Resources:
     Properties:
       NamespaceConfig:
         Namespace: "amazon-cloudwatch"
-      ServiceAccountRoleArn: !GetAtt VdcClusterCloudWatchObservabilityRole.Arn
+      PodIdentityAssociations:
+        - ServiceAccount: "cloudwatch-agent"
+          RoleArn: !GetAtt VdcClusterCloudWatchObservabilityRole.Arn
       ClusterName: !Ref VdcCluster
       AddonName: "amazon-cloudwatch-observability"
   VdcClusterAddonNodeMonitoringAgent:
