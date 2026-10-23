@@ -161,6 +161,16 @@ async def ci_prs_redirect(_request: web.Request) -> web.Response:
     raise web.HTTPFound('/ci/watched_branches/0/prs')
 
 
+# Like the real CI index, serve the React dashboard only when the opt-in cookie is set.
+@routes.get('/ci')
+@routes.get('/ci/')
+@web_security_headers
+async def ci_index(request: web.Request) -> web.Response:
+    if request.cookies.get('hail_react_ui') == '1':
+        return await _render_html(request, 'ci', _FAKE_DEV_USERDATA, 'dashboard.html', {'use_tailwind': True})
+    return await _render_html(request, 'ci', **await _proxy(request, 'ci'))
+
+
 @routes.view('/{service:[^/]+}/api/{route:.*}')
 @web_security_headers
 async def default_proxied_api_route(request: web.Request) -> web.Response:
