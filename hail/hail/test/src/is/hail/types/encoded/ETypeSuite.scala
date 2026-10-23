@@ -383,7 +383,7 @@ class ETypeSuite {
       })
 
   @Test def testLocusRepresentationsEncodeDecode(implicit ctx: ExecuteContext): Unit =
-    checkLocusRepresentationsEncodeDecode
+    withStableEncodings(checkLocusRepresentationsEncodeDecode(_))
 
   @Test def testLocusRepresentationsEncodeDecodeWithUnstableEncodings(implicit ctx: ExecuteContext)
     : Unit =
@@ -478,7 +478,7 @@ class ETypeSuite {
       pt <- types
       in <- ArraySeq(pt, toPacked(pt))
     } {
-      val stable = EType.defaultFromPType(ctx, in)
+      val stable = withStableEncodings(EType.defaultFromPType(_, in))
       val unstable = withUnstableEncodings(EType.defaultFromPType(_, in))
       val stableLoci = locusETypes(pt.virtualType, stable)
       val unstableLoci = locusETypes(pt.virtualType, unstable)
