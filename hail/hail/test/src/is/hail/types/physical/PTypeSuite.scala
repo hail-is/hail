@@ -11,7 +11,7 @@ import is.hail.types.physical.LocusRepresentations._
 import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.variant.{ReferenceGenome, ReferenceGenomeEnv}
-import is.hail.variant.BuiltinLoci.{builtin, pcanonicalLocus}
+import is.hail.variant.BuiltinLoci.pcanonicalLocus
 
 import scala.collection.immutable.ArraySeq
 
@@ -85,16 +85,20 @@ class PTypeSuite {
     )
   }
 
-  @Test def testPackedLocusParsesAsIRText(): Unit =
+  def packedLocusPTypes(): IndexedSeq[PType] =
     for {
-      rg <- ArraySeq(builtin(ReferenceGenome.GRCh38), customReference)
+      rg <- references
       pt <- ArraySeq[PType](
         PPackedLocus(rg),
         PPackedLocus(rg, required = true),
         PCanonicalStruct("l" -> PPackedLocus(rg)),
         PCanonicalInterval(PPackedLocus(rg, required = true)),
       )
-    } assertEq(
+    } yield pt
+
+  @ParameterizedTest("packedLocusPTypes")
+  def testPackedLocusParsesAsIRText(pt: PType): Unit =
+    assertEq(
       IRParser.parsePType(
         pt.toString,
         ReferenceGenomeEnv(Seq(customReference)),
