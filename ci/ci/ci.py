@@ -160,6 +160,9 @@ async def watched_branch_config(app: web.Application, wb: WatchedBranch, index: 
 @web_security_headers
 @auth.authenticated_users_with_permission(SystemPermission.READ_CI)
 async def index(request: web.Request, userdata: UserData) -> web.Response:
+    if request.cookies.get('hail_react_ui') == '1':
+        return await render_template('ci', request, userdata, 'dashboard.html', {'use_tailwind': True})
+
     wb_configs = [await watched_branch_config(request.app, wb, i) for i, wb in enumerate(watched_branches)]
     page_context = {
         'watched_branches': wb_configs,
