@@ -190,53 +190,55 @@ class AzureStorageFS(val credential: AzureCloudCredentials) extends FS {
     getServiceClient(url).getBlobContainerClient(url.container)
   }
 
-  override def openNoCompression(url: URL): SeekableDataInputStream = handlePublicAccessError(url) {
-    val blobSize = getBlobClient(url).getProperties.getBlobSize
+  // bufferSize is ignored: FSSeekableInputStream's buffer sizes each range GET.
+  override def openNoCompression(url: URL, bufferSize: Int): SeekableDataInputStream =
+    handlePublicAccessError(url) {
+      val blobSize = getBlobClient(url).getProperties.getBlobSize
 
-    val is: SeekableInputStream = new FSSeekableInputStream {
-      val bbOS = new OutputStream {
-        override def write(b: Array[Byte]): Unit =
-          bb.put(b): Unit
-        override def write(b: Int): Unit =
-          bb.put(b.toByte): Unit
+      val is: SeekableInputStream = new FSSeekableInputStream {
+        val bbOS = new OutputStream {
+          override def write(b: Array[Byte]): Unit =
+            bb.put(b): Unit
+          override def write(b: Int): Unit =
+            bb.put(b.toByte): Unit
+        }
+
+        override def physicalSeek(newPos: Long): Unit = ()
+
+        override def fill(): Int = {
+          val pos = getPosition
+          val numBytesRemainingInBlob = blobSize - pos
+          val count = Math.min(numBytesRemainingInBlob, bb.capacity().toLong)
+          if (count <= 0) {
+            return -1
+          }
+
+          val response = retryTransientErrors {
+            bb.clear()
+            getBlobClient(url).downloadStreamWithResponse(
+              bbOS,
+              new BlobRange(pos, count),
+              null,
+              null,
+              false,
+              timeout,
+              null,
+            )
+          }
+
+          if (response.getStatusCode >= 200 && response.getStatusCode < 300) {
+            bb.flip()
+            assert(bb.position() == 0 && bb.remaining() > 0)
+
+            bb.remaining()
+          } else {
+            -1
+          }
+        }
       }
 
-      override def physicalSeek(newPos: Long): Unit = ()
-
-      override def fill(): Int = {
-        val pos = getPosition
-        val numBytesRemainingInBlob = blobSize - pos
-        val count = Math.min(numBytesRemainingInBlob, bb.capacity().toLong)
-        if (count <= 0) {
-          return -1
-        }
-
-        val response = retryTransientErrors {
-          bb.clear()
-          getBlobClient(url).downloadStreamWithResponse(
-            bbOS,
-            new BlobRange(pos, count),
-            null,
-            null,
-            false,
-            timeout,
-            null,
-          )
-        }
-
-        if (response.getStatusCode >= 200 && response.getStatusCode < 300) {
-          bb.flip()
-          assert(bb.position() == 0 && bb.remaining() > 0)
-
-          bb.remaining()
-        } else {
-          -1
-        }
-      }
+      new WrappedSeekableDataInputStream(is)
     }
-
-    new WrappedSeekableDataInputStream(is)
-  }
 
   override def createNoCompression(url: URL): PositionedDataOutputStream = retryTransientErrors {
     val blockBlobClient = getBlobClient(url).getBlockBlobClient

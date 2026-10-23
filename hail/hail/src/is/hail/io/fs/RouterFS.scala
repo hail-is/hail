@@ -86,8 +86,8 @@ class RouterFS(fss: IndexedSeq[FS]) extends FS {
   override def createNoCompression(url: RouterFSURL): PositionedDataOutputStream =
     url.fs.createNoCompression(url.url)
 
-  override def openNoCompression(url: URL): SeekableDataInputStream =
-    url.fs.openNoCompression(url.url)
+  override def openNoCompression(url: URL, bufferSize: Int): SeekableDataInputStream =
+    url.fs.openNoCompression(url.url, bufferSize)
 
   override def mkDir(url: URL): Unit = url.fs.mkDir(url.url)
 
