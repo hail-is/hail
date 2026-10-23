@@ -65,7 +65,7 @@ class StagedMinHeapSuite {
 
   @Test def testLocus(implicit ctx: ExecuteContext): Unit =
     check(forAll(loci) { case (rg: ReferenceGenome, loci: IndexedSeq[Locus]) =>
-      ctx.local(references = ReferenceGenomeEnv(Map(rg.name -> rg))) { ctx =>
+      ctx.local(references = ReferenceGenomeEnv(Seq(rg))) { ctx =>
         implicit val coercions: StagedCoercions[Locus] =
           stagedLocusCoercions(rg)
 
