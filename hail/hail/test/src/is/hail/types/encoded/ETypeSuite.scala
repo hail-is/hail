@@ -13,9 +13,10 @@ import is.hail.rvd.AbstractRVDSpec
 import is.hail.scalacheck._
 import is.hail.types.physical._
 import is.hail.types.physical.LocusRepresentations._
+import is.hail.types.physical.stypes.concrete.{SCanonicalLocusPointer, SPackedLocus}
 import is.hail.types.virtual._
-import is.hail.variant.BuiltinLoci.tlocus
-import is.hail.variant.ReferenceGenomeEnv
+import is.hail.variant.{Locus, ReferenceGenome, ReferenceGenomeEnv}
+import is.hail.variant.BuiltinLoci.{pcanonicalLocus, tlocus}
 
 import scala.collection.immutable.ArraySeq
 
@@ -356,10 +357,22 @@ class ETypeSuite {
     assertEqualEncodeDecode(toEncode, etype, toDecode, data)
   }
 
+  @Test def testUnstableEncodingsOfContainersOfStructs(implicit ctx: ExecuteContext): Unit =
+    withUnstableEncodings { implicit ctx =>
+      val elt = PCanonicalStruct(false, "a" -> PInt32Optional, "b" -> PFloat64Optional)
+      val cases = ArraySeq[(PType, Annotation)](
+        PCanonicalArray(elt) -> FastSeq(RowSeq(1, 2.0), null, RowSeq(3, null)),
+        PCanonicalSet(elt) -> Set(RowSeq(1, 2.0), null, RowSeq(3, null)),
+        PCanonicalDict(PInt32Optional, PFloat64Optional) -> Map(1 -> 2.0, 3 -> null),
+      )
+      for ((pt, a) <- cases)
+        assertEqualEncodeDecode(pt, EType.defaultFromPType(ctx, pt), pt, a)
+    }
+
   // Loci of either representation, nested anywhere, decode and store into either representation,
   // on the same reference genome or an equal copy of it. The session does not hold the custom
   // reference genome: locus types carry their own.
-  @Test def testLocusRepresentationsEncodeDecode(implicit ctx: ExecuteContext): Unit =
+  private def checkLocusRepresentationsEncodeDecode(implicit ctx: ExecuteContext): Unit =
     for (rg <- references)
       check(forAll(genPTypeValOn(ctx, rg)) { case (pt, a) =>
         for ((in, out) <- representationPairs(pt, rg)) {
@@ -368,6 +381,114 @@ class ETypeSuite {
         }
         true
       })
+
+  @Test def testLocusRepresentationsEncodeDecode(implicit ctx: ExecuteContext): Unit =
+    checkLocusRepresentationsEncodeDecode
+
+  @Test def testLocusRepresentationsEncodeDecodeWithUnstableEncodings(implicit ctx: ExecuteContext)
+    : Unit =
+    withUnstableEncodings(checkLocusRepresentationsEncodeDecode(_))
+
+  private def structEncodedLocus(required: Boolean): EType =
+    EBaseStruct(
+      FastSeq(EField("contig", EBinaryRequired, 0), EField("position", EVarintRequired, 1)),
+      required,
+    )
+
+  @Test def testVarintDecodesLocusToPackedLocus(): Unit = {
+    val t = tlocus(ReferenceGenome.GRCh38)
+    for (et <- ArraySeq[EType](EVarintOptional, EVarintRequired))
+      assertEq(et.decodedSType(t), SPackedLocus(t.rg))
+
+    assertEq(
+      structEncodedLocus(required = true).decodedSType(t),
+      SCanonicalLocusPointer(PCanonicalLocus(t.rg, false)),
+    )
+  }
+
+  private def unstagedEncodeDecode(ctx: ExecuteContext, pt: PType, et: EType, a: Annotation)
+    : Annotation = {
+    val codec = TypedCodecSpec(et, pt.virtualType, BufferSpec.wireSpec)
+    val bytes =
+      codec.encodeValue(ctx, pt, pt.unstagedStoreJavaObject(a, ctx.r))
+    val (decodedPType, addr) = codec.decode(ctx, pt.virtualType, bytes, ctx.r)
+    SafeRow.read(decodedPType, addr)
+  }
+
+  // Unstaged codecs convert between locus representations, which needs reference genomes.
+  @Test def testUnstagedCodecsConvertLocusRepresentations(implicit ctx: ExecuteContext): Unit =
+    for {
+      rg <- references
+      locus <- ArraySeq[PType](PCanonicalLocus(rg, true), PPackedLocus(rg, true))
+      pt <- ArraySeq(locus, PCanonicalStruct(true, "l" -> locus), PCanonicalArray(locus, true))
+      et <- ArraySeq(
+        withUnstableEncodings(EType.defaultFromPType(_, pt)),
+        EType.fromPythonTypeEncoding(pt.virtualType),
+      )
+    } check(forAll(genVal(ctx, pt))(a => unstagedEncodeDecode(ctx, pt, et, a) == a))
+
+  // Unstaged codecs are cached across sessions, and two sessions may define different reference
+  // genomes with one name. The codecs use the reference genome of the type they are built for.
+  @Test def testUnstagedCodecsUseTheTypesReferenceGenome(implicit ctx: ExecuteContext): Unit = {
+    val reordered = ReferenceGenome(
+      customReference.name,
+      ArraySeq("a", "b", "c"),
+      Map("a" -> 100, "b" -> 2000, "c" -> 30000),
+    )
+    val l = Locus("a", 5)
+    for (rg <- ArraySeq(customReference, reordered))
+      assertEq(unstagedEncodeDecode(ctx, PCanonicalLocus(rg, true), EVarintRequired, l), l)
+  }
+
+  @Test def testVarintEncodedLocusRoundTrip(implicit ctx: ExecuteContext): Unit =
+    for {
+      rg <- references
+      (in, out) <- representationPairs(PCanonicalLocus(rg, true), rg)
+    } check(forAll(genLocus(rg))(l => encodeDecode(in, EVarintRequired, out, l) == l))
+
+  // The ETypes chosen for the loci in `t`, wherever they are nested.
+  private def locusETypes(t: Type, et: EType): Seq[EType] = (t, et) match {
+    case (_: TLocus, _) => Seq(et)
+    case (t: TInterval, et: EBaseStruct) =>
+      locusETypes(t.pointType, et.fields(0).typ) ++ locusETypes(t.pointType, et.fields(1).typ)
+    case (t: TIterable, et: EContainer) => locusETypes(t.elementType, et.elementType)
+    case (t: TBaseStruct, et: EBaseStruct) =>
+      t.types.toSeq.lazyZip(et.fields).flatMap((ft, f) => locusETypes(ft, f.typ))
+    case _ => Seq()
+  }
+
+  @Test def testUnstableEncodingsEncodeLociAsVarint(implicit ctx: ExecuteContext): Unit = {
+    val locus = pcanonicalLocus(ReferenceGenome.GRCh38, true)
+    val types = ArraySeq[PType](
+      locus,
+      pcanonicalLocus(ReferenceGenome.GRCh38, false),
+      PCanonicalInterval(locus, true),
+      PCanonicalArray(locus, true),
+      PCanonicalSet(locus, true),
+      PCanonicalDict(locus, locus, true),
+      PCanonicalStruct(
+        true,
+        "l" -> locus,
+        "rows" -> PCanonicalArray(PCanonicalStruct(true, "l" -> locus, "i" -> PInt32Required)),
+      ),
+      PCanonicalTuple(true, PCanonicalArray(PCanonicalInterval(locus))),
+    )
+
+    for {
+      pt <- types
+      in <- ArraySeq(pt, toPacked(pt))
+    } {
+      val stable = EType.defaultFromPType(ctx, in)
+      val unstable = withUnstableEncodings(EType.defaultFromPType(_, in))
+      val stableLoci = locusETypes(pt.virtualType, stable)
+      val unstableLoci = locusETypes(pt.virtualType, unstable)
+      assert(stableLoci.nonEmpty && stableLoci.size == unstableLoci.size, s"$in")
+      for ((s, u) <- stableLoci.lazyZip(unstableLoci)) {
+        assertEq(s, structEncodedLocus(s.required), s"$in")
+        assertEq(u, EVarint(s.required), s"$in")
+      }
+    }
+  }
 
   @Test def testPythonEncodingOfPackedLoci(implicit ctx: ExecuteContext): Unit =
     for (rg <- references) {
