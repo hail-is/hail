@@ -87,6 +87,8 @@ class PRConfig(TypedDict):
     reviewers: Set[str]
     labels: Set[str]
     out_of_date: bool
+    review_requests: List[Dict[str, Any]]
+    reviews: List[Dict[str, Any]]
 
 
 async def pr_config(app: web.Application, pr: PR) -> PRConfig:
@@ -108,6 +110,8 @@ async def pr_config(app: web.Application, pr: PR) -> PRConfig:
         'reviewers': pr.reviewers,
         'labels': pr.labels,
         'out_of_date': pr.build_state in ['failure', 'success', None] and not pr.is_up_to_date(),
+        'review_requests': [r._asdict() for r in pr.review_requests],
+        'reviews': [r._asdict() for r in pr.reviews],
     }
 
 
@@ -153,6 +157,8 @@ async def index(request: web.Request, userdata: UserData) -> web.Response:
     page_context = {
         'watched_branches': wb_configs,
         'frozen_merge_deploy': request.app[AppKeys.FROZEN_MERGE_DEPLOY],
+        # Kept out of WatchedBranchConfig, which read_ci JSON endpoints also return
+        'graphql_rate_limits': [wb.graphql_rate_limit for wb in watched_branches],
     }
     return await render_template('ci', request, userdata, 'index.html', page_context)
 
@@ -1108,6 +1114,7 @@ async def api_watched_branches(request: web.Request, _) -> web.Response:
             'deploy_batch_id': wb.deploy_batch.id if wb.deploy_batch and isinstance(wb.deploy_batch, Batch) else None,
             'n_prs': len(wb.prs) if wb.prs else 0,
             'merge_candidate': wb.merge_candidate.short_str() if wb.merge_candidate else None,
+            'graphql_rate_limit': wb.graphql_rate_limit._asdict() if wb.graphql_rate_limit else None,
         }
         for wb in watched_branches
     ]

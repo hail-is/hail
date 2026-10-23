@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from ci.github import PR, _fetch_pr_github_data
+from ci.github import PR, GraphQLRateLimit, Review, ReviewRequest, _fetch_pr_github_data, _PrGithubData
 from ci.utils import GithubStatus
 
 # ── Mock helpers ─────────────────────────────────────────────────────────────
@@ -20,6 +20,7 @@ class MockGH:
     def __init__(self, responses):
         self._responses = list(responses)
         self.call_count = 0
+        self.queries: list = []
 
     async def post(self, url: str, *, data: Any) -> Any:  # pylint: disable=unused-argument
         assert self.call_count < len(self._responses), (
@@ -27,17 +28,43 @@ class MockGH:
         )
         response = self._responses[self.call_count]
         self.call_count += 1
+        self.queries.append(data['query'])
         return response
 
 
-def graphql_response(pr_data_by_number: dict) -> dict:
-    return {"data": {"repository": {f"pr_{n}": data for n, data in pr_data_by_number.items()}}}
+def graphql_response(pr_data_by_number: dict, *, rate_limit=None) -> dict:
+    data: dict = {"repository": {f"pr_{n}": data for n, data in pr_data_by_number.items()}}
+    if rate_limit is not None:
+        data["rateLimit"] = rate_limit
+    return {"data": data}
 
 
-def pr_response(review_decision, check_nodes, *, has_next_page=False, end_cursor=None):
+def rate_limit(cost, remaining, reset_at='2026-10-22T12:00:00Z'):
+    return {"cost": cost, "remaining": remaining, "limit": 5000, "resetAt": reset_at}
+
+
+def review_fields(review_requests=(), reviews=(), requested_events=()):
+    """The review fragments the query only asks for on a PR's first page."""
+    return {
+        "reviewRequests": {"nodes": list(review_requests)},
+        "latestOpinionatedReviews": {"nodes": list(reviews)},
+        "timelineItems": {"nodes": list(requested_events)},
+    }
+
+
+def user(login):
+    return {"__typename": "User", "login": login}
+
+
+def team(slug):
+    return {"__typename": "Team", "slug": slug}
+
+
+def pr_response(review_decision, check_nodes, *, has_next_page=False, end_cursor=None, first_page=True, **review):
     """Minimal pullRequest fragment matching the shape _fetch_pr_github_data expects."""
     return {
         "reviewDecision": review_decision,
+        **(review_fields(**review) if first_page else {}),
         "commits": {
             "nodes": [
                 {
@@ -59,6 +86,7 @@ def pr_response_no_rollup(review_decision):
     """PR with no CI runs yet — statusCheckRollup is null."""
     return {
         "reviewDecision": review_decision,
+        **review_fields(),
         "commits": {"nodes": [{"commit": {"statusCheckRollup": None}}]},
     }
 
@@ -69,6 +97,10 @@ def check_run(name, conclusion, *, is_required=True):
 
 def status_context(context, state, *, is_required=True):
     return {"__typename": "StatusContext", "context": context, "state": state, "isRequired": is_required}
+
+
+def gh_data(review_decision, check_nodes, review_requests=(), reviews=()):
+    return _PrGithubData(review_decision, check_nodes, list(review_requests), list(reviews))
 
 
 def make_pr(number=123):
@@ -101,10 +133,10 @@ async def test_single_pr_no_pagination():
     nodes = [check_run('ci-test', 'SUCCESS'), status_context('lint', 'SUCCESS', is_required=False)]
     gh = MockGH([graphql_response({123: pr_response('APPROVED', nodes)})])
 
-    result = await _fetch_pr_github_data(gh, 'hail-is', 'hail', [123])
+    result, _ = await _fetch_pr_github_data(gh, 'hail-is', 'hail', [123])
 
     assert gh.call_count == 1
-    review_decision, check_nodes = result[123]
+    review_decision, check_nodes = result[123].review_decision, result[123].check_nodes
     assert review_decision == 'APPROVED'
     assert check_nodes == nodes
 
@@ -119,11 +151,11 @@ async def test_multiple_prs_in_single_request():
         })
     ])
 
-    result = await _fetch_pr_github_data(gh, 'hail-is', 'hail', [1, 2])
+    result, _ = await _fetch_pr_github_data(gh, 'hail-is', 'hail', [1, 2])
 
     assert gh.call_count == 1
-    assert result[1] == ('APPROVED', nodes_a)
-    assert result[2] == ('REVIEW_REQUIRED', nodes_b)
+    assert result[1] == gh_data('APPROVED', nodes_a)
+    assert result[2] == gh_data('REVIEW_REQUIRED', nodes_b)
 
 
 async def test_pagination_fires_multiple_requests_and_accumulates_nodes():
@@ -134,14 +166,14 @@ async def test_pagination_fires_multiple_requests_and_accumulates_nodes():
     gh = MockGH([
         graphql_response({42: pr_response('APPROVED', page1, has_next_page=True, end_cursor='cursor-1')}),
         # reviewDecision is ignored on subsequent pages (already captured from page 1)
-        graphql_response({42: pr_response(None, page2, has_next_page=True, end_cursor='cursor-2')}),
-        graphql_response({42: pr_response(None, page3, has_next_page=False)}),
+        graphql_response({42: pr_response(None, page2, has_next_page=True, end_cursor='cursor-2', first_page=False)}),
+        graphql_response({42: pr_response(None, page3, has_next_page=False, first_page=False)}),
     ])
 
-    result = await _fetch_pr_github_data(gh, 'hail-is', 'hail', [42])
+    result, _ = await _fetch_pr_github_data(gh, 'hail-is', 'hail', [42])
 
     assert gh.call_count == 3
-    review_decision, check_nodes = result[42]
+    review_decision, check_nodes = result[42].review_decision, result[42].check_nodes
     assert review_decision == 'APPROVED'
     assert check_nodes == page1 + page2 + page3
 
@@ -160,31 +192,31 @@ async def test_pagination_only_re_requests_prs_that_need_it():
             1: pr_response('APPROVED', page1_pr1, has_next_page=True, end_cursor='cur-1'),
             2: pr_response('REVIEW_REQUIRED', nodes_pr2, has_next_page=False),
         }),
-        graphql_response({1: pr_response(None, page2_pr1, has_next_page=True, end_cursor='cur-2')}),
-        graphql_response({1: pr_response(None, page3_pr1, has_next_page=False)}),
+        graphql_response({1: pr_response(None, page2_pr1, has_next_page=True, end_cursor='cur-2', first_page=False)}),
+        graphql_response({1: pr_response(None, page3_pr1, has_next_page=False, first_page=False)}),
     ])
 
-    result = await _fetch_pr_github_data(gh, 'hail-is', 'hail', [1, 2])
+    result, _ = await _fetch_pr_github_data(gh, 'hail-is', 'hail', [1, 2])
 
     assert gh.call_count == 3
-    assert result[1] == ('APPROVED', page1_pr1 + page2_pr1 + page3_pr1)
-    assert result[2] == ('REVIEW_REQUIRED', nodes_pr2)
+    assert result[1] == gh_data('APPROVED', page1_pr1 + page2_pr1 + page3_pr1)
+    assert result[2] == gh_data('REVIEW_REQUIRED', nodes_pr2)
 
 
 async def test_null_review_decision_becomes_api_none():
     gh = MockGH([graphql_response({5: pr_response(None, [])})])
 
-    result = await _fetch_pr_github_data(gh, 'hail-is', 'hail', [5])
+    result, _ = await _fetch_pr_github_data(gh, 'hail-is', 'hail', [5])
 
-    assert result[5][0] == 'API_NONE'
+    assert result[5].review_decision == 'API_NONE'
 
 
 async def test_null_status_rollup_returns_empty_nodes():
     gh = MockGH([graphql_response({7: pr_response_no_rollup('REVIEW_REQUIRED')})])
 
-    result = await _fetch_pr_github_data(gh, 'hail-is', 'hail', [7])
+    result, _ = await _fetch_pr_github_data(gh, 'hail-is', 'hail', [7])
 
-    review_decision, check_nodes = result[7]
+    review_decision, check_nodes = result[7].review_decision, result[7].check_nodes
     assert review_decision == 'REVIEW_REQUIRED'
     assert check_nodes == []
 
@@ -192,10 +224,92 @@ async def test_null_status_rollup_returns_empty_nodes():
 async def test_empty_pr_list_makes_no_request():
     gh = MockGH([])
 
-    result = await _fetch_pr_github_data(gh, 'hail-is', 'hail', [])
+    result, _ = await _fetch_pr_github_data(gh, 'hail-is', 'hail', [])
 
     assert result == {}
     assert gh.call_count == 0
+
+
+async def test_review_data_parsed_with_latest_request_time():
+    gh = MockGH([
+        graphql_response({
+            9: pr_response(
+                'REVIEW_REQUIRED',
+                [],
+                review_requests=[
+                    {"asCodeOwner": True, "requestedReviewer": team('appsec')},
+                    {"asCodeOwner": False, "requestedReviewer": user('carol')},
+                    {"asCodeOwner": False, "requestedReviewer": None},  # deleted account
+                ],
+                reviews=[
+                    {"author": {"login": "dave"}, "state": "APPROVED"},
+                    {"author": None, "state": "APPROVED"},  # deleted account
+                ],
+                requested_events=[
+                    {"createdAt": "2026-10-01T00:00:00Z", "requestedReviewer": user('carol')},
+                    {"createdAt": "2026-10-05T00:00:00Z", "requestedReviewer": user('carol')},  # re-requested
+                    {"createdAt": "2026-10-02T00:00:00Z", "requestedReviewer": team('appsec')},
+                    {"createdAt": "2026-10-03T00:00:00Z", "requestedReviewer": user('appsec')},  # not the team
+                    {},  # some other timeline item type
+                ],
+            )
+        })
+    ])
+
+    result, _ = await _fetch_pr_github_data(gh, 'hail-is', 'hail', [9])
+
+    assert result[9].review_requests == [
+        ReviewRequest('appsec', True, True, '2026-10-02T00:00:00Z'),
+        ReviewRequest('carol', False, False, '2026-10-05T00:00:00Z'),
+    ]
+    assert result[9].reviews == [Review('dave', 'APPROVED')]
+
+
+async def test_review_request_without_event_has_no_time():
+    gh = MockGH([
+        graphql_response({
+            9: pr_response(
+                'REVIEW_REQUIRED', [], review_requests=[{"asCodeOwner": False, "requestedReviewer": user('x')}]
+            )
+        })
+    ])
+
+    result, _ = await _fetch_pr_github_data(gh, 'hail-is', 'hail', [9])
+
+    assert result[9].review_requests == [ReviewRequest('x', False, False, None)]
+
+
+async def test_review_fields_only_requested_on_first_page():
+    gh = MockGH([
+        graphql_response({42: pr_response('APPROVED', [], has_next_page=True, end_cursor='cursor-1')}),
+        graphql_response({42: pr_response(None, [], first_page=False)}),
+    ])
+
+    await _fetch_pr_github_data(gh, 'hail-is', 'hail', [42])
+
+    assert 'reviewRequests' in gh.queries[0]
+    assert 'reviewRequests' not in gh.queries[1]
+    assert all('rateLimit' in q for q in gh.queries)
+
+
+async def test_rate_limit_sums_cost_and_keeps_last_remaining():
+    gh = MockGH([
+        graphql_response(
+            {42: pr_response('APPROVED', [], has_next_page=True, end_cursor='c')}, rate_limit=rate_limit(2, 4990)
+        ),
+        graphql_response(
+            {42: pr_response(None, [], first_page=False)}, rate_limit=rate_limit(1, 4989, '2026-10-22T13:00:00Z')
+        ),
+    ])
+
+    _, limit = await _fetch_pr_github_data(gh, 'hail-is', 'hail', [42])
+
+    assert limit == GraphQLRateLimit(3, 4989, 5000, '2026-10-22T13:00:00Z')
+
+
+async def test_rate_limit_is_none_without_requests():
+    _, limit = await _fetch_pr_github_data(MockGH([]), 'hail-is', 'hail', [])
+    assert limit is None
 
 
 # ── PR._apply_github_data ─────────────────────────────────────────────────────
@@ -213,7 +327,7 @@ async def test_empty_pr_list_makes_no_request():
 def test_review_decision_mapping(review_decision, expected_state):
     pr = make_pr()
     with patch('ci.github.TRACKED_PRS'):
-        pr._apply_github_data(review_decision, [])
+        pr._apply_github_data(gh_data(review_decision, []))
     assert pr.review_state == expected_state
     assert pr.target_branch.state_changed is True
 
@@ -221,23 +335,23 @@ def test_review_decision_mapping(review_decision, expected_state):
 def test_review_state_unchanged_does_not_set_state_changed():
     pr = make_pr()
     with patch('ci.github.TRACKED_PRS'):
-        pr._apply_github_data('APPROVED', [])
+        pr._apply_github_data(gh_data('APPROVED', []))
         pr.target_branch.state_changed = False
-        pr._apply_github_data('APPROVED', [])
+        pr._apply_github_data(gh_data('APPROVED', []))
     assert pr.target_branch.state_changed is False
 
 
 def test_required_check_run_appears_in_status():
     pr = make_pr()
     with patch('ci.github.TRACKED_PRS'):
-        pr._apply_github_data('APPROVED', [check_run('ci-test', 'SUCCESS', is_required=True)])
+        pr._apply_github_data(gh_data('APPROVED', [check_run('ci-test', 'SUCCESS', is_required=True)]))
     assert pr.last_known_github_status == {'ci-test': GithubStatus.SUCCESS}
 
 
 def test_required_status_context_appears_in_status():
     pr = make_pr()
     with patch('ci.github.TRACKED_PRS'):
-        pr._apply_github_data('APPROVED', [status_context('ci-status', 'FAILURE', is_required=True)])
+        pr._apply_github_data(gh_data('APPROVED', [status_context('ci-status', 'FAILURE', is_required=True)]))
     assert pr.last_known_github_status == {'ci-status': GithubStatus.FAILURE}
 
 
@@ -249,7 +363,7 @@ def test_non_required_checks_are_ignored():
         status_context('optional-status', 'FAILURE', is_required=False),
     ]
     with patch('ci.github.TRACKED_PRS'):
-        pr._apply_github_data('APPROVED', nodes)
+        pr._apply_github_data(gh_data('APPROVED', nodes))
     assert list(pr.last_known_github_status.keys()) == ['required']
 
 
@@ -257,21 +371,34 @@ def test_github_status_unchanged_does_not_set_state_changed():
     pr = make_pr()
     nodes = [check_run('ci-test', 'SUCCESS', is_required=True)]
     with patch('ci.github.TRACKED_PRS'):
-        pr._apply_github_data('APPROVED', nodes)
+        pr._apply_github_data(gh_data('APPROVED', nodes))
         pr.target_branch.state_changed = False
-        pr._apply_github_data('APPROVED', nodes)
+        pr._apply_github_data(gh_data('APPROVED', nodes))
     assert pr.target_branch.state_changed is False
 
 
 def test_check_run_failure_status():
     pr = make_pr()
     with patch('ci.github.TRACKED_PRS'):
-        pr._apply_github_data('APPROVED', [check_run('ci-test', 'FAILURE', is_required=True)])
+        pr._apply_github_data(gh_data('APPROVED', [check_run('ci-test', 'FAILURE', is_required=True)]))
     assert pr.last_known_github_status['ci-test'] == GithubStatus.FAILURE
 
 
 def test_check_run_pending_conclusion():
     pr = make_pr()
     with patch('ci.github.TRACKED_PRS'):
-        pr._apply_github_data('APPROVED', [check_run('ci-test', 'ACTION_REQUIRED', is_required=True)])
+        pr._apply_github_data(gh_data('APPROVED', [check_run('ci-test', 'ACTION_REQUIRED', is_required=True)]))
     assert pr.last_known_github_status['ci-test'] == GithubStatus.PENDING
+
+
+def test_review_data_stored_without_setting_state_changed():
+    pr = make_pr()
+    requests = [ReviewRequest('appsec', True, True, '2026-10-02T00:00:00Z')]
+    reviews = [Review('dave', 'APPROVED')]
+    with patch('ci.github.TRACKED_PRS'):
+        pr._apply_github_data(gh_data('APPROVED', []))
+        pr.target_branch.state_changed = False
+        pr._apply_github_data(gh_data('APPROVED', [], requests, reviews))
+    assert pr.review_requests == requests
+    assert pr.reviews == reviews
+    assert pr.target_branch.state_changed is False

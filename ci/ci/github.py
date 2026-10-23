@@ -243,6 +243,25 @@ class MergeAttempt(NamedTuple):
     target_sha: str
 
 
+class ReviewRequest(NamedTuple):
+    reviewer: str  # user login, or team slug
+    is_team: bool
+    as_code_owner: bool
+    requested_at: Optional[str]  # ISO 8601, from the latest matching REVIEW_REQUESTED_EVENT
+
+
+class Review(NamedTuple):
+    author: str
+    state: str  # GraphQL PullRequestReviewState, e.g. APPROVED / CHANGES_REQUESTED / DISMISSED
+
+
+class GraphQLRateLimit(NamedTuple):
+    last_update_cost: int  # summed over every request in one GitHub update
+    remaining: int
+    limit: int
+    reset_at: str  # ISO 8601
+
+
 class FailedMerge(NamedTuple):
     failures: int
     retry_after_ms: int
@@ -338,6 +357,9 @@ class PR(Code):
 
         # pending, changes_requested, approve
         self.review_state: Optional[str] = None
+        # Open review requests and each reviewer's latest approve / request-changes review
+        self.review_requests: List[ReviewRequest] = []
+        self.reviews: List[Review] = []
 
         self.sha: Optional[str] = None
         self.batch: Union[Batch, MergeFailureBatch, None] = None
@@ -537,7 +559,12 @@ class PR(Code):
             except aiohttp.client_exceptions.ClientResponseError:
                 log.exception(f'{self.short_str()}: Unexpected exception in post to github: {data}')
 
-    def _apply_github_data(self, review_decision: str, check_nodes: List[Dict[str, Any]]):
+    def _apply_github_data(self, data: '_PrGithubData'):
+        review_decision, check_nodes = data.review_decision, data.check_nodes
+        # Display-only: no merge or build decision depends on these, so no state_changed
+        self.review_requests = data.review_requests
+        self.reviews = data.reviews
+
         if review_decision == 'APPROVED':
             review_state = 'approved'
         elif review_decision == 'CHANGES_REQUESTED':
@@ -902,24 +929,98 @@ class _GitHubGraphQL(Protocol):
 
 _GITHUB_GRAPHQL_PR_CHUNK_SIZE = 100
 
+_GRAPHQL_REVIEWER_FIELDS = """
+  __typename
+  ... on User { login }
+  ... on Team { slug }
+  ... on Bot { login }
+  ... on Mannequin { login }
+"""
+
+# Fetched on each PR's first page only; the check-context pagination doesn't repeat them
+_GRAPHQL_REVIEW_FIELDS = f"""
+  reviewRequests(first: 10) {{
+    nodes {{
+      asCodeOwner
+      requestedReviewer {{ {_GRAPHQL_REVIEWER_FIELDS} }}
+    }}
+  }}
+  latestOpinionatedReviews(first: 10, writersOnly: true) {{
+    nodes {{
+      author {{ login }}
+      state
+    }}
+  }}
+  timelineItems(itemTypes: [REVIEW_REQUESTED_EVENT], last: 10) {{
+    nodes {{
+      ... on ReviewRequestedEvent {{
+        createdAt
+        requestedReviewer {{ {_GRAPHQL_REVIEWER_FIELDS} }}
+      }}
+    }}
+  }}
+"""
+
+
+class _PrGithubData(NamedTuple):
+    review_decision: str  # raw GraphQL PullRequestReviewDecision, or "API_NONE" when null
+    check_nodes: List[Dict[str, Any]]
+    review_requests: List[ReviewRequest]
+    reviews: List[Review]
+
+
+def _graphql_reviewer(node: Optional[Dict[str, Any]]) -> Optional[Tuple[str, bool]]:
+    """(login or team slug, is_team), or None for a deleted account."""
+    if node is None:
+        return None
+    if node['__typename'] == 'Team':
+        return node['slug'], True
+    login = node.get('login')
+    return (login, False) if login is not None else None
+
+
+def _parse_review_data(pr_data: Dict[str, Any]) -> Tuple[List[ReviewRequest], List[Review]]:
+    # Latest event per reviewer, so a removed-then-re-requested review shows the newer time.
+    # ISO 8601 UTC strings from GitHub sort chronologically.
+    requested_at: Dict[Tuple[str, bool], str] = {}
+    for event in pr_data['timelineItems']['nodes']:
+        key = _graphql_reviewer(event.get('requestedReviewer'))
+        if key is not None and event['createdAt'] > requested_at.get(key, ''):
+            requested_at[key] = event['createdAt']
+
+    requests = []
+    for node in pr_data['reviewRequests']['nodes']:
+        key = _graphql_reviewer(node['requestedReviewer'])
+        if key is not None:
+            requests.append(ReviewRequest(key[0], key[1], node['asCodeOwner'], requested_at.get(key)))
+
+    reviews = [
+        Review(node['author']['login'], node['state'])
+        for node in pr_data['latestOpinionatedReviews']['nodes']
+        if node['author'] is not None
+    ]
+    return requests, reviews
+
 
 async def _fetch_pr_github_data(
     gh: _GitHubGraphQL,
     owner: str,
     repo_name: str,
     pr_numbers: List[int],
-) -> Dict[int, tuple]:
-    """Fetch review decisions and status check rollup for all PRs, batched in chunks.
+) -> Tuple[Dict[int, _PrGithubData], Optional[GraphQLRateLimit]]:
+    """Fetch review decisions, review requests / reviews and status check rollup for all PRs, batched in chunks.
 
     Uses GraphQL aliases (pr_N: pullRequest(number: N) {{ ... }}) to reduce round-trips.
     Chunks requests to avoid GitHub query complexity timeouts (~2s per 20-PR chunk vs ~6s for 56).
     Paginates if any PR has more than 20 check contexts, which is not expected in practice.
 
-    Returns dict mapping pr_number -> (review_decision: str, check_nodes: List[dict]).
-    review_decision is the raw GraphQL PullRequestReviewDecision value, or "API_NONE" when null.
+    Also returns the GraphQL rate limit after the last request, with the cost summed over all of them.
     """
     accumulated_nodes: Dict[int, List[Dict[str, Any]]] = {n: [] for n in pr_numbers}
     review_decisions: Dict[int, Optional[str]] = {n: None for n in pr_numbers}
+    review_data: Dict[int, Tuple[List[ReviewRequest], List[Review]]] = {n: ([], []) for n in pr_numbers}
+    total_cost = 0
+    last_rate_limit: Optional[Dict[str, Any]] = None
 
     chunks = [
         pr_numbers[i : i + _GITHUB_GRAPHQL_PR_CHUNK_SIZE]
@@ -935,9 +1036,11 @@ async def _fetch_pr_github_data(
                 aliases = []
                 for pr_number, cursor in remaining.items():
                     cursor_arg = f', after: "{cursor}"' if cursor is not None else ''
+                    review_fields = _GRAPHQL_REVIEW_FIELDS if cursor is None else ''
                     aliases.append(f"""
                         pr_{pr_number}: pullRequest(number: {pr_number}) {{
                           reviewDecision
+                          {review_fields}
                           commits(last: 1) {{
                             nodes {{
                               commit {{
@@ -967,13 +1070,22 @@ async def _fetch_pr_github_data(
                           }}
                         }}
                     """)
-                return f'query {{ repository(owner: "{owner}", name: "{repo_name}") {{ {"".join(aliases)} }} }}'
+                return (
+                    'query { rateLimit { cost remaining limit resetAt } '
+                    f'repository(owner: "{owner}", name: "{repo_name}") {{ {"".join(aliases)} }} }}'
+                )
 
-            repo_data = (await gh.post("/graphql", data={"query": build_query(remaining)}))["data"]["repository"]
+            data = (await gh.post("/graphql", data={"query": build_query(remaining)}))["data"]
+            repo_data = data["repository"]
+            if (rate_limit := data.get("rateLimit")) is not None:
+                total_cost += rate_limit["cost"]
+                last_rate_limit = rate_limit
 
             next_remaining: Dict[int, Optional[str]] = {}
             for pr_number in list(remaining.keys()):
                 pr_data = repo_data[f"pr_{pr_number}"]
+                if remaining[pr_number] is None:
+                    review_data[pr_number] = _parse_review_data(pr_data)
                 if review_decisions[pr_number] is None:
                     raw = pr_data["reviewDecision"]
                     review_decisions[pr_number] = raw if raw is not None else "API_NONE"
@@ -987,7 +1099,15 @@ async def _fetch_pr_github_data(
                 log.warning(f'_fetch_pr_github_data: pagination required for PRs {list(next_remaining.keys())}')
             remaining = next_remaining
 
-    return {n: (review_decisions[n] or "API_NONE", accumulated_nodes[n]) for n in pr_numbers}
+    prs = {
+        n: _PrGithubData(review_decisions[n] or "API_NONE", accumulated_nodes[n], *review_data[n]) for n in pr_numbers
+    }
+    rate_limit = (
+        GraphQLRateLimit(total_cost, last_rate_limit["remaining"], last_rate_limit["limit"], last_rate_limit["resetAt"])
+        if last_rate_limit is not None
+        else None
+    )
+    return prs, rate_limit
 
 
 class WatchedBranch(Code):
@@ -1020,6 +1140,9 @@ class WatchedBranch(Code):
         self.state_changed: bool = True
 
         self.n_running_batches: int = 0
+
+        # From the last GitHub update's PR GraphQL query; None until the first one
+        self.graphql_rate_limit: Optional[GraphQLRateLimit] = None
 
         self.merge_candidate: Optional[PR] = None
 
@@ -1237,12 +1360,15 @@ class WatchedBranch(Code):
             await pr.assign_gh_reviewer_if_requested(gh)
 
         if new_prs:
-            pr_github_data = await _fetch_pr_github_data(
+            pr_github_data, rate_limit = await _fetch_pr_github_data(
                 gh, self.branch.repo.owner, self.branch.repo.name, list(new_prs.keys())
             )
+            if rate_limit is not None:
+                self.graphql_rate_limit = rate_limit
 
             summary = []
-            for pr_number, (review_decision, check_nodes) in pr_github_data.items():
+            for pr_number, pr_data in pr_github_data.items():
+                review_decision, check_nodes = pr_data.review_decision, pr_data.check_nodes
                 required_nodes = [c for c in check_nodes if c["isRequired"]]
                 required_statuses = [
                     github_status(c["conclusion"] if c["__typename"] == "CheckRun" else c["state"])
@@ -1257,12 +1383,12 @@ class WatchedBranch(Code):
                 summary.append((pr_number, review_decision, len(check_nodes), len(required_nodes), check_decision))
             log.info(
                 f'update github {self.short_str()}: PR data fetched '
-                f'(pr_number, review_decision, total_checks, required_checks, check_decision): {summary}'
+                f'(pr_number, review_decision, total_checks, required_checks, check_decision): {summary}; '
+                f'graphql rate limit: {rate_limit}'
             )
 
             for pr in new_prs.values():
-                review_decision, check_nodes = pr_github_data[pr.number]
-                pr._apply_github_data(review_decision, check_nodes)
+                pr._apply_github_data(pr_github_data[pr.number])
 
     async def _update_deploy(self, batch_client, db: Database):
         assert self.deployable
