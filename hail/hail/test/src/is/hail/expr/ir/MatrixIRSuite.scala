@@ -12,9 +12,10 @@ import is.hail.expr.ir.{Memoized => M}
 import is.hail.expr.ir.Scope.{AGG, SCAN}
 import is.hail.expr.ir.TestUtils._
 import is.hail.expr.ir.defs.{
-  Apply, ApplyAggOp, ApplyScanOp, ArrayMaximalIndependentSet, Binding, Block, GetField, I32, I64,
-  InsertFields, Let, Literal, MakeTuple, MatrixMultiWrite, MatrixWrite, RNGSplit, RNGSplitStatic,
-  RNGStateLiteral, Ref, TableCollect, ToArray,
+  AggFilter, AggGroupBy, Apply, ApplyAggOp, ApplyScanOp, ArrayMaximalIndependentSet, Binding, Block,
+  GetField, I32, I64, InsertFields, Let, Literal, MakeArray, MakeTuple, MatrixAggregate,
+  MatrixMultiWrite, MatrixWrite, RNGSplit, RNGSplitStatic, RNGStateLiteral, Ref, TableAggregate,
+  TableCollect, ToArray, ToStream, True,
 }
 import is.hail.types.virtual._
 import is.hail.utils._
@@ -113,6 +114,19 @@ class MatrixIRSuite {
 
   def getCols(mir: MatrixIR)(implicit ctx: ExecuteContext): Array[Row] =
     Interpret(MatrixColsTable(mir), ctx).rdd.collect()
+
+  // For `assertEvalsTo`, which runs each of `execStrats`. TableCollect needs an unkeyed table.
+  def collectRows(mir: MatrixIR): IR =
+    GetField(TableCollect(TableKeyBy(MatrixRowsTable(mir), FastSeq())), "rows")
+
+  def collectCols(mir: MatrixIR): IR =
+    GetField(TableCollect(TableKeyBy(MatrixColsTable(mir), FastSeq())), "rows")
+
+  // A range matrix with global `two = 2`, for init args that read `global`.
+  def rangeMatrixWithGlobal(nRows: Int, nCols: Int)(implicit ctx: ExecuteContext): MatrixIR =
+    MatrixMapGlobals(rangeMatrix(nRows, nCols, Some(2)), makestruct("two" -> I32(2)))
+
+  def globalTwo: IR = Ref(MatrixIR.globalName, TStruct("two" -> TInt32)).get("two")
 
   @Test def testScanCountBehavesLikeIndexOnRows(implicit ctx: ExecuteContext): Unit = {
     val mt = rangeMatrix()
@@ -253,18 +267,71 @@ class MatrixIRSuite {
     assertEq(cols.toSeq, expectedSumAndMax(5))
   }
 
-  @Test def testScanInitArgBoundInNewRow(implicit ctx: ExecuteContext): Unit = {
-    val mt = rangeMatrix(5, 3, Some(2))
+  /* Init args that read `n_cols`, `global` or EVAL bindings in newRow: directly, transitively,
+   * inside a combinator body or an agg's seq arg, and after a SCAN binding in the same Block. The
+   * last two cases have aggs and no scans. */
+  def testInitArgBoundInNewRow() = {
+    def rowIdx = Ref(MatrixIR.rowName, TStruct("row_idx" -> TInt32)).get("row_idx")
+    def colIdx = Ref(MatrixIR.colName, TStruct("col_idx" -> TInt32)).get("col_idx")
+    def two: IR = I32(3) - I32(1)
+    def scanTake2(x: IR): IR = bindIR(two)(ApplyScanOp(Take(), _)(x))
+    def prev(i: Int) = 0 until math.min(i, 2)
+    def expected(f: Int => Any) = (0 until 5).map(i => RowSeq(i, f(i)))
+    val x = Ref(freshName(), TInt32)
+    val k = Ref(freshName(), TInt32)
+    FastSeq(
+      (
+        M.eval(for {
+          n <- Ref(Name("n_cols"), TInt32) - I32(1)
+          t <- ApplyScanOp(Take(), n)(rowIdx)
+        } yield maketuple(t, n)),
+        expected(i => RowSeq(prev(i), 2)),
+      ),
+      (
+        takeWithTransitiveInitArg(ApplyScanOp(Take(), _)(rowIdx)),
+        expected(i => RowSeq(0 until math.min(i, 1), 2)),
+      ),
+      (ApplyScanOp(Take(), globalTwo)(rowIdx), expected(prev)),
+      (bindIR(globalTwo)(ApplyScanOp(Take(), _)(rowIdx)), expected(prev)),
+      (AggFilter(True(), scanTake2(rowIdx), isScan = true), expected(prev)),
+      (
+        AggGroupBy(I32(0), scanTake2(rowIdx), isScan = true),
+        expected(i => if (i == 0) Map() else Map(0 -> prev(i))),
+      ),
+      (
+        aggArrayPerElement(MakeArray(rowIdx), Some(I32(1)), isScan = true) { (elt, _) =>
+          scanTake2(elt)
+        },
+        expected(i => FastSeq(prev(i))),
+      ),
+      (
+        ApplyAggOp(Sum())(bindIR(two)(n => (ApplyScanOp(Take(), n)(rowIdx).len + n).toL)),
+        expected(i => 3L * (prev(i).length + 2)),
+      ),
+      (
+        Block(
+          FastSeq(Binding(x.name, rowIdx, SCAN), Binding(k.name, two)),
+          ApplyScanOp(Take(), k)(x),
+        ),
+        expected(prev),
+      ),
+      (
+        takeWithTransitiveInitArg(ApplyAggOp(Take(), _)(colIdx)),
+        expected(_ => RowSeq(FastSeq(0), 2)),
+      ),
+      (
+        AggFilter(True(), takeWithTransitiveInitArg(ApplyAggOp(Take(), _)(colIdx)), false),
+        expected(_ => RowSeq(FastSeq(0), 2)),
+      ),
+    )
+  }
+
+  @ParameterizedTest
+  def testInitArgBoundInNewRow(v: IR, expected: IndexedSeq[Row])(implicit ctx: ExecuteContext)
+    : Unit = {
+    val mt = rangeMatrixWithGlobal(5, 3)
     val row = Ref(MatrixIR.rowName, mt.typ.rowType)
-    val v = M.eval {
-      for {
-        n <- Ref(Name("n_cols"), TInt32) - I32(1)
-        t <- ApplyScanOp(Take(), n)(row.get("row_idx"))
-      } yield maketuple(t, n)
-    }
-    val rows = getRows(MatrixMapRows(mt, InsertFields(row.deepCopy, FastSeq("v" -> v))))
-    val expected = (0 until 5).map(i => RowSeq(i, RowSeq(0 until math.min(i, 2), 2)))
-    assertEq(rows.toSeq, expected)
+    assertEvalsTo(collectRows(MatrixMapRows(mt, InsertFields(row, FastSeq("v" -> v)))), expected)
   }
 
   def testScanAggNestingOnRows() = {
@@ -309,7 +376,7 @@ class MatrixIRSuite {
   def testScanAggNestingOnRows(v: IR, error: String)(implicit ctx: ExecuteContext): Unit = {
     val mt = rangeMatrix(5, 3, Some(2))
     val row = Ref(MatrixIR.rowName, mt.typ.rowType)
-    interceptFatal(error)(getRows(MatrixMapRows(mt, InsertFields(row, FastSeq("v" -> v)))))
+    assertFatal(collectRows(MatrixMapRows(mt, InsertFields(row, FastSeq("v" -> v)))), error)
   }
 
   def testAggOfScanOnRows() = {
@@ -341,7 +408,7 @@ class MatrixIRSuite {
     val mt = rangeMatrix(3, 5, Some(2))
     val col = Ref(MatrixIR.colName, mt.typ.colType)
     val mapped = MatrixMapCols(mt, InsertFields(col, FastSeq("v" -> v)), None)
-    interceptFatal("aggregations inside scans")(getCols(mapped))
+    assertFatal(collectCols(mapped), "aggregations inside scans")
   }
 
   def testAggOfScanOnCols() = {
@@ -357,7 +424,7 @@ class MatrixIRSuite {
     val mt = rangeMatrix(3, 5, Some(2))
     val col = Ref(MatrixIR.colName, mt.typ.colType)
     val mapped = MatrixMapCols(mt, InsertFields(col, FastSeq("v" -> v)), None)
-    interceptFatal("scans inside aggregations")(getCols(mapped))
+    assertFatal(collectCols(mapped), "scans inside aggregations")
   }
 
   // Children that drop eval drop the agg and scan scopes too.
@@ -377,7 +444,7 @@ class MatrixIRSuite {
     val mt = rangeMatrix(5, 3, Some(2))
     val row = Ref(MatrixIR.rowName, mt.typ.rowType)
     val mapped = MatrixMapRows(mt, InsertFields(row, FastSeq("v" -> v)))
-    interceptAssertion("ApplyScanOp outside a scan scope")(getRows(mapped))
+    assertThrows[AssertionError](collectRows(mapped), "ApplyScanOp outside a scan scope")
   }
 
   def testScanUnderDropEvalOnCols() = scansUnderDropEval
@@ -387,7 +454,7 @@ class MatrixIRSuite {
     val mt = rangeMatrix(3, 5, Some(2))
     val col = Ref(MatrixIR.colName, mt.typ.colType)
     val mapped = MatrixMapCols(mt, InsertFields(col, FastSeq("v" -> v)), None)
-    interceptAssertion("ApplyScanOp outside a scan scope")(getCols(mapped))
+    assertThrows[AssertionError](collectCols(mapped), "ApplyScanOp outside a scan scope")
   }
 
   // knownLength is an init arg, so it drops its own agg (scan) scope.
@@ -412,7 +479,7 @@ class MatrixIRSuite {
     val mt = rangeMatrix(5, 3, Some(2))
     val row = Ref(MatrixIR.rowName, mt.typ.rowType)
     val mapped = MatrixMapRows(mt, InsertFields(row, FastSeq("v" -> v)))
-    interceptAssertion(error)(getRows(mapped))
+    assertThrows[AssertionError](collectRows(mapped), error)
   }
 
   def testInitArgReadsResultOnRows() =
@@ -424,10 +491,12 @@ class MatrixIRSuite {
 
   @ParameterizedTest
   def testInitArgReadsResultOnRows(v: IR)(implicit ctx: ExecuteContext): Unit = {
+    // Without the optimiser, which can forward a binding into an init arg and change the error.
+    implicit val execStrats: Set[ExecStrategy] = ExecStrategy.unoptimizedRelational
     val mt = rangeMatrix(5, 3, Some(2))
     val row = Ref(MatrixIR.rowName, mt.typ.rowType)
     val mapped = MatrixMapRows(mt, InsertFields(row, FastSeq("v" -> v)))
-    interceptFatal("depends on an? (aggregation|scan) result")(unoptimized(getRows(mapped)(_)))
+    assertFatal(collectRows(mapped), "depends on an? (aggregation|scan) result")
   }
 
   def testInitArgReadsResultOnCols() = {
@@ -439,18 +508,28 @@ class MatrixIRSuite {
 
   @ParameterizedTest
   def testInitArgReadsResultOnCols(v: IR, error: String)(implicit ctx: ExecuteContext): Unit = {
+    // Without the optimiser, which can forward a binding into an init arg and change the error.
+    implicit val execStrats: Set[ExecStrategy] = ExecStrategy.unoptimizedRelational
     val mt = rangeMatrix(3, 5, Some(2))
     val col = Ref(MatrixIR.colName, mt.typ.colType)
     val mapped = MatrixMapCols(mt, InsertFields(col, FastSeq("v" -> v)), None)
-    interceptFatal(error)(unoptimized(getCols(mapped)(_)))
+    assertFatal(collectCols(mapped), error)
   }
 
-  // Init args that read EVAL bindings in newCol: directly, transitively, and one binding `n`
-  // copied into the agg init bindings and moved into the scan init bindings.
+  /* Init args that read `global` or EVAL bindings in newCol: directly, transitively, one binding
+   * `n` copied into the agg init bindings and moved into the scan init bindings, inside a
+   * combinator body, and after a SCAN (AGG) binding in the same Block. */
   def testInitArgBoundInNewCol() = {
     def rowIdx = Ref(MatrixIR.rowName, TStruct("row_idx" -> TInt32)).get("row_idx")
     def colIdx = Ref(MatrixIR.colName, TStruct("col_idx" -> TInt32)).get("col_idx")
+    def two: IR = I32(3) - I32(1)
+    def take2(take: IR => IR): IR = bindIR(two)(take(_))
+    def prev(i: Int) = 0 until math.min(i, 2)
     def expected(f: Int => Any) = (0 until 5).map(i => RowSeq(i, f(i)))
+    val x = Ref(freshName(), TInt32)
+    val y = Ref(freshName(), TInt32)
+    val k = Ref(freshName(), TInt32)
+    val j = Ref(freshName(), TInt32)
     FastSeq(
       (
         M.eval(for {
@@ -482,16 +561,102 @@ class MatrixIRSuite {
         } yield maketuple(a, s, n)),
         expected(i => RowSeq(0 until 2, 0 until math.min(i, 2), 2)),
       ),
+      (
+        maketuple(ApplyAggOp(Take(), globalTwo)(rowIdx), ApplyScanOp(Take(), globalTwo)(colIdx)),
+        expected(i => RowSeq(0 until 2, prev(i))),
+      ),
+      (
+        bindIR(globalTwo) { n =>
+          maketuple(ApplyAggOp(Take(), n)(rowIdx), ApplyScanOp(Take(), n)(colIdx))
+        },
+        expected(i => RowSeq(0 until 2, prev(i))),
+      ),
+      (AggFilter(True(), take2(ApplyScanOp(Take(), _)(colIdx)), isScan = true), expected(prev)),
+      (
+        AggGroupBy(I32(0), take2(ApplyAggOp(Take(), _)(rowIdx)), isScan = false),
+        expected(_ => Map(0 -> (0 until 2))),
+      ),
+      (
+        aggArrayPerElement(MakeArray(rowIdx), Some(I32(1))) { (elt, _) =>
+          take2(ApplyAggOp(Take(), _)(elt))
+        },
+        expected(_ => FastSeq(0 until 2)),
+      ),
+      (
+        Block(
+          FastSeq(Binding(x.name, colIdx, SCAN), Binding(k.name, two)),
+          ApplyScanOp(Take(), k)(x),
+        ),
+        expected(prev),
+      ),
+      (
+        Block(
+          FastSeq(Binding(y.name, rowIdx, AGG), Binding(j.name, two)),
+          ApplyAggOp(Take(), j)(y),
+        ),
+        expected(_ => 0 until 2),
+      ),
     )
   }
 
   @ParameterizedTest
   def testInitArgBoundInNewCol(v: IR, expected: IndexedSeq[Row])(implicit ctx: ExecuteContext)
     : Unit = {
-    val mt = rangeMatrix(3, 5, Some(2))
+    /* With the optimiser on, `Interpret` walks some of the lowered IR itself, and it has no case
+     * for StreamAgg or StreamAggScan. */
+    implicit val execStrats: Set[ExecStrategy] = ExecStrategy.unoptimizedRelational
+    val mt = rangeMatrixWithGlobal(3, 5)
     val col = Ref(MatrixIR.colName, mt.typ.colType)
     val mapped = MatrixMapCols(mt, InsertFields(col, FastSeq("v" -> v)), None)
-    assertEq(unoptimized(getCols(mapped)(_)).toSeq, expected)
+    assertEvalsTo(collectCols(mapped), expected)
+  }
+
+  /* IR that runs its own aggregation: TableAggregate, MatrixAggregate (lowered to TableAggregate
+   * before lifting), StreamAgg and StreamAggScan. Lifting leaves their queries alone and lifts a
+   * scan in the stream argument. Each case sits beside an outer `agg.count()`, which is 3. */
+  private def nestedAggContexts(idx: IR)(implicit ctx: ExecuteContext) = {
+    def outer(x: IR): IR = maketuple(x, ApplyAggOp(Count())())
+    def prevs: IR = ToStream(ApplyScanOp(Collect())(idx))
+    FastSeq[(IR, Int => Any)](
+      (outer(TableAggregate(TableRange(4, 1), ApplyAggOp(Count())())), _ => RowSeq(4L, 3L)),
+      (
+        outer(MatrixAggregate(rangeMatrix(2, 3, Some(1)), ApplyAggOp(Count())())),
+        _ => RowSeq(6L, 3L),
+      ),
+      (ToArray(streamAggScanIR(prevs)(_ => ApplyScanOp(Count())())), i => 0L until i.toLong),
+      (streamAggIR(prevs)(_ => ApplyAggOp(Count())()), _.toLong),
+    )
+  }
+
+  def testNestedAggContextOnRows(implicit ctx: ExecuteContext) =
+    nestedAggContexts(Ref(MatrixIR.rowName, TStruct("row_idx" -> TInt32)).get("row_idx"))
+
+  @ParameterizedTest
+  def testNestedAggContextOnRows(v: IR, expected: Int => Any)(implicit ctx: ExecuteContext)
+    : Unit = {
+    val mt = rangeMatrix(5, 3, Some(2))
+    val row = Ref(MatrixIR.rowName, mt.typ.rowType)
+    assertEvalsTo(
+      collectRows(MatrixMapRows(mt, InsertFields(row, FastSeq("v" -> v)))),
+      (0 until 5).map(i => RowSeq(i, expected(i))),
+    )
+  }
+
+  def testNestedAggContextOnCols(implicit ctx: ExecuteContext) =
+    nestedAggContexts(Ref(MatrixIR.colName, TStruct("col_idx" -> TInt32)).get("col_idx"))
+
+  @ParameterizedTest
+  def testNestedAggContextOnCols(v: IR, expected: Int => Any)(implicit ctx: ExecuteContext)
+    : Unit = {
+    /* With the optimiser on, `Interpret` walks some of the lowered IR itself, and it has no case
+     * for StreamAgg or StreamAggScan. */
+    implicit val execStrats: Set[ExecStrategy] = ExecStrategy.unoptimizedRelational
+    val mt = rangeMatrix(3, 5, Some(2))
+    val col = Ref(MatrixIR.colName, mt.typ.colType)
+    assertEvalsTo(
+      collectCols(MatrixMapCols(mt, InsertFields(col, FastSeq("v" -> v)), None)),
+      (0 until 5).map(i => RowSeq(i, expected(i))),
+    )
   }
 
   @Test def testAggSeqArgReadsColOnCols(implicit ctx: ExecuteContext): Unit = {
@@ -517,15 +682,6 @@ class MatrixIRSuite {
     assertEq(cols.toSeq, (0 until 5).map(i => RowSeq(i, RowSeq(3L, i.toLong))))
   }
 
-  @Test def testScanTransitiveInitArgOnRows(implicit ctx: ExecuteContext): Unit = {
-    val mt = rangeMatrix(5, 3, Some(2))
-    val row = Ref(MatrixIR.rowName, mt.typ.rowType)
-    val v = takeWithTransitiveInitArg(ApplyScanOp(Take(), _)(row.get("row_idx")))
-    val mapped = MatrixMapRows(mt, InsertFields(row.deepCopy, FastSeq("v" -> v)))
-    val rows = unoptimized(getRows(mapped)(_))
-    assertEq(rows.toSeq, (0 until 5).map(i => RowSeq(i, RowSeq(0 until math.min(i, 1), 2))))
-  }
-
   def testInitArgReadsNRowsOnCols() = {
     def rowIdx = Ref(MatrixIR.rowName, TStruct("row_idx" -> TInt32)).get("row_idx")
     def colIdx = Ref(MatrixIR.colName, TStruct("col_idx" -> TInt32)).get("col_idx")
@@ -543,10 +699,12 @@ class MatrixIRSuite {
 
   @ParameterizedTest
   def testInitArgReadsNRowsOnCols(v: IR)(implicit ctx: ExecuteContext): Unit = {
+    // Without the optimiser, which can forward a binding into an init arg and change the error.
+    implicit val execStrats: Set[ExecStrategy] = ExecStrategy.unoptimizedRelational
     val mt = rangeMatrix(3, 5, Some(2))
     val col = Ref(MatrixIR.colName, mt.typ.colType)
     val mapped = MatrixMapCols(mt, InsertFields(col, FastSeq("v" -> v)), None)
-    interceptFatal("init argument refers to n_rows")(unoptimized(getCols(mapped)(_)))
+    assertFatal(collectCols(mapped), "init argument refers to n_rows")
   }
 
   // Init args that read the row or a loop variable, directly or through an EVAL binding.
@@ -567,10 +725,12 @@ class MatrixIRSuite {
 
   @ParameterizedTest
   def testInitArgReadsVaryingOnRows(v: IR, error: String)(implicit ctx: ExecuteContext): Unit = {
+    // Without the optimiser, which can forward a binding into an init arg and change the error.
+    implicit val execStrats: Set[ExecStrategy] = ExecStrategy.unoptimizedRelational
     val mt = rangeMatrix(5, 3, Some(2))
     val row = Ref(MatrixIR.rowName, mt.typ.rowType)
     val mapped = MatrixMapRows(mt, InsertFields(row, FastSeq("v" -> v)))
-    interceptFatal(error)(unoptimized(getRows(mapped)(_)))
+    assertFatal(collectRows(mapped), error)
   }
 
   // Init args that read the col or a loop variable.
@@ -589,10 +749,12 @@ class MatrixIRSuite {
 
   @ParameterizedTest
   def testInitArgReadsVaryingOnCols(v: IR, error: String)(implicit ctx: ExecuteContext): Unit = {
+    // Without the optimiser, which can forward a binding into an init arg and change the error.
+    implicit val execStrats: Set[ExecStrategy] = ExecStrategy.unoptimizedRelational
     val mt = rangeMatrix(3, 5, Some(2))
     val col = Ref(MatrixIR.colName, mt.typ.colType)
     val mapped = MatrixMapCols(mt, InsertFields(col, FastSeq("v" -> v)), None)
-    interceptFatal(error)(unoptimized(getCols(mapped)(_)))
+    assertFatal(collectCols(mapped), error)
   }
 
   def rangeRowMatrix(start: Int, end: Int)(implicit ctx: ExecuteContext): MatrixIR = {

@@ -4,8 +4,8 @@ import is.hail.collection.FastSeq
 import is.hail.collection.implicits.toRichIterable
 import is.hail.expr.ir.{Memoized => M}
 import is.hail.expr.ir.defs.{
-  ApplyAggOp, ApplyScanOp, ArrayLen, F64, I32, I64, Literal, MakeArray, MakeStream, MakeStruct,
-  MakeTuple, NA, Ref, TableAggregate, TableCollect, ToDict, ToSet, ToStream,
+  AggGroupBy, ApplyAggOp, ApplyScanOp, ArrayLen, F64, I32, I64, Literal, MakeArray, MakeStream,
+  MakeStruct, MakeTuple, NA, Ref, TableAggregate, TableCollect, ToDict, ToSet, ToStream,
 }
 import is.hail.types.virtual._
 import is.hail.variant.Call
@@ -33,8 +33,6 @@ object TestUtils {
       } yield maketuple(t, n)
     }
 
-  /* Init args that read a binding holding a same-kind result: directly, through another binding,
-   * through an APE's result, as knownLength, and as an AggFold zero. */
   def initArgsReadingResult(isScan: Boolean)(x: => IR): IndexedSeq[IR] = {
     def count: IR = if (isScan) ApplyScanOp(Count())() else ApplyAggOp(Count())()
     def take(n: IR): IR = if (isScan) ApplyScanOp(Take(), n)(x) else ApplyAggOp(Take(), n)(x)
@@ -48,6 +46,10 @@ object TestUtils {
         aggArrayPerElement(MakeArray(I32(0)), Some(n), isScan)((_, _) => count)
       },
       bindIR(count)(n => aggFoldIR(n, isScan)(_ + I64(1))(_ + _)),
+      aggArrayPerElement(MakeArray(I32(0)), isScan = isScan) { (_, _) =>
+        bindIR(count.toI)(take(_))
+      },
+      AggGroupBy(I32(0), bindIR(count.toI)(take(_)), isScan),
     )
   }
 
