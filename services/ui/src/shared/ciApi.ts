@@ -14,7 +14,9 @@ export interface WatchedBranchesResponse {
 }
 
 export interface ReviewRequest {
-  reviewer: string; // user login, or team slug when is_team
+  // User login, or team slug when is_team. Null for a codeowner request whose reviewer CI's GitHub
+  // token can't read (a team, without the org Members permission).
+  reviewer: string | null;
   is_team: boolean;
   as_code_owner: boolean;
   requested_at: string | null; // ISO 8601

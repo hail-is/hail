@@ -5,8 +5,7 @@ import {
   formatAge,
   isBuildOutOfDate,
   matchesSearch,
-  reviewOne,
-  reviewTwo,
+  reviewSlots,
   statusColumnNames,
 } from './prTableModel';
 
@@ -101,68 +100,96 @@ function request(overrides: Partial<ReviewRequest> = {}): ReviewRequest {
 
 const approved = (author: string) => ({ author, state: 'APPROVED' });
 
-describe('reviewOne', () => {
-  it('passes on the first non-author approval', () => {
-    expect(reviewOne(pr({ reviews: [approved('alice'), approved('carol')] }))).toEqual({
-      status: 'pass',
-      text: 'approved by carol',
-    });
+const user = (reviewer: string, requested_at: string | null = '2026-10-18T12:00:00Z') =>
+  request({ reviewer, is_team: false, as_code_owner: false, requested_at });
+
+describe('reviewSlots', () => {
+  it('fills both slots with distinct non-author approvals', () => {
+    expect(reviewSlots(pr({ reviews: [approved('alice'), approved('carol'), approved('dave'), approved('erin')] }))).toEqual([
+      { status: 'pass', text: 'approved by carol' },
+      { status: 'pass', text: 'approved by dave' },
+    ]);
   });
 
-  it('fails on any outstanding change request, regardless of approvals', () => {
+  it('fails slot 1 on any outstanding change request, regardless of approvals', () => {
     const reviews = [approved('carol'), { author: 'dave', state: 'CHANGES_REQUESTED' }];
-    expect(reviewOne(pr({ reviews }))).toEqual({ status: 'fail', text: 'changes requested by dave' });
+    expect(reviewSlots(pr({ reviews }))).toEqual([
+      { status: 'fail', text: 'changes requested by dave' },
+      { status: 'pass', text: 'approved by carol' },
+    ]);
   });
 
   it('ignores dismissed reviews', () => {
-    expect(reviewOne(pr({ reviews: [{ author: 'carol', state: 'DISMISSED' }] })).status).toBe('pending');
+    expect(reviewSlots(pr({ reviews: [{ author: 'carol', state: 'DISMISSED' }] }))[0].status).toBe('pending');
   });
 
-  it('waits on assignees and non-codeowner requests, with the request age', () => {
-    const cell = reviewOne(pr({
+  it('splits two waited-on reviewers across the slots, oldest request first', () => {
+    const cells = reviewSlots(pr({
       reviews: [],
-      assignees: ['carol', 'alice'],
-      review_requests: [request({ reviewer: 'dave', is_team: false, as_code_owner: false }), request()],
+      review_requests: [user('kush', '2026-10-14T00:00:00Z'), user('grohli', '2026-10-13T00:00:00Z')],
     }));
-    expect(cell).toEqual({ status: 'pending', text: 'awaiting carol, dave', requestedAt: '2026-10-18T12:00:00Z' });
+    expect(cells).toEqual([
+      { status: 'pending', text: 'awaiting grohli', requestedAt: '2026-10-13T00:00:00Z' },
+      { status: 'pending', text: 'awaiting kush', requestedAt: '2026-10-14T00:00:00Z' },
+    ]);
   });
 
-  it('says when nobody has been asked', () => {
-    expect(reviewOne(pr({ reviews: [] }))).toEqual({ status: 'pending', text: 'no reviewer assigned' });
-  });
-});
-
-describe('reviewTwo', () => {
-  it('waits on an open codeowner request even with an internal approval', () => {
-    expect(reviewTwo(pr({ review_requests: [request()] }))).toEqual({
+  it('waits on the remaining requested reviewer after one approval', () => {
+    expect(reviewSlots(pr({ review_requests: [user('patrick')] }))[1]).toEqual({
       status: 'pending',
-      text: 'awaiting appsec (codeowner)',
+      text: 'awaiting patrick',
       requestedAt: '2026-10-18T12:00:00Z',
     });
   });
 
+  it('counts assignees as waited on, but not once they have reviewed, and never the author', () => {
+    const cells = reviewSlots(pr({ assignees: ['carol', 'alice', 'dave'] }));
+    expect(cells[1]).toEqual({ status: 'pending', text: 'awaiting dave', requestedAt: undefined });
+  });
+
+  it('lists everyone left waiting in the last slot', () => {
+    const cells = reviewSlots(pr({ reviews: [], review_requests: [user('a'), user('b'), user('c')] }));
+    expect(cells.map((c) => c.text)).toEqual(['awaiting a', 'awaiting b, c']);
+  });
+
+  it('gives slot 2 to an open codeowner request, and slot 1 to everyone else', () => {
+    const cells = reviewSlots(pr({ reviews: [], review_requests: [request(), user('a'), user('b')] }));
+    expect(cells).toEqual([
+      { status: 'pending', text: 'awaiting a, b', requestedAt: '2026-10-18T12:00:00Z' },
+      { status: 'pending', text: 'awaiting appsec (codeowner)', requestedAt: '2026-10-18T12:00:00Z' },
+    ]);
+  });
+
   it('waits on the codeowner even with two internal approvals, aged by the oldest request', () => {
-    const cell = reviewTwo(pr({
+    const cells = reviewSlots(pr({
       reviews: [approved('carol'), approved('dave')],
       review_requests: [request(), request({ reviewer: 'compiler', requested_at: '2026-10-17T00:00:00Z' })],
     }));
-    expect(cell.text).toBe('awaiting appsec, compiler (codeowner)');
-    expect(cell.requestedAt).toBe('2026-10-17T00:00:00Z');
-  });
-
-  it('needs one more review after a single approval (e.g. the codeowner approved first)', () => {
-    expect(reviewTwo(pr())).toEqual({ status: 'pending', text: 'one more review' });
-  });
-
-  it('passes on a second distinct non-author approval', () => {
-    expect(reviewTwo(pr({ reviews: [approved('carol'), approved('alice'), approved('dave')] }))).toEqual({
-      status: 'pass',
-      text: 'approved by dave',
+    expect(cells[0]).toEqual({ status: 'pass', text: 'approved by carol' });
+    expect(cells[1]).toEqual({
+      status: 'pending',
+      text: 'awaiting appsec, compiler (codeowner)',
+      requestedAt: '2026-10-17T00:00:00Z',
     });
   });
 
-  it('is n/a with no approvals and no codeowner request', () => {
-    expect(reviewTwo(pr({ reviews: [] })).status).toBe('na');
+  it('shows a codeowner whose reviewer is hidden from CI as just "codeowner"', () => {
+    const cells = reviewSlots(pr({ reviews: [], review_requests: [request({ reviewer: null, is_team: false })] }));
+    expect(cells).toEqual([
+      { status: 'pending', text: 'no reviewer assigned' },
+      { status: 'pending', text: 'awaiting codeowner', requestedAt: '2026-10-18T12:00:00Z' },
+    ]);
+  });
+
+  it('needs a 2nd reviewer after a single approval with nobody else asked', () => {
+    expect(reviewSlots(pr())[1]).toEqual({ status: 'pending', text: 'needs a 2nd reviewer' });
+  });
+
+  it('is n/a in slot 2 with nobody asked at all', () => {
+    expect(reviewSlots(pr({ reviews: [] }))).toEqual([
+      { status: 'pending', text: 'no reviewer assigned' },
+      { status: 'na', text: '' },
+    ]);
   });
 });
 

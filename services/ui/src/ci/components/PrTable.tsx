@@ -6,8 +6,7 @@ import {
   formatAge,
   ghStatuses,
   isBuildOutOfDate,
-  reviewOne,
-  reviewTwo,
+  reviewSlots,
   type StageCell,
 } from './prTableModel';
 
@@ -73,6 +72,7 @@ export function PrTable({ prs, statusNames, repo, basePath, wbIndex }: {
           <tbody className="divide-y divide-zinc-100">
             {prs.map((pr) => {
               const statuses = ghStatuses(pr);
+              const [review1, review2] = reviewSlots(pr);
               return (
                 <tr key={pr.number} className="hover:bg-zinc-50">
                   <td className={td}>
@@ -113,8 +113,8 @@ export function PrTable({ prs, statusNames, repo, basePath, wbIndex }: {
                   })}
                   <td className={td}>{pr.labels.join(', ')}</td>
                   <td className={`${td} font-mono text-xs`}>{pr.source_branch_name}</td>
-                  <td className={td}><ReviewCell cell={reviewOne(pr)} nowMs={nowMs} /></td>
-                  <td className={td}><ReviewCell cell={reviewTwo(pr)} nowMs={nowMs} /></td>
+                  <td className={td}><ReviewCell cell={review1} nowMs={nowMs} /></td>
+                  <td className={td}><ReviewCell cell={review2} nowMs={nowMs} /></td>
                   <td className={td}>
                   <a
                     href={`https://github.com/${repo}/pulls/${encodeURIComponent(pr.author)}`}

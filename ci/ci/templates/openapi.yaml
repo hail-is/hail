@@ -486,7 +486,10 @@ components:
             properties:
               reviewer:
                 type: string
-                description: User login, or team slug when is_team is true.
+                nullable: true
+                description: >-
+                  User login, or team slug when is_team is true. Null for a codeowner request whose
+                  reviewer CI's GitHub token can't read (e.g. a team, without the org Members permission).
               is_team:
                 type: boolean
               as_code_owner:

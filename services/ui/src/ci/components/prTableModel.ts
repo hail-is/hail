@@ -47,34 +47,54 @@ function nonAuthorReviewers(pr: PrConfig, state: string): string[] {
   return pr.reviews.filter((r) => r.author !== pr.author && r.state === state).map((r) => r.author);
 }
 
-// First non-author approval. Any outstanding change request fails it, whatever the approvals.
-// Hail asks internal reviewers via Assignees, so those count as who it's waiting on.
-export function reviewOne(pr: PrConfig): StageCell {
-  const blockers = nonAuthorReviewers(pr, 'CHANGES_REQUESTED');
-  if (blockers.length > 0) return { status: 'fail', text: `changes requested by ${blockers.join(', ')}` };
-  const approvers = nonAuthorReviewers(pr, 'APPROVED');
-  if (approvers.length > 0) return { status: 'pass', text: `approved by ${approvers[0]}` };
-  const requests = pr.review_requests.filter((r) => !r.as_code_owner);
-  const waitingOn = [...new Set([...pr.assignees, ...requests.map((r) => r.reviewer)])].filter((n) => n !== pr.author);
-  if (waitingOn.length === 0) return { status: 'pending', text: 'no reviewer assigned' };
-  return { status: 'pending', text: `awaiting ${waitingOn.join(', ')}`, requestedAt: oldestRequestedAt(requests) };
+function awaiting(names: string[], requests: ReviewRequest[]): StageCell {
+  const asked = requests.filter((r) => r.reviewer !== null && names.includes(r.reviewer));
+  return { status: 'pending', text: `awaiting ${names.join(', ')}`, requestedAt: oldestRequestedAt(asked) };
 }
 
-// While a codeowner request is open, waiting on that codeowner; otherwise a second distinct
-// non-author approval. (A codeowner's approval clears their request, so it then just counts.)
-export function reviewTwo(pr: PrConfig): StageCell {
+function codeownerCell(requests: ReviewRequest[]): StageCell {
+  // A null reviewer is one CI's GitHub token can't read (a team, without the org Members permission)
+  const known = requests.map((r) => r.reviewer).filter((n): n is string => n !== null);
+  const text = known.length > 0 ? `awaiting ${known.join(', ')} (codeowner)` : 'awaiting codeowner';
+  return { status: 'pending', text, requestedAt: oldestRequestedAt(requests) };
+}
+
+// Review 1 / Review 2 as two reviewer slots. An open codeowner request always takes slot 2. The
+// other slots are filled in order: outstanding change requests (which fail slot 1, whatever the
+// approvals), then approvals, then everyone still waited on, oldest request first. Hail asks
+// internal reviewers via Assignees, so those count as waited on too. The last slot lists everyone
+// left waiting, so nobody drops off the page.
+export function reviewSlots(pr: PrConfig): [StageCell, StageCell] {
   const codeowner = pr.review_requests.filter((r) => r.as_code_owner);
-  if (codeowner.length > 0) {
-    return {
-      status: 'pending',
-      text: `awaiting ${codeowner.map((r) => r.reviewer).join(', ')} (codeowner)`,
-      requestedAt: oldestRequestedAt(codeowner),
-    };
-  }
+  const requests = pr.review_requests
+    .filter((r) => !r.as_code_owner)
+    .sort((a, b) => (a.requested_at ?? '\uffff').localeCompare(b.requested_at ?? '\uffff'));
+
+  const blockers = nonAuthorReviewers(pr, 'CHANGES_REQUESTED');
   const approvers = nonAuthorReviewers(pr, 'APPROVED');
-  if (approvers.length >= 2) return { status: 'pass', text: `approved by ${approvers[1]}` };
-  if (approvers.length === 1) return { status: 'pending', text: 'one more review' };
-  return { status: 'na', text: '' };
+  const reviewed = new Set([...blockers, ...approvers, pr.author]);
+  const requested = requests.map((r) => r.reviewer).filter((n): n is string => n !== null);
+  const waiting = [...new Set([...requested, ...pr.assignees])].filter((n) => !reviewed.has(n));
+
+  const filled: StageCell[] = [];
+  if (blockers.length > 0) filled.push({ status: 'fail', text: `changes requested by ${blockers.join(', ')}` });
+  for (const a of approvers) filled.push({ status: 'pass', text: `approved by ${a}` });
+
+  const nSlots = codeowner.length > 0 ? 1 : 2;
+  const slots = filled.slice(0, nSlots);
+  for (let i = 0; slots.length < nSlots && i < waiting.length; i++) {
+    const isLast = slots.length === nSlots - 1;
+    slots.push(awaiting(isLast ? waiting.slice(i) : [waiting[i]], requests));
+    if (isLast) break;
+  }
+
+  const one = slots[0] ?? { status: 'pending', text: 'no reviewer assigned' };
+  let two: StageCell;
+  if (codeowner.length > 0) two = codeownerCell(codeowner);
+  else if (slots[1]) two = slots[1];
+  else if (one.status === 'pass') two = { status: 'pending', text: 'needs a 2nd reviewer' };
+  else two = { status: 'na', text: '' };
+  return [one, two];
 }
 
 // Coarse age for "waiting since": 45m, 5h, 3d.
@@ -97,8 +117,7 @@ export function matchesSearch(pr: PrConfig, statusNames: string[], term: string)
     ...statusNames.map((name) => statuses.get(name) ?? ''),
     pr.labels.join(', '),
     pr.source_branch_name,
-    reviewOne(pr).text,
-    reviewTwo(pr).text,
+    ...reviewSlots(pr).map((cell) => cell.text),
     pr.author,
   ];
   return cells.some((cell) => cell.toLowerCase().includes(needle));

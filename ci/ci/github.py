@@ -257,7 +257,9 @@ class MergeAttempt(NamedTuple):
 
 
 class ReviewRequest(NamedTuple):
-    reviewer: str  # user login, or team slug
+    # User login or team slug. None for a codeowner request whose reviewer GitHub hides from our token
+    # (reading a team needs the org Members permission); is_team is then False.
+    reviewer: Optional[str]
     is_team: bool
     as_code_owner: bool
     requested_at: Optional[str]  # ISO 8601, from the latest matching REVIEW_REQUESTED_EVENT
@@ -1061,7 +1063,7 @@ class _PrGithubData(NamedTuple):
 
 
 def _graphql_reviewer(node: Optional[Dict[str, Any]]) -> Optional[Tuple[str, bool]]:
-    """(login or team slug, is_team), or None for a deleted account."""
+    """(login or team slug, is_team), or None for a deleted account or one our token can't read."""
     if node is None:
         return None
     if node['__typename'] == 'Team':
@@ -1073,10 +1075,13 @@ def _graphql_reviewer(node: Optional[Dict[str, Any]]) -> Optional[Tuple[str, boo
 def _parse_review_data(pr_data: Dict[str, Any]) -> Tuple[List[ReviewRequest], List[Review]]:
     # Latest event per reviewer, so a removed-then-re-requested review shows the newer time.
     # ISO 8601 UTC strings from GitHub sort chronologically.
-    requested_at: Dict[Tuple[str, bool], str] = {}
+    # Hidden reviewers share the None key, so a hidden codeowner request takes the latest hidden-reviewer event.
+    requested_at: Dict[Optional[Tuple[str, bool]], str] = {}
     for event in pr_data['timelineItems']['nodes']:
+        if 'createdAt' not in event:  # some other timeline item type
+            continue
         key = _graphql_reviewer(event.get('requestedReviewer'))
-        if key is not None and event['createdAt'] > requested_at.get(key, ''):
+        if event['createdAt'] > requested_at.get(key, ''):
             requested_at[key] = event['createdAt']
 
     requests = []
@@ -1084,6 +1089,9 @@ def _parse_review_data(pr_data: Dict[str, Any]) -> Tuple[List[ReviewRequest], Li
         key = _graphql_reviewer(node['requestedReviewer'])
         if key is not None:
             requests.append(ReviewRequest(key[0], key[1], node['asCodeOwner'], requested_at.get(key)))
+        elif node['asCodeOwner']:
+            # Still blocks the merge, so keep it even though we can't say who it's waiting on
+            requests.append(ReviewRequest(None, False, True, requested_at.get(None)))
 
     reviews = [
         Review(node['author']['login'], node['state'])
@@ -1166,7 +1174,12 @@ async def _fetch_pr_github_data(
                     f'repository(owner: "{owner}", name: "{repo_name}") {{ {"".join(aliases)} }} }}'
                 )
 
-            data = (await gh.post("/graphql", data={"query": build_query(remaining)}))["data"]
+            response = await gh.post("/graphql", data={"query": build_query(remaining)})
+            if errors := response.get("errors"):
+                # GitHub returns partial data with nulls where the token can't read a field, rather than failing
+                messages = sorted({e.get("message", str(e)) for e in errors})
+                log.warning(f'_fetch_pr_github_data: {len(errors)} GraphQL errors: {messages}')
+            data = response["data"]
             repo_data = data["repository"]
             if (rate_limit := data.get("rateLimit")) is not None:
                 total_cost += rate_limit["cost"]

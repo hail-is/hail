@@ -265,6 +265,34 @@ async def test_review_data_parsed_with_latest_request_time():
     assert result[9].reviews == [Review('dave', 'APPROVED')]
 
 
+async def test_hidden_codeowner_request_kept_without_reviewer():
+    # Without the org Members permission, GitHub nulls out team reviewers and reports an error alongside the data
+    response = graphql_response({
+        9: pr_response(
+            'REVIEW_REQUIRED',
+            [],
+            review_requests=[
+                {"asCodeOwner": True, "requestedReviewer": None},
+                {"asCodeOwner": False, "requestedReviewer": None},
+            ],
+            requested_events=[
+                {"createdAt": "2026-10-01T00:00:00Z", "requestedReviewer": None},
+                {"createdAt": "2026-10-04T00:00:00Z", "requestedReviewer": None},
+                {"createdAt": "2026-10-06T00:00:00Z", "requestedReviewer": user('carol')},
+            ],
+        )
+    })
+    response["errors"] = [{"message": "Resource not accessible by personal access token"}] * 2
+    gh = MockGH([response])
+
+    with patch('ci.github.log') as log:
+        result, _ = await _fetch_pr_github_data(gh, 'hail-is', 'hail', [9])
+
+    assert result[9].review_requests == [ReviewRequest(None, False, True, '2026-10-04T00:00:00Z')]
+    log.warning.assert_called_once()
+    assert 'Resource not accessible by personal access token' in log.warning.call_args.args[0]
+
+
 async def test_review_request_without_event_has_no_time():
     gh = MockGH([
         graphql_response({
