@@ -160,11 +160,9 @@ case class BindingEnv[V](
 
   override def noScan: BindingEnv[V] = copy(scan = None)
 
-  override def createAgg: BindingEnv[V] =
-    copy(agg = Some(eval), scan = scan.map(_ => Env.empty))
+  override def createAgg: BindingEnv[V] = copy(agg = Some(eval))
 
-  override def createScan: BindingEnv[V] =
-    copy(scan = Some(eval), agg = agg.map(_ => Env.empty))
+  override def createScan: BindingEnv[V] = copy(scan = Some(eval))
 
   override def onlyRelational(keepAggCapabilities: Boolean = false): BindingEnv[V] =
     BindingEnv(
