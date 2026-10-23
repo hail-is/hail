@@ -398,23 +398,22 @@ object TestUtils extends Logging {
       RowSeq.fromSeq(xs.map(_._2)),
     )
 
-  def assertThrows[E <: Throwable: ClassTag](x: IR, regex: String)(implicit ctx: ExecuteContext)
-    : Unit =
-    ctx.local() { ctx =>
-      val emptyEnv: Env[(Any, Type)] = Env.empty[(Any, Type)]
-      val emptyArgs: IndexedSeq[(Any, Type)] = FastSeq.empty[(Any, Type)]
-      ctx.flags.set(Optimize, "1")
-      interceptException[E](regex)(Interpret[Any](ctx, x, emptyEnv, emptyArgs))
-      ctx.flags.set(Optimize, null)
-      interceptException[E](regex)(Interpret[Any](ctx, x, emptyEnv, emptyArgs))
-      ctx.flags.set(Optimize, "1")
-      interceptException[E](regex) {
-        implicit val innerCtx: ExecuteContext = ctx
-        eval(x)
-      }
-    }
+  def assertThrows[E <: Throwable: ClassTag](
+    x: IR,
+    regex: String,
+  )(implicit
+    ctx: ExecuteContext,
+    execStrats: Set[ExecStrategy],
+  ): Unit =
+    assertThrows[E](x, Env.empty[(Any, Type)], FastSeq.empty[(Any, Type)], regex)
 
-  def assertFatal(x: IR, regex: String)(implicit ctx: ExecuteContext): Unit =
+  def assertFatal(
+    x: IR,
+    regex: String,
+  )(implicit
+    ctx: ExecuteContext,
+    execStrats: Set[ExecStrategy],
+  ): Unit =
     assertThrows[HailException](x, regex)
 
   def assertThrows[E <: Throwable: ClassTag](
@@ -422,18 +421,12 @@ object TestUtils extends Logging {
     env: Env[(Any, Type)],
     args: IndexedSeq[(Any, Type)],
     regex: String,
-  )(implicit ctx: ExecuteContext
+  )(implicit
+    ctx: ExecuteContext,
+    execStrats: Set[ExecStrategy],
   ): Unit =
-    ctx.local() { ctx =>
-      ctx.flags.set(Optimize, "1")
-      interceptException[E](regex)(Interpret[Any](ctx, x, env, args))
-      ctx.flags.set(Optimize, null)
-      interceptException[E](regex)(Interpret[Any](ctx, x, env, args))
-      ctx.flags.set(Optimize, "1")
-      interceptException[E](regex) {
-        implicit val innerCtx: ExecuteContext = ctx
-        eval(x, env, args)
-      }
+    execStrats.foreach { implicit strat =>
+      interceptException[E](regex)(evaluate(x.deepCopy, args, env, None))
     }
 
   def assertFatal(
@@ -441,7 +434,8 @@ object TestUtils extends Logging {
     args: IndexedSeq[(Any, Type)],
     regex: String,
   )(implicit
-    ctx: ExecuteContext
+    ctx: ExecuteContext,
+    execStrats: Set[ExecStrategy],
   ): Unit =
     assertThrows[HailException](x, Env.empty[(Any, Type)], args, regex)
 
@@ -450,7 +444,9 @@ object TestUtils extends Logging {
     env: Env[(Any, Type)],
     args: IndexedSeq[(Any, Type)],
     regex: String,
-  )(implicit ctx: ExecuteContext
+  )(implicit
+    ctx: ExecuteContext,
+    execStrats: Set[ExecStrategy],
   ): Unit =
     assertThrows[HailException](x, env, args, regex)
 
