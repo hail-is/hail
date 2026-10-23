@@ -100,7 +100,9 @@ check-pip-requirements:
 		gear \
 		web_common \
 		batch \
-		ci
+		ci \
+		ci/ci-utils \
+		docker/hailgenetics/hail
 
 .PHONY: install-dev-requirements
 install-dev-requirements:
@@ -132,15 +134,21 @@ update-gateways-envoy:
 	@echo 'If traffic to hail.is services seems degraded, roll back with:'
 	@echo '  kubectl rollout undo deployment gateway-deployment && kubectl rollout undo deployment internal-gateway'
 
+# Packages to exempt from the 7-day release cooldown, e.g. COOLDOWN_EXEMPT="uv aiohttp"
+COOLDOWN_EXEMPT ?=
+COOLDOWN_EXEMPT_ARGS := $(foreach p,$(COOLDOWN_EXEMPT),--exclude-newer-package $(p)=false)
+
 .PHONY: generate-pip-lockfiles
 generate-pip-lockfiles:
-	./generate-pip-lockfile.sh hail/python/hailtop
-	./generate-pip-lockfile.sh hail/python
-	./generate-pip-lockfile.sh hail/python/dev
-	./generate-pip-lockfile.sh gear
-	./generate-pip-lockfile.sh web_common
-	./generate-pip-lockfile.sh batch
-	./generate-pip-lockfile.sh ci
+	./generate-pip-lockfile.sh hail/python/hailtop $(COOLDOWN_EXEMPT_ARGS)
+	./generate-pip-lockfile.sh hail/python $(COOLDOWN_EXEMPT_ARGS)
+	./generate-pip-lockfile.sh hail/python/dev $(COOLDOWN_EXEMPT_ARGS)
+	./generate-pip-lockfile.sh gear $(COOLDOWN_EXEMPT_ARGS)
+	./generate-pip-lockfile.sh web_common $(COOLDOWN_EXEMPT_ARGS)
+	./generate-pip-lockfile.sh batch $(COOLDOWN_EXEMPT_ARGS)
+	./generate-pip-lockfile.sh ci $(COOLDOWN_EXEMPT_ARGS)
+	./generate-pip-lockfile.sh ci/ci-utils $(COOLDOWN_EXEMPT_ARGS)
+	./generate-pip-lockfile.sh docker/hailgenetics/hail $(COOLDOWN_EXEMPT_ARGS)
 
 $(HAILTOP_VERSION):
 	$(MAKE) -C hail python-version-info
@@ -162,7 +170,7 @@ hail-run-image: base-image hail/Dockerfile.hail-run hail/python/pinned-requireme
 	./docker-build.sh . hail/Dockerfile.hail-run $(IMAGE_NAME) --build-arg BASE_IMAGE=$(shell cat base-image)
 	echo $(IMAGE_NAME) > $@
 
-hailgenetics-hail-image: hail-ubuntu-image docker/hailgenetics/hail/Dockerfile $(shell git ls-files hail/src/main hail/python)
+hailgenetics-hail-image: hail-ubuntu-image docker/hailgenetics/hail/Dockerfile docker/hailgenetics/hail/pinned-requirements.txt $(shell git ls-files hail/src/main hail/python)
 	$(MAKE) HAIL_BUILD_MODE=Release -C hail wheel
 	./docker-build.sh . docker/hailgenetics/hail/Dockerfile $(IMAGE_NAME) \
 		--build-arg BASE_IMAGE=$(shell cat hail-ubuntu-image)

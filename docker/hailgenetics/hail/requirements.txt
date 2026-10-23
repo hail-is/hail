@@ -1,0 +1,3 @@
+-c ../../../hail/python/pinned-requirements.txt
+scikit-learn
+ipython

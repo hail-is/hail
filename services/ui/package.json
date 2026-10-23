@@ -24,5 +24,14 @@
     "jsdom": "^25.0.0",
     "typescript": "^5.4.0",
     "vitest": "^4.1.11"
+  },
+  "allowScripts": {
+    "@scarf/scarf": false,
+    "@tree-sitter-grammars/tree-sitter-yaml": false,
+    "tree-sitter": false,
+    "core-js-pure": false,
+    "fsevents": false,
+    "tree-sitter-json": false,
+    "esbuild": true
   }
 }
