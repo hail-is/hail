@@ -196,6 +196,8 @@ final class ReferenceGenome(
   def contigIndexOption(contig: String): Option[Int] =
     Option(contigsIndex.get(contig)).map(_.intValue())
 
+  def getContig(contigIdx: Int): String = contigs(contigIdx)
+
   def contigLength(contig: String): Int = {
     val r = jLengths.get(contig)
     if (r == null)

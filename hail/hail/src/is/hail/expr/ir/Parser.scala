@@ -414,6 +414,9 @@ object IRParser {
       case "PCLocus" =>
         val rg = reference_genome(rgs)(it)
         PCanonicalLocus(rg, req)
+      case "PPackedLocus" =>
+        val rg = reference_genome(rgs)(it)
+        PPackedLocus(rg, req)
       case "PCCall" => PCanonicalCall(req)
       case "PCArray" =>
         punctuation(it, "[")

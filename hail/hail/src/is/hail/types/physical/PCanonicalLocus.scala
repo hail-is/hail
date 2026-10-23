@@ -46,8 +46,13 @@ final case class PCanonicalLocus(rg: ReferenceGenome, required: Boolean = false)
 
   private[physical] def contigAddr(address: Long): Long = representation.loadField(address, 0)
 
-  override def contig(address: Long): String = contigType.loadString(contigAddr(address))
+  override def contig(address: Long): String =
+    contigType.loadString(contigAddr(address))
+
   override def position(address: Long): Int = Region.loadInt(representation.fieldOffset(address, 1))
+
+  override def packed(address: Long): Long =
+    PLocus.pack(rg.getContigIndex(contigType.loadString(contigAddr(address))), position(address))
 
   lazy val contigType: PCanonicalString =
     representation.field("contig").typ.asInstanceOf[PCanonicalString]
@@ -94,6 +99,8 @@ final case class PCanonicalLocus(rg: ReferenceGenome, required: Boolean = false)
           srcAddress,
           deepCopy,
         )
+      case pt: PPackedLocus =>
+        unstagedStoreLocus(addr, pt.contig(srcAddress), pt.position(srcAddress), region)
     }
 
   override def containsPointers: Boolean = representation.containsPointers
@@ -107,6 +114,10 @@ final case class PCanonicalLocus(rg: ReferenceGenome, required: Boolean = false)
     srcPType match {
       case pt: PCanonicalLocus =>
         representation._copyFromAddress(region, pt.representation, srcAddress, deepCopy)
+      case pt: PPackedLocus =>
+        val addr = representation.allocate(region)
+        unstagedStoreAtAddress(addr, region, pt, srcAddress, deepCopy)
+        addr
     }
 
   override def sType: SCanonicalLocusPointer = SCanonicalLocusPointer(setRequired(false))
