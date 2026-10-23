@@ -8,7 +8,7 @@ import is.hail.expr.ir.{BaseIR, CompileCache, Compiled}
 import is.hail.expr.ir.LoweredTableReader.LoweredTableReaderCoercer
 import is.hail.expr.ir.lowering.IrMetadata
 import is.hail.io.fs.FS
-import is.hail.io.reference.{Liftover, ReferenceSequence}
+import is.hail.io.reference.RgAttachments
 import is.hail.linalg.BlockMatrix
 import is.hail.utils._
 import is.hail.variant.ReferenceGenomeEnv
@@ -61,8 +61,7 @@ object ExecuteContext {
     localTmpdir: String,
     backend: Backend,
     references: ReferenceGenomeEnv,
-    liftovers: Map[(String, String), Liftover],
-    sequences: Map[String, ReferenceSequence],
+    attachments: RgAttachments,
     fs: FS,
     tempFileManager: TempFileManager,
     theHailClassLoader: HailClassLoader,
@@ -82,8 +81,7 @@ object ExecuteContext {
           localTmpdir,
           backend,
           references,
-          liftovers,
-          sequences,
+          attachments,
           fs,
           region,
           tempFileManager,
@@ -115,8 +113,7 @@ class ExecuteContext(
   val localTmpdir: String,
   val backend: Backend,
   val references: ReferenceGenomeEnv,
-  val liftovers: Map[(String, String), Liftover],
-  val sequences: Map[String, ReferenceSequence],
+  val attachments: RgAttachments,
   val fs: FS,
   val r: Region,
   val tempFileManager: TempFileManager,
@@ -174,8 +171,7 @@ class ExecuteContext(
     localTmpdir: String = this.localTmpdir,
     backend: Backend = this.backend,
     references: ReferenceGenomeEnv = this.references,
-    liftovers: Map[(String, String), Liftover] = this.liftovers,
-    sequences: Map[String, ReferenceSequence] = this.sequences,
+    attachments: RgAttachments = this.attachments,
     fs: FS = this.fs,
     r: Region = this.r,
     tempFileManager: TempFileManager = NonOwningTempFileManager(this.tempFileManager),
@@ -194,8 +190,7 @@ class ExecuteContext(
       localTmpdir,
       backend,
       references,
-      liftovers,
-      sequences,
+      attachments,
       fs,
       r,
       tempFileManager,

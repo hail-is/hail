@@ -9,6 +9,7 @@ import is.hail.expr.ir.functions.IRFunctionRegistry
 import is.hail.expr.ir.lowering.IrMetadata
 import is.hail.expr.ir.lowering.invariant.Flags.StrictInvariants
 import is.hail.io.fs.{FS, HadoopFS}
+import is.hail.io.reference.RgAttachments
 import is.hail.rvd.RVD
 import is.hail.utils.SerializableHadoopConfiguration
 import is.hail.variant.ReferenceGenomeEnv
@@ -60,8 +61,7 @@ final class SharedResources extends AutoCloseable {
       localTmpdir = "file:///tmp",
       backend = backend,
       references = references,
-      liftovers = Map.empty,
-      sequences = Map.empty,
+      attachments = RgAttachments.empty,
       fs = fs,
       r = Region(pool = pool),
       tempFileManager = new OwningTempFileManager(fs),
