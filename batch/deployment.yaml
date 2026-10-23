@@ -108,6 +108,9 @@ spec:
         grafanak8sapp: "true"
       annotations:
         kubectl.kubernetes.io/default-container: batch-driver
+{% if deploy %}
+        "cluster-autoscaler.kubernetes.io/safe-to-evict": "false"
+{% endif %}
     spec:
       serviceAccountName: batch
 {% if deploy %}
