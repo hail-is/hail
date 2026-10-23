@@ -1,9 +1,5 @@
 import { useState, useEffect } from 'react';
-import { formatRelative } from '../../shared/timeUtils';
-
-function formatAbsolute(ms: number): string {
-  return new Date(ms).toLocaleString();
-}
+import { formatRelative, formatTimestamp } from '../../shared/timeUtils';
 
 type Props = { ms: number };
 
@@ -16,7 +12,7 @@ export function RelativeTime({ ms }: Props): JSX.Element {
   }, []);
 
   return (
-    <span title={formatAbsolute(ms)} className="cursor-help">
+    <span title={formatTimestamp(ms)} className="cursor-help">
       {formatRelative(ms)}
     </span>
   );

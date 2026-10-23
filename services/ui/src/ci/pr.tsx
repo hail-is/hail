@@ -7,7 +7,7 @@ import { StateIcon } from '../batch/components/StateIcon';
 import { BatchStateIcon } from '../shared/BatchStateIcon';
 import { useTip, FloatingTip } from '../shared/useTip';
 import { AutoRefreshBar } from '../shared/AutoRefreshBar';
-import { formatTime } from '../shared/timeUtils';
+import { formatTimestamp } from '../shared/timeUtils';
 
 const REFRESH_INTERVAL_MS = 30_000;
 
@@ -250,14 +250,14 @@ function MergeEligibility({ pr, basePath, batchBaseUrl, wbIndex }: {
         {pr.merge_pending && (
           <li>
             <Icon name="hourglass_top" className="text-zinc-400" /> Merge requested{' '}
-            {formatTime(pr.merge_requested_at_ms ?? null)} - waiting for GitHub (merge id:{' '}
+            {formatTimestamp(pr.merge_requested_at_ms)} - waiting for GitHub (merge id:{' '}
             <span className="font-mono">{pr.merge_pending_uuid ?? 'unknown'}</span>)
           </li>
         )}
         {!pr.merge_pending && pr.merge_retry_after_ms != null && (
           <li>
             <Icon name="warning" className="text-orange-500" /> Merge failed {pr.merge_failures} time(s) - next attempt
-            after {formatTime(pr.merge_retry_after_ms)} (see CI logs for details)
+            after {formatTimestamp(pr.merge_retry_after_ms)} (see CI logs for details)
           </li>
         )}
       </ul>
