@@ -936,6 +936,44 @@ paths:
         '403':
           description: Forbidden - requires developer privileges
 
+  /prs:
+    get:
+      summary: "PR List entry point (UI)"
+      description: >
+        Redirects to the PR list of the only watched branch, or lists the watched branches
+        when there are several.
+      tags: [UI Pages]
+      responses:
+        '200':
+          description: "Rendered the list of watched branches"
+        '302':
+          description: "Redirect to /watched_branches/0/prs"
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden - requires developer privileges
+
+  /watched_branches/{watched_branch_index}/prs:
+    get:
+      summary: "PR List (UI)"
+      description: "Render the list of open PRs for a watched branch"
+      tags: [UI Pages]
+      parameters:
+        - name: watched_branch_index
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: "Successfully rendered the PR list"
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden - requires developer privileges
+        '404':
+          description: No watched branch at that index
+
   /api/v1alpha/retried_tests:
     get:
       summary: List retried tests
