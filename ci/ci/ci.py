@@ -3,6 +3,7 @@ import concurrent.futures
 import json
 import logging
 import os
+import re
 import traceback
 from collections import defaultdict
 from contextlib import AsyncExitStack
@@ -56,7 +57,17 @@ from .constants import AUTHORIZED_USERS, TEAMS, User
 from .environment import CLOUD, DEFAULT_NAMESPACE, DOMAIN, STORAGE_URI
 from .envoy import Service, create_cds_response, create_rds_response
 from .events import CIEvent, cleanup_old_events, record_event
-from .github import PR, WIP, FQBranch, MergeFailureBatch, Repo, UnwatchedBranch, WatchedBranch, select_random_teammate
+from .github import (
+    PR,
+    WIP,
+    FQBranch,
+    MergeFailureBatch,
+    Repo,
+    UnwatchedBranch,
+    WatchedBranch,
+    describe_exception,
+    select_random_teammate,
+)
 from .utils import gcp_logging_queries
 
 with open(os.environ.get('HAIL_CI_OAUTH_TOKEN', 'oauth-token/oauth-token'), 'r', encoding='utf-8') as f:
@@ -552,6 +563,13 @@ async def get_user(request: web.Request, userdata: UserData) -> web.Response:
     return await render_template('ci', request, userdata, 'user.html', page_context)
 
 
+_FULL_SHA_RE = re.compile(r'[0-9a-f]{40}')
+
+
+def is_full_sha(sha: str) -> bool:
+    return _FULL_SHA_RE.fullmatch(sha) is not None
+
+
 @routes.post('/authorize_source_sha')
 @web_security_headers
 @auth.authenticated_users_with_permission(SystemPermission.MANAGE_CI, redirect=False)
@@ -559,7 +577,11 @@ async def post_authorized_source_sha(request: web.Request, userdata: UserData) -
     app = request.app
     db = app[AppKeys.DB]
     post = await request.post()
-    sha = str(post['sha']).strip()
+    sha = str(post['sha']).strip().lower()
+    if not is_full_sha(sha):
+        session = await aiohttp_session.get_session(request)
+        set_message(session, f'Invalid SHA {sha!r}: expected 40 hex characters.', 'error')
+        raise web.HTTPFound(deploy_config.external_url('ci', '/'))
     await db.execute_insertone('INSERT INTO authorized_shas (sha) VALUES (%s);', sha)
     log.info(f'authorized sha: {sha}')
     await record_event(db, CIEvent.SHA_AUTHORIZED, username=userdata['username'], source_sha=sha)
@@ -1414,9 +1436,9 @@ async def api_authorize_sha(request: web.Request, userdata: UserData) -> web.Res
     params = await json_request(request)
     if not isinstance(params, dict):
         raise web.HTTPBadRequest(text='Request body must be a JSON object')
-    sha = str(params.get('sha', '')).strip()
-    if not sha:
-        raise web.HTTPBadRequest(text='sha is required')
+    sha = str(params.get('sha', '')).strip().lower()
+    if not is_full_sha(sha):
+        raise web.HTTPBadRequest(text='sha must be 40 hex characters')
     db = request.app[AppKeys.DB]
     await db.execute_insertone('INSERT INTO authorized_shas (sha) VALUES (%s);', sha)
     log.info(f'authorized sha: {sha}')
@@ -1603,14 +1625,14 @@ async def update_loop(app: web.Application):
                 )
         except concurrent.futures.CancelledError:
             raise
-        except Exception:  # pylint: disable=broad-except
+        except Exception as e:  # pylint: disable=broad-except
             if wb:
                 log.exception(f'{wb.branch.short_str()} update failed due to exception')
                 await record_event(
                     app[AppKeys.DB],
                     CIEvent.UPDATE_FAILED,
                     target_branch=wb.branch.short_str(),
-                    message=traceback.format_exc(),
+                    message=describe_exception(e),
                 )
         await asyncio.sleep(300)
 

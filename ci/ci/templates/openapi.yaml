@@ -1702,7 +1702,7 @@ paths:
         '201':
           description: SHA authorized
         '400':
-          description: Missing sha field
+          description: Missing sha, or not a 40-character hex SHA
         '401':
           description: Unauthorized
         '403':
