@@ -3699,12 +3699,12 @@ class IRSuite {
 
       val read = TableIR.read(
         fs,
-        ctx.referenceGenomes,
+        ctx.references,
         getTestResource("backward_compatability/1.1.0/table/0.ht"),
       )
       val mtRead = MatrixIR.read(
         fs,
-        ctx.referenceGenomes,
+        ctx.references,
         getTestResource("backward_compatability/1.0.0/matrix_table/0.hmt"),
       )
       val b = True()
@@ -3828,12 +3828,12 @@ class IRSuite {
 
       val tableRead = TableIR.read(
         fs,
-        ctx.referenceGenomes,
+        ctx.references,
         getTestResource("backward_compatability/1.1.0/table/0.ht"),
       )
       val read = MatrixIR.read(
         fs,
-        ctx.referenceGenomes,
+        ctx.references,
         getTestResource("backward_compatability/1.0.0/matrix_table/0.hmt"),
       )
       val range = MatrixIR.range(ctx, 3, 7, None)
@@ -3981,7 +3981,7 @@ class IRSuite {
   // the reference genomes in scope.
   @Test def testRelationalWriterNamesItsReferenceGenomes(implicit ctx: ExecuteContext): Unit = {
     val rg = builtin(ReferenceGenome.GRCh38).copy(name = "user_defined")
-    ctx.local(references = ctx.references + (rg.name -> rg)) { ctx =>
+    ctx.local(references = ctx.references.withReferences(Seq(rg))) { ctx =>
       val x = WriteMetadata(
         Begin(FastSeq()),
         RelationalWriter("path", overwrite = false, Some("references" -> Set(rg))),
@@ -4171,7 +4171,7 @@ class IRSuite {
 
   def testRelationalFunctionsSerialize(ctx: ExecuteContext) = Seq[Any](
     TableFilterPartitions(ArraySeq(1, 2, 3), keep = true),
-    VEP(ctx.fs, ctx.referenceGenomes, getTestResource("dummy_vep_config.json"), false, 1, true),
+    VEP(ctx.fs, ctx.references, getTestResource("dummy_vep_config.json"), false, 1, true),
     WrappedMatrixToTableFunction(
       LinearRegressionRowsSingle(ArraySeq("foo"), "bar", ArraySeq("baz"), 1, ArraySeq("a", "b")),
       "foo",
@@ -4221,7 +4221,7 @@ class IRSuite {
 
   @ParameterizedTest
   def testRelationalFunctionsSerialize(x: Any)(implicit ctx: ExecuteContext): Unit = {
-    implicit val formats: Formats = RelationalFunctions.formats(ctx.referenceGenomes)
+    implicit val formats: Formats = RelationalFunctions.formats(ctx.references)
 
     x match {
       case x: MatrixToMatrixFunction =>
@@ -4259,7 +4259,7 @@ class IRSuite {
     val t = TTuple(FastSeq(TupleField(1, TInt64)))
     val lit = Literal(t, RowSeq(1L))
 
-    assert(IRParser.parseType(t.parsableString(), ctx.referenceGenomes) == t)
+    assert(IRParser.parseType(t.parsableString(), ctx.references) == t)
     assert(IRParser.parse_value_ir(ctx, Pretty.sexprStyle(lit, elideLiterals = false)) == lit)
   }
 
