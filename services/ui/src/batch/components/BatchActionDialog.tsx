@@ -95,7 +95,7 @@ export function BatchActionDialog({ action, batch, onConfirm, onClose }: {
             type="button"
             onClick={() => {
               setBusy(true);
-              onConfirm().finally(() => { setBusy(false); ref.current?.close(); });
+              void onConfirm().finally(() => { setBusy(false); ref.current?.close(); });
             }}
             disabled={busy}
             className="inline-flex items-center gap-2 px-3 py-1.5 rounded bg-red-600 text-white hover:bg-red-700 disabled:opacity-75"

@@ -19,9 +19,12 @@ export function formatDurationMs(ms: number | null | undefined): string {
   return `${seconds}s`;
 }
 
-function fieldTermPattern(field: string): RegExp {
-  // Field names are fixed identifiers from this codebase (never user input), so no escaping needed.
-  return new RegExp(`^\\s*${field}\\s*(==|!=|=)\\s*(\\S*)\\s*$`);
+const TERM_PATTERN = /^\s*(\S+?)\s*(==|!=|=)\s*(\S*)\s*$/;
+
+// Parses a `field op value` query line, if it's a term for `field`.
+function parseFieldTerm(line: string, field: string): { op: string; value: string } | null {
+  const m = TERM_PATTERN.exec(line);
+  return m != null && m[1] === field ? { op: m[2], value: m[3] } : null;
 }
 
 // Sets a v2 query's term for `field` to `field = value` (or removes it, if `value` is null),
@@ -31,21 +34,19 @@ function fieldTermPattern(field: string): RegExp {
 // With op '!=', excludes `value` instead: any `=` term for the field goes (it would contradict or
 // make redundant the exclusion), but other `!=` terms for it stay, so exclusions accumulate.
 export function withFieldTerm(q: string, field: string, value: string | null, op: '=' | '!=' = '='): string {
-  const pattern = fieldTermPattern(field);
   const kept = q.split('\n').filter((line) => {
     if (line.trim().length === 0) return false;
-    const m = pattern.exec(line);
-    if (m == null) return true;
-    return op === '!=' && m[1] === '!=' && m[2] !== value;
+    const term = parseFieldTerm(line, field);
+    if (term == null) return true;
+    return op === '!=' && term.op === '!=' && term.value !== value;
   });
   return (value == null ? kept : [...kept, `${field} ${op} ${value}`]).join('\n');
 }
 
 export function hasFieldTerm(q: string, field: string, value: string): boolean {
-  const pattern = fieldTermPattern(field);
   return q.split('\n').some((line) => {
-    const m = pattern.exec(line);
-    return m != null && m[1] !== '!=' && m[2] === value;
+    const term = parseFieldTerm(line, field);
+    return term != null && term.op !== '!=' && term.value === value;
   });
 }
 
