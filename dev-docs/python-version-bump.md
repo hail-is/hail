@@ -76,7 +76,6 @@ The *default* is the version used by the Batch/Auth/CI/Gear services and by `hai
 | Docstring examples in `batch.py`, `job.py` | `python-dill:3.XY-slim` image refs |
 | Test helpers: `hail/python/test/hailtop/batch/utils.py` | `PYTHON_DILL_IMAGE` |
 | Test helpers: `hail/python/test/hailtop/hailctl/batch/test_submit.py` | Default image |
-| `batch/test/test_worker_image_security.py` | Hardcoded `python:3.XY-slim` image |
 | Dev docs / install guides that mention a specific Python version | e.g. `dev-docs/hail-for-new-engineers.md`, `user-scripts/manifold/install_hail_kernel.sh` |
 
 ---
@@ -102,8 +101,6 @@ Mirror the add steps in reverse:
 - **`build.yaml` step names contain the version** (`test_install_in_isolation_python3_11`). The step itself was renamed but its `dependsOn` references in downstream steps were not, causing a broken reference caught only after the initial commit.
 
 - **Docstring examples in `batch.py` and `job.py`** hardcode a `python-dill:3.XY-slim` image tag. Easy to grep-miss because they live in docstrings rather than code.
-
-- **`batch/test/test_worker_image_security.py`** uses a hardcoded `python:3.XY-slim` image (not `hailgenetics/python-dill`). Grep for `python:3.` not just `python-dill:3.`.
 
 - **`gcp-ar-cleanup-policy.txt` needs updating** for each new non-default ubuntu image repository name (`hail-ubuntu-python-3-XY`). The `publishAs:` value in `build.yaml` determines the name — double-check they match. **Do not remove old entries when dropping a version** — cleanup policy entries are free, and removing them before old images age out leaves zombie artifacts with no retention policy.
 
