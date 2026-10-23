@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { Fragment, useCallback, useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import {
   createCiApi,
@@ -413,13 +413,21 @@ function OperatorPanel({ op }: { op: CiOperatorStatus }): JSX.Element {
           <SubHeading>Background loops, last success</SubHeading>
           {loops.length === 0
             ? <p className="text-sm text-zinc-500">No background loops in this namespace.</p>
-            : loops.map(([loop, { last_success_ms }]) => (
-              <Field key={loop} label={loop}>
-                {last_success_ms === null
-                  ? <span className="text-zinc-500">not yet</span>
-                  : <span title={formatTime(last_success_ms)}>{formatRelative(last_success_ms)}</span>}
-              </Field>
-            ))}
+            : (
+              // Grid rather than Field: loop names are long identifiers that overflow Field's fixed label width
+              <div className="grid grid-cols-[auto_1fr] gap-x-4 text-sm">
+                {loops.map(([loop, { last_success_ms }]) => (
+                  <Fragment key={loop}>
+                    <span className="text-zinc-500 py-0.5">{loop}</span>
+                    <span className="text-zinc-800 py-0.5">
+                      {last_success_ms === null
+                        ? <span className="text-zinc-500">not yet</span>
+                        : <span title={formatTime(last_success_ms)}>{formatRelative(last_success_ms)}</span>}
+                    </span>
+                  </Fragment>
+                ))}
+              </div>
+            )}
         </div>
       </div>
     </Panel>
