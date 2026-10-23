@@ -6,12 +6,24 @@ Each call to try_to_merge is one pass of CI's update loop.
 import http
 import re
 from typing import Any, Dict, List
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import gidgethub
+import gidgethub.sansio
+import pytest
 
 from ci.constants import GITHUB_STATUS_CONTEXT
-from ci.github import PR, WIP, FQBranch, Repo, WatchedBranch
+from ci.github import (
+    DO_NOT_TEST,
+    PR,
+    STACKED_PR,
+    WIP,
+    FQBranch,
+    LastUpdate,
+    Repo,
+    RestRateLimit,
+    WatchedBranch,
+)
 from ci.utils import GithubStatus
 
 TARGET_SHA = 'target-sha-0'
@@ -159,3 +171,259 @@ async def test_in_flight_merge_without_uuid_is_dropped_once_pr_is_no_longer_merg
     await wb.try_to_merge(gh)
     assert gh.merge_requests == [1]
     assert wb.pending_merge is None
+
+
+def test_mergeable_pr_has_no_blockers():
+    pr = add_mergeable_pr(make_branch(), 1)
+    assert not pr.merge_blockers()
+    assert pr.is_mergeable()
+
+
+@pytest.mark.parametrize(
+    'review_state, blocker',
+    [('pending', 'not approved'), ('changes_requested', 'changes requested'), (None, 'not approved')],
+)
+def test_review_blockers(review_state, blocker):
+    pr = add_mergeable_pr(make_branch(), 1)
+    pr.review_state = review_state
+    assert pr.merge_blockers() == [blocker]
+    assert not pr.is_mergeable()
+
+
+def test_status_blockers():
+    pr = add_mergeable_pr(make_branch(), 1)
+    pr.last_known_github_status = {}
+    assert pr.merge_blockers() == ['no status checks reported']
+
+    pr.last_known_github_status = {
+        'ci': GithubStatus.SUCCESS,
+        'b-check': GithubStatus.FAILURE,
+        'a-check': GithubStatus.FAILURE,
+        'slow-check': GithubStatus.PENDING,
+    }
+    assert pr.merge_blockers() == ['checks failing: a-check, b-check', 'checks pending: slow-check']
+    assert not pr.is_mergeable()
+
+
+def test_build_blockers():
+    wb = make_branch()
+    pr = add_mergeable_pr(wb, 1)
+    wb.sha = 'target-sha-1'
+    assert pr.merge_blockers() == ['not built against current main']
+
+    pr.batch = None
+    assert pr.merge_blockers() == ['not built']
+    assert not pr.is_mergeable()
+
+
+def test_label_blockers():
+    pr = add_mergeable_pr(make_branch(), 1)
+    pr.labels |= {WIP, STACKED_PR, 'prio:high'}
+    assert pr.merge_blockers() == ['label: WIP', 'label: stacked PR']
+    assert not pr.is_mergeable()
+
+
+def test_blockers_accumulate():
+    pr = add_mergeable_pr(make_branch(), 1)
+    pr.review_state = 'pending'
+    pr.batch = None
+    pr.labels.add(WIP)
+    assert pr.merge_blockers() == ['not approved', 'not built', 'label: WIP']
+
+
+@pytest.mark.parametrize(
+    'frozen, deploy_batch, deploy_state, reason',
+    [
+        (False, None, None, None),
+        (False, MagicMock(), None, 'deploying'),
+        (False, MagicMock(), 'success', None),
+        (False, MagicMock(), 'failure', None),
+        (True, None, None, 'frozen'),
+        (True, MagicMock(), None, 'frozen'),
+    ],
+)
+def test_merge_paused_reason(frozen, deploy_batch, deploy_state, reason):
+    wb = make_branch()
+    wb.deploy_batch = deploy_batch
+    wb.deploy_state = deploy_state
+    assert wb.merge_paused_reason(frozen) == reason
+
+
+def fake_db(authorized: bool):
+    db = MagicMock()
+    db.execute_and_fetchone = AsyncMock(return_value={'sha': 'x'} if authorized else None)
+    return db
+
+
+async def test_could_be_merge_candidate():
+    wb = make_branch()
+    pr = add_mergeable_pr(wb, 1)
+    assert await pr.could_be_merge_candidate(fake_db(True))
+    assert not await pr.could_be_merge_candidate(fake_db(False))
+
+    pr.last_known_github_status = {GITHUB_STATUS_CONTEXT: GithubStatus.PENDING}
+    assert await pr.could_be_merge_candidate(fake_db(True))
+    pr.last_known_github_status = {GITHUB_STATUS_CONTEXT: GithubStatus.FAILURE}
+    assert not await pr.could_be_merge_candidate(fake_db(True))
+
+    pr.last_known_github_status = {GITHUB_STATUS_CONTEXT: GithubStatus.SUCCESS}
+    pr.review_state = 'pending'
+    assert not await pr.could_be_merge_candidate(fake_db(True))
+
+
+@pytest.mark.parametrize(
+    'batch_target_sha, on_deck, needs_build',
+    [
+        (None, False, True),
+        (TARGET_SHA, False, False),
+        (TARGET_SHA, True, False),
+        ('old-target-sha', False, False),
+        ('old-target-sha', True, True),
+    ],
+)
+async def test_needs_build(batch_target_sha, on_deck, needs_build):
+    wb = make_branch()
+    pr = add_mergeable_pr(wb, 1)
+    pr.batch = None if batch_target_sha is None else MagicMock(attributes={'target_sha': batch_target_sha})
+    assert await pr.needs_build(fake_db(True), on_deck) == needs_build
+
+
+async def test_needs_build_only_when_authorized_testable_and_target_known():
+    wb = make_branch()
+    pr = add_mergeable_pr(wb, 1)
+    pr.batch = None
+    assert not await pr.needs_build(fake_db(False), on_deck=True)
+
+    pr.labels = {DO_NOT_TEST}
+    assert not await pr.needs_build(fake_db(True), on_deck=True)
+
+    pr.labels = set()
+    wb.sha = None
+    assert not await pr.needs_build(fake_db(True), on_deck=True)
+
+
+def test_running_prs():
+    wb = make_branch()
+    running = add_mergeable_pr(wb, 1)
+    running.build_state = None
+    add_mergeable_pr(wb, 2)  # finished
+    add_mergeable_pr(wb, 3).batch = None
+    assert wb.running_prs() == [running]
+
+
+async def test_update_only_merges_when_not_paused():
+    wb = make_branch()
+    wb.deploy_batch = MagicMock()
+
+    async def heal_then_update(frozen: bool):
+        wb.github_changed = wb.batch_changed = False
+        wb.state_changed = True
+        await wb._update(MagicMock(), MagicMock(), MagicMock(), frozen)
+
+    with (
+        patch.object(wb, '_heal', new=AsyncMock()),
+        patch.object(wb, 'try_to_merge', new=AsyncMock()) as try_to_merge,
+    ):
+        await heal_then_update(frozen=False)
+        try_to_merge.assert_not_awaited()
+
+        wb.deploy_state = 'success'
+        await heal_then_update(frozen=True)
+        try_to_merge.assert_not_awaited()
+
+        await heal_then_update(frozen=False)
+        try_to_merge.assert_awaited_once()
+
+
+# Bookkeeping: recorded for display only, so each test also checks the existing outcome is unchanged
+
+
+async def test_update_records_timing_and_no_error(monkeypatch):
+    monkeypatch.setattr('ci.github.time_msecs', iter([100, 250]).__next__)
+    wb = make_branch()
+    wb.github_changed = wb.batch_changed = wb.state_changed = False
+
+    await wb._update(MagicMock(), MagicMock(), MagicMock(), frozen=False)
+
+    assert wb.last_update_started_ms == 100
+    assert wb.last_update == LastUpdate(100, 250, None)
+
+
+async def test_update_records_error_and_still_raises():
+    wb = make_branch()
+    wb.batch_changed = wb.state_changed = False
+
+    with (
+        patch.object(wb, '_update_github', new=AsyncMock(side_effect=ValueError('boom'))),
+        pytest.raises(ValueError, match='boom'),
+    ):
+        await wb._update(MagicMock(), MagicMock(), MagicMock(), frozen=False)
+
+    assert wb.last_update is not None
+    assert wb.last_update.error == 'ValueError: boom'
+    assert not wb.updating
+
+
+async def test_update_skipped_while_updating_records_nothing():
+    wb = make_branch()
+    wb.updating = True
+
+    await wb._update(MagicMock(), MagicMock(), MagicMock(), frozen=False)
+
+    assert wb.last_update_started_ms is None
+    assert wb.last_update is None
+
+
+async def test_rejected_merge_records_github_api_error():
+    wb = make_branch()
+    pr = add_mergeable_pr(wb, 1)
+    gh = FakeGH()
+    gh.put = AsyncMock(side_effect=gidgethub.HTTPException(http.HTTPStatus.FORBIDDEN, 'forbidden'))
+
+    assert await pr.merge(gh) == ('failed', None)
+
+    assert wb.last_github_api_error is not None
+    assert wb.last_github_api_error.operation == 'merge 1'
+    assert wb.last_github_api_error.status == 403
+
+
+async def test_merge_already_in_flight_is_not_an_api_error():
+    wb = make_branch()
+    pr = add_mergeable_pr(wb, 1)
+
+    assert await pr.merge(FakeGH(put_conflict=True)) == ('pending', None)
+
+    assert wb.last_github_api_error is None
+
+
+async def test_failed_pending_merge_poll_records_github_api_error():
+    wb = make_branch()
+    add_mergeable_pr(wb, 1)
+    gh = FakeGH()
+    await wb.try_to_merge(gh)
+    gh.getitem = AsyncMock(side_effect=gidgethub.HTTPException(http.HTTPStatus.BAD_GATEWAY, 'bad gateway'))
+
+    await wb.try_to_merge(gh)
+
+    assert gh.merge_requests == [1]
+    assert wb.pending_merge is not None
+    assert wb.last_github_api_error is not None
+    assert wb.last_github_api_error.operation == 'poll pending merge 1'
+    assert wb.last_github_api_error.status == 502
+
+
+async def test_update_github_snapshots_rest_rate_limit():
+    wb = make_branch()
+    gh = MagicMock()
+    gh.getitem = AsyncMock(return_value={'object': {'sha': TARGET_SHA}})
+
+    async def no_prs(_url):
+        return
+        yield
+
+    gh.getiter = no_prs
+    gh.rate_limit = gidgethub.sansio.RateLimit(limit=5000, remaining=4123, reset_epoch=0)
+
+    await wb._update_github(gh)
+
+    assert wb.rest_rate_limit == RestRateLimit(4123, 5000, '1970-01-01T00:00:00+00:00')

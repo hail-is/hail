@@ -41,7 +41,13 @@ from hailtop.auth import hail_credentials
 from hailtop.batch_client.aioclient import Batch, BatchClient
 from hailtop.config import get_deploy_config
 from hailtop.hail_logging import AccessLogger
-from hailtop.utils import collect_aiter, humanize_timedelta_msecs, periodically_call, retry_transient_errors
+from hailtop.utils import (
+    collect_aiter,
+    humanize_timedelta_msecs,
+    periodically_call,
+    retry_transient_errors,
+    time_msecs,
+)
 from web_common import (
     render_template,
     set_message,
@@ -56,7 +62,7 @@ from .constants import AUTHORIZED_USERS, TEAMS, User
 from .environment import CLOUD, DEFAULT_NAMESPACE, DOMAIN, STORAGE_URI
 from .envoy import Service, create_cds_response, create_rds_response
 from .github import PR, WIP, FQBranch, MergeFailureBatch, Repo, UnwatchedBranch, WatchedBranch, select_random_teammate
-from .utils import gcp_logging_queries
+from .utils import gcp_logging_queries, record_success
 
 with open(os.environ.get('HAIL_CI_OAUTH_TOKEN', 'oauth-token/oauth-token'), 'r', encoding='utf-8') as f:
     oauth_token = f.read().strip()
@@ -628,6 +634,7 @@ async def pull_request_review_callback(event):
 async def github_callback_handler(request: web.Request):
     event = gh_sansio.Event.from_http(request.headers, await request.read())
     event.app = request.app  # type: ignore
+    request.app[AppKeys.LAST_WEBHOOK_MS][event.event] = time_msecs()
     await gh_router.dispatch(event)
 
 
@@ -1505,9 +1512,16 @@ class AppKeys(CommonAiohttpAppKeys):
     TASK_MANAGER = web.AppKey('task_manager', aiotools.BackgroundTaskManager)
     DEVELOPERS = web.AppKey('developers', List[UserData])
     EXIT_STACK = web.AppKey('exit_stack', AsyncExitStack)
+    STARTED_AT_MS = web.AppKey('started_at_ms', int)
+    LAST_WEBHOOK_MS = web.AppKey('last_webhook_ms', Dict[str, int])
+    LOOP_LAST_SUCCESS_MS = web.AppKey('loop_last_success_ms', Dict[str, int])
 
 
 async def on_startup(app: web.Application):
+    app[AppKeys.STARTED_AT_MS] = time_msecs()
+    app[AppKeys.LAST_WEBHOOK_MS] = {}
+    app[AppKeys.LOOP_LAST_SUCCESS_MS] = {}
+
     exit_stack = AsyncExitStack()
     app[AppKeys.EXIT_STACK] = exit_stack
 
@@ -1536,9 +1550,15 @@ SELECT frozen_merge_deploy FROM globals;
         kubernetes_asyncio.config.load_incluster_config()
         k8s_client = kubernetes_asyncio.client.CoreV1Api()
         app[AppKeys.TASK_MANAGER].ensure_future(
-            periodically_call(10, update_envoy_configs, app[AppKeys.DB], k8s_client)
+            periodically_call(
+                10, record_success(update_envoy_configs, app[AppKeys.LOOP_LAST_SUCCESS_MS]), app[AppKeys.DB], k8s_client
+            )
         )
-        app[AppKeys.TASK_MANAGER].ensure_future(periodically_call(10, cleanup_expired_namespaces, app[AppKeys.DB]))
+        app[AppKeys.TASK_MANAGER].ensure_future(
+            periodically_call(
+                10, record_success(cleanup_expired_namespaces, app[AppKeys.LOOP_LAST_SUCCESS_MS]), app[AppKeys.DB]
+            )
+        )
 
     async with hail_credentials() as creds:
         headers = await creds.auth_headers()
