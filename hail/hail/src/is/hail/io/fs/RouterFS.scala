@@ -21,7 +21,7 @@ class RouterFSURL(val fs: FS, _url: FSURL[_]) extends FSURL[RouterFSURL] {
 }
 
 case class CloudStorageConfig(
-  google: Option[GoogleStorageConfig] = None,
+  google: Option[GoogleStorageConfig] = None
 ) extends Serializable
 
 object CloudStorageConfig {
