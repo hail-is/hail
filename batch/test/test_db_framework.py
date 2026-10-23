@@ -5,7 +5,7 @@ import pytest
 from batch.batch_format_version import BatchFormatVersion
 from batch.front_end.query.query_v2 import parse_job_group_jobs_query_v2
 
-from .db_query_checks import assert_hint_kept, assert_scoped, count_row_reads, explain
+from .db_query_checks import Plan, TableAccess, assert_hint_kept, assert_scoped, count_row_reads, explain
 from .db_seed import LATEST_FORMAT_VERSION, Attempt, Job, JobGroup, Update, preempted_job, seed_batch
 
 
@@ -340,6 +340,31 @@ async def test_explain_requires_one_batch_in_range_scans(db):
     )
     assert plan.accesses[0].access_type == 'range'
     assert_scoped(plan, aliases={'j': 'jobs'})
+
+
+async def test_explain_index_merge_needs_one_batch_across_its_ranges(db, noise_batch):
+    # a non-covered column, or MySQL answers from the group index alone
+    plan = await explain(
+        db,
+        """SELECT /*+ INDEX_MERGE(j jobs_batch_id_job_group_id, PRIMARY) */ j.state FROM jobs AS j
+WHERE j.batch_id = %s AND j.job_group_id = 1 AND j.job_id BETWEEN 10 AND 500""",
+        (noise_batch.batch_id,),
+    )
+    assert plan.accesses[0].access_type == 'index_merge'
+    assert_scoped(plan, aliases={'j': 'jobs'})
+
+    # Each merged range reads one batch, but not the same one. MySQL folds such an OR into one range on a shared
+    # index prefix rather than merge it, so the plan is built by hand.
+    merged = TableAccess('j', 'index_merge', 'union(PRIMARY,jobs_batch_id_job_group_id)', [], [], '$')
+    plan = Plan(
+        raw={},
+        accesses=[merged],
+        base_tables={'jobs'},
+        batch_scope_columns={'jobs': 'batch_id'},
+        ranges={'j': ['(batch_id = 1 AND job_id < 10)', '(batch_id = 2 AND job_group_id = 1)']},
+    )
+    with pytest.raises(AssertionError, match='is not a single batch_id'):
+        assert_scoped(plan, aliases={'j': 'jobs'})
 
 
 @pytest.mark.usefixtures('noise_batch')  # its rows make the plan realistic
