@@ -6,15 +6,24 @@ Each call to try_to_merge is one pass of CI's update loop.
 import http
 import re
 from typing import Any, Dict, List
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import gidgethub
+import pytest
 
 from ci.constants import GITHUB_STATUS_CONTEXT
 from ci.github import PR, WIP, FQBranch, Repo, WatchedBranch
 from ci.utils import GithubStatus
 
 TARGET_SHA = 'target-sha-0'
+DB = MagicMock()
+
+
+@pytest.fixture(autouse=True)
+def _no_event_recording():
+    with patch('ci.github.record_event', new_callable=AsyncMock):
+        yield
+
 
 _MERGE_URL = re.compile(r'/repos/[^/]+/[^/]+/pulls/(\d+)/merge-async(?:/(.+))?$')
 
@@ -90,11 +99,11 @@ async def test_failed_async_merge_does_not_starve_lower_priority_prs():
     add_mergeable_pr(wb, 2)
     gh = FakeGH()
 
-    await wb.try_to_merge(gh)
+    await wb.try_to_merge(DB, gh)
     assert gh.merge_requests == [1]
 
     gh.merge_status[gh.last_uuid()] = 'failed'
-    await wb.try_to_merge(gh)
+    await wb.try_to_merge(DB, gh)
     assert gh.merge_requests == [1, 2]
 
 
@@ -105,18 +114,18 @@ async def test_failed_merge_is_retried_with_backoff(monkeypatch):
     add_mergeable_pr(wb, 1)
     gh = FakeGH()
 
-    await wb.try_to_merge(gh)
+    await wb.try_to_merge(DB, gh)
     for backoff in [60, 600, 3600, 3600]:
         gh.merge_status[gh.last_uuid()] = 'failed'
-        await wb.try_to_merge(gh)
+        await wb.try_to_merge(DB, gh)
         n_requests = len(gh.merge_requests)
 
         now[0] += backoff * 1000 - 1
-        await wb.try_to_merge(gh)
+        await wb.try_to_merge(DB, gh)
         assert len(gh.merge_requests) == n_requests
 
         now[0] += 1
-        await wb.try_to_merge(gh)
+        await wb.try_to_merge(DB, gh)
         assert len(gh.merge_requests) == n_requests + 1
 
 
@@ -125,13 +134,13 @@ async def test_new_commit_is_not_held_back_by_earlier_failure():
     pr = add_mergeable_pr(wb, 1)
     gh = FakeGH()
 
-    await wb.try_to_merge(gh)
+    await wb.try_to_merge(DB, gh)
     gh.merge_status[gh.last_uuid()] = 'failed'
-    await wb.try_to_merge(gh)
+    await wb.try_to_merge(DB, gh)
     assert gh.merge_requests == [1]
 
     pr.source_sha = 'source-sha-1-v2'
-    await wb.try_to_merge(gh)
+    await wb.try_to_merge(DB, gh)
     assert gh.merge_requests == [1, 1]
 
 
@@ -141,9 +150,9 @@ async def test_enqueued_merge_is_waited_on_like_a_pending_one():
     add_mergeable_pr(wb, 2)
     gh = FakeGH(put_status='enqueued')
 
-    await wb.try_to_merge(gh)
+    await wb.try_to_merge(DB, gh)
     gh.merge_status[gh.last_uuid()] = 'enqueued'
-    await wb.try_to_merge(gh)
+    await wb.try_to_merge(DB, gh)
     assert gh.merge_requests == [1]
 
 
@@ -152,10 +161,10 @@ async def test_in_flight_merge_without_uuid_is_dropped_once_pr_is_no_longer_merg
     pr = add_mergeable_pr(wb, 1)
     gh = FakeGH(put_conflict=True)
 
-    await wb.try_to_merge(gh)
+    await wb.try_to_merge(DB, gh)
     assert gh.merge_requests == [1]
 
     pr.labels.add(WIP)
-    await wb.try_to_merge(gh)
+    await wb.try_to_merge(DB, gh)
     assert gh.merge_requests == [1]
     assert wb.pending_merge is None
