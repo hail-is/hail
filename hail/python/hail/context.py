@@ -19,8 +19,7 @@ from hail.version import __version__
 from hailtop.aiocloud.aiogoogle import GCSRequesterPaysConfiguration, get_gcs_requester_pays_configuration
 from hailtop.batch_client.aioclient import BatchNotAuthenticatedError
 from hailtop.fs.fs import FS
-from hailtop.hail_event_loop import hail_event_loop
-from hailtop.utils import secret_alnum_string
+from hailtop.utils import async_to_blocking, run_on_hail_loop, secret_alnum_string
 
 from .backend.backend import local_jar_information
 from .builtin_references import BUILTIN_REFERENCES
@@ -416,28 +415,30 @@ def init(
                 copy_log_on_error=copy_log_on_error,
             )
         else:
-            return hail_event_loop().run_until_complete(
-                init_batch(
-                    log=log,
-                    quiet=quiet,
-                    show_progress=show_progress,
-                    append=append,
-                    tmpdir=tmp_dir,
-                    default_reference=default_reference,
-                    global_seed=global_seed,
-                    driver_cores=driver_cores,
-                    driver_memory=driver_memory,
-                    worker_cores=worker_cores,
-                    worker_memory=worker_memory,
-                    batch_id=batch_id,
-                    name_prefix=app_name,
-                    requester_pays_config=requester_pays_config,
-                    regions=regions,
-                    gcs_bucket_allow_list=gcs_bucket_allow_list,
-                    branching_factor=branching_factor,
-                    max_read_parallelism=max_read_parallelism,
+            from hail.backend.service_backend import ServiceBackend
+
+            try:
+                backend = async_to_blocking(
+                    ServiceBackend.create(
+                        show_progress=show_progress,
+                        driver_cores=driver_cores,
+                        driver_memory=driver_memory,
+                        worker_cores=worker_cores,
+                        worker_memory=worker_memory,
+                        batch_id=batch_id,
+                        name_prefix=app_name,
+                        regions=regions,
+                        requester_pays_config=requester_pays_config,
+                        gcs_bucket_allow_list=gcs_bucket_allow_list,
+                        branching_factor=branching_factor,
+                        max_read_parallelism=max_read_parallelism,
+                    )
                 )
-            )
+            except (BatchNotAuthenticatedError, PermissionError) as e:
+                raise e.with_traceback(None) from None
+            # On this thread rather than the Hail event loop, so that setting up the context can block on it.
+            HailContext.create(_get_log(log), quiet, append, default_reference, global_seed, backend)
+            return None
     if backend == 'spark':
         return init_spark(
             sc=sc,
@@ -595,22 +596,25 @@ async def init_batch(
 
     # FIXME: pass local_tmpdir and use on worker and driver
     try:
-        backend = await ServiceBackend.create(
-            billing_project=billing_project,
-            remote_tmpdir=remote_tmpdir,
-            show_progress=show_progress,
-            driver_cores=driver_cores,
-            driver_memory=driver_memory,
-            worker_cores=worker_cores,
-            worker_memory=worker_memory,
-            batch_id=batch_id,
-            name_prefix=name_prefix,
-            credentials_token=token,
-            regions=regions,
-            requester_pays_config=requester_pays_config,
-            gcs_bucket_allow_list=gcs_bucket_allow_list,
-            branching_factor=branching_factor,
-            max_read_parallelism=max_read_parallelism,
+        # Its clients are tied to the loop that creates them, which must be the one later sync calls use.
+        backend = await run_on_hail_loop(
+            ServiceBackend.create(
+                billing_project=billing_project,
+                remote_tmpdir=remote_tmpdir,
+                show_progress=show_progress,
+                driver_cores=driver_cores,
+                driver_memory=driver_memory,
+                worker_cores=worker_cores,
+                worker_memory=worker_memory,
+                batch_id=batch_id,
+                name_prefix=name_prefix,
+                credentials_token=token,
+                regions=regions,
+                requester_pays_config=requester_pays_config,
+                gcs_bucket_allow_list=gcs_bucket_allow_list,
+                branching_factor=branching_factor,
+                max_read_parallelism=max_read_parallelism,
+            )
         )
     except (BatchNotAuthenticatedError, PermissionError) as e:
         raise e.with_traceback(None) from None

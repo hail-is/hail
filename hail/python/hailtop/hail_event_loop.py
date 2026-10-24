@@ -1,19 +1,174 @@
+"""The one event loop that runs all of Hail's async work, on a dedicated thread.
+
+Hail's sync API blocks on this loop rather than running the caller's own, so it works the same in
+scripts and inside a running loop such as Jupyter's. It has to be a single loop for the life of the
+process: clients and credentials are tied to the loop that created them.
+"""
+
 import asyncio
+import inspect
+import logging
+import os
+import sys
+import threading
+from typing import Any, Awaitable, Coroutine, Optional, Set, TypeVar
 
-import nest_asyncio
+T = TypeVar('T')
+
+log = logging.getLogger('hailtop.hail_event_loop')
+
+_lock = threading.Lock()
+_loop: Optional[asyncio.AbstractEventLoop] = None
+# The loop only keeps weak references to tasks, so tasks nobody awaits are kept alive here.
+_background_tasks: Set[asyncio.Task[Any]] = set()
 
 
-def hail_event_loop() -> asyncio.AbstractEventLoop:
-    """If a running event loop exists, use nest_asyncio to allow Hail's event loops to nest inside
-    it.
-    If no event loop exists, ask asyncio to get one for us.
-    """
+def _hail_loop() -> asyncio.AbstractEventLoop:
+    global _loop
+    if (existing := _loop) is not None:
+        return existing
 
+    # Built outside the lock: allocating can run the cycle collector, whose finalizers (e.g.
+    # `Backend.__del__`) may call back into this function on this thread and would deadlock on it.
+    loop = asyncio.new_event_loop()
+    thread = threading.Thread(target=loop.run_forever, name='hail-event-loop', daemon=True)
+    if hasattr(thread, '_ipykernel_parent_thread_ident'):
+        # ipykernel sends a thread's output to the cell that created it. This thread outlives that
+        # cell, so ask for the cell that is running instead. Deleting the attribute would stop
+        # ipykernel from running the thread at all.
+        thread._ipykernel_parent_thread_ident = None  # type: ignore[attr-defined]
+
+    with _lock:
+        won = _loop is None
+        if won:
+            _loop = loop
+        result = _loop
+
+    if won:
+        try:
+            thread.start()
+        except Exception:
+            # e.g. "can't start new thread". Don't leave a loop that will never run for later calls to block on.
+            with _lock:
+                if _loop is loop:
+                    _loop = None
+            loop.close()
+            raise
+    else:
+        # Another thread, or a finalizer on this one, installed its loop first.
+        loop.close()
+    assert result is not None
+    return result
+
+
+def _forget_loop_after_fork() -> None:
+    # The loop's thread doesn't exist in a forked child, so the child starts its own.
+    global _lock, _loop, _background_tasks
+    _lock = threading.Lock()
+    _loop = None
+    _background_tasks = set()
+
+
+if hasattr(os, 'register_at_fork'):  # not on Windows
+    os.register_at_fork(after_in_child=_forget_loop_after_fork)
+
+
+def _running_loop() -> Optional[asyncio.AbstractEventLoop]:
     try:
-        loop = asyncio.get_event_loop()
+        return asyncio.get_running_loop()
     except RuntimeError:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        return loop
-    nest_asyncio.apply(loop)
-    return loop
+        return None
+
+
+def async_to_blocking(coro: Awaitable[T]) -> T:
+    if sys.is_finalizing():
+        # Daemon threads, the loop's included, are stopped by now, so the work would never run.
+        _close(coro)
+        raise RuntimeError('async_to_blocking cannot run while the interpreter is shutting down.')
+    loop = _hail_loop()
+    if _running_loop() is loop:
+        _close(coro)
+        raise RuntimeError(
+            'async_to_blocking was called from a coroutine running on the Hail event loop, which would deadlock. '
+            'Await the async version of this function instead.'
+        )
+    if not inspect.iscoroutine(coro):
+        coro = _await(coro)
+
+    started = threading.Event()
+    finished = threading.Event()
+    task: Optional[asyncio.Task[T]] = None
+
+    def start() -> None:
+        nonlocal task
+        task = loop.create_task(coro)
+        task.add_done_callback(lambda _: finished.set())
+        started.set()
+
+    # call_soon_threadsafe copies this thread's context, so the task sees the caller's context variables.
+    loop.call_soon_threadsafe(start)
+    try:
+        _wait(finished)
+    except KeyboardInterrupt:
+        # Ctrl-C lands on this thread, not the loop's: cancel the task and let it clean up.
+        _wait(started)
+        assert task is not None
+        loop.call_soon_threadsafe(task.cancel)
+        _wait(finished)  # a second Ctrl-C stops waiting
+        raise
+    assert task is not None
+    return task.result()
+
+
+async def run_on_hail_loop(coro: Awaitable[T]) -> T:
+    """Await `coro` on the Hail event loop, from whichever loop the caller is on.
+
+    Async functions that create objects tied to the loop, such as clients, use this so that later
+    `async_to_blocking` calls can use those objects.
+    """
+    loop = _hail_loop()
+    if _running_loop() is loop:
+        return await coro
+    if not inspect.iscoroutine(coro):
+        coro = _await(coro)
+    return await asyncio.wrap_future(asyncio.run_coroutine_threadsafe(coro, loop))
+
+
+def on_hail_loop() -> bool:
+    """Whether the caller is running on the Hail event loop, where `async_to_blocking` would deadlock."""
+    loop = _loop
+    return loop is not None and _running_loop() is loop
+
+
+def _spawn_on_hail_loop(coro: Coroutine[Any, Any, Any]) -> None:
+    """Start `coro` on the Hail event loop without waiting for it. Only call this from the loop.
+
+    For code that can't await or block, such as a finalizer the cycle collector runs on the loop's
+    thread. Nothing can receive a failure, so it is logged.
+    """
+    assert on_hail_loop()
+    task = asyncio.get_running_loop().create_task(coro)
+    _background_tasks.add(task)
+    task.add_done_callback(_background_task_done)
+
+
+def _background_task_done(task: asyncio.Task[Any]) -> None:
+    _background_tasks.discard(task)
+    if not task.cancelled() and (exc := task.exception()) is not None:
+        log.error('a background task on the Hail event loop failed', exc_info=exc)
+
+
+def _close(awaitable: Awaitable[Any]) -> None:
+    # Avoids a "coroutine was never awaited" warning.
+    if inspect.iscoroutine(awaitable):
+        awaitable.close()
+
+
+async def _await(awaitable: Awaitable[T]) -> T:
+    return await awaitable
+
+
+def _wait(event: threading.Event) -> None:
+    # A wait without a timeout can't be interrupted by Ctrl-C on Windows.
+    while not event.wait(0.1):
+        pass

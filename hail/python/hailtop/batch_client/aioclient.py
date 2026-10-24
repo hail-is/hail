@@ -17,7 +17,7 @@ from hailtop.aiocloud.common import Session
 from hailtop.aiocloud.common.credentials import CloudCredentials
 from hailtop.auth import hail_credentials
 from hailtop.config import DeployConfig, get_deploy_config
-from hailtop.utils import async_to_blocking, bounded_gather, sleep_before_try
+from hailtop.utils import bounded_gather, sleep_before_try
 from hailtop.utils.rich_progress_bar import BatchProgressBar, BatchProgressBarTask
 
 from .globals import ROOT_JOB_GROUP_ID, complete_states, tasks
@@ -574,8 +574,8 @@ class JobGroup:
         return {'status': jg_status, 'job_groups': job_groups, 'jobs': jobs}
 
     def __str__(self):
-        debug_info = async_to_blocking(self.debug_info())
-        return str(orjson.dumps(debug_info).decode('utf-8'))
+        # No I/O here: this may be called from async code, where blocking on the Hail event loop would deadlock.
+        return f'JobGroup(batch_id={self._batch._id}, job_group_id={self._job_group_id})'
 
 
 class BatchSubmissionInfo:
