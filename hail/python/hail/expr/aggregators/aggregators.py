@@ -1669,7 +1669,7 @@ def info_score(gp) -> StructExpression:
                             hl.agg.sum(gp1 + gp2 + gp[0]),
                             hl.agg.count(),
                             lambda sum_variance, expected_ac, total_dosage, n: hl.rbind(
-                                hl.if_else(total_dosage != 0, expected_ac / total_dosage, hl.missing(hl.tfloat64)),
+                                hl.if_else(total_dosage != 0, expected_ac / (2 * total_dosage), hl.missing(hl.tfloat64)),
                                 lambda theta: hl.struct(
                                     score=hl.case()
                                     .when(n == 0, hl.missing(hl.tfloat64))
