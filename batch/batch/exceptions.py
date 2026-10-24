@@ -21,6 +21,24 @@ class NonExistentBillingProjectError(BatchUserError):
         return web.HTTPNotFound(reason=self.message)
 
 
+class NonExistentQuoteError(BatchUserError):
+    def __init__(self, quote: Union[str, int]):
+        super().__init__(f'Unknown quote {quote}.', 'error')
+
+    def http_response(self):
+        return web.HTTPNotFound(reason=self.message)
+
+
+class BillingValidationError(BatchUserError):
+    """The request would break a quote or billing project rule (spending limits, open/closed state, etc.)."""
+
+    def __init__(self, message: str):
+        super().__init__(message, 'error')
+
+    def http_response(self):
+        return web.HTTPBadRequest(reason=self.message)
+
+
 class ClosedBillingProjectError(BatchUserError):
     def __init__(self, billing_project: str):
         super().__init__(f'Billing project {billing_project} is closed and cannot be modified.', 'error')
