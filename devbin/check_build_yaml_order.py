@@ -4,6 +4,7 @@
 Steps are resolved in declaration order at CI startup — a forward reference is silently
 dropped, producing a broken DAG where the dependency is never enforced.
 """
+
 import sys
 
 import yaml

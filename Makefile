@@ -7,7 +7,7 @@ SERVICES_PLUS_ADMIN_POD := $(SERVICES) admin-pod
 SERVICES_IMAGES := $(patsubst %, %-image, $(SERVICES_PLUS_ADMIN_POD))
 SERVICES_DATABASES := $(patsubst %, %-db, $(SERVICES))
 SERVICES_MODULES := $(SERVICES) gear web_common
-CHECK_SERVICES_MODULES := $(patsubst %, check-%, $(SERVICES_MODULES))
+CHECK_SERVICES_MODULES := $(patsubst %, check-%, $(SERVICES_MODULES) devbin)
 SPECIAL_IMAGES := hail-ubuntu batch-worker letsencrypt
 
 HAILGENETICS_IMAGES = $(foreach img,hail vep-grch37-85 vep-grch38-95,hailgenetics-$(img))
@@ -117,12 +117,12 @@ install-dev-requirements:
 .PHONY: update-hail-ubuntu
 update-hail-ubuntu:
 	@command -v skopeo >/dev/null 2>&1 || { echo 'ERROR: skopeo is required. Install with: brew install skopeo'; exit 1; }
-	python3 update-hail-ubuntu.py
+	python3 devbin/update-hail-ubuntu.py
 	NAMESPACE=default $(MAKE) -C docker/third-party copy
 
 .PHONY: update-gateways-envoy
 update-gateways-envoy:
-	python3 update-envoy.py
+	python3 devbin/update-envoy.py
 	NAMESPACE=default $(MAKE) -C docker/third-party copy
 	$(MAKE) -C gateway deploy
 	$(MAKE) -C internal-gateway deploy

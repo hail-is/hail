@@ -1829,6 +1829,8 @@ steps:
         to: /io/repo/gear
       - from: /repo/web_common
         to: /io/repo/web_common
+      - from: /repo/devbin
+        to: /io/repo/devbin
     dependsOn:
       - hail_linting_image
       - merge_code

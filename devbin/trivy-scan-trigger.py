@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Find the most recent completed ci/deploy/prod batch and extract the batch image name."""
+
 import itertools
 import json
 import re
@@ -10,7 +11,7 @@ import time
 
 
 def run(args):
-    result = subprocess.run(args, capture_output=True, text=True)
+    result = subprocess.run(args, check=False, capture_output=True, text=True)
     if result.returncode != 0:
         print(result.stderr, file=sys.stderr)
         sys.exit(1)
@@ -43,7 +44,17 @@ def print_placeholder_during_lookup(name, getter):
 
 
 def find_batch_id():
-    out = run(['hailctl', 'batch', 'list', '--query', 'batch_type=ci/deploy/prod complete', '--limit', '1', '-o', 'json'])
+    out = run([
+        'hailctl',
+        'batch',
+        'list',
+        '--query',
+        'batch_type=ci/deploy/prod complete',
+        '--limit',
+        '1',
+        '-o',
+        'json',
+    ])
     if not out.strip() or not out.strip().startswith('['):
         print('No completed ci/deploy/prod batches found', file=sys.stderr)
         sys.exit(1)
@@ -86,14 +97,10 @@ def main():
     print('Searching latest completed deploy batch for commit sha and image to scan...')
     print()
     batch_id = print_placeholder_during_lookup('  Batch', find_batch_id)
-    sha      = print_placeholder_during_lookup('  SHA  ', lambda: find_sha(batch_id))
-    image    = print_placeholder_during_lookup('  Image', lambda: find_image(batch_id))
+    sha = print_placeholder_during_lookup('  SHA  ', lambda: find_sha(batch_id))
+    image = print_placeholder_during_lookup('  Image', lambda: find_image(batch_id))
 
     BRANCH = 'main'
-    gh_cmd = (
-        f'gh workflow run trivy-scan.yml --repo hail-is/hail --ref {BRANCH}'
-        f' -f branch={BRANCH} -f commit_hash={sha} -f images={image}'
-    )
     gh_cmd_display = (
         f'gh workflow run trivy-scan.yml \\\n'
         f'    --repo hail-is/hail --ref {BRANCH} \\\n'
@@ -115,12 +122,20 @@ def main():
 
     subprocess.run(
         [
-            'gh', 'workflow', 'run', 'trivy-scan.yml',
-            '--repo', 'hail-is/hail',
-            '--ref', BRANCH,
-            '-f', f'branch={BRANCH}',
-            '-f', f'commit_hash={sha}',
-            '-f', f'images={image}',
+            'gh',
+            'workflow',
+            'run',
+            'trivy-scan.yml',
+            '--repo',
+            'hail-is/hail',
+            '--ref',
+            BRANCH,
+            '-f',
+            f'branch={BRANCH}',
+            '-f',
+            f'commit_hash={sha}',
+            '-f',
+            f'images={image}',
         ],
         check=True,
     )

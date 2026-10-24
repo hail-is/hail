@@ -51,7 +51,7 @@ class FlameGraph:
 
 
 def parse_flamegraph(filepath: str) -> FlameGraph:
-    content = Path(filepath).read_text()
+    content = Path(filepath).read_text(encoding='utf-8')
 
     cpool = _extract_cpool(content)
     frames = _extract_frames(content, cpool)
@@ -166,9 +166,7 @@ def _compute_inclusive(frames: list[Frame]) -> dict[str, int]:
     for f in frames:
         path[f.level] = f
         nested = any(
-            (a := path.get(lvl)) is not None
-            and a.name == f.name
-            and a.left <= f.left < a.left + a.width
+            (a := path.get(lvl)) is not None and a.name == f.name and a.left <= f.left < a.left + a.width
             for lvl in range(f.level)
         )
         if not nested:
@@ -181,11 +179,9 @@ def _compute_self_time(frames: list[Frame]) -> dict[str, int]:
     by_level: dict[int, list[Frame]] = defaultdict(list)
     for f in frames:
         by_level[f.level].append(f)
-    for lvl in by_level:
+    for lvl in by_level:  # noqa
         by_level[lvl].sort(key=lambda f: f.left)
-    level_lefts: dict[int, list[int]] = {
-        lvl: [f.left for f in fs] for lvl, fs in by_level.items()
-    }
+    level_lefts: dict[int, list[int]] = {lvl: [f.left for f in fs] for lvl, fs in by_level.items()}
 
     children_width: dict[int, int] = defaultdict(int)
     for f in frames:
@@ -240,9 +236,7 @@ def _collapse_recursion(stack: tuple[str, ...]) -> tuple:
     return tuple(result)
 
 
-def _trace_callers(
-    fg: FlameGraph, pattern: str, depth: int
-) -> list[tuple[tuple, int]]:
+def _trace_callers(fg: FlameGraph, pattern: str, depth: int) -> list[tuple[tuple, int]]:
     """Find call stacks leading to frames matching pattern, grouped by unique stack.
 
     Stacks are collapsed so that recursive cycles (A -> B -> A -> B ...)
@@ -256,7 +250,7 @@ def _trace_callers(
     by_level: dict[int, list[tuple[int, int, str]]] = defaultdict(list)
     for f in fg.frames:
         by_level[f.level].append((f.left, f.width, f.name))
-    for lvl in by_level:
+    for lvl in by_level:  # noqa
         by_level[lvl].sort()
 
     targets = [f for f in fg.frames if pat.search(f.name)]
@@ -586,7 +580,9 @@ def main():
     parser.add_argument("--top", "-n", type=int, default=20, help="Number of top entries to show (default: 20)")
     parser.add_argument("--json", "-j", action="store_true", help="Output as JSON")
     parser.add_argument("--callers", "-c", help="Trace call paths to functions matching REGEX")
-    parser.add_argument("--depth", "-d", type=int, default=20, help="Max stack depth to show with --callers (default: 20)")
+    parser.add_argument(
+        "--depth", "-d", type=int, default=20, help="Max stack depth to show with --callers (default: 20)"
+    )
     args = parser.parse_args()
 
     if args.callers:

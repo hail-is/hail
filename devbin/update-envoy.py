@@ -5,7 +5,7 @@ import sys
 import urllib.request
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).parent
+REPO_ROOT = Path(__file__).parent.parent
 ENVOY_IMAGE_FILES = [
     REPO_ROOT / 'gateway/deployment.yaml',
     REPO_ROOT / 'internal-gateway/deployment.yaml',
