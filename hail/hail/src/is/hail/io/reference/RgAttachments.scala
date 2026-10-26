@@ -11,7 +11,7 @@ import is.hail.variant.{ReferenceGenome, ReferenceGenomeEnv}
   * Two of these are equal if they hold the same attachment objects under equal keys.
   */
 final case class RgAttachments(
-  liftovers: Map[(ReferenceGenome, ReferenceGenome), Liftover],
+  liftovers: Map[Liftover.Key, Liftover],
   sequences: Map[ReferenceGenome, ReferenceSequence],
 ) {
 

@@ -38,6 +38,9 @@ object Liftover {
   }
 
   val MinMatchDefault: Double = htsjdk.samtools.liftover.LiftOver.DEFAULT_LIFTOVER_MINMATCH
+
+  /* key for the Liftovers map (source, dest) */
+  type Key = (ReferenceGenome, ReferenceGenome)
 }
 
 /** A mapping of loci from `source` to `dest`, defined by `chainFile`, whose contigs were checked
