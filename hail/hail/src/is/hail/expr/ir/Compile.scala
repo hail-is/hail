@@ -10,6 +10,7 @@ import is.hail.expr.ir.defs.In
 import is.hail.expr.ir.lowering.LoweringPipeline
 import is.hail.expr.ir.streams.EmitStream
 import is.hail.io.fs.FS
+import is.hail.io.reference.RgAttachments
 import is.hail.rvd.RVDContext
 import is.hail.types.physical.{PStruct, PType}
 import is.hail.types.physical.stypes.{
@@ -24,10 +25,13 @@ import java.io.PrintWriter
 
 import sourcecode.Enclosing
 
+/** Compiled code holds the reference genome attachments it uses, so the key includes the session's.
+  */
 case class CompileCacheKey(
   aggSigs: IndexedSeq[AggStateSig],
   args: Seq[EmitParamType],
   body: IR,
+  attachments: RgAttachments,
 )
 
 private[ir] trait CompileOps {
@@ -103,6 +107,7 @@ private[ir] trait CompileOps {
           aggSigs.getOrElse(IndexedSeq.empty),
           params.map(_._2),
           ir,
+          ctx.attachments,
         )
 
       ctx.CompileCache.getOrElseUpdate(

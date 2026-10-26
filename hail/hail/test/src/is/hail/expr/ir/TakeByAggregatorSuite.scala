@@ -134,7 +134,9 @@ class TakeByAggregatorSuite {
         val pqOffset = Region.loadAddress(o)
         val pq = SafeRow.read(rt, pqOffset)
         val collOffset = Region.loadAddress(o + 8)
-        val collected = SafeRow.read(ab.eltArray, collOffset).asInstanceOf[IndexedSeq[Int]].take(n)
+        val collected = SafeRow.read(ab.eltArray, collOffset).asInstanceOf[
+          IndexedSeq[Int]
+        ].take(n)
         val minValues = collected.sorted.take(nToTake)
         assertEq(pq, minValues)
       }
