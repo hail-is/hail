@@ -340,14 +340,9 @@ class MatrixIRSuite {
     val col = Ref(MatrixIR.colName, TStruct("col_idx" -> TInt32))
     val row = Ref(MatrixIR.rowName, TStruct("row_idx" -> TInt32))
     FastSeq(
-      (ApplyScanOp(Sum())(ApplyAggOp(Count())()), "aggregations inside scans"),
+      (ApplyScanOp(Take(), ApplyAggOp(Count())().toI)(I32(0)), "aggregations inside scans"),
       (
-        M.eval {
-          for {
-            x <- M.lift[SCAN.type](for { x <- ApplyAggOp(Count())() } yield x)
-            y <- ApplyScanOp(Sum())(x)
-          } yield y
-        },
+        aggFoldIR(ApplyAggOp(Count())(), isScan = true)(_ + I64(1))((a, b) => a + b),
         "aggregations inside scans",
       ),
       (
@@ -395,13 +390,11 @@ class MatrixIRSuite {
     assertEq(rows.toSeq, (0 until 5).map(i => RowSeq(i, 3L * i)))
   }
 
-  def testScanOfAggOnCols() = {
-    val x = Ref(freshName(), TInt64)
+  def testScanOfAggOnCols() =
     FastSeq(
-      ApplyScanOp(Sum())(ApplyAggOp(Count())()),
-      Block(FastSeq(Binding(x.name, ApplyAggOp(Count())(), SCAN)), ApplyScanOp(Sum())(x)),
+      ApplyScanOp(Take(), ApplyAggOp(Count())().toI)(I32(0)),
+      aggFoldIR(ApplyAggOp(Count())(), isScan = true)(_ + I64(1))((a, b) => a + b),
     )
-  }
 
   @ParameterizedTest
   def testScanOfAggOnCols(v: IR)(implicit ctx: ExecuteContext): Unit = {

@@ -22,7 +22,7 @@ import org.scalactic.{Equivalence, Prettifier}
 import org.scalatest.matchers.{MatchResult, Matcher}
 import org.scalatest.matchers.dsl.MatcherFactory1
 import org.scalatest.matchers.must.Matchers.not
-import org.scalatest.matchers.should.Matchers.{a, convertToAnyShouldWrapper}
+import org.scalatest.matchers.should.Matchers.{a, convertToAnyShouldWrapper, matchPattern}
 
 class SimplifySuite {
 
@@ -371,6 +371,15 @@ class SimplifySuite {
     val tir = MatrixColsTable(mir)
 
     tir should simplifyTo(tir)
+  }
+
+  @Test def testTableAggregateKeepsOrderUnderAggFold(implicit ctx: ExecuteContext): Unit = {
+    val ordered = TableOrderBy(TableRange(10, 3), FastSeq(SortField("idx", Descending)))
+    val idx = GetField(Ref(TableIR.rowName, ordered.typ.rowType), "idx")
+    val query = aggFoldIR(I32(0))(acc => acc * I32(2) + idx)((l, r) => l * I32(2) + r)
+    Simplify(ctx, TableAggregate(ordered, query)) should matchPattern {
+      case TableAggregate(_: TableOrderBy, _) =>
+    }
   }
 
   @Test def testFilterColsPushesThroughMapEntries(implicit ctx: ExecuteContext): Unit = {

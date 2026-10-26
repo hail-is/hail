@@ -89,9 +89,6 @@ case class FreeVariableBindingEnv(
 
   override def noScan: FreeVariableBindingEnv = copy(scanVars = None)
 
-  override def onlyRelational(keepAggCapabilities: Boolean): FreeVariableBindingEnv =
-    FreeVariableBindingEnv(None, None, None)
-
   override def bindRelational(bindings: (Name, Type)*): FreeVariableBindingEnv =
     this
 }

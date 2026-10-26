@@ -101,6 +101,7 @@ object AggIsCommutative {
 object ContainsNonCommutativeAgg {
   def apply(root: IR): Boolean = root match {
     case ApplyAggOp(_, _, op) => !AggIsCommutative(op)
+    case AggFold(_, _, _, _, _, false) => true
     case _: TableAggregate => false
     case _: MatrixAggregate => false
     case _ => root.children.exists {

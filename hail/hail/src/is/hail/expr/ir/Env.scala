@@ -41,8 +41,6 @@ trait GenericBindingEnv[Self, V] {
 
   def noScan: Self
 
-  def onlyRelational(keepAggCapabilities: Boolean = false): Self
-
   def bindRelational(bindings: (Name, V)*): Self
 }
 
@@ -164,13 +162,6 @@ case class BindingEnv[V](
 
   override def createScan: BindingEnv[V] = copy(scan = Some(eval))
 
-  override def onlyRelational(keepAggCapabilities: Boolean = false): BindingEnv[V] =
-    BindingEnv(
-      agg = if (keepAggCapabilities) agg.map(_ => Env.empty) else None,
-      scan = if (keepAggCapabilities) scan.map(_ => Env.empty) else None,
-      relational = relational,
-    )
-
   def bindEval(name: Name, v: V): BindingEnv[V] =
     copy(eval = eval.bind(name, v))
 
@@ -228,13 +219,6 @@ case class BindingEnv[V](
       scan = scan.map(_.mapValuesWithKey(f)),
       relational = relational.mapValuesWithKey(f),
     )
-
-  def dropBindings[T]: BindingEnv[T] = copy(
-    eval = Env.empty,
-    agg = agg.map(_ => Env.empty),
-    scan = scan.map(_ => Env.empty),
-    relational = Env.empty,
-  )
 }
 
 final class Env[V] private (val m: Map[Env.K, V]) {
