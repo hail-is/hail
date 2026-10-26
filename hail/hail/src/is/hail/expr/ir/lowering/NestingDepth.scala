@@ -1,6 +1,7 @@
 package is.hail.expr.ir.lowering
 
 import is.hail.backend.ExecuteContext
+import is.hail.collection.FastSeq
 import is.hail.expr.ir.{BaseIR, IR, Memo, RefEquality, Scope, UsesAggEnv, UsesScanEnv}
 import is.hail.expr.ir.defs._
 import is.hail.expr.ir.lowering.invariant.NoSharedNodes
@@ -62,7 +63,7 @@ object NestingDepth {
             computeIR(body, ScopedDepth(depth.eval, depth.eval + 1, depth.scan))
           case StreamAggScan(a, _, body) =>
             computeIR(a, depth)
-            computeIR(body, ScopedDepth(depth.eval, depth.agg, depth.eval + 1))
+            computeIR(body, ScopedDepth(depth.eval + 1, depth.agg, depth.eval + 1))
           case StreamZip(as, _, body, _, _) =>
             as.foreach(computeIR(_, depth))
             computeIR(body, depth.incrementEval)
@@ -124,8 +125,35 @@ object NestingDepth {
             computeIR(aggBody, depth.incrementScanOrAgg(isScan))
           case AggArrayPerElement(a, _, _, aggBody, knownLength, isScan) =>
             computeIR(a, depth.promoteScanOrAgg(isScan))
-            computeIR(aggBody, depth.incrementScanOrAgg(isScan))
+            computeIR(aggBody, depth.incrementEval.incrementScanOrAgg(isScan)) // per element
             knownLength.foreach(computeIR(_, depth))
+          case AggGroupBy(key, aggIR, isScan) =>
+            computeIR(key, depth.promoteScanOrAgg(isScan))
+            computeIR(aggIR, depth.incrementEval) // per group
+          case AggFold(zero, seqOp, combOp, _, _, isScan) =>
+            computeIR(zero, depth)
+            computeIR(seqOp, depth.promoteScanOrAgg(isScan))
+            computeIR(combOp, depth.incrementEval) // per merge
+          case ArraySort(a, _, _, lessThan) =>
+            computeIR(a, depth)
+            computeIR(lessThan, depth.incrementEval)
+          case ArrayMaximalIndependentSet(edges, tieBreaker) =>
+            computeIR(edges, depth)
+            tieBreaker.foreach { case (_, _, tb) => computeIR(tb, depth.incrementEval) }
+          case RunAggScan(a, _, init, seqs, result, _) =>
+            computeIR(a, depth)
+            computeIR(init, depth)
+            computeIR(seqs, depth.incrementEval)
+            computeIR(result, depth.incrementEval)
+          case StreamBufferedAggregate(stream, initAggs, newKey, seqOps, _, _, _) =>
+            computeIR(stream, depth)
+            FastSeq(initAggs, newKey, seqOps).foreach(computeIR(_, depth.incrementEval))
+          // a fresh scope that runs once per partition; only RelationalRefs see this depth
+          case CollectDistributedArray(ctxs, globals, _, _, body, dynamicID, _, _) =>
+            computeIR(ctxs, depth)
+            computeIR(globals, depth)
+            computeIR(body, depth.incrementEval)
+            computeIR(dynamicID, depth)
           case TableAggregate(child, query) =>
             computeChildren(child)
             computeIR(query, ScopedDepth(0, 0, 0))
