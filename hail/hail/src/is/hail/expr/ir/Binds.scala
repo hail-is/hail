@@ -348,11 +348,7 @@ object Bindings {
       case ArrayMaximalIndependentSet(a, Some((left, right, _))) if i == 1 =>
         val typ = tcoerce[TBaseStruct](elementType(a.typ)).types.head
         val tupleType = TTuple(typ)
-        Bindings(
-          FastSeq(left -> tupleType, right -> tupleType),
-          eval = FastSeq(0, 1),
-          dropEval = true,
-        )
+        Bindings.inFreshScope(FastSeq(left -> tupleType, right -> tupleType))
       case AggArrayPerElement(a, elementName, indexName, _, _, isScan) =>
         if (i == 0)
           Bindings(
@@ -369,7 +365,11 @@ object Bindings {
             agg = if (isScan) AggEnv.NoOp else AggEnv.Bind(FastSeq(0, 1)),
             scan = if (!isScan) AggEnv.NoOp else AggEnv.Bind(FastSeq(0, 1)),
           )
-        } else Bindings.empty
+        } else
+          Bindings(
+            agg = if (isScan) AggEnv.NoOp else AggEnv.Drop,
+            scan = if (!isScan) AggEnv.NoOp else AggEnv.Drop,
+          )
       case AggFold(zero, _, _, accumName, otherAccumName, isScan) =>
         if (i == 0)
           Bindings(
@@ -384,13 +384,7 @@ object Bindings {
             scan = if (!isScan) AggEnv.NoOp else AggEnv.Promote,
           )
         else
-          Bindings(
-            FastSeq(accumName -> zero.typ, otherAccumName -> zero.typ),
-            eval = FastSeq(0, 1),
-            agg = if (isScan) AggEnv.NoOp else AggEnv.Drop,
-            scan = if (!isScan) AggEnv.NoOp else AggEnv.Drop,
-            dropEval = true,
-          )
+          Bindings.inFreshScope(FastSeq(accumName -> zero.typ, otherAccumName -> zero.typ))
       case NDArrayMap(nd, name, _) if i == 1 =>
         Bindings.inEval(FastSeq(name -> tcoerce[TNDArray](nd.typ).elementType))
       case NDArrayMap2(l, r, lName, rName, _, _) if i == 2 =>
@@ -406,21 +400,19 @@ object Bindings {
           )
         )
       case TableAggregate(child, _) =>
-        if (i == 1)
-          Bindings.inFreshScope(
-            child.typ.rowBindings,
-            eval = TableType.globalBindings,
-            agg = Some(TableType.rowBindings),
-          )
-        else Bindings(agg = AggEnv.Drop, scan = AggEnv.Drop, dropEval = true)
+        if (i == 0) Bindings.inFreshScope()
+        else Bindings.inFreshScope(
+          child.typ.rowBindings,
+          eval = TableType.globalBindings,
+          agg = Some(TableType.rowBindings),
+        )
       case MatrixAggregate(child, _) =>
-        if (i == 1)
-          Bindings.inFreshScope(
-            child.typ.entryBindings,
-            eval = MatrixType.globalBindings,
-            agg = Some(MatrixType.entryBindings),
-          )
-        else Bindings(agg = AggEnv.Drop, scan = AggEnv.Drop, dropEval = true)
+        if (i == 0) Bindings.inFreshScope()
+        else Bindings.inFreshScope(
+          child.typ.entryBindings,
+          eval = MatrixType.globalBindings,
+          agg = Some(MatrixType.entryBindings),
+        )
       case ApplyAggOp(init, _, _) =>
         if (i < init.length) Bindings(agg = AggEnv.Drop)
         else Bindings(agg = AggEnv.Promote)
@@ -450,19 +442,13 @@ object Bindings {
             scan = if (!isScan) AggEnv.NoOp else AggEnv.Bind(FastSeq(0)),
           )
       case RelationalLet(name, value, _) =>
-        if (i == 1)
-          Bindings(
-            FastSeq(name -> value.typ),
-            agg = AggEnv.Drop,
-            scan = AggEnv.Drop,
-            relational = FastSeq(0),
-          )
-        else
-          Bindings(
-            agg = AggEnv.Drop,
-            scan = AggEnv.Drop,
-            dropEval = true,
-          )
+        if (i == 0) Bindings.inFreshScope()
+        else Bindings(
+          FastSeq(name -> value.typ),
+          agg = AggEnv.Drop,
+          scan = AggEnv.Drop,
+          relational = FastSeq(0),
+        )
       case _ =>
         if (UsesAggEnv(ir, i))
           Bindings(agg = AggEnv.Promote)

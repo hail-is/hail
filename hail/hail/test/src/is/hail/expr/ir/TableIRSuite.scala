@@ -1482,6 +1482,84 @@ class TableIRSuite {
     )
   }
 
+  // The transitive bindings, directly and inside a scan filter's body.
+  def testTableScanTransitiveInitArg() = {
+    def take = takeWithTransitiveInitArg(
+      ApplyScanOp(Take(), _)(Ref(TableIR.rowName, TStruct("idx" -> TInt32)).get("idx"))
+    )
+    FastSeq(take, AggFilter(True(), take, isScan = true))
+  }
+
+  @ParameterizedTest
+  def testTableScanTransitiveInitArg(v: IR)(implicit ctx: ExecuteContext): Unit = {
+    val t = TableRange(5, 2)
+    val row = Ref(TableIR.rowName, t.typ.rowType)
+    val mapped = TableMapRows(t, InsertFields(row, FastSeq("v" -> v)))
+    assertEvalsTo(
+      GetField(collectNoKey(TableKeyBy(mapped, FastSeq())), "rows"),
+      (0 until 5).map(i => RowSeq(i, RowSeq(0 until math.min(i, 1), 2))),
+    )
+  }
+
+  /* One Block with the transitive bindings, the same bindings in nested Blocks, and the Block
+   * inside an agg filter's body. */
+  def testTableAggregateTransitiveInitArg() = {
+    def idx = Ref(TableIR.rowName, TStruct("idx" -> TInt32)).get("idx")
+    FastSeq(
+      takeWithTransitiveInitArg(ApplyAggOp(Take(), _)(idx)),
+      AggFilter(True(), takeWithTransitiveInitArg(ApplyAggOp(Take(), _)(idx)), isScan = false),
+      bindIR(I32(3) - I32(1)) { n =>
+        bindIR(n - I32(1))(m => maketuple(ApplyAggOp(Take(), m)(idx), n))
+      },
+    )
+  }
+
+  @ParameterizedTest
+  def testTableAggregateTransitiveInitArg(v: IR)(implicit ctx: ExecuteContext): Unit =
+    assertEvalsTo(TableAggregate(TableRange(5, 2), v), RowSeq(FastSeq(0), 2))
+
+  // Init args that read a loop variable or an APE index.
+  def testTableAggregateInitArgReadsVarying() = {
+    def idx = Ref(TableIR.rowName, TStruct("idx" -> TInt32)).get("idx")
+    FastSeq(
+      ToArray(mapIR(rangeIR(3))(i => ApplyAggOp(Take(), i)(idx))),
+      aggArrayPerElement(MakeArray(idx, idx))((elt, i) => ApplyAggOp(Take(), i)(elt)),
+    )
+  }
+
+  @ParameterizedTest
+  def testTableAggregateInitArgReadsVarying(v: IR)(implicit ctx: ExecuteContext): Unit = {
+    // Without the optimiser, which can forward a binding into an init arg and change the error.
+    implicit val execStrats: Set[ExecStrategy] = ExecStrategy.unoptimizedRelational
+    assertFatal(
+      TableAggregate(TableRange(5, 2), v),
+      "init argument refers to .*, which varies per element",
+    )
+  }
+
+  def testTableAggregateInitArgReadsAggResult() =
+    initArgsReadingResult(isScan = false)(Ref(TableIR.rowName, TStruct("idx" -> TInt32)).get("idx"))
+
+  @ParameterizedTest
+  def testTableAggregateInitArgReadsAggResult(v: IR)(implicit ctx: ExecuteContext): Unit = {
+    // Without the optimiser, which can forward a binding into an init arg and change the error.
+    implicit val execStrats: Set[ExecStrategy] = ExecStrategy.unoptimizedRelational
+    assertFatal(TableAggregate(TableRange(5, 2), v), "depends on an aggregation result")
+  }
+
+  def testTableScanInitArgReadsScanResult() =
+    initArgsReadingResult(isScan = true)(Ref(TableIR.rowName, TStruct("idx" -> TInt32)).get("idx"))
+
+  @ParameterizedTest
+  def testTableScanInitArgReadsScanResult(v: IR)(implicit ctx: ExecuteContext): Unit = {
+    // Without the optimiser, which can forward a binding into an init arg and change the error.
+    implicit val execStrats: Set[ExecStrategy] = ExecStrategy.unoptimizedRelational
+    val t = TableRange(5, 2)
+    val row = Ref(TableIR.rowName, t.typ.rowType)
+    val mapped = TableMapRows(t, InsertFields(row, FastSeq("v" -> v)))
+    assertFatal(collectNoKey(TableKeyBy(mapped, FastSeq())), "depends on a scan result")
+  }
+
   @Test def testIssue9016(implicit ctx: ExecuteContext): Unit = {
     val rows =
       mapIR(ToStream(MakeArray(makestruct("a" -> MakeTuple.ordered(FastSeq(I32(0), I32(1))))))) {
