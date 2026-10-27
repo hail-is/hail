@@ -397,7 +397,7 @@ object LowerMatrixIR extends Logging {
                       emit(builder, env, uid.name, Block(FastSeq(b), structResult))
                       unwrapM(aggs, uid) >> liftedBody
                     case Binding(name, value, scope) =>
-                      val v = lift(value, env.promoteScope(scope), builder)
+                      val v = lift(value, if (scope == AGG) env.promoteAgg.noScan else env, builder)
                       val e = env.bindInScope(name, if (scope == EVAL) Some(v) else None, scope)
                       val liftedBody = go(i + 1, e, builder)
                       if (moved.contains(name)) liftedBody

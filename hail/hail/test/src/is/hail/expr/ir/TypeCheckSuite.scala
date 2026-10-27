@@ -87,4 +87,35 @@ class TypeCheckSuite {
     interceptException[AssertionError]("ApplyAggOp outside an agg scope") {
       TypeCheck(ctx, badIr, BindingEnv.empty.createAgg.createScan)
     }
+
+  // Promoting agg drops scan: a scan op can't sit inside an agg.
+  def scansInsideAggs = {
+    def agg = ApplyAggOp(Count())()
+    def scan = ApplyScanOp(Count())()
+    ArraySeq(
+      ApplyAggOp(Sum())(scan),
+      Block(
+        ArraySeq(Binding(Name("x"), scan, Scope.AGG)),
+        ApplyAggOp(Sum())(Ref(Name("x"), TInt64)),
+      ),
+      AggFilter(scan ceq I64(0), agg, false),
+      AggGroupBy(scan, agg, false),
+      AggExplode(ToStream(MakeArray(ArraySeq(scan), TArray(TInt64))), Name("e"), agg, false),
+      AggArrayPerElement(
+        MakeArray(ArraySeq(scan), TArray(TInt64)),
+        Name("e"),
+        Name("i"),
+        agg,
+        None,
+        false,
+      ),
+      aggFoldIR(I64(0))(acc => acc + scan)(_ + _),
+    )
+  }
+
+  @ParameterizedTest("scansInsideAggs")
+  def testScanInsideAggFails(badIr: IR)(implicit ctx: ExecuteContext): Unit =
+    interceptException[AssertionError]("ApplyScanOp outside a scan scope") {
+      TypeCheck(ctx, badIr, BindingEnv.empty.createAgg.createScan)
+    }
 }

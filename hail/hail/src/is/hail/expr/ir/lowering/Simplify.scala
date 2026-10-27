@@ -1123,10 +1123,7 @@ object Simplify {
                 bindings.view.drop(i).foreach {
                   case Binding(name, ir: Block, scope) =>
                     if (scope == EVAL) newBindings ++= ir.bindings
-                    else ir.bindings.foreach { case Binding(name, value, s) =>
-                      if (s != EVAL) fatal(s"Simplify: found nested $s binding in $scope")
-                      newBindings += Binding(name, value, scope)
-                    }
+                    else newBindings ++= ir.bindings.map(_.copy(scope = scope))
                     newBindings += Binding(name, ir.body, scope)
                   case binding =>
                     newBindings += binding

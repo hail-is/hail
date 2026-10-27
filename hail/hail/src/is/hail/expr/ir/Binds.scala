@@ -258,7 +258,7 @@ object Bindings {
             AggEnv.bindOrNoOp(scan.result()),
           )
         else if (bindings(i).scope == Scope.AGG)
-          Bindings(types.result(), agg.result(), AggEnv.Promote, AggEnv.bindOrNoOp(scan.result()))
+          Bindings(types.result(), agg.result(), AggEnv.Promote, AggEnv.Drop)
         else // SCAN
           Bindings(types.result(), scan.result(), AggEnv.Drop, AggEnv.Promote)
 
@@ -353,7 +353,7 @@ object Bindings {
         if (i == 0)
           Bindings(
             agg = if (isScan) AggEnv.Drop else AggEnv.Promote,
-            scan = if (isScan) AggEnv.Promote else AggEnv.NoOp,
+            scan = if (isScan) AggEnv.Promote else AggEnv.Drop,
           )
         else if (i == 1) {
           Bindings(
@@ -381,7 +381,7 @@ object Bindings {
             FastSeq(accumName -> zero.typ),
             eval = FastSeq(0),
             agg = if (isScan) AggEnv.Drop else AggEnv.Promote,
-            scan = if (isScan) AggEnv.Promote else AggEnv.NoOp,
+            scan = if (isScan) AggEnv.Promote else AggEnv.Drop,
           )
         else
           Bindings.inFreshScope(FastSeq(accumName -> zero.typ, otherAccumName -> zero.typ))
@@ -415,25 +415,25 @@ object Bindings {
         )
       case ApplyAggOp(init, _, _) =>
         if (i < init.length) Bindings(agg = AggEnv.Drop)
-        else Bindings(agg = AggEnv.Promote)
+        else Bindings(agg = AggEnv.Promote, scan = AggEnv.Drop)
       case ApplyScanOp(init, _, _) =>
         if (i < init.length) Bindings(scan = AggEnv.Drop)
         else Bindings(agg = AggEnv.Drop, scan = AggEnv.Promote)
       case AggFilter(_, _, isScan) if i == 0 =>
         Bindings(
           agg = if (isScan) AggEnv.Drop else AggEnv.Promote,
-          scan = if (isScan) AggEnv.Promote else AggEnv.NoOp,
+          scan = if (isScan) AggEnv.Promote else AggEnv.Drop,
         )
       case AggGroupBy(_, _, isScan) if i == 0 =>
         Bindings(
           agg = if (isScan) AggEnv.Drop else AggEnv.Promote,
-          scan = if (isScan) AggEnv.Promote else AggEnv.NoOp,
+          scan = if (isScan) AggEnv.Promote else AggEnv.Drop,
         )
       case AggExplode(a, name, _, isScan) =>
         if (i == 0)
           Bindings(
             agg = if (isScan) AggEnv.Drop else AggEnv.Promote,
-            scan = if (isScan) AggEnv.Promote else AggEnv.NoOp,
+            scan = if (isScan) AggEnv.Promote else AggEnv.Drop,
           )
         else
           Bindings(
@@ -450,10 +450,6 @@ object Bindings {
           relational = FastSeq(0),
         )
       case _ =>
-        if (UsesAggEnv(ir, i))
-          Bindings(agg = AggEnv.Promote)
-        else if (UsesScanEnv(ir, i))
-          Bindings(scan = AggEnv.Promote)
-        else Bindings.empty
+        Bindings.empty
     }
 }

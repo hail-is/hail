@@ -148,12 +148,6 @@ case class BindingEnv[V](
 
   override def promoteScan: BindingEnv[V] = copy(eval = scan.get, scan = None)
 
-  def promoteScope(scope: Scope): BindingEnv[V] = scope match {
-    case Scope.EVAL => this
-    case Scope.AGG => promoteAgg
-    case Scope.SCAN => promoteScan
-  }
-
   override def noAgg: BindingEnv[V] = copy(agg = None)
 
   override def noScan: BindingEnv[V] = copy(scan = None)
