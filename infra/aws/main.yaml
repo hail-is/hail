@@ -453,9 +453,14 @@ Resources:
 
   VdcDb:
     Type: "AWS::RDS::DBInstance"
+    DeletionPolicy: Snapshot
+    UpdateReplacePolicy: Snapshot
     Properties:
       AllocatedStorage: 20
-      DBInstanceClass: "db.m9g.xlarge"
+      StorageType: "gp3"
+      BackupRetentionPeriod: 7
+      DeletionProtection: true
+      DBInstanceClass: "db.t4g.medium"
       DBSubnetGroupName: !Ref VdcDbSubnetGroup
       DBParameterGroupName: !Ref VdcDbParameterGroup
       Engine: "mysql"
@@ -482,8 +487,8 @@ Resources:
       Description: "Parameter group for MySQL database"
       Family: "mysql8.4"
       Parameters:
-        innodb_log_buffer_size: "536870912"
-        innodb_redo_log_capacity: "10737418240"
+        innodb_log_buffer_size: "67108864"
+        innodb_redo_log_capacity: "2147483648"
         event_scheduler: "on"
         skip_show_database: "on"
         local_infile: "off"
