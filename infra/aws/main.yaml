@@ -85,7 +85,7 @@ Resources:
               VolumeSize: 30
               DeleteOnTermination: true
         ImageId: "{{resolve:ssm:/aws/service/eks/optimized-ami/1.35/amazon-linux-2023/x86_64/standard/recommended/image_id}}"
-        InstanceType: m4.large
+        InstanceType: t3a.large
         UserData:
           Fn::Base64: !Sub |
             ---
@@ -97,6 +97,9 @@ Resources:
                 apiServerEndpoint: ${VdcCluster.Endpoint}
                 certificateAuthority: ${VdcCluster.CertificateAuthorityData}
                 cidr: "${ClusterServiceCidrBlock}"
+              kubelet:
+                config:
+                  maxPods: 110
       LaunchTemplateName: "nonpreemptible-pool-launch-template"
   VdcPreemptibleNodeGroup:
     Type: "AWS::EKS::Nodegroup"
@@ -143,7 +146,7 @@ Resources:
               VolumeSize: 30
               DeleteOnTermination: true
         ImageId: "{{resolve:ssm:/aws/service/eks/optimized-ami/1.35/amazon-linux-2023/x86_64/standard/recommended/image_id}}"
-        InstanceType: m4.large
+        InstanceType: t3a.large
         UserData:
           Fn::Base64: !Sub |
             ---
@@ -155,6 +158,9 @@ Resources:
                 apiServerEndpoint: ${VdcCluster.Endpoint}
                 certificateAuthority: ${VdcCluster.CertificateAuthorityData}
                 cidr: ${ClusterServiceCidrBlock}
+              kubelet:
+                config:
+                  maxPods: 110
       LaunchTemplateName: "preemptible-pool-launch-template"
 
   VdcClusterRole:
@@ -427,6 +433,7 @@ Resources:
 
   VdcClusterAddonEbsCsiDriver:
     Type: "AWS::EKS::Addon"
+    DependsOn: VdcClusterAddonPodIdentityAgent
     Properties:
       NamespaceConfig:
         Namespace: "kube-system"
@@ -437,6 +444,7 @@ Resources:
       AddonName: "aws-ebs-csi-driver"
   VdcClusterAddonCloudWatchAgent:
     Type: "AWS::EKS::Addon"
+    DependsOn: VdcClusterAddonPodIdentityAgent
     Properties:
       NamespaceConfig:
         Namespace: "amazon-cloudwatch"
@@ -474,12 +482,17 @@ Resources:
       ClusterName: !Ref VdcCluster
       AddonName: "coredns"
   VdcClusterAddonVpcCni:
-    DependsOn: [ VdcPreemptibleNodeGroup, VdcNonpreemptibleNodeGroup ]
     Type: "AWS::EKS::Addon"
+    DependsOn: [ VdcPreemptibleNodeGroup, VdcNonpreemptibleNodeGroup ]
     Properties:
       NamespaceConfig:
         Namespace: "kube-system"
       ServiceAccountRoleArn: !GetAtt VdcClusterVpcCniRole.Arn
+      ConfigurationValues:
+        Fn::ToJsonString:
+          env:
+            ENABLE_PREFIX_DELEGATION: "true"
+            WARM_PREFIX_TARGET: "1"
       ClusterName: !Ref VdcCluster
       AddonName: "vpc-cni"
   VdcClusterAddonPodIdentityAgent:
@@ -502,8 +515,6 @@ Resources:
     Properties:
       ManagedPolicyArns:
         - "arn:aws:iam::aws:policy/AmazonEBSCSIDriverPolicyV2"
-        - "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy"
-        - "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
       MaxSessionDuration: 3600
       RoleName: !Sub "${AWS::StackName}-csi-driver-role"
       AssumeRolePolicyDocument:
