@@ -21,6 +21,12 @@ case class ScopedDepth(eval: Int, agg: Int, scan: Int) {
   def incrementScanOrAgg(isScan: Boolean): ScopedDepth = if (isScan) incrementScan else incrementAgg
 
   def promoteScanOrAgg(isScan: Boolean): ScopedDepth = if (isScan) promoteScan else promoteAgg
+
+  def noAgg: ScopedDepth = copy(agg = 0)
+
+  def noScan: ScopedDepth = copy(scan = 0)
+
+  def noScanOrAgg(isScan: Boolean): ScopedDepth = if (isScan) noScan else noAgg
 }
 
 final class NestingDepth(private val memo: Memo[ScopedDepth]) {
@@ -60,10 +66,10 @@ object NestingDepth {
             computeIR(body, depth.incrementEval)
           case StreamAgg(a, _, body) =>
             computeIR(a, depth)
-            computeIR(body, ScopedDepth(depth.eval, depth.eval + 1, depth.scan))
+            computeIR(body, ScopedDepth(depth.eval, depth.eval + 1, 0))
           case StreamAggScan(a, _, body) =>
             computeIR(a, depth)
-            computeIR(body, ScopedDepth(depth.eval + 1, depth.agg, depth.eval + 1))
+            computeIR(body, ScopedDepth(depth.eval + 1, 0, depth.eval + 1))
           case StreamZip(as, _, body, _, _) =>
             as.foreach(computeIR(_, depth))
             computeIR(body, depth.incrementEval)
@@ -126,20 +132,22 @@ object NestingDepth {
           case AggArrayPerElement(a, _, _, aggBody, knownLength, isScan) =>
             computeIR(a, depth.promoteScanOrAgg(isScan))
             computeIR(aggBody, depth.incrementEval.incrementScanOrAgg(isScan)) // per element
-            knownLength.foreach(computeIR(_, depth))
+            knownLength.foreach(computeIR(_, depth.noScanOrAgg(isScan)))
           case AggGroupBy(key, aggIR, isScan) =>
             computeIR(key, depth.promoteScanOrAgg(isScan))
             computeIR(aggIR, depth.incrementEval) // per group
           case AggFold(zero, seqOp, combOp, _, _, isScan) =>
-            computeIR(zero, depth)
+            computeIR(zero, depth.noScanOrAgg(isScan))
             computeIR(seqOp, depth.promoteScanOrAgg(isScan))
-            computeIR(combOp, depth.incrementEval) // per merge
+            computeIR(combOp, ScopedDepth(depth.eval + 1, 0, 0)) // fresh scope, per merge
           case ArraySort(a, _, _, lessThan) =>
             computeIR(a, depth)
             computeIR(lessThan, depth.incrementEval)
           case ArrayMaximalIndependentSet(edges, tieBreaker) =>
             computeIR(edges, depth)
-            tieBreaker.foreach { case (_, _, tb) => computeIR(tb, depth.incrementEval) }
+            tieBreaker.foreach { case (_, _, tb) =>
+              computeIR(tb, ScopedDepth(depth.eval + 1, 0, 0)) // fresh scope, per comparison
+            }
           case RunAggScan(a, _, init, seqs, result, _) =>
             computeIR(a, depth)
             computeIR(init, depth)
@@ -152,14 +160,24 @@ object NestingDepth {
           case CollectDistributedArray(ctxs, globals, _, _, body, dynamicID, _, _) =>
             computeIR(ctxs, depth)
             computeIR(globals, depth)
-            computeIR(body, depth.incrementEval)
+            computeIR(body, ScopedDepth(depth.eval + 1, 0, 0))
             computeIR(dynamicID, depth)
+          case ApplyAggOp(initOpArgs, seqOpArgs, _) =>
+            initOpArgs.foreach(computeIR(_, depth.noAgg))
+            seqOpArgs.foreach(computeIR(_, depth.promoteAgg))
+          case ApplyScanOp(initOpArgs, seqOpArgs, _) =>
+            initOpArgs.foreach(computeIR(_, depth.noScan))
+            seqOpArgs.foreach(computeIR(_, depth.promoteScan))
+          case RelationalLet(_, value, body) =>
+            computeIR(value, ScopedDepth(0, 0, 0))
+            computeIR(body, depth.noAgg.noScan)
+          // the query's agg scope is new, as in StreamAgg
           case TableAggregate(child, query) =>
             computeChildren(child)
-            computeIR(query, ScopedDepth(0, 0, 0))
+            computeIR(query, ScopedDepth(0, 1, 0))
           case MatrixAggregate(child, query) =>
             computeChildren(child)
-            computeIR(query, ScopedDepth(0, 0, 0))
+            computeIR(query, ScopedDepth(0, 1, 0))
           case _ =>
             ir.children
               .zipWithIndex

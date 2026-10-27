@@ -54,4 +54,59 @@ class NestingDepthSuite {
   @ParameterizedTest
   def testChildRunsRepeatedly(x: Ref, ir: IR)(implicit ctx: ExecuteContext): Unit =
     assert(NestingDepth(ctx, ir).lookupRef(x) == 1)
+
+  // A child's scopes follow Bindings.get: a scope it drops has depth 0, and a scope it
+  // creates starts one deeper than eval. `b` is a Block placed in that child.
+
+  def testScopesFollowBindings(): IndexedSeq[(IR, Block, Scope, Int)] = {
+    // agg depth 1 inside a StreamAgg, scan depth 1 inside a StreamAggScan
+    def underAgg(body: IR): IR = StreamAgg(range, freshName(), body)
+    def underScan(body: IR): IR = StreamAggScan(range, freshName(), body)
+
+    def dropped(under: IR => IR, scope: Scope)(place: IR => IR): (IR, Block, Scope, Int) = {
+      val b = Block(FastSeq(), I32(0))
+      (under(place(b)), b, scope, 0)
+    }
+
+    def droppedBoth(place: IR => IR): IndexedSeq[(IR, Block, Scope, Int)] =
+      FastSeq(dropped(underAgg, Scope.AGG)(place), dropped(underScan, Scope.SCAN)(place))
+
+    val sameKind = FastSeq(false, true).flatMap { isScan =>
+      val (under, scope) = if (isScan) (underScan _, Scope.SCAN) else (underAgg _, Scope.AGG)
+      FastSeq[IR => IR](
+        b => aggArrayPerElement(ToArray(range), Some(b), isScan)((_, _) => Void()),
+        b => aggFoldIR(b, isScan)(acc => acc)((l, _) => l),
+      ).map(dropped(under, scope))
+    }
+
+    val created = {
+      val b = Block(FastSeq(), I32(0))
+      FastSeq((TableAggregate(TableRange(1, 1), ApplyAggOp(Collect())(b)), b, Scope.EVAL, 1))
+    }
+
+    FastSeq(
+      dropped(underScan, Scope.SCAN)(b => StreamAgg(range, freshName(), b)),
+      dropped(underAgg, Scope.AGG)(b => StreamAggScan(range, freshName(), b)),
+      dropped(underAgg, Scope.AGG)(b => ApplyAggOp(Take(), b)(I32(0))),
+      dropped(underScan, Scope.SCAN)(b => ApplyScanOp(Take(), b)(I32(0))),
+      dropped(underScan, Scope.EVAL)(b => RelationalLet(freshName(), b, I32(0))),
+    ) ++
+      droppedBoth(b => aggFoldIR(I32(0))(acc => acc)((_, _) => b)) ++
+      droppedBoth(b => ArrayMaximalIndependentSet(range, Some((freshName(), freshName(), b)))) ++
+      droppedBoth(b => cdaIR(range, makestruct(), "test")((_, _) => b)) ++
+      droppedBoth(b => RelationalLet(freshName(), I32(0), b)) ++
+      sameKind ++
+      created
+  }
+
+  @ParameterizedTest
+  def testScopesFollowBindings(
+    ir: IR,
+    b: Block,
+    scope: Scope,
+    depth: Int,
+  )(implicit
+    ctx: ExecuteContext
+  ): Unit =
+    assert(NestingDepth(ctx, ir).lookupBinding(b, scope) == depth)
 }
