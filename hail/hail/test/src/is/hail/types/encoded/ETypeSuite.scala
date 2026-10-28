@@ -3,13 +3,16 @@ package is.hail.types.encoded
 import is.hail.ParameterizedTest
 import is.hail.TestUtils._
 import is.hail.annotations.{Annotation, Region, RowSeq, SafeNDArray, SafeRow}
-import is.hail.asm4s.Code
+import is.hail.asm4s._
+import is.hail.asm4s.implicits.valueToRichCodeRegion
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
 import is.hail.expr.ir.EmitFunctionBuilder
 import is.hail.io._
 import is.hail.rvd.AbstractRVDSpec
+import is.hail.scalacheck._
 import is.hail.types.physical._
+import is.hail.types.physical.LocusRepresentations._
 import is.hail.types.virtual._
 import is.hail.variant.BuiltinLoci.tlocus
 import is.hail.variant.ReferenceGenomeEnv
@@ -19,6 +22,7 @@ import scala.collection.immutable.ArraySeq
 import org.json4s.Formats
 import org.json4s.jackson.Serialization
 import org.junit.jupiter.api.Test
+import org.scalacheck.Prop.forAll
 
 class ETypeSuite {
 
@@ -351,4 +355,60 @@ class ETypeSuite {
 
     assertEqualEncodeDecode(toEncode, etype, toDecode, data)
   }
+
+  // Loci of either representation, nested anywhere, decode and store into either representation,
+  // on the same reference genome or an equal copy of it. The session does not hold the custom
+  // reference genome: locus types carry their own.
+  @Test def testLocusRepresentationsEncodeDecode(implicit ctx: ExecuteContext): Unit =
+    for (rg <- references)
+      check(forAll(genPTypeValOn(ctx, rg)) { case (pt, a) =>
+        for ((in, out) <- representationPairs(pt, rg)) {
+          val et = EType.defaultFromPType(ctx, in)
+          assert(pt.virtualType.valuesSimilar(encodeDecode(in, et, out, a), a), s"$in -> $out")
+        }
+        true
+      })
+
+  @Test def testPythonEncodingOfPackedLoci(implicit ctx: ExecuteContext): Unit =
+    for (rg <- references) {
+      val packed = PPackedLocus(rg, true)
+      val types = ArraySeq[PType](
+        packed,
+        PCanonicalStruct(true, "l" -> packed),
+        PCanonicalArray(packed, true),
+        PCanonicalInterval(packed, true),
+      )
+      for (pt <- types) {
+        val et = EType.fromPythonTypeEncoding(pt.virtualType)
+        check(forAll(genVal(ctx, pt))(a => encodeDecode(pt, et, toCanonical(pt), a) == a))
+      }
+    }
+
+  @Test def testStructEncodedLocusDecodesInPlaceToPackedLocus(implicit ctx: ExecuteContext): Unit =
+    for (rg <- references) {
+      val canonical = PCanonicalLocus(rg, true)
+      val packed = PPackedLocus(rg, true)
+      val et = EType.defaultFromPType(ctx, canonical)
+
+      val fb = EmitFunctionBuilder[Region, InputBuffer, Long](ctx, "inplace")
+      fb.emitWithBuilder[Long] { cb =>
+        val region = fb.apply_method.getCodeParam[Region](1)
+        val in = fb.apply_method.getCodeParam[InputBuffer](2)
+        val addr = cb.memoize(region.allocate(packed.alignment, packed.byteSize))
+        et.buildInplaceDecoder(packed, fb.ecb)(cb, region, addr, in)
+        addr
+      }
+      val decode = fb.resultWithIndex()(ctx.theHailClassLoader, ctx.fs, ctx.taskContext, ctx.r)
+
+      check(forAll(genLocus(rg)) { l =>
+        val buffer = new MemoryBuffer
+        val ob = new MemoryOutputBuffer(buffer)
+        val enc = et.buildEncoder(ctx, canonical)(ob, ctx.theHailClassLoader)
+        enc.writeRegionValue(ctx.r, canonical.unstagedStoreJavaObject(l, ctx.r))
+        enc.flush()
+        buffer.clearPos()
+        val addr = decode(ctx.r, new MemoryInputBuffer(buffer))
+        SafeRow.read(packed, addr) == l
+      })
+    }
 }
