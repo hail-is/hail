@@ -466,7 +466,6 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
         largest_vds = max(files_to_merge, key=lambda vds: vds.n_samples)
         vds = hl.vds.read_vds(
             largest_vds.path,
-            _assert_reference_type=self._dataset_type.reference_type,
             _assert_variant_type=self._dataset_type.variant_type,
             _warn_no_ref_block_max_length=False,
             _drop_end=True,
@@ -634,13 +633,11 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
         return os.path.join(self._temp_path, 'combiner-intermediates', f'{self._uuid}_{extra}')
 
     def _read_variant_datasets(self, inputs: List[str], intervals: List[Interval]):
-        reference_type = self._dataset_type.reference_type
         variant_type = self._dataset_type.variant_type
         return [
             hl.vds.read_vds(
                 path,
                 intervals=intervals,
-                _assert_reference_type=reference_type,
                 _assert_variant_type=variant_type,
                 _warn_no_ref_block_max_length=False,
                 _drop_end=True,
@@ -802,7 +799,9 @@ def new_combiner(
     # we need to compute the type that the combiner will have, this will allow us to read matrix
     # tables quickly, especially in an asynchronous environment like query on batch where typing
     # a read uses a blocking round trip.
-    # FIXME: read_vds doesn't actually do that yet. See PR #15002
+    # Only the variant type is asserted on read. The stored reference type is not uniform across
+    # inputs (END may be stored, ref_block_max_length may be in globals or in a separate file), and
+    # read_vds normalizes it after reading, so the reference type here is not the stored type.
     vds = None
     gvcf_type = None
     if vds_paths:
@@ -923,7 +922,6 @@ def new_combiner(
         for path in vds_paths:
             vds = hl.vds.read_vds(
                 path,
-                _assert_reference_type=dataset_type.reference_type,
                 _assert_variant_type=dataset_type.variant_type,
                 _warn_no_ref_block_max_length=False,
             )
