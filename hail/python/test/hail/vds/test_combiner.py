@@ -274,6 +274,36 @@ def test_ref_block_max_len_propagates_in_combiner():
         assert hl.vds.VariantDataset.ref_block_max_length_field in vds.reference_data.globals
 
 
+@test_timeout(10 * 60)
+def test_combiner_vds_with_stored_end():
+    gvcfs = ['NA21123.hg38.g.vcf.gz', 'NA21099.hg38.g.vcf.gz']
+    with hl.TemporaryDirectory() as tmpdir:
+        vds_paths = []
+        for i, gvcf in enumerate(gvcfs):
+            p = os.path.join(tmpdir, f'{i}.vds')
+            vds_paths.append(p)
+            hl.vds.new_combiner(
+                output_path=p,
+                temp_path=tmpdir,
+                gvcf_paths=[os.path.join(resource('gvcfs'), '1kg_chr22', gvcf)],
+                reference_genome='GRCh38',
+                import_interval_size=1000000000,
+            ).run()
+
+        # older versions of hail stored END in the reference data, VariantDataset.write drops it
+        old_path = os.path.join(tmpdir, 'old.vds')
+        vds = hl.vds.read_vds(vds_paths[0])
+        vds.reference_data.write(hl.vds.VariantDataset._reference_path(old_path))
+        vds.variant_data.write(hl.vds.VariantDataset._variants_path(old_path))
+        assert 'END' in hl.read_matrix_table(hl.vds.VariantDataset._reference_path(old_path)).entry
+
+        final_path = os.path.join(tmpdir, 'final.vds')
+        hl.vds.new_combiner(
+            output_path=final_path, temp_path=tmpdir, vds_paths=[old_path, vds_paths[1]], reference_genome='GRCh38'
+        ).run()
+        assert hl.vds.read_vds(final_path).n_samples() == 2
+
+
 def test_custom_call_fields():
     _paths = ['gvcfs/HG00096.g.vcf.gz', 'gvcfs/HG00268.g.vcf.gz']
     paths = [resource(p) for p in _paths]
