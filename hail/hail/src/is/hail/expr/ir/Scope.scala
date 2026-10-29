@@ -2,7 +2,6 @@ package is.hail.expr.ir
 
 import is.hail.expr.ir.defs.{
   AggArrayPerElement, AggExplode, AggFilter, AggFold, AggGroupBy, ApplyAggOp, ApplyScanOp, Block,
-  MatrixAggregate, RelationalLet, TableAggregate,
 }
 
 object UsesAggEnv {
@@ -48,43 +47,4 @@ object Scope {
   case object EVAL extends Scope
   case object AGG extends Scope
   case object SCAN extends Scope
-
-  def apply(ir0: BaseIR): Memo[Scope] = {
-    val memo = Memo.empty[Scope]
-
-    def compute(ir: BaseIR, scope: Scope): Unit = {
-      if (ir.isInstanceOf[IR])
-        memo.bind(ir, scope)
-
-      ir match {
-        case TableAggregate(child, query) =>
-          compute(child, EVAL)
-          compute(query, EVAL)
-        case MatrixAggregate(child, query) =>
-          compute(child, EVAL)
-          compute(query, EVAL)
-        case RelationalLet(_, value, body) =>
-          compute(value, EVAL)
-          compute(body, scope)
-        case _ => ir.children.zipWithIndex.foreach {
-            case (child: IR, i) =>
-              val usesAgg = UsesAggEnv(ir, i)
-              val usesScan = UsesScanEnv(ir, i)
-              if (usesAgg) {
-                assert(!usesScan)
-                assert(scope == EVAL)
-                compute(child, AGG)
-              } else if (usesScan) {
-                assert(scope == EVAL)
-                compute(child, SCAN)
-              } else
-                compute(child, scope)
-            case (child, _) => compute(child, EVAL)
-          }
-      }
-    }
-
-    compute(ir0, EVAL)
-    memo
-  }
 }

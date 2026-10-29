@@ -38,7 +38,12 @@ object ForwardLets extends Logging {
             val refs = uses(l)
             val newEnv = l.bindings.foldLeft(env) {
               case (env, Binding(name, value, scope)) =>
-                val rewriteValue = rewrite(value, env.promoteScope(scope)).asInstanceOf[IR]
+                val valueEnv = scope match {
+                  case Scope.EVAL => env
+                  case Scope.AGG => env.promoteAgg.noScan
+                  case Scope.SCAN => env.promoteScan.noAgg
+                }
+                val rewriteValue = rewrite(value, valueEnv).asInstanceOf[IR]
                 val refs_ = refs.filter(_.t.name == name)
                 if (shouldForward(rewriteValue, refs_, l, scope)) {
                   if (refs_.nonEmpty) env.bindInScope(name, rewriteValue, scope)

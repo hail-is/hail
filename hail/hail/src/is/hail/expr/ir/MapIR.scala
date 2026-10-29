@@ -22,8 +22,7 @@ object VisitIR {
     ir.children.foreach(apply(_)(f))
   }
 
-  def withEnv[V, E <: GenericBindingEnv[E, Type]](ir: BaseIR, env: E)(f: (BaseIR, E) => Unit)
-    : Unit = {
+  def withEnv[E <: GenericBindingEnv[E, Type]](ir: BaseIR, env: E)(f: (BaseIR, E) => Unit): Unit = {
     f(ir, env)
     ir.forEachChildWithEnv(env)(withEnv(_, _)(f))
   }

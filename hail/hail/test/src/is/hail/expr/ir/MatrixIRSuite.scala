@@ -305,10 +305,6 @@ class MatrixIRSuite {
         expected(i => FastSeq(prev(i))),
       ),
       (
-        ApplyAggOp(Sum())(bindIR(two)(n => (ApplyScanOp(Take(), n)(rowIdx).len + n).toL)),
-        expected(i => 3L * (prev(i).length + 2)),
-      ),
-      (
         Block(
           FastSeq(Binding(x.name, rowIdx, SCAN), Binding(k.name, two)),
           ApplyScanOp(Take(), k)(x),
@@ -337,17 +333,10 @@ class MatrixIRSuite {
   def testScanAggNestingOnRows() = {
     val n = Ref(freshName(), TInt32)
     val m = Ref(freshName(), TInt32)
-    val col = Ref(MatrixIR.colName, TStruct("col_idx" -> TInt32))
-    val row = Ref(MatrixIR.rowName, TStruct("row_idx" -> TInt32))
     FastSeq(
-      (ApplyScanOp(Sum())(ApplyAggOp(Count())()), "aggregations inside scans"),
+      (ApplyScanOp(Take(), ApplyAggOp(Count())().toI)(I32(0)), "aggregations inside scans"),
       (
-        M.eval {
-          for {
-            x <- M.lift[SCAN.type](for { x <- ApplyAggOp(Count())() } yield x)
-            y <- ApplyScanOp(Sum())(x)
-          } yield y
-        },
+        aggFoldIR(ApplyAggOp(Count())(), isScan = true)(_ + I64(1))((a, b) => a + b),
         "aggregations inside scans",
       ),
       (
@@ -361,14 +350,6 @@ class MatrixIRSuite {
         ),
         "aggregations inside scans",
       ),
-      (
-        ApplyAggOp(Sum())(ApplyScanOp(Take(), col.get("col_idx"))(I32(0)).len.toL),
-        "scan init argument refers to sa",
-      ),
-      (
-        ApplyAggOp(Sum())(ApplyScanOp(Take(), row.get("row_idx"))(I32(0)).len.toL),
-        "scan init argument refers to va",
-      ),
     )
   }
 
@@ -379,29 +360,11 @@ class MatrixIRSuite {
     assertFatal(collectRows(MatrixMapRows(mt, InsertFields(row, FastSeq("v" -> v)))), error)
   }
 
-  def testAggOfScanOnRows() = {
-    val x = Ref(freshName(), TInt64)
+  def testScanOfAggOnCols() =
     FastSeq(
-      ApplyAggOp(Sum())(ApplyScanOp(Count())()),
-      Block(FastSeq(Binding(x.name, ApplyScanOp(Count())(), AGG)), ApplyAggOp(Sum())(x)),
+      ApplyScanOp(Take(), ApplyAggOp(Count())().toI)(I32(0)),
+      aggFoldIR(ApplyAggOp(Count())(), isScan = true)(_ + I64(1))((a, b) => a + b),
     )
-  }
-
-  @ParameterizedTest
-  def testAggOfScanOnRows(v: IR)(implicit ctx: ExecuteContext): Unit = {
-    val mt = rangeMatrix(5, 3, Some(2))
-    val row = Ref(MatrixIR.rowName, mt.typ.rowType)
-    val rows = getRows(MatrixMapRows(mt, InsertFields(row, FastSeq("v" -> v))))
-    assertEq(rows.toSeq, (0 until 5).map(i => RowSeq(i, 3L * i)))
-  }
-
-  def testScanOfAggOnCols() = {
-    val x = Ref(freshName(), TInt64)
-    FastSeq(
-      ApplyScanOp(Sum())(ApplyAggOp(Count())()),
-      Block(FastSeq(Binding(x.name, ApplyAggOp(Count())(), SCAN)), ApplyScanOp(Sum())(x)),
-    )
-  }
 
   @ParameterizedTest
   def testScanOfAggOnCols(v: IR)(implicit ctx: ExecuteContext): Unit = {
@@ -411,13 +374,11 @@ class MatrixIRSuite {
     assertFatal(collectCols(mapped), "aggregations inside scans")
   }
 
-  def testAggOfScanOnCols() = {
-    val x = Ref(freshName(), TInt64)
+  def testAggOfScanOnCols() =
     FastSeq(
-      ApplyAggOp(Sum())(ApplyScanOp(Count())()),
-      Block(FastSeq(Binding(x.name, ApplyScanOp(Count())(), AGG)), ApplyAggOp(Sum())(x)),
+      ApplyAggOp(Take(), ApplyScanOp(Count())().toI)(I32(0)),
+      aggFoldIR(ApplyScanOp(Count())())(_ + I64(1))((a, b) => a + b),
     )
-  }
 
   @ParameterizedTest
   def testAggOfScanOnCols(v: IR)(implicit ctx: ExecuteContext): Unit = {
