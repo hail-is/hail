@@ -881,9 +881,6 @@ final class EmitClassBuilder[C](val emodb: EmitModuleBuilder, val cb: ClassBuild
       makeAddTaskContext()
 
       val hasLiterals: Boolean = emodb.hasLiterals
-      val hasReferences: Boolean = emodb.hasReferences
-      if (hasReferences)
-        makeAddReferenceGenomes()
 
       val objects = makeAddObjects()
 
@@ -892,6 +889,11 @@ final class EmitClassBuilder[C](val emodb: EmitModuleBuilder, val cb: ClassBuild
       else
         // if there are no literals, there might not be a HailContext
         null
+
+      // after encodeLiterals, whose decoder may use reference genomes
+      val hasReferences: Boolean = emodb.hasReferences
+      if (hasReferences)
+        makeAddReferenceGenomes()
 
       val references: Array[ReferenceGenome] = if (hasReferences)
         emodb.referenceGenomes().toArray
@@ -934,14 +936,15 @@ final class EmitClassBuilder[C](val emodb: EmitModuleBuilder, val cb: ClassBuild
             f.asInstanceOf[FunctionWithBackend].setBackend(backend)
           if (objects != null)
             f.asInstanceOf[FunctionWithObjects].setObjects(objects)
-          if (hasLiterals)
-            f.asInstanceOf[FunctionWithLiterals].addAndDecodeLiterals(literalsBc.value)
+          // Decoding literals may convert between locus representations, which needs references.
           if (hasReferences)
             f.asInstanceOf[FunctionWithReferences].addReferenceGenomes(references)
           if (rgAttachments != null) {
             rgAttachments.foreach(_.restore(fs, localTmpdir))
             f.asInstanceOf[FunctionWithRgAttachments].addRgAttachments(rgAttachments)
           }
+          if (hasLiterals)
+            f.asInstanceOf[FunctionWithLiterals].addAndDecodeLiterals(literalsBc.value)
           if (nSerializedAggs != 0)
             f.asInstanceOf[FunctionWithAggRegion].setNumSerialized(nSerializedAggs)
           f
