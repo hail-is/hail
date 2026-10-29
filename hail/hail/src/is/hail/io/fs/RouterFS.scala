@@ -30,6 +30,11 @@ object CloudStorageConfig {
     env.get("HAIL_CLOUD") match {
       case Some("gcp") | None =>
         CloudStorageConfig(google = Some(GoogleStorageConfig(credentialsFile, None)))
+      case Some("aws") =>
+        // EMR Spark 8 configures S3A for s3:// and s3a:// on the Hadoop classpath,
+        // so RouterFS needs only its HadoopFS fallback. Returning an all-None config
+        // avoids constructing a GoogleStorageFS (which would require GCP credentials).
+        CloudStorageConfig()
       case unknown =>
         fatal(s"unknown cloud vendor: '$unknown'.")
     }

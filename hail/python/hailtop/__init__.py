@@ -1,4 +1,4 @@
-from hailtop.version import __pip_version__, __version__
+from hailtop.version import __pip_version__, __spark_version__, __version__
 
 IS_NOTEBOOK = None
 
@@ -17,6 +17,7 @@ def is_notebook() -> bool:
 
 __all__ = [
     '__pip_version__',
+    '__spark_version__',
     '__version__',
     'is_notebook',
 ]
