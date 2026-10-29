@@ -1,3 +1,5 @@
+from typing import Optional
+
 import pytest
 
 from batch.cloud.azure.resource_utils import MACHINE_TYPE_TO_PARTS as MACHINE_TYPE_TO_PARTS_AZURE
@@ -22,6 +24,14 @@ from batch.cloud.resource_utils import adjust_cores_for_packability
 from batch.driver.billing_manager import ProductVersions
 from batch.driver.exceptions import LocalSSDNotSupportedError
 from batch.driver.naming import build_inst_coll_regex, make_machine_name
+from batch.preemption_costs import (
+    AttemptResource,
+    nonpreemptible_counterparts,
+    nonpreemptible_product,
+    projected_nonpreemptible_cost,
+    rate_in_effect,
+    retried_attempts_cost,
+)
 from batch.utils import rewrite_dockerhub_image
 from hailtop.batch_client.parse import parse_memory_in_bytes
 from hailtop.utils import secret_alnum_string
@@ -368,3 +378,221 @@ def test_old_style_machine_name_inst_coll_roundtrip(inst_coll_name):
     match = build_inst_coll_regex(manager_prefix).search(machine_name)
     assert match is not None, f'regex did not match {machine_name!r}'
     assert match.group('inst_coll') == inst_coll_name
+
+
+@pytest.mark.parametrize(
+    'product,expected',
+    [
+        ('compute/n1-preemptible/us-central1', 'compute/n1-nonpreemptible/us-central1'),
+        ('memory/n4-preemptible/us-central1', 'memory/n4-nonpreemptible/us-central1'),
+        ('accelerator/l4-preemptible/us-central1', 'accelerator/l4-nonpreemptible/us-central1'),
+        ('compute/n1-preemptible', 'compute/n1-nonpreemptible'),
+        ('disk/local-ssd/preemptible/us-central1', 'disk/local-ssd/nonpreemptible/us-central1'),
+        ('ip-fee/preemptible/1024', 'ip-fee/nonpreemptible/1024'),
+    ],
+)
+def test_nonpreemptible_product_of_preemptible_product(product, expected):
+    assert nonpreemptible_product(product) == expected
+
+
+@pytest.mark.parametrize(
+    'product',
+    [
+        'compute/n1-nonpreemptible/us-central1',
+        'disk/local-ssd/nonpreemptible/us-central1',
+        'disk/pd-ssd/us-central1',
+        'disk/hyperdisk-balanced/us-central1',
+        'service-fee',
+        'disk/local-ssd',
+        'ip-fee/1024',
+    ],
+)
+def test_nonpreemptible_product_passes_through_other_products(product):
+    assert nonpreemptible_product(product) is None
+
+
+def test_rate_in_effect_compares_versions_numerically():
+    resources = [
+        ('compute/n1-nonpreemptible/us-central1/999', 1.0),
+        ('compute/n1-nonpreemptible/us-central1/1000', 2.0),
+        ('compute/n1-nonpreemptible/us-central1/2000', 3.0),
+    ]
+    assert rate_in_effect(resources, 'compute/n1-nonpreemptible/us-central1', 1500) == 2.0
+    assert rate_in_effect(resources, 'compute/n1-nonpreemptible/us-central1', 1000) == 2.0
+    assert rate_in_effect(resources, 'compute/n1-nonpreemptible/us-central1', 999) == 1.0
+
+
+def test_rate_in_effect_legacy_version_is_always_in_effect():
+    assert rate_in_effect([('compute/n1-nonpreemptible/1', 5.0)], 'compute/n1-nonpreemptible', 1) == 5.0
+
+
+def test_rate_in_effect_is_none_when_no_version_is_in_effect_yet():
+    resources = [('compute/n1-nonpreemptible/us-central1/2000', 3.0)]
+    assert rate_in_effect(resources, 'compute/n1-nonpreemptible/us-central1', 1999) is None
+    assert rate_in_effect([], 'compute/n1-nonpreemptible/us-central1', 1999) is None
+
+
+def test_rate_in_effect_only_matches_the_exact_product():
+    resources = [('compute/n1-nonpreemptible/us-central1/1000', 3.0)]
+    assert rate_in_effect(resources, 'compute/n1-nonpreemptible', 2000) is None
+
+
+def _attempt_resource(
+    attempt_id: str,
+    reason: str,
+    start_time: Optional[int] = 0,
+    rollup_time: Optional[int] = 1000,
+    resource: str = 'compute/n1-preemptible/us-central1/1',
+    rate: float = 0.5,
+    quantity: int = 2,
+) -> AttemptResource:
+    return AttemptResource(
+        attempt_id=attempt_id,
+        reason=reason,
+        start_time=start_time,
+        rollup_time=rollup_time,
+        resource=resource,
+        rate=rate,
+        quantity=quantity,
+    )
+
+
+def test_retried_attempts_cost_sums_quantity_rate_and_duration_over_resources_and_attempts():
+    rows = [
+        _attempt_resource('a', 'preempted', start_time=0, rollup_time=1000, rate=0.5, quantity=2),
+        _attempt_resource(
+            'a', 'preempted', start_time=0, rollup_time=1000, resource='service-fee/1', rate=0.25, quantity=4
+        ),
+        _attempt_resource('b', 'does_not_exist', start_time=100, rollup_time=200, rate=1.0, quantity=3),
+        _attempt_resource('c', 'completed'),
+    ]
+    assert retried_attempts_cost(rows, outcome_attempt_id='c') == 1000 + 1000 + 300
+
+
+def test_retried_attempts_cost_excludes_the_outcome_attempt_and_cancelled_attempts():
+    rows = [
+        _attempt_resource('a', 'cancelled'),
+        _attempt_resource('b', 'completed'),
+    ]
+    assert retried_attempts_cost(rows, outcome_attempt_id='b') == 0.0
+
+
+def test_retried_attempts_cost_counts_every_other_reason():
+    reasons = [
+        'preempted',
+        'terminated',
+        'does_not_exist',
+        'deleted',
+        'not_responding',
+        'deactivated',
+        'a-future-reason',
+    ]
+    rows = [_attempt_resource(str(i), reason, quantity=1, rate=1.0) for i, reason in enumerate(reasons)]
+    assert retried_attempts_cost(rows, outcome_attempt_id='outcome') == 1000 * len(reasons)
+
+
+def test_retried_attempts_cost_of_job_cancelled_from_ready_counts_earlier_attempts():
+    rows = [
+        _attempt_resource('a', 'preempted', quantity=1, rate=1.0),
+        _attempt_resource('b', 'cancelled', quantity=1, rate=1.0),
+    ]
+    assert retried_attempts_cost(rows, outcome_attempt_id=None) == 1000
+
+
+def test_retried_attempts_cost_of_attempts_without_duration_is_zero():
+    rows = [
+        _attempt_resource('never-activated', 'does_not_exist', start_time=None, rollup_time=1000),
+        _attempt_resource('never-rolled-up', 'preempted', start_time=0, rollup_time=None),
+        _attempt_resource('clock-skew', 'preempted', start_time=1000, rollup_time=500),
+    ]
+    assert retried_attempts_cost(rows, outcome_attempt_id=None) == 0.0
+
+
+def test_retried_attempts_cost_is_none_when_no_attempt_was_billed_for_a_preemptible_product():
+    rows = [
+        _attempt_resource('a', 'does_not_exist', resource='compute/n1-nonpreemptible/us-central1/1'),
+        _attempt_resource('b', 'completed', resource='compute/n1-nonpreemptible/us-central1/1'),
+        _attempt_resource('b', 'completed', resource='service-fee/1'),
+    ]
+    assert retried_attempts_cost(rows, outcome_attempt_id='b') is None
+
+
+def test_retried_attempts_cost_is_none_without_attempts():
+    assert retried_attempts_cost([], outcome_attempt_id=None) is None
+
+
+_OUTCOME_ON_PREEMPTIBLE = [
+    _attempt_resource(
+        'retried', 'preempted', start_time=0, rollup_time=1000, resource='compute/n1-preemptible/us-central1/500'
+    ),
+    _attempt_resource(
+        'outcome',
+        'completed',
+        start_time=2000,
+        rollup_time=3000,
+        resource='compute/n1-preemptible/us-central1/500',
+        rate=0.1,
+        quantity=4,
+    ),
+    _attempt_resource(
+        'outcome',
+        'completed',
+        start_time=2000,
+        rollup_time=3000,
+        resource='disk/local-ssd/preemptible/us-central1/500',
+        rate=0.01,
+        quantity=10,
+    ),
+    _attempt_resource(
+        'outcome',
+        'completed',
+        start_time=2000,
+        rollup_time=3000,
+        resource='disk/pd-ssd/us-central1/500',
+        rate=0.02,
+        quantity=5,
+    ),
+]
+
+_NONPREEMPTIBLE_RATES = [
+    ('compute/n1-nonpreemptible/us-central1/1000', 0.3),
+    ('compute/n1-nonpreemptible/us-central1/2500', 99.0),
+    ('disk/local-ssd/nonpreemptible/us-central1/1', 0.04),
+]
+
+
+def test_nonpreemptible_counterparts_are_those_of_the_outcome_attempt():
+    rows = [
+        *_OUTCOME_ON_PREEMPTIBLE,
+        _attempt_resource('retried', 'preempted', resource='memory/n1-preemptible/us-central1/1'),
+    ]
+    assert nonpreemptible_counterparts(rows, 'outcome') == {
+        'compute/n1-nonpreemptible/us-central1',
+        'disk/local-ssd/nonpreemptible/us-central1',
+    }
+    assert nonpreemptible_counterparts(rows, None) == set()
+
+
+def test_projected_nonpreemptible_cost_swaps_preemptible_rates_for_those_in_effect_at_outcome_start():
+    projected = projected_nonpreemptible_cost(_OUTCOME_ON_PREEMPTIBLE, 'outcome', _NONPREEMPTIBLE_RATES)
+    # 1000ms each: compute 4 * 0.3, local SSD 10 * 0.04, persistent disk at its billed 5 * 0.02
+    assert projected == pytest.approx(1000 * (1.2 + 0.4 + 0.1))
+
+
+def test_projected_nonpreemptible_cost_is_none_when_a_counterpart_rate_is_missing():
+    rates = [('compute/n1-nonpreemptible/us-central1/1000', 0.3)]
+    assert projected_nonpreemptible_cost(_OUTCOME_ON_PREEMPTIBLE, 'outcome', rates) is None
+
+
+def test_projected_nonpreemptible_cost_is_none_when_no_counterpart_rate_was_yet_in_effect():
+    rates = [('compute/n1-nonpreemptible/us-central1/2500', 0.3), ('disk/local-ssd/nonpreemptible/us-central1/1', 0.04)]
+    assert projected_nonpreemptible_cost(_OUTCOME_ON_PREEMPTIBLE, 'outcome', rates) is None
+
+
+def test_projected_nonpreemptible_cost_is_none_when_the_outcome_attempt_was_not_preemptible():
+    rows = [_attempt_resource('outcome', 'completed', resource='compute/n1-nonpreemptible/us-central1/1')]
+    assert projected_nonpreemptible_cost(rows, 'outcome', _NONPREEMPTIBLE_RATES) is None
+
+
+def test_projected_nonpreemptible_cost_is_none_without_an_outcome_attempt():
+    assert projected_nonpreemptible_cost(_OUTCOME_ON_PREEMPTIBLE, None, _NONPREEMPTIBLE_RATES) is None
