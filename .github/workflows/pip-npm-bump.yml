@@ -30,7 +30,7 @@ jobs:
         run: pip install uv
 
       - name: Update pip lockfiles
-        run: make generate-pip-lockfiles
+        run: make generate-pip-lockfiles COOLDOWN_EXEMPT="uv certifi pillow"
 
       - name: Update npm lockfile
         run: npm update --package-lock-only
