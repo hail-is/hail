@@ -49,6 +49,45 @@ object BindingEnv {
 
   def eval[T](bindings: (Name, T)*): BindingEnv[T] =
     BindingEnv(Env.fromSeq[T](bindings), None, None)
+
+  // BindingEnv's own operations, binding each name to its value
+  implicit object bindingEnvScopes extends Scopes[BindingEnv] {
+    override def bind[A](e: BindingEnv[A], s: EnvScope, bs: Seq[(Name, A)]): BindingEnv[A] =
+      s match {
+        case Scope.EVAL => e.copy(eval = e.eval.bindIterable(bs))
+        case Scope.AGG => e.copy(agg = Some(e.agg.get.bindIterable(bs)))
+        case Scope.SCAN => e.copy(scan = Some(e.scan.get.bindIterable(bs)))
+        case Scope.REL => e.copy(relational = e.relational.bindIterable(bs))
+      }
+
+    override def create[A](e: BindingEnv[A], s: Scope): BindingEnv[A] =
+      s match {
+        case Scope.AGG => e.createAgg
+        case Scope.SCAN => e.createScan
+        case Scope.EVAL => throw new IllegalArgumentException("can't create eval")
+      }
+
+    override def drop[A](e: BindingEnv[A], s: Scope): BindingEnv[A] =
+      s match {
+        case Scope.EVAL => e.noEval
+        case Scope.AGG => e.noAgg
+        case Scope.SCAN => e.noScan
+      }
+
+    override def promote[A](e: BindingEnv[A], s: Scope): BindingEnv[A] =
+      s match {
+        case Scope.EVAL => e
+        case Scope.AGG =>
+          if (e.agg.isEmpty) throw new RuntimeException("can't promote agg: not defined")
+          e.promoteAgg
+        case Scope.SCAN =>
+          if (e.scan.isEmpty) throw new RuntimeException("can't promote scan: not defined")
+          e.promoteScan
+      }
+
+    override def fresh[A](e: BindingEnv[A]): BindingEnv[A] =
+      BindingEnv(relational = e.relational)
+  }
 }
 
 case class BindingEnv[V](
