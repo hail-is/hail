@@ -55,7 +55,7 @@ class NestingDepthSuite {
   def testChildRunsRepeatedly(x: Ref, ir: IR)(implicit ctx: ExecuteContext): Unit =
     assert(NestingDepth(ctx, ir).lookupRef(x) == 1)
 
-  // A child's scopes follow Bindings.get: a scope it drops has depth 0, and a scope it
+  // A child's scopes follow ChildEnv.get: a scope it drops has depth 0, and a scope it
   // creates starts one deeper than eval. `b` is a Block placed in that child.
 
   def testScopesFollowBindings(): IndexedSeq[(IR, Block, Scope, Int)] = {
