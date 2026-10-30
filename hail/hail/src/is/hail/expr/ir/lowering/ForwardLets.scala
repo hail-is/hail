@@ -1,10 +1,12 @@
 package is.hail.expr.ir.lowering
 
 import is.hail.backend.ExecuteContext
+import is.hail.collection.FastSeq
 import is.hail.expr.ir.{
-  BaseIR, BindingEnv, Bindings, ComputeUsesAndDefs, ContainsAgg, ContainsAggIntermediate,
-  ContainsScan, Env, IR, IsPure, Pretty, RefEquality, Scope, UsesAndDefs,
+  BaseIR, BindingEnv, ChildEnv, ComputeUsesAndDefs, ContainsAgg, ContainsAggIntermediate,
+  ContainsScan, IR, IsPure, Pretty, RefEquality, Scope, UsesAndDefs,
 }
+import is.hail.expr.ir.Scopes.ScopesSyntax
 import is.hail.expr.ir.defs._
 import is.hail.expr.ir.lowering.invariant.UniquelyNamed
 import is.hail.types.virtual.TStream
@@ -31,7 +33,7 @@ object ForwardLets extends Logging {
                 !(ContainsScan(value) || ContainsAgg(value) || ContainsAggIntermediate(value))))
         )
 
-      def rewrite(ir: BaseIR, env: BindingEnv[IR]): BaseIR =
+      def rewrite(ir: BaseIR, env: BindingEnv[Option[IR]]): BaseIR =
         ir match {
           case l: Block if l.bindings.nonEmpty =>
             val keep = ArraySeq.newBuilder[Binding]
@@ -46,7 +48,7 @@ object ForwardLets extends Logging {
                 val rewriteValue = rewrite(value, valueEnv).asInstanceOf[IR]
                 val refs_ = refs.filter(_.t.name == name)
                 if (shouldForward(rewriteValue, refs_, l, scope)) {
-                  if (refs_.nonEmpty) env.bindInScope(name, rewriteValue, scope)
+                  if (refs_.nonEmpty) env.bind(scope, FastSeq(name -> Some(rewriteValue)))
                   else {
                     logger.info(
                       f"Eliminating unused binding:\n" +
@@ -68,6 +70,7 @@ object ForwardLets extends Logging {
           case x @ Ref(name, _) =>
             env.eval
               .lookupOption(name)
+              .flatten
               .map {
                 case forwarded: Atom => forwarded.ir
                 case big => big
@@ -75,10 +78,10 @@ object ForwardLets extends Logging {
               .getOrElse(x)
           case _ =>
             ir.mapChildrenWithIndex((ir1, i) =>
-              rewrite(ir1, env.extend(Bindings.get(ir, i).dropBindings))
+              rewrite(ir1, ChildEnv.get(env, ir, i)((_, _) => None))
             )
         }
 
-      rewrite(ir0, BindingEnv(Env.empty, Some(Env.empty), Some(Env.empty))).asInstanceOf[T]
+      rewrite(ir0, BindingEnv.empty[Option[IR]].createAgg.createScan).asInstanceOf[T]
     }
 }
