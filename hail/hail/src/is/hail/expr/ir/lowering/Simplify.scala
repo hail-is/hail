@@ -30,6 +30,11 @@ object Simplify {
       case bmir: BlockMatrixIR => simplifyBlockMatrix(ctx, bmir)
     }
 
+  // Does child i of ir bind name in eval?
+  private[this] def bindsEval(ir: IR, name: Name, i: Int): Boolean =
+    ChildEnv.get(BindingEnv.empty[Unit].createAgg.createScan, ir, i)((_, _) => ())
+      .eval.contains(name)
+
   private[this] def visitNode[T <: BaseIR](
     transform: (ExecuteContext, T) => Option[T],
     post: => (ExecuteContext, T) => T,
@@ -1154,7 +1159,7 @@ object Simplify {
                           .zipWithIndex
                           .forall {
                             case (child: IR, idx) =>
-                              Binds(ir1, name, idx) || allRefsCanBePassedThrough(child)
+                              bindsEval(ir1, name, idx) || allRefsCanBePassedThrough(child)
                             case _ => true
                           }
                     }
@@ -1199,7 +1204,7 @@ object Simplify {
                   case ma: MatrixAggregate => ma
                   case _ => ir1.mapChildrenWithIndex {
                       case (child: IR, idx) =>
-                        if (Binds(ir1, name, idx)) child else rewrite(child)
+                        if (bindsEval(ir1, name, idx)) child else rewrite(child)
                       case (child, _) => child
                     }
                 }
