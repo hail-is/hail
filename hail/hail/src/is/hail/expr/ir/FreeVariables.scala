@@ -1,60 +1,26 @@
 package is.hail.expr.ir
 
 import is.hail.expr.ir.defs.Ref
-import is.hail.types.virtual.Type
 
 import scala.collection.mutable
 
-case class FreeVariableEnv(boundVars: Env[Unit], freeVars: mutable.Set[Name]) {
-  def this(boundVars: Env[Unit]) =
-    this(boundVars, mutable.Set.empty)
-
-  private def copy(boundVars: Env[Unit]): FreeVariableEnv =
-    new FreeVariableEnv(boundVars, freeVars)
-
+case class FreeVariableEnv(boundVars: Set[Name], freeVars: mutable.Set[Name]) {
   def visitRef(name: Name): Unit =
     if (!boundVars.contains(name))
       freeVars += name
 
-  def bindIterable(bindings: Seq[(Name, Type)]): FreeVariableEnv =
-    copy(boundVars.bindIterable(bindings.view.map(b => (b._1, ()))))
+  def bindIterable(bindings: Seq[(Name, Any)]): FreeVariableEnv =
+    copy(boundVars = boundVars ++ bindings.view.map(_._1))
 
   def getFreeVars: Env[Unit] = new Env[Unit].bindIterable(freeVars.view.map(n => (n, ())))
 }
 
+// The free variables of eval, agg and scan.
 case class FreeVariableBindingEnv(
   evalVars: Option[FreeVariableEnv],
   aggVars: Option[FreeVariableEnv],
   scanVars: Option[FreeVariableEnv],
-) extends GenericBindingEnv[FreeVariableBindingEnv, Type] {
-  override def extend(bindings: Bindings[Type]): FreeVariableBindingEnv = {
-    val Bindings(all, eval, agg, scan, relational, dropEval) = bindings
-    var newEnv = this
-    if (dropEval) newEnv = newEnv.noEval
-    agg match {
-      case AggEnv.Drop => newEnv = newEnv.noAgg
-      case AggEnv.Promote => newEnv = newEnv.promoteAgg
-      case AggEnv.Create(bindings) =>
-        newEnv = newEnv.createAgg.bindAgg(bindings.map(all): _*)
-      case AggEnv.Bind(bindings) =>
-        newEnv = newEnv.bindAgg(bindings.map(all): _*)
-      case _ =>
-    }
-    scan match {
-      case AggEnv.Drop => newEnv = newEnv.noScan
-      case AggEnv.Promote => newEnv = newEnv.promoteScan
-      case AggEnv.Create(bindings) =>
-        newEnv = newEnv.createScan.bindScan(bindings.map(all): _*)
-      case AggEnv.Bind(bindings) =>
-        newEnv = newEnv.bindScan(bindings.map(all): _*)
-      case _ =>
-    }
-    if (eval.nonEmpty) newEnv = newEnv.bindEval(eval.map(all): _*)
-    if (relational.nonEmpty)
-      newEnv = newEnv.bindRelational(relational.map(all): _*)
-    newEnv
-  }
-
+) {
   def visitRef(name: Name): Unit =
     evalVars.foreach(_.visitRef(name))
 
@@ -63,44 +29,58 @@ case class FreeVariableBindingEnv(
     aggVars.map(_.getFreeVars),
     scanVars.map(_.getFreeVars),
   )
+}
 
-  override def promoteAgg: FreeVariableBindingEnv =
-    copy(evalVars = aggVars, aggVars = None)
+object FreeVariableBindingEnv {
+  type E[_] = FreeVariableBindingEnv
 
-  override def promoteScan: FreeVariableBindingEnv =
-    copy(evalVars = scanVars, scanVars = None)
+  // As BindingEnv's, but binding or promoting a missing scope does nothing, and relational
+  // names aren't tracked
+  implicit object freeVariableScopes extends Scopes[E] {
+    override def bind[A](e: E[A], s: EnvScope, bs: Seq[(Name, A)]): E[A] =
+      s match {
+        case Scope.EVAL => e.copy(evalVars = e.evalVars.map(_.bindIterable(bs)))
+        case Scope.AGG => e.copy(aggVars = e.aggVars.map(_.bindIterable(bs)))
+        case Scope.SCAN => e.copy(scanVars = e.scanVars.map(_.bindIterable(bs)))
+        case Scope.REL => e
+      }
 
-  override def bindEval(bindings: (Name, Type)*): FreeVariableBindingEnv =
-    copy(evalVars = evalVars.map(_.bindIterable(bindings)))
+    override def create[A](e: E[A], s: Scope): E[A] =
+      s match {
+        case Scope.AGG => e.copy(aggVars = e.evalVars)
+        case Scope.SCAN => e.copy(scanVars = e.evalVars)
+        case Scope.EVAL => throw new IllegalArgumentException("can't create eval")
+      }
 
-  override def noEval: FreeVariableBindingEnv = copy(evalVars = None)
+    override def drop[A](e: E[A], s: Scope): E[A] =
+      s match {
+        case Scope.EVAL => e.copy(evalVars = None)
+        case Scope.AGG => e.copy(aggVars = None)
+        case Scope.SCAN => e.copy(scanVars = None)
+      }
 
-  override def bindAgg(bindings: (Name, Type)*): FreeVariableBindingEnv =
-    copy(aggVars = aggVars.map(_.bindIterable(bindings)))
+    override def promote[A](e: E[A], s: Scope): E[A] =
+      s match {
+        case Scope.EVAL => e
+        case Scope.AGG => e.copy(evalVars = e.aggVars, aggVars = None)
+        case Scope.SCAN => e.copy(evalVars = e.scanVars, scanVars = None)
+      }
 
-  override def bindScan(bindings: (Name, Type)*): FreeVariableBindingEnv =
-    copy(scanVars = scanVars.map(_.bindIterable(bindings)))
-
-  override def createAgg: FreeVariableBindingEnv = copy(aggVars = evalVars)
-
-  override def createScan: FreeVariableBindingEnv = copy(scanVars = evalVars)
-
-  override def noAgg: FreeVariableBindingEnv = copy(aggVars = None)
-
-  override def noScan: FreeVariableBindingEnv = copy(scanVars = None)
-
-  override def bindRelational(bindings: (Name, Type)*): FreeVariableBindingEnv =
-    this
+    override def fresh[A](e: E[A]): E[A] =
+      FreeVariableBindingEnv(None, None, None)
+  }
 }
 
 object FreeVariables {
   def apply(ir: IR, supportsAgg: Boolean, supportsScan: Boolean): BindingEnv[Unit] = {
-    val env = FreeVariableBindingEnv(
-      Some(new FreeVariableEnv(Env.empty)),
-      if (supportsAgg) Some(new FreeVariableEnv(Env.empty)) else None,
-      if (supportsScan) Some(new FreeVariableEnv(Env.empty)) else None,
-    )
-    VisitIR.withEnv(ir, env) { (ir, env) =>
+    val env =
+      FreeVariableBindingEnv(
+        Some(FreeVariableEnv(Set.empty, mutable.Set.empty)),
+        Option.when(supportsAgg)(FreeVariableEnv(Set.empty, mutable.Set.empty)),
+        Option.when(supportsScan)(FreeVariableEnv(Set.empty, mutable.Set.empty)),
+      )
+
+    VisitIR.withEnv[FreeVariableBindingEnv.E, Unit](ir, env)((_, _) => ()) { (ir, env) =>
       ir match {
         case Ref(name, _) => env.visitRef(name)
         case _ =>
