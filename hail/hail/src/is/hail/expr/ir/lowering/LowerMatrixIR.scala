@@ -6,6 +6,7 @@ import is.hail.collection.implicits.toRichArray
 import is.hail.expr.ir.{Memoized => M, _}
 import is.hail.expr.ir.MatrixIR.{colName, entryName, globalName, rowName}
 import is.hail.expr.ir.Scope._
+import is.hail.expr.ir.Scopes.ScopesSyntax
 import is.hail.expr.ir.defs._
 import is.hail.expr.ir.defs.ArrayZipBehavior._
 import is.hail.expr.ir.functions.{WrappedMatrixToTableFunction, WrappedMatrixToValueFunction}
@@ -294,7 +295,7 @@ object LowerMatrixIR extends Logging {
           val lifted = mutable.Set.empty[Name]
 
           def extendEnv(env: LiftEnv, ir: IR, i: Int): LiftEnv =
-            env.extend(Bindings.get(ir, i).map((_, _) => None))
+            ChildEnv.get(env, ir, i)((_, _) => None)
 
           // -- See NOTE: Rules for lifting agg/scan ops --
           def hoist(x: IR, env: LiftEnv): Unit = {
@@ -398,7 +399,7 @@ object LowerMatrixIR extends Logging {
                       unwrapM(aggs, uid) >> liftedBody
                     case Binding(name, value, scope) =>
                       val v = lift(value, if (scope == AGG) env.promoteAgg.noScan else env, builder)
-                      val e = env.bindInScope(name, if (scope == EVAL) Some(v) else None, scope)
+                      val e = env.bind(scope, FastSeq(name -> Option.when(scope == EVAL)(v)))
                       val liftedBody = go(i + 1, e, builder)
                       if (moved.contains(name)) liftedBody
                       else M.defer[EVAL.type](_.strictMemoize(v, name, scope)) >> liftedBody
@@ -481,7 +482,7 @@ object LowerMatrixIR extends Logging {
         val lifted = mutable.Map.empty[Name, Boolean]
 
         def extendEnv(env: LiftEnv, ir: IR, i: Int): LiftEnv =
-          env.extend(Bindings.get(ir, i).map((_, _) => None))
+          ChildEnv.get(env, ir, i)((_, _) => None)
 
         // -- See NOTE: Rules for lifting agg/scan ops --
         def hoist(x: IR, env: LiftEnv, isScan: Boolean): Unit =
@@ -620,7 +621,7 @@ object LowerMatrixIR extends Logging {
                   if (movedScan.contains(name)) liftedBody else (name -> v) >> liftedBody
                 case b @ Binding(name, _, scope) =>
                   val ab = ArraySeq.newBuilder[(Name, IR)]
-                  val bodyEnv = env.bindInScope(name, None, scope)
+                  val bodyEnv = env.bind(scope, FastSeq(name -> None))
                   val liftedBody =
                     if (scope == SCAN) go(i + 1, bodyEnv, ab, aggBindings)
                     else go(i + 1, bodyEnv, scanBindings, ab)
