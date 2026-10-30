@@ -1,6 +1,8 @@
 import typer
 
 from ..batch_cli_utils import StructuredFormat, StructuredFormatOption, make_formatter
+from .projects import cli as projects_cli
+from .quotes import cli as quotes_cli
 
 app = typer.Typer(
     name='billing',
@@ -8,6 +10,9 @@ app = typer.Typer(
     help='Manage billing on the service managed by the Hail team.',
     pretty_exceptions_show_locals=False,
 )
+
+app.add_typer(quotes_cli.app, name='quotes')
+app.add_typer(projects_cli.app, name='projects')
 
 
 @app.command()
