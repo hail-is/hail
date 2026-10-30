@@ -39,7 +39,9 @@ This is the list of things you need to do to add a new IR node.
 
  - Implement it in Emit (the compiler) or add it to Compilable as false
 
- - If it binds a variable, add support to Bindings
+ - If it binds a variable or changes a scope (agg, scan, fresh), add a line to
+   ChildEnv.get and a ChildEnv function for the node; if it binds values, add a
+   Binds function for the rule
 
  - [Optional] Add a case in ExtractIntervalFilters
 

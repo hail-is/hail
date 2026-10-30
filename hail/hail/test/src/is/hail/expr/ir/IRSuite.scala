@@ -30,7 +30,6 @@ import is.hail.variant.BuiltinLoci.{builtin, tlocus}
 
 import scala.collection.immutable.ArraySeq
 import scala.collection.mutable
-import scala.util.{Failure, Success, Try}
 
 import org.apache.spark.sql.Row
 import org.json4s.Formats
@@ -3969,32 +3968,6 @@ class IRSuite {
     testTableIRParser(ctx): Unit
     testValueIRParser(ctx): Unit
     testBlockMatrixIRParser(ctx): Unit
-  }
-
-  // ChildEnv.get gives every child the env that get(ir, i) and applyRecord give.
-  // Goes with get(ir, i).
-  @Test def testChildEnvAgreesWithBindings(implicit ctx: ExecuteContext): Unit = {
-    val v = (_: Name, t: Type) => t
-
-    def check(ir: BaseIR, env: BindingEnv[Type]): Unit =
-      ir.children.zipWithIndex.foreach { case (child, i) =>
-        val expected = Try(Bindings.applyRecord(env, Bindings.get(ir, i).map(v)))
-        val actual = Try(ChildEnv.get(env, ir, i)(v))
-        val where = s"child $i of ${ir.getClass.getSimpleName}"
-        (expected, actual) match {
-          case (Success(x), Success(y)) =>
-            assert(y == x, s"$where:\n  expected $x\n  got $y")
-            check(child, y)
-          case (Failure(_), Failure(_)) =>
-          case _ =>
-            assert(false, s"$where:\n  expected $expected\n  got $actual")
-        }
-      }
-
-    valueIRs(ctx).foreach(a => check(a(0).asInstanceOf[IR], a(1).asInstanceOf[BindingEnv[Type]]))
-    tableIRs(ctx).foreach(a => check(a(0), BindingEnv.empty))
-    matrixIRs(ctx).foreach(a => check(a(0), BindingEnv.empty))
-    testBlockMatrixIRParser(ctx).foreach(check(_, BindingEnv.empty))
   }
 
   @ParameterizedTest
