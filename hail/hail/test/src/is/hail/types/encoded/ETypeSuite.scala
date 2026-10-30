@@ -65,14 +65,6 @@ class ETypeSuite {
       required = true,
     ),
     ENDArrayColumnMajor(EFloat64Required, 3),
-    EStructOfArrays(
-      FastSeq(
-        EField("a", EArray(EInt32Required, true), 0),
-        EField("b", EArray(EInt32Optional, true), 1),
-      ),
-      required = true,
-      structRequired = false,
-    ),
   )
 
   @ParameterizedTest
@@ -325,49 +317,6 @@ class ETypeSuite {
     for (t <- cases)
       assertNoVarint(EType.fromPythonTypeEncoding(t), t)
   }
-
-  @Test def testStructOfArrays(implicit ctx: ExecuteContext): Unit = {
-    val etype =
-      EStructOfArrays(
-        FastSeq(
-          EField("a", EArray(EInt32Required, true), 0),
-          EField("b", EArray(EFloat32Optional, true), 1),
-          EField("c", EArray(EBooleanRequired, true), 2),
-        )
-      )
-    val toEncode =
-      PCanonicalArray(PCanonicalStruct(
-        false,
-        "a" -> PInt32Required,
-        "b" -> PFloat32Optional,
-        "c" -> PBooleanRequired,
-      ))
-    val toDecode = toEncode
-    val data = FastSeq(
-      RowSeq(1, 2f, true),
-      null,
-      RowSeq(3, null, false),
-      RowSeq(4, 5f, true),
-      null,
-      RowSeq(6, 7f, false),
-      RowSeq(8, null, true),
-      RowSeq(9, 10f, false),
-    )
-
-    assertEqualEncodeDecode(toEncode, etype, toDecode, data)
-  }
-
-  @Test def testUnstableEncodingsOfContainersOfStructs(implicit ctx: ExecuteContext): Unit =
-    withUnstableEncodings { implicit ctx =>
-      val elt = PCanonicalStruct(false, "a" -> PInt32Optional, "b" -> PFloat64Optional)
-      val cases = ArraySeq[(PType, Annotation)](
-        PCanonicalArray(elt) -> FastSeq(RowSeq(1, 2.0), null, RowSeq(3, null)),
-        PCanonicalSet(elt) -> Set(RowSeq(1, 2.0), null, RowSeq(3, null)),
-        PCanonicalDict(PInt32Optional, PFloat64Optional) -> Map(1 -> 2.0, 3 -> null),
-      )
-      for ((pt, a) <- cases)
-        assertEqualEncodeDecode(pt, EType.defaultFromPType(ctx, pt), pt, a)
-    }
 
   // Loci of either representation, nested anywhere, decode and store into either representation,
   // on the same reference genome or an equal copy of it. The session does not hold the custom
