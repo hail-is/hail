@@ -23,10 +23,6 @@ object TableType {
 
   def valueType(ts: TStruct, key: IndexedSeq[String]): TStruct =
     ts.filterSet(key.toSet, include = false)._1
-
-  def globalBindings: IndexedSeq[Int] = FastSeq(0)
-
-  def rowBindings: IndexedSeq[Int] = FastSeq(0, 1)
 }
 
 case class TableType(rowType: TStruct, key: IndexedSeq[String], globalType: TStruct) extends VType {
