@@ -16,10 +16,12 @@ case class FreeVariableEnv(boundVars: Set[Name], freeVars: mutable.Set[Name]) {
 }
 
 // The free variables of eval, agg and scan.
+// isFresh marks a fresh scope, which sees only relational names, so records no free variable.
 case class FreeVariableBindingEnv(
   evalVars: Option[FreeVariableEnv],
   aggVars: Option[FreeVariableEnv],
   scanVars: Option[FreeVariableEnv],
+  isFresh: Boolean = false,
 ) {
   def visitRef(name: Name): Unit =
     evalVars.foreach(_.visitRef(name))
@@ -67,12 +69,18 @@ object FreeVariableBindingEnv {
       }
 
     override def fresh[A](e: E[A]): E[A] =
-      FreeVariableBindingEnv(None, None, None)
+      FreeVariableBindingEnv(None, None, None, isFresh = true)
   }
 }
 
 object FreeVariables {
   def apply(ir: IR, supportsAgg: Boolean, supportsScan: Boolean): BindingEnv[Unit] = {
+    def go(ir: BaseIR, env: FreeVariableBindingEnv.E[Unit]): Unit =
+      if (!env.isFresh) ir match {
+        case Ref(name, _) => env.visitRef(name)
+        case _ => ir.forEachChildWithEnv(env)((_, _) => ())(go)
+      }
+
     val env =
       FreeVariableBindingEnv(
         Some(FreeVariableEnv(Set.empty, mutable.Set.empty)),
@@ -80,12 +88,7 @@ object FreeVariables {
         Option.when(supportsScan)(FreeVariableEnv(Set.empty, mutable.Set.empty)),
       )
 
-    VisitIR.withEnv[FreeVariableBindingEnv.E, Unit](ir, env)((_, _) => ()) { (ir, env) =>
-      ir match {
-        case Ref(name, _) => env.visitRef(name)
-        case _ =>
-      }
-    }
+    go(ir, env)
     env.getFreeVars
   }
 }
