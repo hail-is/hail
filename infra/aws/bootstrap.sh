@@ -55,6 +55,7 @@ function install_load_balancer_controller() {
     ACCOUNT_ID=$1
     CLUSTER_NAME=$2
     LOAD_BALANCER_CONTROLLER_ROLE=$3
+    REGION=${4:-"us-east-1"}
 
     curl -o iam-policy.json https://raw.githubusercontent.com/kubernetes-sigs/aws-load-balancer-controller/main/docs/install/iam_policy.json
     aws iam create-policy \
@@ -80,6 +81,8 @@ EOF
     helm install aws-load-balancer-controller eks/aws-load-balancer-controller \
         -n kube-system \
         --set clusterName="$CLUSTER_NAME" \
+        --set vpcId="$(aws eks describe-cluster --name "$CLUSTER_NAME" --query "cluster.resourcesVpcConfig.vpcId" --output text)" \
+        --set awsRegion="$REGION" \
         --set serviceAccount.create=false \
         --set serviceAccount.name=aws-load-balancer-controller
 

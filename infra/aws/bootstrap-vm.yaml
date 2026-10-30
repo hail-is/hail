@@ -59,7 +59,7 @@ Resources:
             export KUBECONFIG=/root/.kube/config
 
             ./bootstrap.sh install_external_secrets ${ExternalSecretsRoleArn}
-            ./bootstrap.sh install_load_balancer_controller ${AWS::AccountId} ${ClusterName} ${LoadBalancerControllerRoleName}
+            ./bootstrap.sh install_load_balancer_controller ${AWS::AccountId} ${ClusterName} ${LoadBalancerControllerRoleName} ${AWS::Region}
             
             aws cloudformation signal-resource --stack-name ${AWS::StackName} --logical-resource-id BootstrapInstance --region ${AWS::Region} --status SUCCESS --unique-id "Bootstrap instance is ready"
 
