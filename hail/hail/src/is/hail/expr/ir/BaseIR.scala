@@ -65,25 +65,29 @@ abstract class BaseIR {
     }
   }
 
-  def forEachChildWithEnv[E <: GenericBindingEnv[E, Type]](env: E)(f: (BaseIR, E) => Unit): Unit =
+  def forEachChildWithEnv[E[_]: Scopes, A](
+    env: E[A]
+  )(
+    v: (Name, Type) => A
+  )(
+    f: (BaseIR, E[A]) => Unit
+  ): Unit =
     childrenSeq.view.zipWithIndex.foreach { case (child, i) =>
-      val childEnv = env.extend(Bindings.get(this, i))
+      val childEnv = ChildEnv.get(env, this, i)(v)
       f(child, childEnv)
     }
 
-  def mapChildrenWithEnv(env: BindingEnv[Type])(f: (BaseIR, BindingEnv[Type]) => BaseIR): BaseIR =
-    mapChildrenWithEnv[BindingEnv[Type]](env, (env, bindings) => env.extend(bindings))(f)
-
-  def mapChildrenWithEnv[E](
-    env: E,
-    update: (E, Bindings[Type]) => E,
+  def mapChildrenWithEnv[E[_]: Scopes, A](
+    env: E[A]
   )(
-    f: (BaseIR, E) => BaseIR
+    v: (Name, Type) => A
+  )(
+    f: (BaseIR, E[A]) => BaseIR
   ): BaseIR = {
     val newChildren = childrenSeq.toArray
     var res = this
     for (i <- newChildren.indices) {
-      val childEnv = update(env, Bindings.get(res, i))
+      val childEnv = ChildEnv.get(env, res, i)(v)
       val child = newChildren(i)
       val newChild = f(child, childEnv)
       if (!(newChild eq child)) {
@@ -94,16 +98,17 @@ abstract class BaseIR {
     res
   }
 
-  def mapChildrenWithEnvStackSafe[E](
-    env: E,
-    update: (E, Bindings[Type]) => E,
+  def mapChildrenWithEnvStackSafe[E[_]: Scopes, A](
+    env: E[A]
   )(
-    f: (BaseIR, E) => StackFrame[BaseIR]
+    v: (Name, Type) => A
+  )(
+    f: (BaseIR, E[A]) => StackFrame[BaseIR]
   ): StackFrame[BaseIR] = {
     val newChildren = childrenSeq.toArray
     var res = this
     newChildren.indices.foreachRecur { i =>
-      val childEnv = update(env, Bindings.get(res, i))
+      val childEnv = ChildEnv.get(env, res, i)(v)
       val child = newChildren(i)
       f(child, childEnv).map { newChild =>
         if (!(newChild eq child)) {
@@ -114,13 +119,15 @@ abstract class BaseIR {
     }.map(_ => res)
   }
 
-  def forEachChildWithEnvStackSafe[E <: GenericBindingEnv[E, Type]](
-    env: E
+  def forEachChildWithEnvStackSafe[E[_]: Scopes, A](
+    env: E[A]
   )(
-    f: (BaseIR, Int, E) => StackFrame[Unit]
+    v: (Name, Type) => A
+  )(
+    f: (BaseIR, Int, E[A]) => StackFrame[Unit]
   ): StackFrame[Unit] =
     childrenSeq.view.zipWithIndex.foreachRecur { case (child, i) =>
-      val childEnv = env.extend(Bindings.get(this, i))
+      val childEnv = ChildEnv.get(env, this, i)(v)
       f(child, i, childEnv)
     }
 }

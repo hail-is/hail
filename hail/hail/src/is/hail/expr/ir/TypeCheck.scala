@@ -32,7 +32,7 @@ object TypeCheck extends Logging {
 
   def check(ctx: ExecuteContext, ir: BaseIR, env: BindingEnv[Type]): StackFrame[Unit] = {
     for {
-      _ <- ir.forEachChildWithEnvStackSafe(env) { (child, i, childEnv) =>
+      _ <- ir.forEachChildWithEnvStackSafe(env)((_, t) => t) { (child, i, childEnv) =>
         for {
           _ <- call(check(ctx, child, childEnv))
         } yield
