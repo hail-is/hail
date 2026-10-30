@@ -15,6 +15,7 @@ object ComputeUsesAndDefs {
     val uses = Memo.empty[mutable.Set[RefEquality[BaseRef]]]
     val defs = Memo.empty[BaseIR]
     val free = mutable.Set.empty[RefEquality[BaseRef]]
+    val empty = BindingEnv.empty[BaseIR].createAgg.createScan
 
     def compute(ir: BaseIR, env: BindingEnv[BaseIR]): Unit = {
 
@@ -44,14 +45,14 @@ object ComputeUsesAndDefs {
       ir.children
         .zipWithIndex
         .foreach { case (child, i) =>
-          val newBindings = Bindings.get(ir, i).map((_, _) => ir)
+          val newBindings = ChildEnv.get(empty, ir, i)((_, _) => ir)
           if (!newBindings.allEmpty && !uses.contains(ir))
             uses.bind(ir, mutable.Set.empty[RefEquality[BaseRef]])
-          compute(child, env.extend(newBindings))
+          compute(child, ChildEnv.get(env, ir, i)((_, _) => ir))
         }
     }
 
-    compute(ir0, BindingEnv[BaseIR](scan = Some(Env.empty), agg = Some(Env.empty)))
+    compute(ir0, empty)
 
     UsesAndDefs(uses, defs, free)
   }
