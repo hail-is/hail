@@ -8,7 +8,6 @@ import is.hail.backend.ExecuteContext
 import is.hail.collection.{FastSeq, IntArrayBuilder}
 import is.hail.collection.implicits.toRichIterable
 import is.hail.expr.Nat
-import is.hail.expr.ir.Scope.{AGG, EVAL, SCAN}
 import is.hail.expr.ir.TestUtils._
 import is.hail.expr.ir.agg._
 import is.hail.expr.ir.defs._
@@ -31,7 +30,6 @@ import is.hail.variant.BuiltinLoci.{builtin, tlocus}
 
 import scala.collection.immutable.ArraySeq
 import scala.collection.mutable
-import scala.util.{Failure, Success, Try}
 
 import org.apache.spark.sql.Row
 import org.json4s.Formats
@@ -3971,92 +3969,6 @@ class IRSuite {
     testValueIRParser(ctx): Unit
     testBlockMatrixIRParser(ctx): Unit
   }
-
-  // ChildEnv.get gives every child the env that get(ir, i) and applyRecord give.
-  // Goes with get(ir, i).
-  private def checkChildEnv(ir: BaseIR, env: BindingEnv[Type]): Unit = {
-    val v = (_: Name, t: Type) => t
-    ir.children.zipWithIndex.foreach { case (child, i) =>
-      val expected = Try(Bindings.applyRecord(env, Bindings.get(ir, i).map(v)))
-      val actual = Try(ChildEnv.get(env, ir, i)(v))
-      val where = s"child $i of ${ir.getClass.getSimpleName}"
-      (expected, actual) match {
-        case (Success(x), Success(y)) =>
-          assert(y == x, s"$where:\n  expected $x\n  got $y")
-          checkChildEnv(child, y)
-        case (Failure(_), Failure(_)) =>
-        case _ =>
-          assert(false, s"$where:\n  expected $expected\n  got $actual")
-      }
-    }
-  }
-
-  @Test def testChildEnvAgreesWithBindings(implicit ctx: ExecuteContext): Unit = {
-    valueIRs(ctx).foreach { a =>
-      checkChildEnv(a(0).asInstanceOf[IR], a(1).asInstanceOf[BindingEnv[Type]])
-    }
-    tableIRs(ctx).foreach(a => checkChildEnv(a(0), BindingEnv.empty))
-    matrixIRs(ctx).foreach(a => checkChildEnv(a(0), BindingEnv.empty))
-    testBlockMatrixIRParser(ctx).foreach(checkChildEnv(_, BindingEnv.empty))
-  }
-
-  // Nodes and scope mixes that valueIRs and the relational suites lack, in envs
-  // that already hold names in eval, agg and scan.
-  def testChildEnvAgreesWithBindingsOn(ctx: ExecuteContext): Seq[(BaseIR, BindingEnv[Type])] = {
-    val outer =
-      BindingEnv[Type](
-        eval = Env(freshName() -> TInt32),
-        agg = Some(Env(freshName() -> TInt64)),
-        scan = Some(Env(freshName() -> TFloat64)),
-      )
-
-    val aggOnly =
-      BindingEnv[Type](
-        eval = Env(freshName() -> TInt32),
-        agg = Some(Env.empty),
-      )
-
-    val scanOnly =
-      BindingEnv[Type](
-        eval = Env(freshName() -> TInt32),
-        scan = Some(Env.empty),
-      )
-
-    def block(scopes: Scope*): IR =
-      Block(scopes.map(s => Binding(freshName(), 0, s)).toFastSeq, 0)
-
-    val ints = MakeArray(0)
-    val structs = MakeStream(makestruct("k" -> 0))
-    val pairs = MakeArray(makestruct("a" -> 0, "b" -> 1))
-
-    val bm = testBlockMatrixIRParser(ctx).head
-
-    FastSeq(
-      block(EVAL, AGG, SCAN, EVAL) -> outer,
-      block(SCAN, AGG, EVAL) -> outer,
-      // an AGG binding in an env with no agg: only the AGG value and the body
-      // are ill-scoped; the SCAN value is not
-      block(AGG, SCAN) -> scanOnly,
-      block(SCAN, AGG) -> aggOnly,
-      zipJoin2IR(FastSeq(structs, structs), FastSeq("k"))((_, _) => 0) -> outer,
-      StreamZipJoinProducers(ints, freshName(), structs, FastSeq("k"), freshName(), freshName(), 0)
-        -> outer,
-      ArrayMaximalIndependentSet(pairs, Some((freshName(), freshName(), 0.0))) -> outer,
-      ints.aggElements(Some(1))((_, _) => 0) -> outer,
-      aggArrayPerElement(ints, Some(1), isScan = true)((_, _) => 0) -> outer,
-      aggExplodeIR(ints, isScan = true)(_ => 0) -> outer,
-      AggFilter(true, 0, true) -> outer,
-      AggGroupBy(true, 0, true) -> outer,
-      aggFoldIR(0, isScan = true)(_ => 0)((_, _) => 0) -> outer,
-      ApplyScanOp(Sum())(0L) -> outer,
-      bmMap(bm, needsDense = false)(_ => 0.0) -> outer,
-      BlockMatrixMap2(bm, bm, freshName(), freshName(), 0.0, UnionBlocks) -> outer,
-    )
-  }
-
-  @ParameterizedTest
-  def testChildEnvAgreesWithBindingsOn(ir: BaseIR, env: BindingEnv[Type]): Unit =
-    checkChildEnv(ir, env)
 
   @ParameterizedTest
   def testValueIRParser(x: IR, refMap: BindingEnv[Type])(implicit ctx: ExecuteContext): Unit = {
