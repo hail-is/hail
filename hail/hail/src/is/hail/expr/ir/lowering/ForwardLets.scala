@@ -3,8 +3,8 @@ package is.hail.expr.ir.lowering
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
 import is.hail.expr.ir.{
-  BaseIR, BindingEnv, ChildEnv, ComputeUsesAndDefs, ContainsAgg, ContainsAggIntermediate,
-  ContainsScan, IR, IsPure, Pretty, RefEquality, Scope, UsesAndDefs,
+  BaseIR, BindingEnv, ComputeUsesAndDefs, ContainsAgg, ContainsAggIntermediate, ContainsScan, IR,
+  IsPure, Pretty, RefEquality, Scope, UsesAndDefs,
 }
 import is.hail.expr.ir.Scopes.ScopesSyntax
 import is.hail.expr.ir.defs._
@@ -77,9 +77,7 @@ object ForwardLets extends Logging {
               }
               .getOrElse(x)
           case _ =>
-            ir.mapChildrenWithIndex((ir1, i) =>
-              rewrite(ir1, ChildEnv.get(env, ir, i)((_, _) => None))
-            )
+            ir.mapChildrenWithEnv(env)((_, _) => None)(rewrite)
         }
 
       rewrite(ir0, BindingEnv.empty[Option[IR]].createAgg.createScan).asInstanceOf[T]

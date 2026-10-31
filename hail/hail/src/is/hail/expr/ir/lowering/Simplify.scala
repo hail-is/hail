@@ -1202,9 +1202,11 @@ object Simplify {
                     )
                   case ta: TableAggregate => ta
                   case ma: MatrixAggregate => ma
-                  case _ => ir1.mapChildrenWithIndex {
-                      case (child: IR, idx) =>
-                        if (bindsEval(ir1, name, idx)) child else rewrite(child)
+                  case _ =>
+                    ir1.mapChildrenWithEnv(BindingEnv.empty[Unit].createAgg.createScan)((_, _) =>
+                      ()
+                    ) {
+                      case (child: IR, e) => if (e.eval.contains(name)) child else rewrite(child)
                       case (child, _) => child
                     }
                 }

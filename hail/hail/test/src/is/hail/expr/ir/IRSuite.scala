@@ -4600,4 +4600,58 @@ class IRSuite {
       assert(interval.end.asInstanceOf[Row](0) == splitterPair(1))
     }
   }
+
+  private def mapChildrenWithEnvBoth(
+    ir: BaseIR
+  )(
+    f: (BaseIR, BindingEnv[Type]) => BaseIR
+  ): Seq[BaseIR] = {
+    val env = BindingEnv.empty[Type]
+    Seq(
+      ir.mapChildrenWithEnv(env)((_, t) => t)(f),
+      ir.mapChildrenWithEnvM(env)((_, t) => t)((c, e) => StackSafe.done(f(c, e))).run(),
+    )
+  }
+
+  private def mapChildrenWithEnvIRs: Seq[IR] = {
+    val x = Name("x")
+    Seq(
+      MakeStruct(FastSeq("a" -> I32(1), "b" -> I32(2))),
+      Block(FastSeq(Binding(x, I32(1)), Binding(Name("y"), I32(2))), Ref(x, TInt32)),
+    )
+  }
+
+  @Test def mapChildrenWithEnvReturnsNodeWhenNoChildChanges(): Unit =
+    for (ir <- mapChildrenWithEnvIRs)
+      mapChildrenWithEnvBoth(ir)((c, _) => c).foreach(res => assert(res eq ir))
+
+  @Test def mapChildrenWithEnvHoldsEveryNewChild(): Unit =
+    for (ir <- mapChildrenWithEnvIRs) {
+      val children = ir.children.toIndexedSeq
+      val newChildren = children.map(_ => I32(3))
+      val f = (c: BaseIR, _: BindingEnv[Type]) => newChildren(children.indexWhere(_ eq c))
+      mapChildrenWithEnvBoth(ir)(f).foreach { res =>
+        assert(res.children.toIndexedSeq.corresponds(newChildren)(_ eq _))
+      }
+    }
+
+  @Test def mapChildrenWithEnvReadsNewChildTypes(): Unit = {
+    val x = Name("x")
+    val i64s = ToStream(MakeArray(FastSeq(I64(0)), TArray(TInt64)))
+    val irs = Seq(
+      Block(FastSeq(Binding(x, I32(1))), Ref(x, TInt32)),
+      StreamMap(ToStream(MakeArray(FastSeq(I32(0)), TArray(TInt32))), x, Ref(x, TInt32)),
+    )
+    for (ir <- irs) {
+      val seen = mutable.ArrayBuffer.empty[Type]
+      val _ = mapChildrenWithEnvBoth(ir) {
+        case (_: I32, _) => I64(1)
+        case (_: ToStream, _) => i64s
+        case (c, env) =>
+          seen += env.eval.lookup(x)
+          c
+      }
+      assert(seen == Seq(TInt64, TInt64))
+    }
+  }
 }

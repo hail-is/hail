@@ -7,6 +7,9 @@ import is.hail.types.tcoerce
 import is.hail.types.virtual._
 import is.hail.types.virtual.TIterable.elementType
 
+import cats.Functor
+import cats.syntax.functor._
+
 // One function per node whose children's envs differ from its own. Each takes the env, the
 // child's index i, the node's name fields and its children, and returns child i's env. It reads
 // types only from children(0 until i), makes each value with v, then calls the node's Binds rule.
@@ -16,8 +19,18 @@ object ChildEnv {
   /** Returns the env of the `i`th child of `ir` given the env `e` of `ir`. `v` makes the value each
     * name is bound to.
     */
-  def get[E[_]: Scopes, A](e: E[A], ir: BaseIR, i: Int)(v: (Name, Type) => A): E[A] = {
-    def cs: IndexedSeq[BaseIR] = ir.children.toIndexedSeq
+  def get[E[_]: Scopes, A](e: E[A], ir: BaseIR, i: Int)(v: (Name, Type) => A): E[A] =
+    get(e, ir, ir.children.toIndexedSeq, i)(v)
+
+  // cs may differ from ir's children; ir supplies only name fields
+  def get[E[_]: Scopes, A](
+    e: E[A],
+    ir: BaseIR,
+    cs: IndexedSeq[BaseIR],
+    i: Int,
+  )(
+    v: (Name, Type) => A
+  ): E[A] =
     ir match {
       case x: Block => block(e, i, x.bindings, cs)(v)
       case x: TailLoop => tailLoop(e, i, x.name, x.params.map(_._1), x.resultType, cs)(v)
@@ -86,7 +99,25 @@ object ChildEnv {
       case _: TableIR | _: MatrixIR | _: BlockMatrixIR => e.fresh
       case _ => e
     }
-  }
+
+  // k returns child i's final form, whose type a Block binding binds
+  def step[F[_]: Functor, E[_]: Scopes, A](
+    e: E[A],
+    ir: BaseIR,
+    cs: IndexedSeq[BaseIR],
+    i: Int,
+  )(
+    v: (Name, Type) => A
+  )(
+    k: E[A] => F[BaseIR]
+  ): F[E[A]] =
+    ir match {
+      case x: Block =>
+        val bs = x.bindings
+        k(blockChild(e, i, bs)).map(c => if (i < bs.length) blockBind(e, bs(i), c)(v) else e)
+      case _ =>
+        k(get(e, ir, cs, i)(v)).as(e)
+    }
 
   private def typ(c: BaseIR): Type = c.asInstanceOf[IR].typ
   private def eltType(c: BaseIR): Type = elementType(typ(c))
@@ -117,12 +148,16 @@ object ChildEnv {
   )(
     v: (Name, Type) => A
   ): E[A] = {
-    val bound = (0 until i).foldLeft(e) { (e, k) =>
-      val name = bindings(k).name
-      e.bind(bindings(k).scope, FastSeq(name -> v(name, typ(children(k)))))
-    }
-    if (i < bindings.length) Binds.blockBinding(bound, bindings(i).scope) else bound
+    val bound = (0 until i).foldLeft(e)((e, k) => blockBind(e, bindings(k), children(k))(v))
+    blockChild(bound, i, bindings)
   }
+
+  private def blockChild[E[_]: Scopes, A](e: E[A], i: Int, bindings: IndexedSeq[Binding]): E[A] =
+    if (i < bindings.length) Binds.blockBinding(e, bindings(i).scope) else e
+
+  private def blockBind[E[_]: Scopes, A](e: E[A], b: Binding, value: BaseIR)(v: (Name, Type) => A)
+    : E[A] =
+    e.bind(b.scope, FastSeq(b.name -> v(b.name, typ(value))))
 
   def tailLoop[E[_]: Scopes, A](
     e: E[A],

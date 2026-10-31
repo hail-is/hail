@@ -1,6 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.backend.ExecuteContext
+import is.hail.collection.implicits.{indexedSeqTraverse, rangeTraverseOps}
 import is.hail.expr.{JSONAnnotationImpex, Nat, ParserUtils}
 import is.hail.expr.ir.agg._
 import is.hail.expr.ir.defs._
@@ -24,6 +25,7 @@ import scala.util.parsing.input.Positional
 
 import java.util.Base64
 
+import cats.syntax.traverse._
 import org.apache.spark.sql.Row
 import org.json4s.{Formats, JObject}
 import org.json4s.jackson.{JsonMethods, Serialization}
@@ -876,7 +878,7 @@ object IRParser {
         val paramNames = names(it)
         val resultType = type_expr(ctx.references)(it)
         for {
-          paramIRs <- fillArray(paramNames.length)(ir_value_expr(ctx)(it))(ArraySeq)
+          paramIRs <- paramNames.traverse(_ => ir_value_expr(ctx)(it))
           params = paramNames.zip(paramIRs)
           body <- ir_value_expr(ctx)(it)
         } yield TailLoop(n, params, resultType, body)
@@ -1114,7 +1116,7 @@ object IRParser {
         }
         val ns = names(it)
         for {
-          as <- ns.mapRecur(_ => ir_value_expr(ctx)(it))
+          as <- ns.traverse(_ => ir_value_expr(ctx)(it))
           body <- ir_value_expr(ctx)(it)
         } yield StreamZip(as, ns, body, behavior, errorID)
       case "StreamZipJoinProducers" =>
@@ -1134,7 +1136,7 @@ object IRParser {
         val curKey = name(it)
         val curVals = name(it)
         for {
-          streams <- (0 until nStreams).mapRecur(_ => ir_value_expr(ctx)(it))
+          streams <- (0 until nStreams).traverse(_ => ir_value_expr(ctx)(it))
           body <-
             ir_value_expr(ctx)(it)
         } yield StreamZipJoin(streams, key, curKey, curVals, body)
@@ -1180,9 +1182,9 @@ object IRParser {
         val valueName = name(it)
         for {
           a <- ir_value_expr(ctx)(it)
-          accIRs <- fillArray(accumNames.length)(ir_value_expr(ctx)(it))(ArraySeq)
+          accIRs <- accumNames.traverse(_ => ir_value_expr(ctx)(it))
           accs = accumNames.zip(accIRs)
-          seqs <- fillArray[IR, ArraySeq[IR]](accs.length)(ir_value_expr(ctx)(it))(ArraySeq)
+          seqs <- accs.traverse(_ => ir_value_expr(ctx)(it))
           res <- ir_value_expr(ctx)(it)
         } yield StreamFold2(a, accs, valueName, seqs, res)
       case "StreamScan" =>
