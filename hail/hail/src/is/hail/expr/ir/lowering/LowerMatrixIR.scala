@@ -398,7 +398,7 @@ object LowerMatrixIR extends Logging {
                       emit(builder, env, uid.name, Block(FastSeq(b), structResult))
                       unwrapM(aggs, uid) >> liftedBody
                     case Binding(name, value, scope) =>
-                      val v = lift(value, if (scope == AGG) env.promoteAgg.noScan else env, builder)
+                      val v = lift(value, Binds.blockBinding(env, scope), builder)
                       val e = env.bind(scope, FastSeq(name -> Option.when(scope == EVAL)(v)))
                       val liftedBody = go(i + 1, e, builder)
                       if (moved.contains(name)) liftedBody
@@ -414,8 +414,8 @@ object LowerMatrixIR extends Logging {
                 ir
 
               case _ =>
-                ir.mapChildrenWithIndex {
-                  case (c: IR, i) => lift(c, extendEnv(env, ir, i), builder)
+                ir.mapChildrenWithEnv(env)((_, _) => None) {
+                  case (c: IR, e) => lift(c, e, builder)
                   case (c, _) => c
                 }
             }
@@ -648,8 +648,8 @@ object LowerMatrixIR extends Logging {
             ir
 
           case _ =>
-            ir.mapChildrenWithIndex {
-              case (c: IR, i) => lift(c, extendEnv(env, ir, i), scanBindings, aggBindings)
+            ir.mapChildrenWithEnv(env)((_, _) => None) {
+              case (c: IR, e) => lift(c, e, scanBindings, aggBindings)
               case (c, _) => c
             }
         }

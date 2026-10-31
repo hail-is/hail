@@ -8,6 +8,7 @@ import is.hail.collection.FastSeq
 import is.hail.collection.implicits.toRichIterable
 import is.hail.expr.ir
 import is.hail.expr.ir._
+import is.hail.expr.ir.Scopes.ScopesSyntax
 import is.hail.expr.ir.defs._
 import is.hail.io.BufferSpec
 import is.hail.io.index.IndexType
@@ -491,7 +492,7 @@ object Extract {
 
     val postAggIR = extract(
       ir,
-      BindingEnv.empty.bindEval(resultName, BindingState.result(isScan)),
+      BindingEnv.empty.createAgg.createScan.bindEval(resultName, BindingState.result(isScan)),
       initBindings,
       initBuilder,
       seqBuilder,
@@ -600,8 +601,9 @@ object Extract {
               this.extract(value, newEnv, nested, initBuilder, seqBuilder, memo, result, r, isScan)
             bindingsTemp += name -> newValue
             newEnv = newEnv.bindEval(name, BindingState.movable)
-          case Binding(name, value, _) =>
+          case Binding(name, value, scope) =>
             seqBuilder += name -> value
+            newEnv = newEnv.bind(scope, FastSeq(name -> BindingState.varying(name)))
         }
         val newBody =
           this.extract(body, newEnv, nested, initBuilder, seqBuilder, memo, result, r, isScan)
@@ -814,9 +816,7 @@ object Extract {
           this.extract(a, env, initBindings, initBuilder, seqBuilder, memo, result, r, isScan)
         StreamAggScan(newA, name, query)
       case x =>
-        x.mapChildrenWithIndex { case (child: IR, i) =>
-          val newEnv = ChildEnv.get(env, x, i)((n, _) => BindingState.varying(n))
-
+        x.mapChildrenWithEnv(env)((n, _) => BindingState.varying(n)) { case (child: IR, newEnv) =>
           this.extract(child, newEnv, initBindings, initBuilder, seqBuilder, memo,
             result, r, isScan)
         }

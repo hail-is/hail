@@ -121,10 +121,10 @@ package object invariant {
         }
       }
 
-      def go(ir: BaseIR): StackFrame[Unit] =
-        ir.forEachChildWithEnvStackSafe((): E[Unit])((_, _) => ()) { (child, _, _) =>
-          call(go(child))
-        }(recording(record(ir, mutable.HashSet.empty)))
+      def go(ir: BaseIR): StackFrame[Unit] = {
+        implicit val scopes: Scopes[E] = recording(record(ir, mutable.HashSet.empty))
+        ir.forEachChildWithEnvM((): E[Unit])((_, _) => ())((child, _, _) => go(child))
+      }
 
       go(ir0).run()
     }

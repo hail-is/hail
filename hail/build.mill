@@ -62,6 +62,7 @@ trait HailScalaModule extends ScalaModule, HailJavaModule, ScalafmtModule, Scala
 
   override def depManagement: T[Seq[Dep]] =
     Seq(
+      `cats-core` :: "2.8.0", // spark dependent
       `log4j-api-scala` :: "13.1.0",
     )
 

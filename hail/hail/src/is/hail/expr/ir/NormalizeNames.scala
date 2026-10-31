@@ -2,6 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
+import is.hail.collection.implicits.indexedSeqTraverse
 import is.hail.expr.ir.NormalizeNames.needsRenaming
 import is.hail.expr.ir.Scopes.ScopesSyntax
 import is.hail.expr.ir.defs._
@@ -12,6 +13,8 @@ import is.hail.utils.TimedBlock
 
 import scala.annotation.tailrec
 import scala.collection.mutable
+
+import cats.syntax.traverse._
 
 object NormalizeNames {
   def apply[T <: BaseIR](allowFreeVariables: Boolean = false)(ctx: ExecuteContext, ir: T): T =
@@ -68,16 +71,11 @@ class NormalizeNames(freeVariables: Set[Name]) {
     case Block(bindings, body) =>
       var newEnv = env
       for {
-        newBindings <- bindings.mapRecur { case Binding(name, value, scope) =>
-          val valueEnv = scope match {
-            case Scope.EVAL => newEnv
-            case Scope.AGG => newEnv.promoteAgg.noScan
-            case Scope.SCAN => newEnv.promoteScan.noAgg
-          }
-          for (newValue <- normalizeIR(value, valueEnv)) yield {
+        newBindings <- bindings.traverse { case Binding(name, value, scope) =>
+          normalizeIR(value, Binds.blockBinding(newEnv, scope)).map { case newValue: IR =>
             val newName = gen()
             newEnv = newEnv.bind(scope, FastSeq(name -> newName))
-            Binding(newName, newValue.asInstanceOf[IR], scope)
+            Binding(newName, newValue, scope)
           }
         }
         newBody <- normalizeIR(body, newEnv)
@@ -107,13 +105,13 @@ class NormalizeNames(freeVariables: Set[Name]) {
           else
             name
       }
-      Recur(newName, args, typ).mapChildrenStackSafe(normalizeIR(_, env))
+      Recur(newName, args, typ).mapChildrenM(normalizeIR(_, env))
     case ir =>
       val bindingsMap = mutable.HashMap.empty[Name, Name]
       val v: (Name, Type) => Name =
         if (needsRenaming(ir)) (name, _) => bindingsMap.getOrElseUpdate(name, gen())
         else (name, _) => name
-      ir.mapChildrenWithEnvStackSafe(env)(v)(normalizeIR).map(modifyNames(_, bindingsMap))
+      ir.mapChildrenWithEnvM(env)(v)(normalizeIR).map(modifyNames(_, bindingsMap))
   }
 
   private def modifyNames(ir: BaseIR, map: collection.Map[Name, Name]): BaseIR = {
