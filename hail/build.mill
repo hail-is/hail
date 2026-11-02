@@ -16,7 +16,7 @@ import org.typelevel.scalacoptions.*
 
 object Settings:
   val hailMajorMinorVersion = "0.2"
-  val hailPatchVersion = "139"
+  val hailPatchVersion = "140"
 
 object Env extends Module:
   def sparkVersion: T[String] =
