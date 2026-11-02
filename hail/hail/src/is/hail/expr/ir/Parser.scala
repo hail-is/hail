@@ -454,13 +454,6 @@ object IRParser {
         punctuation(it, "}")
         val fields = args.zipWithIndex.map { case ((id, t), i) => PField(id, t, i) }
         PCanonicalStruct(fields, req)
-      case "PSubsetStruct" =>
-        punctuation(it, "{")
-        val parent = ptype_expr(rgs)(it).asInstanceOf[PStruct]
-        punctuation(it, "{")
-        val args = repsepUntil(it, identifier, PunctuationToken(","), PunctuationToken("}"))
-        punctuation(it, "}")
-        PSubsetStruct(parent, args)
     }
     assert(typ.required == req)
     typ
