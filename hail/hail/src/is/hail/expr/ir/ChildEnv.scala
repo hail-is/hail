@@ -7,14 +7,25 @@ import is.hail.expr.ir.defs._
 import is.hail.types.tcoerce
 import is.hail.types.virtual._
 import is.hail.types.virtual.TIterable.elementType
+import is.hail.utils.StackSafe._
 
 object ChildEnv {
 
   /** Returns the env of the `i`th child of `ir` given the env `e` of `ir`. `v` makes the value each
     * name is bound to.
     */
-  def get[E[_]: Scopes, A](e: E[A], ir: BaseIR, i: Int)(v: (Name, Type) => A): E[A] = {
-    def cs: IndexedSeq[BaseIR] = ir.children.toIndexedSeq
+  def get[E[_]: Scopes, A](e: E[A], ir: BaseIR, i: Int)(v: (Name, Type) => A): E[A] =
+    get(e, ir, ir.children.toIndexedSeq, i)(v)
+
+  // cs may differ from ir's children; ir supplies only name fields
+  def get[E[_]: Scopes, A](
+    e: E[A],
+    ir: BaseIR,
+    cs: IndexedSeq[BaseIR],
+    i: Int,
+  )(
+    v: (Name, Type) => A
+  ): E[A] =
     ir match {
       case x: Block => block(e, i, x.bindings)(v)
       case x: TailLoop => tailLoop(e, i, x.name, x.params.map(_._1), x.resultType, cs)(v)
@@ -83,7 +94,6 @@ object ChildEnv {
       case _: TableIR | _: MatrixIR | _: BlockMatrixIR => e.fresh
       case _ => e
     }
-  }
 
   private def typ(c: BaseIR): Type = c.asInstanceOf[IR].typ
   private def eltType(c: BaseIR): Type = elementType(typ(c))
@@ -120,6 +130,44 @@ object ChildEnv {
       else if (scope == s) e.bind(EVAL, FastSeq(name -> v(name, expr.typ)))
       else e
     }
+  }
+
+  /** Walks Block `b`'s children (each binding's value, then the body), threading `b`'s env so the
+    * walk is linear in its bindings. `f` takes child `i`, `i` and child `i`'s env, and returns child
+    * `i`'s final form, whose type binding `i` binds.
+    */
+  def walkBlock[E[_]: Scopes, A](
+    b: Block,
+    e: E[A],
+  )(
+    v: (Name, Type) => A
+  )(
+    f: (BaseIR, Int, E[A]) => BaseIR
+  ): Unit = {
+    var env = e
+    for (i <- b.bindings.indices) {
+      val Binding(name, value, scope) = b.bindings(i)
+      val c = f(value, i, Binds.aggSeq(env, scope))
+      env = env.bind(scope, FastSeq(name -> v(name, typ(c))))
+    }
+    f(b.body, b.bindings.length, env): Unit
+  }
+
+  def walkBlockStackSafe[E[_]: Scopes, A](
+    b: Block,
+    e: E[A],
+  )(
+    v: (Name, Type) => A
+  )(
+    f: (BaseIR, Int, E[A]) => StackFrame[BaseIR]
+  ): StackFrame[Unit] = {
+    var env = e
+    b.bindings.indices.foreachRecur { i =>
+      val Binding(name, value, scope) = b.bindings(i)
+      f(value, i, Binds.aggSeq(env, scope)).map { c =>
+        env = env.bind(scope, FastSeq(name -> v(name, typ(c))))
+      }
+    }.flatMap(_ => f(b.body, b.bindings.length, env).map(_ => ()))
   }
 
   def tailLoop[E[_]: Scopes, A](
