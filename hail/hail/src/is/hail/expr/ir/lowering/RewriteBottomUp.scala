@@ -8,11 +8,11 @@ object RewriteBottomUp {
     var rewrite: BaseIR => StackFrame[BaseIR] = null
     rewrite = (ast: BaseIR) =>
       for {
-        rewritten <- ast.mapChildrenStackSafe(rewrite)
+        rewritten <- ast.mapChildrenM(rewrite)
         result <- rule(rewritten) match {
           case Some(newAST) =>
             if (newAST != rewritten)
-              call(rewrite(newAST))
+              rewrite(newAST)
             else done(newAST)
           case None =>
             done(rewritten)

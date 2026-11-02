@@ -1,10 +1,12 @@
 package is.hail.expr.ir
 
-import is.hail.collection.implicits.toRichIndexedSeqAnyRef
+import is.hail.collection.implicits.{rangeTraverseOps, toRichIndexedSeqAnyRef}
 import is.hail.types.virtual.{Type, VType}
-import is.hail.utils.StackSafe._
 
 import scala.collection.immutable.ArraySeq
+
+import cats.Monad
+import cats.implicits.toFunctorOps
 
 case class Name(str: String) {
   override def toString: String = str
@@ -47,22 +49,12 @@ abstract class BaseIR {
       copyWithNewChildren(newChildren)
   }
 
-  def mapChildrenWithIndexStackSafe(f: (BaseIR, Int) => StackFrame[BaseIR]): StackFrame[BaseIR] = {
-    call(childrenSeq.iterator.zipWithIndex.map(f.tupled).collectRecur).map { newChildren =>
-      if (childrenSeq.elementsSameObjects(newChildren))
-        this
-      else
-        copyWithNewChildren(newChildren)
-    }
-  }
-
-  def mapChildrenStackSafe(f: BaseIR => StackFrame[BaseIR]): StackFrame[BaseIR] = {
-    call(childrenSeq.mapRecur(f)).map { newChildren =>
-      if (childrenSeq.elementsSameObjects(newChildren))
-        this
-      else
-        copyWithNewChildren(newChildren)
-    }
+  def mapChildrenM[F[_]: Monad](f: BaseIR => F[BaseIR]): F[BaseIR] = {
+    val newChildren = childrenSeq.toArray
+    val cs = ArraySeq.unsafeWrapArray(newChildren)
+    newChildren.indices.foldM(())((_, i) => f(newChildren(i)).map(c => newChildren(i) = c)).map(_ =>
+      if (childrenSeq.elementsSameObjects(cs)) this else copyWithNewChildren(cs)
+    )
   }
 
   def forEachChildWithEnv[E[_]: Scopes, A](
@@ -98,16 +90,16 @@ abstract class BaseIR {
     res
   }
 
-  def mapChildrenWithEnvStackSafe[E[_]: Scopes, A](
+  def mapChildrenWithEnvM[F[_]: Monad, E[_]: Scopes, A](
     env: E[A]
   )(
     v: (Name, Type) => A
   )(
-    f: (BaseIR, E[A]) => StackFrame[BaseIR]
-  ): StackFrame[BaseIR] = {
+    f: (BaseIR, E[A]) => F[BaseIR]
+  ): F[BaseIR] = {
     val newChildren = childrenSeq.toArray
     var res = this
-    newChildren.indices.foreachRecur { i =>
+    newChildren.indices.foldM(()) { (_, i) =>
       val childEnv = ChildEnv.get(env, res, i)(v)
       val child = newChildren(i)
       f(child, childEnv).map { newChild =>
@@ -119,17 +111,14 @@ abstract class BaseIR {
     }.map(_ => res)
   }
 
-  def forEachChildWithEnvStackSafe[E[_]: Scopes, A](
+  def forEachChildWithEnvM[F[_]: Monad, E[_]: Scopes, A](
     env: E[A]
   )(
     v: (Name, Type) => A
   )(
-    f: (BaseIR, Int, E[A]) => StackFrame[Unit]
-  ): StackFrame[Unit] =
-    childrenSeq.view.zipWithIndex.foreachRecur { case (child, i) =>
-      val childEnv = ChildEnv.get(env, this, i)(v)
-      f(child, i, childEnv)
-    }
+    f: (BaseIR, Int, E[A]) => F[Unit]
+  ): F[Unit] =
+    childrenSeq.indices.foldM(())((_, i) => f(childrenSeq(i), i, ChildEnv.get(env, this, i)(v)))
 }
 
 trait PreservesRowsOrCols extends BaseIR {

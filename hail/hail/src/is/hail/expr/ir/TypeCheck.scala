@@ -32,9 +32,9 @@ object TypeCheck extends Logging {
 
   def check(ctx: ExecuteContext, ir: BaseIR, env: BindingEnv[Type]): StackFrame[Unit] = {
     for {
-      _ <- ir.forEachChildWithEnvStackSafe(env)((_, t) => t) { (child, i, childEnv) =>
+      _ <- ir.forEachChildWithEnvM(env)((_, t) => t) { (child, i, childEnv) =>
         for {
-          _ <- call(check(ctx, child, childEnv))
+          _ <- check(ctx, child, childEnv)
         } yield
           if (child.typ == TVoid) {
             checkVoidTypedChild(ctx, ir, i, env)

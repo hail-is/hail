@@ -53,6 +53,7 @@ object MvnCoordinate:
   val `breeze` = "org.scalanlp::breeze"
   val `breeze-macros` = "org.scalanlp::breeze-macros"
   val `breeze-natives` = "org.scalanlp::breeze-natives"
+  val `cats-core` = "org.typelevel::cats-core"
   val `cats-kernel` = "org.typelevel::cats-kernel"
   val `chill` = "org.twitter::chill"
   val `chill-java` = "org.twitter:chill-java"

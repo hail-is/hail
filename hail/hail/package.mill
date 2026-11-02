@@ -98,6 +98,7 @@ object `package` extends HailScalaModule:
       `asm`,
       `asm-analysis`,
       `asm-util`,
+      `cats-core`,
       `google-auth-library-oauth2-http`
         .mvn
         .excludeOrg(

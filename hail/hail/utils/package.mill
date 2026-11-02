@@ -20,6 +20,7 @@ object `package` extends HailScalaModule:
 
   override def mvnDeps: T[Seq[Dep]] =
     Vector[Dep](
+      `cats-core`,
       `log4j-api-scala`.mvn.excludeOrg("*"),
       `sourcecode` :: "0.4.2",
     )
