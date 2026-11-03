@@ -15,7 +15,7 @@ import { hasPermission } from '../shared/authUtils';
 import { AutoRefreshBar } from '../shared/AutoRefreshBar';
 import { Panel } from '../shared/Panel';
 import { disableReactUi } from '../shared/reactUiCookie';
-import { formatRelative, formatTime } from '../shared/timeUtils';
+import { formatRelative, formatTimestamp } from '../shared/timeUtils';
 import {
   deployDisplay,
   failedDeploysKey,
@@ -78,7 +78,7 @@ function HealthStrip({ dev, op }: { dev: CiDeveloperStatus; op: CiOperatorStatus
         {dev.frozen && (
           <span className="font-semibold text-amber-700"><Icon name="ac_unit" className="text-amber-600" /> Merges and deploys frozen</span>
         )}
-        <span className="text-zinc-500" title={formatTime(dev.started_at_ms)}>
+        <span className="text-zinc-500" title={formatTimestamp(dev.started_at_ms)}>
           CI started {formatRelative(dev.started_at_ms)}; status below resets on restart
         </span>
       </div>
@@ -305,7 +305,7 @@ function RateLimitValue({ rl, extra }: { rl: RateLimit | null; extra?: string })
   if (rl === null) return <span className="text-zinc-500">unknown</span>;
   return (
     <span className={isRateLimitLow(rl) ? 'text-red-700' : undefined}>
-      {rl.remaining} / {rl.limit} left{extra ? ` · ${extra}` : ''} · resets {formatTime(Date.parse(rl.reset_at))}
+      {rl.remaining} / {rl.limit} left{extra ? ` · ${extra}` : ''} · resets {formatTimestamp(Date.parse(rl.reset_at))}
     </span>
   );
 }
@@ -392,7 +392,7 @@ function OperatorPanel({ op }: { op: CiOperatorStatus }): JSX.Element {
           {webhooks.length === 0
             ? <p className="text-sm text-zinc-500">None since CI started.</p>
             : webhooks.map(([event, ms]) => (
-              <Field key={event} label={event}><span title={formatTime(ms)}>{formatRelative(ms)}</span></Field>
+              <Field key={event} label={event}><span title={formatTimestamp(ms)}>{formatRelative(ms)}</span></Field>
             ))}
         </div>
         <div>
@@ -401,7 +401,7 @@ function OperatorPanel({ op }: { op: CiOperatorStatus }): JSX.Element {
             ? <p className="text-sm text-zinc-500">None since CI started.</p>
             : (
               <>
-                <Field label="When"><span title={formatTime(apiError.at_ms)}>{formatRelative(apiError.at_ms)}</span></Field>
+                <Field label="When"><span title={formatTimestamp(apiError.at_ms)}>{formatRelative(apiError.at_ms)}</span></Field>
                 <Field label="Branch">{apiError.branch}</Field>
                 <Field label="Operation">{apiError.operation}</Field>
                 <Field label="HTTP status">{apiError.status ?? 'none'}</Field>
@@ -422,7 +422,7 @@ function OperatorPanel({ op }: { op: CiOperatorStatus }): JSX.Element {
                     <span className="text-zinc-800 py-0.5">
                       {last_success_ms === null
                         ? <span className="text-zinc-500">not yet</span>
-                        : <span title={formatTime(last_success_ms)}>{formatRelative(last_success_ms)}</span>}
+                        : <span title={formatTimestamp(last_success_ms)}>{formatRelative(last_success_ms)}</span>}
                     </span>
                   </Fragment>
                 ))}
