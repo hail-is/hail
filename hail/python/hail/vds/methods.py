@@ -1138,3 +1138,47 @@ def merge_reference_blocks(ds, equivalence_function, merge_functions=None):
     if isinstance(ds, VariantDataset):
         return VariantDataset(reference_data=new_rd, variant_data=ds.variant_data)
     return new_rd
+
+
+def reference_an_table(vds: VariantDataset) -> Table:
+    """
+    Takes a VDS and produces a table with reference AN computed for every row.
+
+    The intention is to compute call stats on the variant data, then join that
+    with the table produced by this method and using a ``prev_nonnull`` scan, get the
+    reference data only AN for every variant row, allowing easy computation of call stats
+    without :func:`.to_dense_mt`
+    """
+    var = vds.variant_data
+    ref = vds.reference_data
+    call_field = 'GT' if 'GT' in var.entry else 'LGT'
+    assert call_field in var.entry, var.entry.dtype
+
+    if call_field not in ref.entry:
+        ref_call_field = 'GT' if 'GT' in ref.entry else 'LGT'
+        if ref_call_field not in ref.entry:
+            ref = ref.annotate_entries(**{call_field: hl.call(0, 0)})
+        call_field = ref_call_field
+
+    ref = ref.annotate_rows(deltas=hl.int32(hl.agg.sum(ref[call_field].ploidy)))
+    ref = ref.localize_entries(entries_array_field_name='_entries')
+    subdeltas = ref._entries.filter(hl.is_defined).map(
+        lambda e: hl.struct(
+            loc=hl.locus(
+                ref.locus.contig, ref.locus.position + e.LEN, reference_genome=ref.locus.dtype.reference_genome
+            ),
+            delta=-e[call_field].ploidy,
+        )
+    )
+    ref = ref.select(deltas=hl.array([hl.struct(loc=ref.locus, delta=ref.deltas)]).extend(subdeltas))
+    exploded = ref.explode('deltas')
+    exploded = exploded.select(loc=exploded.deltas.loc, delta=exploded.deltas.delta)
+    dht = exploded.group_by(locus=exploded.loc).aggregate(delta=hl.agg.sum(exploded.delta))
+    dht = dht.filter(dht.delta != 0)
+    anht = dht.select(ref_AN=dht.delta + hl.scan.sum(dht.delta))
+
+    return anht
+
+
+def call_stats(vds: VariantDataset) -> Table:
+    return None
