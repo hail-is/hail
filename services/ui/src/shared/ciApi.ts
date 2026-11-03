@@ -53,6 +53,7 @@ export interface QueuedBuild {
 
 export interface MergeQueueEntry {
   pr: number;
+  source_sha: string;
   blockers: string[];
   failures: number;
   backoff_until_ms: number | null;

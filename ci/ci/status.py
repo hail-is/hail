@@ -15,8 +15,9 @@ UPDATE_STALE_MS = 15 * 60 * 1000
 GITHUB_API_ERROR_RECENT_MS = 10 * 60 * 1000
 # Webhooks only arrive when something happens on GitHub, so allow for quiet periods
 WEBHOOK_GAP_MS = 24 * 60 * 60 * 1000
-# Background loops run every 10s
+# Most background loops run every 10s
 LOOP_STALE_MS = 5 * 60 * 1000
+HOURLY_LOOP_STALE_MS = 3 * 60 * 60 * 1000
 RATE_LIMIT_LOW_FRACTION = 0.1
 
 
@@ -37,6 +38,7 @@ async def developer_branch_status(wb: WatchedBranch, db: Database, frozen: bool)
             failed = wb.failed_merge(pr)
             merge_queue.append({
                 'pr': pr.number,
+                'source_sha': pr.source_sha,
                 'blockers': pr.merge_blockers(),
                 'failures': failed.failures if failed else 0,
                 'backoff_until_ms': failed.retry_after_ms if failed else None,
@@ -116,9 +118,12 @@ def health_problems(
     started_at_ms: int,
     last_webhook_ms: Dict[str, int],
     loop_last_success_ms: Dict[str, int],
-    expected_loops: List[str],
+    expected_loops: Dict[str, int],
 ) -> List[str]:
-    """Reasons CI itself looks unhealthy; empty if it looks fine."""
+    """Reasons CI itself looks unhealthy; empty if it looks fine.
+
+    expected_loops maps each background loop to how long it may go without succeeding.
+    """
     problems = []
 
     for wb in watched_branches:
@@ -139,9 +144,9 @@ def health_problems(
     if now_ms - last_webhook > WEBHOOK_GAP_MS:
         problems.append(f'no GitHub webhook received in {(now_ms - last_webhook) // 3_600_000} hours')
 
-    for loop in expected_loops:
+    for loop, stale_ms in expected_loops.items():
         last = loop_last_success_ms.get(loop, started_at_ms)
-        if now_ms - last > LOOP_STALE_MS:
+        if now_ms - last > stale_ms:
             problems.append(f'background loop {loop} has not succeeded in {(now_ms - last) // 60_000} minutes')
 
     return problems

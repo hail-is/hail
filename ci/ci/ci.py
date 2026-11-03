@@ -1451,10 +1451,12 @@ async def api_unfreeze(request: web.Request, userdata: UserData) -> web.Response
     return json_response({'frozen': False})
 
 
-def _expected_background_loops() -> List[str]:
-    if DEFAULT_NAMESPACE != 'default':
-        return []
-    return [update_envoy_configs.__name__, cleanup_expired_namespaces.__name__]
+def _expected_background_loops() -> Dict[str, int]:
+    loops = {cleanup_old_events.__name__: ci_status.HOURLY_LOOP_STALE_MS}
+    if DEFAULT_NAMESPACE == 'default':
+        loops[update_envoy_configs.__name__] = ci_status.LOOP_STALE_MS
+        loops[cleanup_expired_namespaces.__name__] = ci_status.LOOP_STALE_MS
+    return loops
 
 
 def _health_problems(app: web.Application) -> List[str]:
@@ -1777,7 +1779,9 @@ SELECT frozen_merge_deploy FROM globals;
         CIEvent.CI_STARTED,
         message=f'version: {os.environ.get("HAIL_SHA")}\npod: {os.environ.get("HOSTNAME")}',
     )
-    app[AppKeys.TASK_MANAGER].ensure_future(periodically_call(3600, cleanup_old_events, app[AppKeys.DB]))
+    app[AppKeys.TASK_MANAGER].ensure_future(
+        periodically_call(3600, record_success(cleanup_old_events, app[AppKeys.LOOP_LAST_SUCCESS_MS]), app[AppKeys.DB])
+    )
 
     if DEFAULT_NAMESPACE == 'default':
         kubernetes_asyncio.config.load_incluster_config()

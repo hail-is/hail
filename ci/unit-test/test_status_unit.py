@@ -19,6 +19,7 @@ from ci.github import (
     WatchedBranch,
 )
 from ci.status import (
+    HOURLY_LOOP_STALE_MS,
     LOOP_STALE_MS,
     UPDATE_STALE_MS,
     WEBHOOK_GAP_MS,
@@ -119,8 +120,14 @@ async def test_merge_queue_has_blockers_and_backoff():
     status = await developer_branch_status(wb, authorizing_db(), frozen=False)
 
     assert status['merge_queue'] == [
-        {'pr': 1, 'blockers': [], 'failures': 0, 'backoff_until_ms': None},
-        {'pr': 2, 'blockers': ['not built against current main'], 'failures': 2, 'backoff_until_ms': 123},
+        {'pr': 1, 'source_sha': 'source-sha-1', 'blockers': [], 'failures': 0, 'backoff_until_ms': None},
+        {
+            'pr': 2,
+            'source_sha': 'source-sha-2',
+            'blockers': ['not built against current main'],
+            'failures': 2,
+            'backoff_until_ms': 123,
+        },
     ]
 
 
@@ -185,7 +192,7 @@ def problems(wbs, **kwargs):
         'started_at_ms': NOW,
         'last_webhook_ms': {},
         'loop_last_success_ms': {},
-        'expected_loops': [],
+        'expected_loops': {},
         **kwargs,
     }
     return health_problems(wbs, **args)
@@ -201,13 +208,13 @@ def test_healthy():
     assert not problems(
         [healthy_branch()],
         last_webhook_ms={'push': NOW},
-        expected_loops=['loop'],
+        expected_loops={'loop': LOOP_STALE_MS},
         loop_last_success_ms={'loop': NOW},
     )
 
 
 def test_fresh_start_is_healthy():
-    assert not problems([make_branch()], expected_loops=['loop'])
+    assert not problems([make_branch()], expected_loops={'loop': LOOP_STALE_MS})
 
 
 def test_stale_update():
@@ -251,6 +258,15 @@ def test_webhook_gap():
 
 
 def test_stale_background_loop():
-    assert problems([], expected_loops=['a', 'b'], loop_last_success_ms={'a': NOW - LOOP_STALE_MS - 1, 'b': NOW}) == [
+    loops = {'a': LOOP_STALE_MS, 'b': LOOP_STALE_MS}
+    assert problems([], expected_loops=loops, loop_last_success_ms={'a': NOW - LOOP_STALE_MS - 1, 'b': NOW}) == [
         'background loop a has not succeeded in 5 minutes'
+    ]
+
+
+def test_hourly_loop_uses_its_own_threshold():
+    loops = {'hourly': HOURLY_LOOP_STALE_MS}
+    assert not problems([], expected_loops=loops, loop_last_success_ms={'hourly': NOW - 2 * 60 * 60 * 1000})
+    assert problems([], expected_loops=loops, loop_last_success_ms={'hourly': NOW - HOURLY_LOOP_STALE_MS - 1}) == [
+        'background loop hourly has not succeeded in 180 minutes'
     ]
