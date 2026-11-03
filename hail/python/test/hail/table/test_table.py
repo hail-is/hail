@@ -2757,3 +2757,28 @@ def test_group_by_aggregate_doesnt_clobber_global_field():
     ht = hl.utils.range_table(10).annotate_globals(x=1)
     with pytest.raises(ExpressionException):
         ht = ht.group_by(a=ht.idx < 5).aggregate(x=2)
+
+
+def test_checkpoint_read_if_exists_reuses_committed_path():
+    path = new_temp_file(extension='ht')
+    hl.utils.range_table(10).write(path)
+    assert hl.utils.range_table(5).checkpoint(path, _read_if_exists=True).count() == 10
+
+
+def test_checkpoint_read_if_exists_rewrites_uncommitted_path():
+    path = new_temp_file(extension='ht')
+    hl.utils.range_table(10).write(path)
+    hl.current_backend().fs.remove(f'{path}/_SUCCESS')
+    assert hl.utils.range_table(5).checkpoint(path, overwrite=True, _read_if_exists=True).count() == 5
+
+
+def test_checkpoint_read_if_exists_keeps_committed_columnar_dataset():
+    path = new_temp_file(extension='ht')
+    fs = hl.current_backend().fs
+    with fs.open(f'{path}/manifest.json', 'w') as f:
+        f.write('{}')
+    # The native reader cannot read this stub, but it must not be replaced by a rewrite.
+    with pytest.raises(hl.utils.FatalError, match='metadata.json.gz is missing'):
+        hl.utils.range_table(5).checkpoint(path, overwrite=True, _read_if_exists=True)
+    assert fs.exists(f'{path}/manifest.json')
+    assert not fs.exists(f'{path}/_SUCCESS')

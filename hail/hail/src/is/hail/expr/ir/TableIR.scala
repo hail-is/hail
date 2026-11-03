@@ -48,9 +48,8 @@ object TableIR {
     dropRows: Boolean = false,
     requestedType: Option[TableType] = None,
   ): TableRead = {
-    val successFile = path + "/_SUCCESS"
-    if (!fs.isFile(path + "/_SUCCESS"))
-      fatal(s"write failed: file not found: $successFile")
+    if (!StoredDataset.isCommitted(fs, path))
+      fatal(s"write failed: file not found: $path/_SUCCESS")
 
     val tr = TableNativeReader.read(fs, rgs, path, None)
     TableRead(requestedType.getOrElse(tr.fullType), dropRows = dropRows, tr)

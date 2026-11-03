@@ -40,7 +40,14 @@ from hail.typecheck import (
 )
 from hail.utils import deduplicate, default_handler, storage_level
 from hail.utils.java import Env, info, warning
-from hail.utils.misc import check_annotate_exprs, get_key_by_exprs, get_select_exprs, process_joins, wrap_to_tuple
+from hail.utils.misc import (
+    check_annotate_exprs,
+    get_key_by_exprs,
+    get_select_exprs,
+    is_committed,
+    process_joins,
+    wrap_to_tuple,
+)
 
 
 class GroupedMatrixTable(BaseTable):
@@ -2745,7 +2752,7 @@ class MatrixTable(BaseTable):
         """
         hl.current_backend().validate_file(output)
 
-        if not _read_if_exists or not hl.hadoop_exists(f'{output}/_SUCCESS'):
+        if not _read_if_exists or not is_committed(output):
             self.write(output=output, overwrite=overwrite, _codec_spec=_codec_spec)
             _assert_type = self._type
             _load_refs = False
