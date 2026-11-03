@@ -19,7 +19,7 @@ updated: 2026-09-02
 
 This document is intended to describe a procedure for the creation of a hail
 Variant Data Set (VDS) from a collection of input GVCFs. It details best
-practices as well as gives examples for using Hail Batch on GCP to perform this
+practices and gives examples for using Hail Batch on GCP to perform this
 work.
 
 ## Collating Samples
@@ -159,7 +159,7 @@ treated as a genomic call, again refer to [`import_vcf`] for more details.
 
 [`import_vcf`]: https://hail.is/docs/0.2/methods/impex.html#hail.methods.import_vcf
 
-### Interval Paramters
+### Interval Parameters
 
 ```python3
 def new_combiner(
@@ -173,7 +173,7 @@ def new_combiner(
 
 Exactly one of the four interval parameters must be set. An error will be raised
 otherwise. It is usually sufficient to use one of the `use_*_default_intervals`
-paramters. These give reasonably even coverage over the genome for each sample
+parameters. These give reasonably even coverage over the genome for each sample
 type (exome/genome).
 
 The point of the interval parameters is to control parallelism. The default
@@ -196,7 +196,7 @@ roughly that size to then use for GVCF import. Use this if a default is too
 coarse or fine for the samples involved. (It is difficult to define 'too much'
 or 'too little' parallelism, if tasks are taking too long, more
 intervals/smaller interval size can be used; if there is too much overhead due
-to excess paralleism a smaller interval size can be used.)
+to excess paralleism a larger interval size can be used.)
 
 ### Controlling Imported Fields
 
