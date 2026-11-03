@@ -436,7 +436,7 @@ async def close_quote(
     """Close a quote. All billing projects under the quote must be closed or deleted first.
 
     Raises BatchOperationAlreadyCompletedError if the quote is already closed.
-    Raises BatchUserError if open billing projects remain.
+    Raises BatchUserError if open billing projects remain, or if the quote is INTERNAL.
     """
     async with db.start() as tx:
         row = await tx.execute_and_fetchone(
@@ -446,6 +446,8 @@ async def close_quote(
         if not row:
             raise NonExistentQuoteError(name)
         actor = expect(grant, BillingPermission.CLOSE_QUOTE, QuoteTarget(row['id']))
+        if row['id'] == INTERNAL_QUOTE_ID:
+            raise BillingValidationError('The INTERNAL quote cannot be closed.')
         if row['state'] == 'closed':
             raise BatchOperationAlreadyCompletedError(f'Quote {name} is already closed.', 'info')
 
