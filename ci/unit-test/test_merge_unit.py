@@ -388,7 +388,7 @@ async def test_rejected_merge_records_github_api_error():
     gh = FakeGH()
     gh.put = AsyncMock(side_effect=gidgethub.HTTPException(http.HTTPStatus.FORBIDDEN, 'forbidden'))
 
-    assert await pr.merge(gh) == ('failed', None)
+    assert await pr.merge(DB, gh) == ('failed', None)
 
     assert wb.last_github_api_error is not None
     assert wb.last_github_api_error.operation == 'merge 1'
@@ -399,7 +399,7 @@ async def test_merge_already_in_flight_is_not_an_api_error():
     wb = make_branch()
     pr = add_mergeable_pr(wb, 1)
 
-    assert await pr.merge(FakeGH(put_conflict=True)) == ('pending', None)
+    assert await pr.merge(DB, FakeGH(put_conflict=True)) == ('pending', None)
 
     assert wb.last_github_api_error is None
 
@@ -408,10 +408,10 @@ async def test_failed_pending_merge_poll_records_github_api_error():
     wb = make_branch()
     add_mergeable_pr(wb, 1)
     gh = FakeGH()
-    await wb.try_to_merge(gh)
+    await wb.try_to_merge(DB, gh)
     gh.getitem = AsyncMock(side_effect=gidgethub.HTTPException(http.HTTPStatus.BAD_GATEWAY, 'bad gateway'))
 
-    await wb.try_to_merge(gh)
+    await wb.try_to_merge(DB, gh)
 
     assert gh.merge_requests == [1]
     assert wb.pending_merge is not None
@@ -432,6 +432,6 @@ async def test_update_github_snapshots_rest_rate_limit():
     gh.getiter = no_prs
     gh.rate_limit = gidgethub.sansio.RateLimit(limit=5000, remaining=4123, reset_epoch=0)
 
-    await wb._update_github(gh)
+    await wb._update_github(DB, gh)
 
     assert wb.rest_rate_limit == RestRateLimit(4123, 5000, '1970-01-01T00:00:00+00:00')
