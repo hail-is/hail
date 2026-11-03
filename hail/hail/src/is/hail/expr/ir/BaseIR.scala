@@ -48,7 +48,7 @@ abstract class BaseIR {
   }
 
   def mapChildrenWithIndexStackSafe(f: (BaseIR, Int) => StackFrame[BaseIR]): StackFrame[BaseIR] = {
-    call(childrenSeq.iterator.zipWithIndex.map(f.tupled).collectRecur).map { newChildren =>
+    childrenSeq.iterator.zipWithIndex.map(f.tupled).collectRecur.map { newChildren =>
       if (childrenSeq.elementsSameObjects(newChildren))
         this
       else
@@ -57,7 +57,7 @@ abstract class BaseIR {
   }
 
   def mapChildrenStackSafe(f: BaseIR => StackFrame[BaseIR]): StackFrame[BaseIR] = {
-    call(childrenSeq.mapRecur(f)).map { newChildren =>
+    childrenSeq.mapRecur(f).map { newChildren =>
       if (childrenSeq.elementsSameObjects(newChildren))
         this
       else
