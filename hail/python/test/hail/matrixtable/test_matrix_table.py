@@ -2588,3 +2588,28 @@ def test_write_mts_split_by_cols_overwrite():
     fs = hl.current_backend().fs
     assert not fs.exists(f'{prefix}/02.mt')
     assert not fs.exists(f'{prefix}/03.mt')
+
+
+def test_checkpoint_read_if_exists_reuses_committed_path():
+    path = new_temp_file(extension='mt')
+    hl.utils.range_matrix_table(10, 2).write(path)
+    assert hl.utils.range_matrix_table(5, 2).checkpoint(path, _read_if_exists=True).count_rows() == 10
+
+
+def test_checkpoint_read_if_exists_rewrites_uncommitted_path():
+    path = new_temp_file(extension='mt')
+    hl.utils.range_matrix_table(10, 2).write(path)
+    hl.current_backend().fs.remove(f'{path}/_SUCCESS')
+    assert hl.utils.range_matrix_table(5, 2).checkpoint(path, overwrite=True, _read_if_exists=True).count_rows() == 5
+
+
+def test_checkpoint_read_if_exists_keeps_committed_columnar_dataset():
+    path = new_temp_file(extension='mt')
+    fs = hl.current_backend().fs
+    with fs.open(f'{path}/manifest.json', 'w') as f:
+        f.write('{}')
+    # The native reader cannot read this stub, but it must not be replaced by a rewrite.
+    with pytest.raises(hl.utils.FatalError, match='metadata.json.gz is missing'):
+        hl.utils.range_matrix_table(5, 2).checkpoint(path, overwrite=True, _read_if_exists=True)
+    assert fs.exists(f'{path}/manifest.json')
+    assert not fs.exists(f'{path}/_SUCCESS')
