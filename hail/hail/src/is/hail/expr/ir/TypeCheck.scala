@@ -34,7 +34,7 @@ object TypeCheck extends Logging {
     for {
       _ <- ir.forEachChildWithEnvStackSafe(env)((_, t) => t) { (child, i, childEnv) =>
         for {
-          _ <- call(check(ctx, child, childEnv))
+          _ <- check(ctx, child, childEnv)
         } yield
           if (child.typ == TVoid) {
             checkVoidTypedChild(ctx, ir, i, env)
