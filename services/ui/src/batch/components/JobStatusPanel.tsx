@@ -76,6 +76,23 @@ export function JobStatusPanel({ batchId, jobId, basePath, job, latestAttempt, a
             )}
           </CollapsibleItem>
         )}
+        {job.retried_attempts_cost != null && job.retried_attempts_cost > 0 && (
+          <li className="px-4 py-3 text-sm">
+            <div className="flex justify-between items-center">
+              <span className="font-medium">Cost of retried attempts</span>
+              <span className="text-zinc-400 text-xs"><CostDisplay cost={job.retried_attempts_cost} /></span>
+            </div>
+            <div className="text-xs text-zinc-500 mt-1">Attempts whose VM went away before they finished, most often because it was preempted.</div>
+          </li>
+        )}
+        {job.projected_nonpreemptible_cost != null && (
+          <li className="px-4 py-3 text-sm">
+            <div className="flex justify-between items-center">
+              <span className="font-medium">Projected cost on non-preemptible</span>
+              <span className="text-zinc-400 text-xs"><CostDisplay cost={job.projected_nonpreemptible_cost} /></span>
+            </div>
+          </li>
+        )}
         {hasJvmProfile && isTerminal && (
           <li className="p-4">
             <a href={`${basePath}/batches/${batchId}/jobs/${jobId}/jvm_profile`} download={`${batchId}_${jobId}_jvm_profile.html`} className="text-sm text-sky-600 hover:underline flex items-center gap-1">
