@@ -43,7 +43,7 @@ object BlockMatrixIR {
     )
 }
 
-sealed abstract class BlockMatrixIR extends BaseIR {
+sealed abstract class BlockMatrixIR(tag: Tag) extends BaseIR(tag) {
   override def typ: BlockMatrixType
   override def deepCopy: BlockMatrixIR = super.deepCopy.asInstanceOf[BlockMatrixIR]
 
@@ -55,7 +55,8 @@ sealed abstract class BlockMatrixIR extends BaseIR {
   def blockCostIsLinear: Boolean
 }
 
-case class BlockMatrixRead(reader: BlockMatrixReader) extends BlockMatrixIR {
+case class BlockMatrixRead(reader: BlockMatrixReader)
+    extends BlockMatrixIR(new Tag(Tag.BlockMatrixRead)) {
   override lazy val typ: BlockMatrixType = reader.fullType
 
   lazy val childrenSeq: IndexedSeq[BaseIR] = ArraySeq.empty
@@ -261,7 +262,7 @@ case class BlockMatrixPersistReader(id: String, typ: BlockMatrixType) extends Bl
 }
 
 case class BlockMatrixMap(child: BlockMatrixIR, eltName: Name, f: IR, needsDense: Boolean)
-    extends BlockMatrixIR {
+    extends BlockMatrixIR(new Tag(Tag.BlockMatrixMap)) {
   override def typ: BlockMatrixType = child.typ
 
   lazy val childrenSeq: IndexedSeq[BaseIR] = ArraySeq(child, f)
@@ -398,7 +399,7 @@ case class BlockMatrixMap2(
   rightName: Name,
   f: IR,
   sparsityStrategy: SparsityStrategy,
-) extends BlockMatrixIR with Logging {
+) extends BlockMatrixIR(new Tag(Tag.BlockMatrixMap2)) with Logging {
   override lazy val typ: BlockMatrixType =
     left.typ.copy(sparsity = sparsityStrategy.mergeSparsity(left.typ.sparsity, right.typ.sparsity))
 
@@ -529,7 +530,7 @@ case class BlockMatrixMap2(
 }
 
 case class BlockMatrixDot(left: BlockMatrixIR, right: BlockMatrixIR)
-    extends BlockMatrixIR with Logging {
+    extends BlockMatrixIR(new Tag(Tag.BlockMatrixDot)) with Logging {
   override lazy val typ: BlockMatrixType = {
     val blockSize = left.typ.blockSize
     assert(left.typ.nCols == right.typ.nRows)
@@ -588,7 +589,7 @@ case class BlockMatrixBroadcast(
   inIndexExpr: IndexedSeq[Int],
   shape: IndexedSeq[Long],
   blockSize: Int,
-) extends BlockMatrixIR {
+) extends BlockMatrixIR(new Tag(Tag.BlockMatrixBroadcast)) {
 
   val blockCostIsLinear: Boolean = child.blockCostIsLinear
 
@@ -679,7 +680,7 @@ case class BlockMatrixBroadcast(
 case class BlockMatrixAgg(
   child: BlockMatrixIR,
   axesToSumOut: IndexedSeq[Int],
-) extends BlockMatrixIR {
+) extends BlockMatrixIR(new Tag(Tag.BlockMatrixAgg)) {
 
   val blockCostIsLinear: Boolean = child.blockCostIsLinear
 
@@ -729,7 +730,7 @@ case class BlockMatrixAgg(
 case class BlockMatrixFilter(
   child: BlockMatrixIR,
   indices: IndexedSeq[IndexedSeq[Long]],
-) extends BlockMatrixIR {
+) extends BlockMatrixIR(new Tag(Tag.BlockMatrixFilter)) {
 
   assert(indices.length == 2)
 
@@ -772,7 +773,8 @@ case class BlockMatrixFilter(
   }
 }
 
-case class BlockMatrixDensify(child: BlockMatrixIR) extends BlockMatrixIR {
+case class BlockMatrixDensify(child: BlockMatrixIR)
+    extends BlockMatrixIR(new Tag(Tag.BlockMatrixDensify)) {
   override lazy val typ: BlockMatrixType = child.typ.densify
 
   override def blockCostIsLinear: Boolean = child.blockCostIsLinear
@@ -897,7 +899,7 @@ case class PerBlockSparsifier(blocks: IndexedSeq[Int]) extends BlockMatrixSparsi
 case class BlockMatrixSparsify(
   child: BlockMatrixIR,
   sparsifier: BlockMatrixSparsifier,
-) extends BlockMatrixIR {
+) extends BlockMatrixIR(new Tag(Tag.BlockMatrixSparsify)) {
   override lazy val typ: BlockMatrixType =
     child.typ.copy(sparsity = sparsifier.definedBlocks(child.typ))
 
@@ -915,7 +917,7 @@ case class BlockMatrixSparsify(
 }
 
 case class BlockMatrixSlice(child: BlockMatrixIR, slices: IndexedSeq[IndexedSeq[Long]])
-    extends BlockMatrixIR {
+    extends BlockMatrixIR(new Tag(Tag.BlockMatrixSlice)) {
   assert(slices.length == 2)
   assert(slices.forall(_.length == 3))
 
@@ -986,7 +988,7 @@ case class ValueToBlockMatrix(
   child: IR,
   shape: IndexedSeq[Long],
   blockSize: Int,
-) extends BlockMatrixIR {
+) extends BlockMatrixIR(new Tag(Tag.ValueToBlockMatrix)) {
   assert(shape.length == 2)
 
   val blockCostIsLinear: Boolean = true
@@ -1041,7 +1043,7 @@ case class BlockMatrixRandom(
   gaussian: Boolean,
   shape: IndexedSeq[Long],
   blockSize: Int,
-) extends BlockMatrixIR {
+) extends BlockMatrixIR(new Tag(Tag.BlockMatrixRandom)) {
 
   assert(shape.length == 2)
 
