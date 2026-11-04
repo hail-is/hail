@@ -76,6 +76,10 @@ class IRPassBenchmark {
 
   @Benchmark def rewriteBottomUp(): BaseIR =
     RewriteBottomUp(ir, _ => None)
+
+  // the call LoweringPipeline makes to log IR after each pass; ssaStyle under default flags
+  @Benchmark def pretty(): String =
+    Pretty(ctx, ir)
 }
 
 object IRPassBenchmark {
