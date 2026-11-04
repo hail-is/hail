@@ -175,11 +175,14 @@ def new_combiner(
     ...,
 ```
 
-Exactly one of the four interval parameters should be set. A warning will be
-raised otherwise, and the parameter first in the above set of arguments that is
-set will be used. It is usually sufficient to use one of the
+When combining GVCFs (`gvcf_paths` is a nonempty list), exactly one of the four
+interval parameters MUST be set. Though not prohibited by the code it is still
+incorrect and can lead to surprising behavior (a warning will be raised
+otherwise, and the parameter first in the above set of arguments that is set
+will be used). It is usually sufficient to use one of the
 `use_*_default_intervals` parameters. These give reasonably even coverage over
-the genome for each sample type (exome/genome).
+the genome for each sample type (exome/genome). When combining VDS files only,
+the interval parameters are ignored and `intervals` is set to an empty list.
 
 The point of the interval parameters is to control parallelism. The default
 exome intervals are rather coarse since exomes are small (around 70). The
@@ -226,7 +229,7 @@ this parameter, every file needs to be checked to ensure homogeneity, so setting
 it saves some time. This will not cause issues, due to the way that VCF
 parsing in hail works, fields that are not in the header, but are present in the
 VCF are silently skipped during parsing. Before setting this parameter, confirm
-that the header declares every `INFO` field the analysis needs.
+that the header declares every `INFO` and `FORMAT` field the analysis needs.
 
 The operator SHOULD set `gvcf_save_filters` to `True` in order to save any
 filters present in the GVCF; it defaults to `False` for backwards compatibility.
