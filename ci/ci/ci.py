@@ -108,6 +108,7 @@ class PRConfig(TypedDict):
     out_of_date: bool
     review_requests: List[Dict[str, Any]]
     reviews: List[Dict[str, Any]]
+    merge_blockers: List[str]
 
 
 async def pr_config(app: web.Application, pr: PR) -> PRConfig:
@@ -131,6 +132,7 @@ async def pr_config(app: web.Application, pr: PR) -> PRConfig:
         'out_of_date': pr.build_state in ['failure', 'success', None] and not pr.is_up_to_date(),
         'review_requests': [r._asdict() for r in pr.review_requests],
         'reviews': [r._asdict() for r in pr.reviews],
+        'merge_blockers': pr.merge_blockers(),
     }
 
 

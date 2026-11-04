@@ -743,6 +743,13 @@ components:
               state:
                 type: string
                 description: GitHub PullRequestReviewState, e.g. APPROVED, CHANGES_REQUESTED, DISMISSED.
+        merge_blockers:
+          type: array
+          description: >-
+            Why CI won't merge this PR right now; empty if nothing is blocking it. Queue position,
+            merge retries and branch-wide pauses are on ci_developer_status.
+          items:
+            type: string
 
     BatchSummary:
       type: object
