@@ -29,13 +29,14 @@ export function buildStateLabel(pr: PrConfig): string {
 }
 
 // One PR-flow stage column (Review 1, Review 2, ...). `requestedAt` is the oldest open request
-// the stage is waiting on, for showing its age.
+// the stage is waiting on, for showing its age. `labels` are shown as chips after the text.
 export type StageStatus = 'pass' | 'fail' | 'pending' | 'na';
 
 export interface StageCell {
   status: StageStatus;
   text: string;
   requestedAt?: string;
+  labels?: string[];
 }
 
 function oldestRequestedAt(requests: ReviewRequest[]): string | undefined {
@@ -100,7 +101,9 @@ export function reviewSlots(pr: PrConfig): [StageCell, StageCell] {
 // The Merge column. Blockers show as pending rather than failed: whatever is failing (checks,
 // reviews) is already red in its own column, so this column says why CI isn't merging. Queue
 // position, retries and pauses come from the branch's developer status; without it, only the
-// PR's own blockers are shown.
+// PR's own blockers are shown. Label blockers (`label: WIP`) come back as chips, not text.
+const LABEL_BLOCKER = 'label: ';
+
 export function mergeCell(pr: PrConfig, branch: DeveloperBranchStatus | undefined, nowMs: number): StageCell {
   if (branch?.pending_merge?.pr === pr.number) {
     return { status: 'pending', text: 'merging', requestedAt: new Date(branch.pending_merge.requested_at_ms).toISOString() };
@@ -110,7 +113,10 @@ export function mergeCell(pr: PrConfig, branch: DeveloperBranchStatus | undefine
   const parts = entry ? [`#${queueIndex + 1} in queue`] : [];
 
   if (pr.merge_blockers.length > 0) {
-    return { status: 'pending', text: [...parts, ...pr.merge_blockers].join(' · ') };
+    const labels = pr.merge_blockers.filter((b) => b.startsWith(LABEL_BLOCKER)).map((b) => b.slice(LABEL_BLOCKER.length));
+    const others = pr.merge_blockers.filter((b) => !b.startsWith(LABEL_BLOCKER));
+    const text = [...parts, ...others].join(' · ');
+    return labels.length > 0 ? { status: 'pending', text, labels } : { status: 'pending', text };
   }
   if (branch?.merge_paused_reason) {
     return { status: 'pending', text: [...parts, `merging paused (${branch.merge_paused_reason})`].join(' · ') };
@@ -143,6 +149,7 @@ export function matchesSearch(
   const needle = term.trim().toLowerCase();
   if (needle === '') return true;
   const statuses = ghStatuses(pr);
+  const merge = mergeCell(pr, branch, nowMs);
   const cells = [
     `${pr.title} #${pr.number}`,
     buildStateLabel(pr),
@@ -150,7 +157,8 @@ export function matchesSearch(
     pr.labels.join(', '),
     pr.source_branch_name,
     ...reviewSlots(pr).map((cell) => cell.text),
-    mergeCell(pr, branch, nowMs).text,
+    merge.text,
+    ...(merge.labels ?? []),
     pr.author,
   ];
   return cells.some((cell) => cell.toLowerCase().includes(needle));

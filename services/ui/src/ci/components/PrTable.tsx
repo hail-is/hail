@@ -1,5 +1,6 @@
 import type { DeveloperBranchStatus, PrConfig } from '../../shared/ciApi';
 import { BuildStateIcon } from './BuildStateIcon';
+import { LabelChip } from './LabelChip';
 import { ReviewStateIcon } from './ReviewStateIcon';
 import {
   buildStateLabel,
@@ -10,6 +11,7 @@ import {
   reviewSlots,
   type StageCell,
 } from './prTableModel';
+import { visibleLabels } from './labelModel';
 
 // GitHub's mark (octicons `mark-github`, 16px).
 function GitHubIcon(): JSX.Element {
@@ -31,6 +33,7 @@ function StageCellView({ cell, nowMs }: { cell: StageCell; nowMs: number }): JSX
           <span className="text-zinc-400" title={`requested ${cell.requestedAt}`}> &middot; {formatAge(cell.requestedAt, nowMs)}</span>
         )}
       </span>
+      {cell.labels?.map((label) => <LabelChip key={label} label={label} />)}
     </span>
   );
 }
@@ -115,7 +118,11 @@ export function PrTable({ prs, statusNames, repo, basePath, wbIndex, branchStatu
                       </td>
                     );
                   })}
-                  <td className={td}>{pr.labels.join(', ')}</td>
+                  <td className={td}>
+                    <span className="inline-flex flex-wrap gap-1">
+                      {visibleLabels(pr.labels).map((label) => <LabelChip key={label} label={label} />)}
+                    </span>
+                  </td>
                   <td className={`${td} font-mono text-xs`}>{pr.source_branch_name}</td>
                   <td className={td}><StageCellView cell={review1} nowMs={nowMs} /></td>
                   <td className={td}><StageCellView cell={review2} nowMs={nowMs} /></td>
