@@ -1,5 +1,6 @@
 -c ../pinned-requirements.txt
 -c constraints.txt
+-c ../hailtop/security-floors.txt
 
 aiohttp-devtools>=1.1,<2
 build>=1.1,<1.2
