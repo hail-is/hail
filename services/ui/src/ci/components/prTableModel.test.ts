@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import type { PrConfig, ReviewRequest } from '../../shared/ciApi';
+import type { DeveloperBranchStatus, MergeQueueEntry, PrConfig, ReviewRequest } from '../../shared/ciApi';
 import {
   buildStateLabel,
   formatAge,
   isBuildOutOfDate,
   matchesSearch,
+  mergeCell,
   reviewSlots,
   statusColumnNames,
 } from './prTableModel';
@@ -25,8 +26,30 @@ function pr(overrides: Partial<PrConfig> = {}): PrConfig {
     batch_id: 1,
     review_requests: [],
     reviews: [{ author: 'carol', state: 'APPROVED' }],
+    merge_blockers: [],
     ...overrides,
   };
+}
+
+function branch(overrides: Partial<DeveloperBranchStatus> = {}): DeveloperBranchStatus {
+  return {
+    branch: 'main',
+    sha: 'abc',
+    deploy_state: 'success',
+    deploy_batch_id: null,
+    merge_candidate: null,
+    n_prs: 2,
+    last_update: null,
+    merge_paused_reason: null,
+    pending_merge: null,
+    build_slots: { used: 0, max: 3, running: [], on_deck: null, queued: [] },
+    merge_queue: [],
+    ...overrides,
+  };
+}
+
+function queued(prNumber: number, overrides: Partial<MergeQueueEntry> = {}): MergeQueueEntry {
+  return { pr: prNumber, source_sha: 'def', blockers: [], failures: 0, backoff_until_ms: null, ...overrides };
 }
 
 describe('statusColumnNames', () => {
@@ -204,5 +227,59 @@ describe('formatAge', () => {
 
   it('clamps clock skew to zero', () => {
     expect(formatAge('2026-10-21T12:05:00Z', now)).toBe('0m');
+  });
+});
+
+describe('mergeCell', () => {
+  const now = Date.parse('2026-11-04T12:00:00Z');
+
+  it('lists blockers as pending', () => {
+    const cell = mergeCell(pr({ merge_blockers: ['not approved', 'not built'] }), branch(), now);
+    expect(cell).toEqual({ status: 'pending', text: 'not approved · not built' });
+  });
+
+  it('shows queue position alongside blockers', () => {
+    const b = branch({ merge_queue: [queued(1), queued(15837)] });
+    const cell = mergeCell(pr({ merge_blockers: ['checks pending: ci-test'] }), b, now);
+    expect(cell.text).toBe('#2 in queue · checks pending: ci-test');
+  });
+
+  it('is ready when nothing blocks it', () => {
+    expect(mergeCell(pr(), branch({ merge_queue: [queued(15837)] }), now)).toEqual({ status: 'pass', text: 'ready · #1 in queue' });
+  });
+
+  it('falls back to the PR alone without branch status', () => {
+    expect(mergeCell(pr(), undefined, now)).toEqual({ status: 'pass', text: 'ready' });
+    expect(mergeCell(pr({ merge_blockers: ['label: WIP'] }), undefined, now).text).toBe('label: WIP');
+  });
+
+  it('shows an in-flight merge with its age', () => {
+    const b = branch({ pending_merge: { pr: 15837, requested_at_ms: now - 5 * 60_000 } });
+    expect(mergeCell(pr(), b, now)).toEqual({
+      status: 'pending',
+      text: 'merging',
+      requestedAt: new Date(now - 5 * 60_000).toISOString(),
+    });
+  });
+
+  it('shows a branch-wide pause only when the PR is otherwise ready', () => {
+    const b = branch({ merge_paused_reason: 'frozen', merge_queue: [queued(15837)] });
+    expect(mergeCell(pr(), b, now)).toEqual({ status: 'pending', text: '#1 in queue · merging paused (frozen)' });
+    expect(mergeCell(pr({ merge_blockers: ['not built'] }), b, now).text).toBe('#1 in queue · not built');
+  });
+
+  it('shows merge retry backoff', () => {
+    const b = branch({ merge_queue: [queued(15837, { failures: 2, backoff_until_ms: now + 10 * 60_000 })] });
+    expect(mergeCell(pr(), b, now)).toEqual({ status: 'pending', text: '#1 in queue · merge failed ×2, retrying in 10m' });
+  });
+
+  it('ignores a backoff that has expired', () => {
+    const b = branch({ merge_queue: [queued(15837, { failures: 1, backoff_until_ms: now - 1 })] });
+    expect(mergeCell(pr(), b, now).status).toBe('pass');
+  });
+
+  it('is searchable', () => {
+    expect(matchesSearch(pr({ merge_blockers: ['label: WIP'] }), [], 'wip')).toBe(true);
+    expect(matchesSearch(pr(), [], '#1 in queue', branch({ merge_queue: [queued(15837)] }), now)).toBe(true);
   });
 });

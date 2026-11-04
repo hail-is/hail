@@ -1,4 +1,4 @@
-import type { PrConfig } from '../../shared/ciApi';
+import type { DeveloperBranchStatus, PrConfig } from '../../shared/ciApi';
 import { BuildStateIcon } from './BuildStateIcon';
 import { ReviewStateIcon } from './ReviewStateIcon';
 import {
@@ -6,6 +6,7 @@ import {
   formatAge,
   ghStatuses,
   isBuildOutOfDate,
+  mergeCell,
   reviewSlots,
   type StageCell,
 } from './prTableModel';
@@ -19,7 +20,7 @@ function GitHubIcon(): JSX.Element {
   );
 }
 
-function ReviewCell({ cell, nowMs }: { cell: StageCell; nowMs: number }): JSX.Element {
+function StageCellView({ cell, nowMs }: { cell: StageCell; nowMs: number }): JSX.Element {
   if (cell.status === 'na') return <span className="text-zinc-300">&mdash;</span>;
   return (
     <span className="inline-flex items-center gap-1.5">
@@ -35,13 +36,15 @@ function ReviewCell({ cell, nowMs }: { cell: StageCell; nowMs: number }): JSX.El
 }
 
 // Table of a watched branch's open PRs. `statusNames` is the column set for the whole branch,
-// so filtering rows doesn't add or drop columns.
-export function PrTable({ prs, statusNames, repo, basePath, wbIndex }: {
+// so filtering rows doesn't add or drop columns. `branchStatus` adds queue position and merge
+// progress to the Merge column; it's optional so the table still renders without it.
+export function PrTable({ prs, statusNames, repo, basePath, wbIndex, branchStatus }: {
   prs: PrConfig[];
   statusNames: string[];
   repo: string;
   basePath: string;
   wbIndex: number;
+  branchStatus?: DeveloperBranchStatus;
 }): JSX.Element {
   const th = 'px-3 py-1 font-medium';
   const td = 'px-3 py-1 align-top';
@@ -61,6 +64,7 @@ export function PrTable({ prs, statusNames, repo, basePath, wbIndex }: {
               <th rowSpan={2} className={th}>Branch</th>
               <th rowSpan={2} className={th}>Review 1</th>
               <th rowSpan={2} className={th}>Review 2</th>
+              <th rowSpan={2} className={th}>Merge</th>
               <th rowSpan={2} className={th}>Author</th>
             </tr>
             <tr>
@@ -113,8 +117,9 @@ export function PrTable({ prs, statusNames, repo, basePath, wbIndex }: {
                   })}
                   <td className={td}>{pr.labels.join(', ')}</td>
                   <td className={`${td} font-mono text-xs`}>{pr.source_branch_name}</td>
-                  <td className={td}><ReviewCell cell={review1} nowMs={nowMs} /></td>
-                  <td className={td}><ReviewCell cell={review2} nowMs={nowMs} /></td>
+                  <td className={td}><StageCellView cell={review1} nowMs={nowMs} /></td>
+                  <td className={td}><StageCellView cell={review2} nowMs={nowMs} /></td>
+                  <td className={td}><StageCellView cell={mergeCell(pr, branchStatus, nowMs)} nowMs={nowMs} /></td>
                   <td className={td}>
                   <a
                     href={`https://github.com/${repo}/pulls/${encodeURIComponent(pr.author)}`}

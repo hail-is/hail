@@ -42,6 +42,7 @@ export interface PrConfig {
   batch_id: number | null;
   review_requests: ReviewRequest[];
   reviews: Review[];
+  merge_blockers: string[]; // empty if nothing blocks the merge
 }
 
 // Status endpoints: in-memory state that resets when CI restarts. Times are epoch ms.
