@@ -541,8 +541,8 @@ function DashboardPage({ basePath, batchBaseUrl }: { basePath: string; batchBase
   }, [api, countdownKey]);
 
   const prHref = useCallback((e: CIEvent) => {
-    const index = summaries.findIndex((s) => s.branch_fqn === e.target_branch);
-    return index === -1 ? null : `${basePath}/watched_branches/${index}/pr/${e.pr_number}`;
+    const summary = summaries.find((s) => s.branch_fqn === e.target_branch);
+    return summary === undefined ? null : `${basePath}/watched_branches/${summary.index}/pr/${e.pr_number}`;
   }, [basePath, summaries]);
 
   const failedKey = dev ? failedDeploysKey(dev.branches) : '';
@@ -580,21 +580,25 @@ function DashboardPage({ basePath, batchBaseUrl }: { basePath: string; batchBase
         <HealthStrip dev={dev} op={op} />
         <div className="mt-4 flex flex-col gap-4">
           {canManage && <ManagePanel api={api} frozen={dev.frozen} onChanged={() => { void refresh(true); }} />}
-          {dev.branches.map((branch, i) => (
-            <BranchPanel
-              key={branch.branch}
-              index={i}
-              branch={branch}
-              summary={summaries.at(i)}
-              op={op?.branches.find((b) => b.branch === branch.branch)}
-              basePath={basePath}
-              batchBaseUrl={batchBaseUrl}
-              failure={deployStatus.at(i)}
-              failureError={deployError}
-              nowMs={nowMs}
-              mergeFailedEvents={mergeFailedEvents}
-            />
-          ))}
+          {dev.branches.map((branch, i) => {
+            const summary = summaries.find((s) => s.branch === branch.branch);
+            return (
+              <BranchPanel
+                key={branch.branch}
+                // Status lists branches in watched-branch order, so position is right if summaries didn't load
+                index={summary?.index ?? i}
+                branch={branch}
+                summary={summary}
+                op={op?.branches.find((b) => b.branch === branch.branch)}
+                basePath={basePath}
+                batchBaseUrl={batchBaseUrl}
+                failure={deployStatus.at(i)}
+                failureError={deployError}
+                nowMs={nowMs}
+                mergeFailedEvents={mergeFailedEvents}
+              />
+            );
+          })}
           <Panel title="Recent failures" subtitle="Merges and build starts that failed, with GitHub's or the error's reason">
             <div className="flex flex-col gap-4">
               <div>

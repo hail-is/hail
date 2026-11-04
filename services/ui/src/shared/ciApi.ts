@@ -3,10 +3,15 @@ import { hailApiFetch, hailApiFetchVoid } from './hailApiFetch';
 // Wire types + client for the ci service's API. See batchApi.ts for why this lives in shared/.
 // Field shapes follow ci/ci/templates/openapi.yaml.
 
+// Branch identity and config; CI state is on CiDeveloperStatus.
 export interface WatchedBranchSummary {
+  index: number; // the {watched_branch_index} in UI page URLs
   branch: string;
   branch_fqn: string;
   repo: string;
+  sha: string | null;
+  deployable: boolean;
+  mergeable: boolean;
 }
 
 export interface WatchedBranchesResponse {
