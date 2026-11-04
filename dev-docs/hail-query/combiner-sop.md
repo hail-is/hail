@@ -36,7 +36,7 @@ object URIs.
 ### The `new_combiner` API (part 1)
 
 Before going further, it is useful to begin understanding the inputs to
-`new_combiner`, the the public constructor for the `VariantDatasetCombiner`
+`new_combiner`, the public constructor for the `VariantDatasetCombiner`
 class (the combiner driver).
 
 ```python3
@@ -183,7 +183,7 @@ default genome intervals include a few thousand items.
 When setting `intervals`, each interval provided MUST be non-overlapping, on
 a single contig, and include both endpoints. For a production run, `intervals`
 SHOULD cover almost all of the canonical contigs for the samples' reference
-genome (excluding some amout of telomeres/centromeres is often ok). The operator
+genome (excluding some amount of telomeres/centromeres is often ok). The operator
 MUST NOT use "calling intervals" to provide `intervals`, exome calling intervals
 are much finer grained and will lead to far too much parallelism. Use
 `intervals` when large regions are to be excluded, or for testing as the
@@ -196,7 +196,7 @@ roughly that size to then use for GVCF import. Use this if a default is too
 coarse or fine for the samples involved. (It is difficult to define 'too much'
 or 'too little' parallelism, if tasks are taking too long, more
 intervals/smaller interval size can be used; if there is too much overhead due
-to excess paralleism a larger interval size can be used.)
+to excess parallelism a larger interval size can be used.)
 
 ### Controlling Imported Fields
 
@@ -215,10 +215,10 @@ def new_combiner(
 ```
 
 It is RECOMMENDED that the operator set `gvcf_external_header`. This serves two
-purposes. The first is that it instantly homogonizes the input type of each gvcf
+purposes. The first is that it instantly homogenizes the input type of each gvcf
 thus avoiding platform/software differences in gvcf creation. Second, without
 this parameter, every file needs to be checked to ensure homogeneity, so setting
-it save some time. This will not not cause issues, due to the way that VCF
+it saves some time. This will not cause issues, due to the way that VCF
 parsing in hail works, fields that are not in the header, but are present in the
 VCF are silently skipped during parsing.
 
