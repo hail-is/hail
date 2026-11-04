@@ -63,7 +63,7 @@ object TableIR {
     new TableIROps(ir)
 }
 
-sealed abstract class TableIR extends BaseIR {
+sealed abstract class TableIR(tag: Tag) extends BaseIR(tag) {
   override def typ: TableType
   override def deepCopy: TableIR = super.deepCopy.asInstanceOf[TableIR]
   override protected def copyWithNewChildren(newChildren: IndexedSeq[BaseIR]): TableIR
@@ -142,7 +142,7 @@ case class TableLiteral(
   rvd: RVD,
   enc: AbstractTypedCodecSpec,
   encodedGlobals: Array[Array[Byte]],
-) extends TableIR {
+) extends TableIR(new Tag(Tag.TableLiteral)) {
   val childrenSeq: IndexedSeq[BaseIR] = ArraySeq.empty
 
   override protected def copyWithNewChildren(newChildren: IndexedSeq[BaseIR]): TableLiteral = {
@@ -2024,7 +2024,8 @@ object TableRead {
   }
 }
 
-case class TableRead(typ: TableType, dropRows: Boolean, tr: TableReader) extends TableIR {
+case class TableRead(typ: TableType, dropRows: Boolean, tr: TableReader)
+    extends TableIR(new Tag(Tag.TableRead)) {
   try
     assert(PruneDeadFields.isSupertype(typ, tr.fullType))
   catch {
@@ -2042,7 +2043,8 @@ case class TableRead(typ: TableType, dropRows: Boolean, tr: TableReader) extends
   }
 }
 
-case class TableParallelize(rowsAndGlobal: IR, nPartitions: Option[Int] = None) extends TableIR {
+case class TableParallelize(rowsAndGlobal: IR, nPartitions: Option[Int] = None)
+    extends TableIR(new Tag(Tag.TableParallelize)) {
   val childrenSeq: IndexedSeq[BaseIR] = FastSeq(rowsAndGlobal)
 
   override protected def copyWithNewChildren(newChildren: IndexedSeq[BaseIR]): TableParallelize = {
@@ -2078,7 +2080,7 @@ case class TableKeyBy(
   keys: IndexedSeq[String],
   isSorted: Boolean = false,
   nPartitions: Option[Int] = None,
-) extends TableIR with PreservesRows {
+) extends TableIR(new Tag(Tag.TableKeyBy)) with PreservesRows {
   val childrenSeq: IndexedSeq[BaseIR] = ArraySeq(child)
 
   lazy val typ: TableType = child.typ.copy(key = keys)
@@ -2120,7 +2122,7 @@ case class TableGen(
   body: IR,
   partitioner: RVDPartitioner,
   errorId: Int = ErrorIDs.NO_ERROR,
-) extends TableIR {
+) extends TableIR(new Tag(Tag.TableGen)) {
   private def globalType =
     TypeCheck.coerce[TStruct]("globals", globals.typ)
 
@@ -2141,7 +2143,7 @@ case class TableGen(
     FastSeq(contexts, globals, body)
 }
 
-case class TableRange(n: Int, nPartitions: Int) extends TableIR {
+case class TableRange(n: Int, nPartitions: Int) extends TableIR(new Tag(Tag.TableRange)) {
   require(n >= 0)
   require(nPartitions > 0)
   private val nPartitionsAdj = math.max(math.min(n, nPartitions), 1)
@@ -2161,7 +2163,8 @@ case class TableRange(n: Int, nPartitions: Int) extends TableIR {
   )
 }
 
-case class TableFilter(child: TableIR, pred: IR) extends TableIR with PreservesOrRemovesRows {
+case class TableFilter(child: TableIR, pred: IR)
+    extends TableIR(new Tag(Tag.TableFilter)) with PreservesOrRemovesRows {
   val childrenSeq: IndexedSeq[BaseIR] = ArraySeq(child, pred)
 
   override def typ: TableType = child.typ
@@ -2174,7 +2177,7 @@ case class TableFilter(child: TableIR, pred: IR) extends TableIR with PreservesO
   override def preservesRowsOrColsFrom: BaseIR = child
 }
 
-case class TableHead(child: TableIR, n: Long) extends TableIR {
+case class TableHead(child: TableIR, n: Long) extends TableIR(new Tag(Tag.TableHead)) {
   require(n >= 0, fatal(s"TableHead: n must be non-negative! Found '$n'."))
   lazy val childrenSeq: IndexedSeq[BaseIR] = FastSeq(child)
   override def typ: TableType = child.typ
@@ -2185,7 +2188,7 @@ case class TableHead(child: TableIR, n: Long) extends TableIR {
   }
 }
 
-case class TableTail(child: TableIR, n: Long) extends TableIR {
+case class TableTail(child: TableIR, n: Long) extends TableIR(new Tag(Tag.TableTail)) {
   require(n >= 0, fatal(s"TableTail: n must be non-negative! Found '$n'."))
   lazy val childrenSeq: IndexedSeq[BaseIR] = FastSeq(child)
   override def typ: TableType = child.typ
@@ -2203,7 +2206,7 @@ object RepartitionStrategy {
 }
 
 case class TableRepartition(child: TableIR, n: Int, strategy: Int)
-    extends TableIR with PreservesRows {
+    extends TableIR(new Tag(Tag.TableRepartition)) with PreservesRows {
   override def typ: TableType = child.typ
 
   lazy val childrenSeq: IndexedSeq[BaseIR] = FastSeq(child)
@@ -2235,7 +2238,7 @@ object TableJoin {
   * distinct keys with the same join key.
   */
 case class TableJoin(left: TableIR, right: TableIR, joinType: String, joinKey: Int)
-    extends TableIR {
+    extends TableIR(new Tag(Tag.TableJoin)) {
 
   require(joinKey >= 0)
 
@@ -2287,7 +2290,7 @@ case class TableIntervalJoin(
   right: TableIR,
   root: String,
   product: Boolean,
-) extends TableIR with PreservesRows {
+) extends TableIR(new Tag(Tag.TableIntervalJoin)) with PreservesRows {
   lazy val childrenSeq: IndexedSeq[BaseIR] = ArraySeq(left, right)
 
   lazy val typ: TableType = {
@@ -2313,7 +2316,7 @@ case class TableMultiWayZipJoin(
   childrenSeq: IndexedSeq[TableIR],
   fieldName: String,
   globalName: String,
-) extends TableIR {
+) extends TableIR(new Tag(Tag.TableMultiWayZipJoin)) {
   require(childrenSeq.nonEmpty, "there must be at least one table as an argument")
 
   private def first = childrenSeq.head
@@ -2334,7 +2337,7 @@ case class TableMultiWayZipJoin(
 }
 
 case class TableLeftJoinRightDistinct(left: TableIR, right: TableIR, root: String)
-    extends TableIR with PreservesRows {
+    extends TableIR(new Tag(Tag.TableLeftJoinRightDistinct)) with PreservesRows {
   lazy val childrenSeq: IndexedSeq[BaseIR] = ArraySeq(left, right)
 
   lazy val typ: TableType = left.typ.copy(
@@ -2363,7 +2366,7 @@ case class TableMapPartitions(
   body: IR,
   requestedKey: Int,
   allowedOverlap: Int,
-) extends TableIR {
+) extends TableIR(new Tag(Tag.TableMapPartitions)) {
   lazy val typ: TableType = child.typ.copy(
     rowType = body.typ.asInstanceOf[TStream].elementType.asInstanceOf[TStruct]
   )
@@ -2385,7 +2388,8 @@ case class TableMapPartitions(
 }
 
 // Must leave key fields unchanged.
-case class TableMapRows(child: TableIR, newRow: IR) extends TableIR with PreservesRows {
+case class TableMapRows(child: TableIR, newRow: IR)
+    extends TableIR(new Tag(Tag.TableMapRows)) with PreservesRows {
   val childrenSeq: IndexedSeq[BaseIR] = ArraySeq(child, newRow)
 
   lazy val typ: TableType = child.typ.copy(rowType = newRow.typ.asInstanceOf[TStruct])
@@ -2398,7 +2402,8 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR with Preserv
   override def preservesRowsOrColsFrom: BaseIR = child
 }
 
-case class TableMapGlobals(child: TableIR, newGlobals: IR) extends TableIR with PreservesRows {
+case class TableMapGlobals(child: TableIR, newGlobals: IR)
+    extends TableIR(new Tag(Tag.TableMapGlobals)) with PreservesRows {
   val childrenSeq: IndexedSeq[BaseIR] = ArraySeq(child, newGlobals)
 
   lazy val typ: TableType =
@@ -2412,7 +2417,8 @@ case class TableMapGlobals(child: TableIR, newGlobals: IR) extends TableIR with 
   override def preservesRowsOrColsFrom: BaseIR = child
 }
 
-case class TableExplode(child: TableIR, path: IndexedSeq[String]) extends TableIR {
+case class TableExplode(child: TableIR, path: IndexedSeq[String])
+    extends TableIR(new Tag(Tag.TableExplode)) {
   assert(path.nonEmpty)
 
   lazy val childrenSeq: IndexedSeq[BaseIR] = ArraySeq(child)
@@ -2432,7 +2438,7 @@ case class TableExplode(child: TableIR, path: IndexedSeq[String]) extends TableI
   }
 }
 
-case class TableUnion(childrenSeq: IndexedSeq[TableIR]) extends TableIR {
+case class TableUnion(childrenSeq: IndexedSeq[TableIR]) extends TableIR(new Tag(Tag.TableUnion)) {
   assert(childrenSeq.nonEmpty)
 
   override protected def copyWithNewChildren(newChildren: IndexedSeq[BaseIR]): TableUnion =
@@ -2441,7 +2447,8 @@ case class TableUnion(childrenSeq: IndexedSeq[TableIR]) extends TableIR {
   override def typ: TableType = childrenSeq(0).typ
 }
 
-case class MatrixRowsTable(child: MatrixIR) extends TableIR with PreservesRows {
+case class MatrixRowsTable(child: MatrixIR)
+    extends TableIR(new Tag(Tag.MatrixRowsTable)) with PreservesRows {
   val childrenSeq: IndexedSeq[BaseIR] = ArraySeq(child)
 
   override protected def copyWithNewChildren(newChildren: IndexedSeq[BaseIR]): MatrixRowsTable = {
@@ -2454,7 +2461,7 @@ case class MatrixRowsTable(child: MatrixIR) extends TableIR with PreservesRows {
   override def preservesRowsOrColsFrom: BaseIR = child
 }
 
-case class MatrixColsTable(child: MatrixIR) extends TableIR {
+case class MatrixColsTable(child: MatrixIR) extends TableIR(new Tag(Tag.MatrixColsTable)) {
   val childrenSeq: IndexedSeq[BaseIR] = ArraySeq(child)
 
   override protected def copyWithNewChildren(newChildren: IndexedSeq[BaseIR]): MatrixColsTable = {
@@ -2465,7 +2472,7 @@ case class MatrixColsTable(child: MatrixIR) extends TableIR {
   override def typ: TableType = child.typ.colsTableType
 }
 
-case class MatrixEntriesTable(child: MatrixIR) extends TableIR {
+case class MatrixEntriesTable(child: MatrixIR) extends TableIR(new Tag(Tag.MatrixEntriesTable)) {
   val childrenSeq: IndexedSeq[BaseIR] = ArraySeq(child)
 
   override protected def copyWithNewChildren(newChildren: IndexedSeq[BaseIR])
@@ -2477,7 +2484,8 @@ case class MatrixEntriesTable(child: MatrixIR) extends TableIR {
   override def typ: TableType = child.typ.entriesTableType
 }
 
-case class TableDistinct(child: TableIR) extends TableIR with PreservesOrRemovesRows {
+case class TableDistinct(child: TableIR)
+    extends TableIR(new Tag(Tag.TableDistinct)) with PreservesOrRemovesRows {
   lazy val childrenSeq: IndexedSeq[BaseIR] = ArraySeq(child)
 
   override protected def copyWithNewChildren(newChildren: IndexedSeq[BaseIR]): TableDistinct = {
@@ -2496,7 +2504,7 @@ case class TableKeyByAndAggregate(
   newKey: IR,
   nPartitions: Option[Int] = None,
   bufferSize: Int,
-) extends TableIR with PreservesOrRemovesRows {
+) extends TableIR(new Tag(Tag.TableKeyByAndAggregate)) with PreservesOrRemovesRows {
   assert(bufferSize > 0)
 
   lazy val childrenSeq: IndexedSeq[BaseIR] = ArraySeq(child, expr, newKey)
@@ -2522,7 +2530,7 @@ case class TableKeyByAndAggregate(
 
 // follows key_by non-empty key
 case class TableAggregateByKey(child: TableIR, expr: IR)
-    extends TableIR with PreservesOrRemovesRows {
+    extends TableIR(new Tag(Tag.TableAggregateByKey)) with PreservesOrRemovesRows {
   lazy val childrenSeq: IndexedSeq[BaseIR] = ArraySeq(child, expr)
 
   override protected def copyWithNewChildren(newChildren: IndexedSeq[BaseIR])
@@ -2547,7 +2555,7 @@ object TableOrderBy {
 }
 
 case class TableOrderBy(child: TableIR, sortFields: IndexedSeq[SortField])
-    extends TableIR with PreservesRows {
+    extends TableIR(new Tag(Tag.TableOrderBy)) with PreservesRows {
   lazy val definitelyDoesNotShuffle: Boolean =
     TableOrderBy.isAlreadyOrdered(sortFields, child.typ.key)
   // TableOrderBy expects an unkeyed child, so that we can better optimize by
@@ -2574,7 +2582,7 @@ case class CastMatrixToTable(
   child: MatrixIR,
   entriesFieldName: String,
   colsFieldName: String,
-) extends TableIR with PreservesRows {
+) extends TableIR(new Tag(Tag.CastMatrixToTable)) with PreservesRows {
 
   lazy val typ: TableType = child.typ.toTableType(entriesFieldName, colsFieldName)
 
@@ -2589,7 +2597,7 @@ case class CastMatrixToTable(
 }
 
 case class TableRename(child: TableIR, rowMap: Map[String, String], globalMap: Map[String, String])
-    extends TableIR with PreservesRows {
+    extends TableIR(new Tag(Tag.TableRename)) with PreservesRows {
   def rowF(old: String): String = rowMap.getOrElse(old, old)
 
   lazy val typ: TableType = child.typ.copy(
@@ -2609,7 +2617,7 @@ case class TableRename(child: TableIR, rowMap: Map[String, String], globalMap: M
 }
 
 case class TableFilterIntervals(child: TableIR, intervals: IndexedSeq[Interval], keep: Boolean)
-    extends TableIR with PreservesOrRemovesRows {
+    extends TableIR(new Tag(Tag.TableFilterIntervals)) with PreservesOrRemovesRows {
   lazy val childrenSeq: IndexedSeq[BaseIR] = ArraySeq(child)
 
   override protected def copyWithNewChildren(newChildren: IndexedSeq[BaseIR]): TableIR = {
@@ -2623,7 +2631,7 @@ case class TableFilterIntervals(child: TableIR, intervals: IndexedSeq[Interval],
 }
 
 case class MatrixToTableApply(child: MatrixIR, function: MatrixToTableFunction)
-    extends TableIR with PreservesRows {
+    extends TableIR(new Tag(Tag.MatrixToTableApply)) with PreservesRows {
   lazy val childrenSeq: IndexedSeq[BaseIR] = ArraySeq(child)
 
   override protected def copyWithNewChildren(newChildren: IndexedSeq[BaseIR]): TableIR = {
@@ -2638,7 +2646,7 @@ case class MatrixToTableApply(child: MatrixIR, function: MatrixToTableFunction)
 }
 
 case class TableToTableApply(child: TableIR, function: TableToTableFunction)
-    extends TableIR with PreservesRows {
+    extends TableIR(new Tag(Tag.TableToTableApply)) with PreservesRows {
   lazy val childrenSeq: IndexedSeq[BaseIR] = ArraySeq(child)
 
   override protected def copyWithNewChildren(newChildren: IndexedSeq[BaseIR]): TableIR = {
@@ -2657,7 +2665,7 @@ case class BlockMatrixToTableApply(
   bm: BlockMatrixIR,
   aux: IR,
   function: BlockMatrixToTableFunction,
-) extends TableIR {
+) extends TableIR(new Tag(Tag.BlockMatrixToTableApply)) {
 
   override lazy val childrenSeq: IndexedSeq[BaseIR] = ArraySeq(bm, aux)
 
@@ -2671,7 +2679,8 @@ case class BlockMatrixToTableApply(
   override lazy val typ: TableType = function.typ(bm.typ, aux.typ)
 }
 
-case class BlockMatrixToTable(child: BlockMatrixIR) extends TableIR {
+case class BlockMatrixToTable(child: BlockMatrixIR)
+    extends TableIR(new Tag(Tag.BlockMatrixToTable)) {
   lazy val childrenSeq: IndexedSeq[BaseIR] = ArraySeq(child)
 
   override protected def copyWithNewChildren(newChildren: IndexedSeq[BaseIR]): TableIR = {
@@ -2686,7 +2695,7 @@ case class BlockMatrixToTable(child: BlockMatrixIR) extends TableIR {
 }
 
 case class RelationalLetTable(name: Name, value: IR, body: TableIR)
-    extends TableIR with PreservesRows {
+    extends TableIR(new Tag(Tag.RelationalLetTable)) with PreservesRows {
   override def typ: TableType = body.typ
 
   override def childrenSeq: IndexedSeq[BaseIR] = ArraySeq(value, body)

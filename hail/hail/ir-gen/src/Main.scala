@@ -1,7 +1,67 @@
 import scala.annotation.nowarn
 import scala.collection.immutable.ArraySeq
 
+import Family.Family
 import mainargs.{main, ParserForMethods}
+
+// The group an IR node's class belongs to. A node's tag holds its family's `id` in the
+// bits above `Family.FamilyShift`, and its position within the family below, so a pass
+// can switch on the family and then on the tag, and each switch compiles to a jump table.
+//
+// Relational, Table and Matrix hold the nodes a lowering pass removes: a node goes in the
+// family of the first invariant that forbids it. For example, NoMatrixIR forbids every
+// node that is or reads a MatrixIR, so LowerMatrixIR removes the whole Matrix family.
+// BlockMatrix is the odd one out: CompilableIR forbids it at the same point as Table, so
+// a node goes in BlockMatrix if it reads or makes a block matrix but no Table.
+//
+// The other families are buckets that keep each pass's per-family method small. A node
+// goes in the family of what it produces.
+
+object Family extends Enumeration {
+  type Family = Value
+  final val FamilyShift = 8
+
+  // a constant value
+  val Const
+
+  // a ref or input, or binds, branches, loops, throws, calls a function or
+  // applies a built-in operator; also one-off helpers (UUID4, Consume,
+  // ConsoleLog)
+  , Core
+
+  // produces or reads a struct or tuple
+  , Struct
+
+  // produces, reads, transforms or writes a stream
+  , Stream
+
+  // produces or reads an array, set or dict
+  , Collection
+
+  // uses an agg context or agg state
+  , Agg
+
+  // reads or writes a partition, value or metadata
+  , IO
+
+  // produces, reads, transforms or writes an ndarray
+  , NDArray
+
+  // creates or splits RNG state
+  , Random
+
+  // binds or refers to a value computed from relational IR
+  , Relational
+
+  // reads, transforms or writes a Table
+  , Table
+
+  // reads, transforms or writes a MatrixTable
+  , Matrix
+
+  // reads, transforms or writes a block matrix
+  , BlockMatrix = Value
+}
 
 trait IRDSL {
   // Phantom types used to tag a ConstrainedType
@@ -54,9 +114,15 @@ trait IRDSL {
 
   type NodeDef <: NodeDefInterface
 
-  def node(name: String, attsAndChildren: GenericDeclaration*): NodeDef
+  def node(family: Family, name: String, attsAndChildren: GenericDeclaration*): NodeDef
+
+  /** A node whose class is written by hand, outside ir-gen. Only its tag is generated. */
+  def handWritten(family: Family, name: String): NodeDef
 
   trait NodeDefInterface {
+    def family: Family
+    def name: String
+    def isHandWritten: Boolean
     def withTraits(newTraits: Trait*): NodeDef
     def withPreamble(methodDef: String): NodeDef
     def typed(typ: String): NodeDef
@@ -75,7 +141,6 @@ trait IRDSL {
   val Atom: Trait
   val BaseRef: Trait
   def TypedIR(t: String): Trait
-  val NDArrayIR: Trait
   // AbstractApplyNodeUnseededMissingness{Aware, Oblivious}JVMFunction
   def ApplyNode(missingnessAware: Boolean = false): Trait
 
@@ -89,8 +154,11 @@ trait IRDSL {
 }
 
 object IRDSL_Impl extends IRDSL {
-  override def node(name: String, attsAndChildren: Declaration[_]*): NodeDef =
-    NodeDef(name, attsAndChildren)
+  override def node(family: Family, name: String, attsAndChildren: Declaration[_]*): NodeDef =
+    NodeDef(family, name, attsAndChildren)
+
+  override def handWritten(family: Family, name: String): NodeDef =
+    NodeDef(family, name, Seq.empty, isHandWritten = true)
 
   override def att(typ: String): Type[Attribute] = Att_(typ)
   override val binding: Type[Binding] = Binding
@@ -120,7 +188,6 @@ object IRDSL_Impl extends IRDSL {
   override val Atom: Trait = Trait("Atom")
   override val BaseRef: Trait = Trait("BaseRef")
   override def TypedIR(typ: String): Trait = Trait(s"TypedIR[$typ]")
-  override val NDArrayIR: Trait = Trait("NDArrayIR")
 
   override def ApplyNode(missingnessAware: Boolean = false): Trait = {
     val t =
@@ -473,6 +540,7 @@ object IRDSL_Impl extends IRDSL {
   ) extends Tup[(T1, T2, T3)](x1, x2, x3)
 
   case class NodeDef(
+    family: Family,
     name: String,
     attsAndChildren: Seq[Declaration[_]],
     traits: Seq[Trait] = Seq.empty,
@@ -481,6 +549,7 @@ object IRDSL_Impl extends IRDSL {
     staticMethods: Seq[String] = Seq.empty,
     docstring: String = "",
     hasCompanionExtension: Boolean = false,
+    isHandWritten: Boolean = false,
   ) extends NodeDefInterface {
     override def withTraits(newTraits: Trait*): NodeDef = copy(traits = traits ++ newTraits)
 
@@ -524,7 +593,9 @@ object IRDSL_Impl extends IRDSL {
 
     private def classDecl = {
       val paramList = s"$name(${attsAndChildren.map(_.generateDeclaration).mkString(", ")})"
-      s"final case class $paramList extends IR" + traits.map(" with " + _.name).mkString
+      s"final case class $paramList extends IR(new Tag(Tag.$name))" + traits.map(
+          " with " + _.name
+        ).mkString
     }
 
     private def classBody = {
@@ -558,15 +629,22 @@ object IRDSL_Impl extends IRDSL {
       s"object $name extends ${name}CompanionExt\n"
     else ""
 
-    override def generateDef: String = companionDef + classDef + "\n"
+    override def generateDef: String = {
+      require(!isHandWritten, s"$name is hand-written; only its tag is generated")
+      companionDef + classDef + "\n"
+    }
   }
 }
 
 object Main {
   val irdsl: IRDSL = IRDSL_Impl
+
   import irdsl._
+  import Family._
 
   private val errorID = in("errorID", att("Int")).withDefault("ErrorIDs.NO_ERROR")
+  private val isScan = in("isScan", att("Boolean"))
+  private val key = in("key", att("String").*)
 
   private def _typ(t: String = "Type") = in("_typ", att(t))
 
@@ -577,30 +655,24 @@ object Main {
 
     val r = Seq.newBuilder[NodeDef]
 
-    r += node("I32", in("x", att("Int"))).withTraits(Atom)
-    r += node("I64", in("x", att("Long"))).withTraits(Atom)
-    r += node("F32", in("x", att("Float"))).withTraits(Atom)
-    r += node("F64", in("x", att("Double"))).withTraits(Atom)
+    r += node(Const, "NA", _typ()).withTraits(Atom)
+    r += node(Const, "I32", in("x", att("Int"))).withTraits(Atom)
+    r += node(Const, "I64", in("x", att("Long"))).withTraits(Atom)
+    r += node(Const, "F32", in("x", att("Float"))).withTraits(Atom)
+    r += node(Const, "F64", in("x", att("Double"))).withTraits(Atom)
+
     // Making Str < Atom would lead to code bloat
-    r += node("Str", in("x", att("String")))
+    r += node(Const, "Str", in("x", att("String")))
       .withPreamble(
         "override def toString(): String = s\"\"\"Str(\"${StringEscapeUtils.escapeString(x)}\")\"\"\""
       ): @nowarn("msg=possible missing interpolator")
-    r += node("True").withTraits(Atom)
-    r += node("False").withTraits(Atom)
-    r += node("Void").withTraits(Atom)
-    r += node("NA", _typ()).withTraits(Atom)
-    r += node("UUID4", in("id", att("String")))
-      .withDocstring(
-        """WARNING! This node can only be used when trying to append a one-off,
-          |random string that will not be reused elsewhere in the pipeline.
-          |Any other uses will need to write and then read again; this node is non-deterministic
-          |and will not e.g. exhibit the correct semantics when self-joining on streams.
-          |""".stripMargin
-      )
-      .withCompanionExtension
+
+    r += node(Const, "True").withTraits(Atom)
+    r += node(Const, "False").withTraits(Atom)
+    r += node(Const, "Void").withTraits(Atom)
 
     r += node(
+      Const,
       "Literal",
       in("_typ", att("Type")).withConstraint(self => s"!CanEmit($self)"),
       in("value", att("Annotation")).withConstraint(self => s"$self != null"),
@@ -614,6 +686,7 @@ object Main {
       )
 
     r += node(
+      Const,
       "EncodedLiteral",
       in(
         "codec",
@@ -625,24 +698,75 @@ object Main {
     )
       .withCompanionExtension
 
-    r += node("Cast", in("v", child), _typ())
-    r += node("CastRename", in("v", child), _typ())
+    r += node(Core, "Cast", in("v", child), _typ())
+    r += node(Core, "Coalesce", in("values", child.+))
+    r += node(Core, "If", in("cond", child), in("cnsq", child), in("altr", child))
 
-    r += node("IsNA", in("value", child))
-    r += node("Coalesce", in("values", child.+))
-    r += node("Consume", in("value", child))
-
-    r += node("If", in("cond", child), in("cnsq", child), in("altr", child))
-    r += node("Switch", in("x", child), in("default", child), in("cases", child.*))
+    r += node(Core, "Switch", in("x", child), in("default", child), in("cases", child.*))
       .withPreamble("override lazy val size: Int = 2 + cases.length")
 
-    r += node("Block", in("bindings", binding.*), in("body", child))
+    r += node(Core, "Ref", name, _typ().mutable).withTraits(BaseRef, Atom)
+    r += node(Core, "Recur", name, in("args", child.*), _typ().mutable).withTraits(BaseRef)
+
+    r += node(Core, "In", in("i", att("Int")), in("_typ", att("EmitParamType")))
+      .withTraits(Atom)
+      .withDocstring("Function input")
+      .withCompanionExtension
+
+    r += node(
+      Core,
+      "Die",
+      in("message", child),
+      in("_typ", att("Type")),
+      errorID,
+    ).withCompanionExtension
+
+    r += node(Core, "ConsoleLog", in("message", child), in("result", child))
+
+    r += node(
+      Core,
+      "ApplyBinaryPrimOp",
+      in("op", att("BinaryOp")),
+      in("l", child),
+      in("r", child),
+    )
+
+    r += node(Core, "ApplyUnaryPrimOp", in("op", att("UnaryOp")), in("x", child))
+
+    r += node(
+      Core,
+      "ApplyComparisonOp",
+      in("op", att("ComparisonOp[_]")).mutable,
+      in("l", child),
+      in("r", child),
+    )
+
+    r += node(
+      Core,
+      "Apply",
+      in("function", att("String")),
+      in("typeArgs", att("IndexedSeq[Type]")),
+      in("args", child.*),
+      in("returnType", att("Type")),
+      errorID,
+    ).withTraits(ApplyNode())
+
+    r += node(
+      Core,
+      "ApplySpecial",
+      in("function", att("String")),
+      in("typeArgs", att("IndexedSeq[Type]")),
+      in("args", child.*),
+      in("returnType", att("Type")),
+      errorID,
+    ).withTraits(ApplyNode(missingnessAware = true))
+
+    r += node(Core, "Block", in("bindings", binding.*), in("body", child))
       .withPreamble("override lazy val size: Int = bindings.length + 1")
       .withCompanionExtension
 
-    r += node("Ref", name, _typ().mutable).withTraits(BaseRef, Atom)
-
     r += node(
+      Core,
       "TailLoop",
       name,
       in("params", tup(name, child).*),
@@ -656,49 +780,67 @@ object Main {
           |""".stripMargin
       )
       .withPreamble("lazy val paramIdx: Map[Name, Int] = params.map(_._1).zipWithIndex.toMap")
-    r += node("Recur", name, in("args", child.*), _typ().mutable).withTraits(BaseRef)
 
-    r += node("RelationalLet", name, in("value", child), in("body", child))
-    r += node("RelationalRef", name, _typ()).withTraits(BaseRef, Atom)
-
-    r += node("ApplyBinaryPrimOp", in("op", att("BinaryOp")), in("l", child), in("r", child))
-    r += node("ApplyUnaryPrimOp", in("op", att("UnaryOp")), in("x", child))
-    r += node(
-      "ApplyComparisonOp",
-      in("op", att("ComparisonOp[_]")).mutable,
-      in("l", child),
-      in("r", child),
-    )
-
-    r += node("MakeArray", in("args", child.*), _typ("TArray")).withCompanionExtension
-    r += node("MakeStream", in("args", child.*), _typ("TStream"), mmPerElt)
-      .typed("TStream")
+    r += node(Core, "UUID4", in("id", att("String")))
+      .withDocstring(
+        """WARNING! This node can only be used when trying to append a one-off,
+          |random string that will not be reused elsewhere in the pipeline.
+          |Any other uses will need to write and then read again; this node is non-deterministic
+          |and will not e.g. exhibit the correct semantics when self-joining on streams.
+          |""".stripMargin
+      )
       .withCompanionExtension
-    r += node("ArrayRef", in("a", child), in("i", child), errorID)
+
+    r += node(Core, "IsNA", in("value", child))
+    r += node(Core, "Consume", in("value", child))
+
     r += node(
-      "ArraySlice",
-      in("a", child),
-      in("start", child),
-      in("stop", child.?),
-      in("step", child).withDefault("I32(1)"),
+      Core,
+      "ApplyIR",
+      in("function", att("String")),
+      in("typeArgs", att("IndexedSeq[Type]")),
+      in("args", child.*),
+      in("returnType", att("Type")),
       errorID,
     )
-    r += node("ArrayLen", in("a", child))
-    r += node("ArrayZeros", in("length", child))
-    r += node(
-      "ArrayMaximalIndependentSet",
-      in("edges", child),
-      in("tieBreaker", tup(name, name, child).?),
-    )
+      .withClassExtension
 
-    r += node("StreamIota", in("start", child), in("step", child), mmPerElt)
+    r += node(Struct, "CastRename", in("v", child), _typ())
+    r += node(Struct, "MakeStruct", in("fields", tup(att("String"), child).*)).typed("TStruct")
+
+    r += node(Struct, "SelectFields", in("old", child), in("fields", att("String").*))
+      .typed("TStruct")
+
+    r += node(
+      Struct,
+      "InsertFields",
+      in("old", child),
+      in("fields", tup(att("String"), child).*),
+      in("fieldOrder", att("String").*.?).withDefault("None"),
+    )
+      .typed("TStruct")
+
+    r += node(Struct, "GetField", in("o", child), in("name", att("String")))
+
+    r += node(Struct, "MakeTuple", in("fields", tup(att("Int"), child).*))
+      .typed("TTuple").withCompanionExtension
+
+    r += node(Struct, "GetTupleElement", in("o", child), in("idx", att("Int")))
+
+    r += node(Stream, "MakeStream", in("args", child.*), _typ("TStream"), mmPerElt)
+      .typed("TStream")
+      .withCompanionExtension
+
+    r += node(Stream, "StreamIota", in("start", child), in("step", child), mmPerElt)
       .withDocstring(
         """[[StreamIota]] is an infinite stream producer, whose element is an integer starting at
           |`start`, updated by `step` at each iteration. The name comes from APL:
           |[[https://stackoverflow.com/questions/9244879/what-does-iota-of-stdiota-stand-for]]
           |""".stripMargin
       )
+
     r += node(
+      Stream,
       "StreamRange",
       in("start", child),
       in("stop", child),
@@ -707,57 +849,15 @@ object Main {
       errorID,
     )
 
-    r += node(
-      "ArraySort",
-      in("a", child),
-      in("left", name),
-      in("right", name),
-      in("lessThan", child),
-    )
-      .withCompanionExtension
-
-    r += node("ToSet", in("a", child))
-    r += node("ToDict", in("a", child))
-    r += node("ToArray", in("a", child)).typed("TArray")
-    r += node("CastToArray", in("a", child)).typed("TArray")
-    r += node("ToStream", in("a", child), mmPerElt).typed("TStream")
-    r += node("GroupByKey", in("collection", child))
+    r += node(Stream, "ToStream", in("a", child), mmPerElt).typed("TStream")
+    r += node(Stream, "StreamLen", in("a", child))
+    r += node(Stream, "StreamGrouped", in("a", child), in("groupSize", child))
+    r += node(Stream, "StreamGroupByKey", in("a", child), key, in("missingEqual", att("Boolean")))
+    r += node(Stream, "StreamTake", in("a", child), in("num", child)).typed("TStream")
+    r += node(Stream, "StreamDrop", in("a", child), in("num", child)).typed("TStream")
 
     r += node(
-      "StreamBufferedAggregate",
-      in("streamChild", child),
-      in("initAggs", child),
-      in("newKey", child),
-      in("seqOps", child),
-      name,
-      in("aggSignature", att("PhysicalAggSig").*),
-      in("bufferSize", att("Int")),
-    )
-    r += node(
-      "LowerBoundOnOrderedCollection",
-      in("orderedCollection", child),
-      in("elem", child),
-      in("onKey", att("Boolean")),
-    )
-
-    r += node("RNGSplit", in("state", child), in("dynBitstring", child))
-    r += node("RNGSplitStatic", in("state", child), in("staticUid", att("Long")))
-    r += node("RNGStateLiteral")
-
-    val key = in("key", att("String").*)
-
-    r += node("StreamLen", in("a", child))
-    r += node("StreamGrouped", in("a", child), in("groupSize", child))
-    r += node("StreamGroupByKey", in("a", child), key, in("missingEqual", att("Boolean")))
-    r += node("StreamMap", in("a", child), name, in("body", child)).typed("TStream")
-    r += node("StreamTakeWhile", in("a", child), in("elementName", name), in("body", child))
-      .typed("TStream")
-    r += node("StreamDropWhile", in("a", child), in("elementName", name), in("body", child))
-      .typed("TStream")
-    r += node("StreamTake", in("a", child), in("num", child)).typed("TStream")
-    r += node("StreamDrop", in("a", child), in("num", child)).typed("TStream")
-
-    r += node(
+      Stream,
       "SeqSample",
       in("totalRange", child),
       in("numToSample", child),
@@ -772,6 +872,7 @@ object Main {
       )
 
     r += node(
+      Stream,
       "StreamDistribute",
       in("child", child),
       in("pivots", child),
@@ -787,6 +888,7 @@ object Main {
       )
 
     r += node(
+      Stream,
       "StreamWhiten",
       in("stream", child),
       in("newChunk", att("String")),
@@ -808,7 +910,41 @@ object Main {
           |""".stripMargin
       )
 
+    r += node(Stream, "StreamMultiMerge", in("as", child.*), key).typed("TStream")
+
     r += node(
+      Stream,
+      "StreamLocalLDPrune",
+      in("child", child),
+      in("r2Threshold", child),
+      in("windowSize", child),
+      in("maxQueueSize", child),
+      in("nSamples", child),
+    )
+      .typed("TStream")
+
+    r += node(
+      Stream,
+      "StreamBufferedAggregate",
+      in("streamChild", child),
+      in("initAggs", child),
+      in("newKey", child),
+      in("seqOps", child),
+      name,
+      in("aggSignature", att("PhysicalAggSig").*),
+      in("bufferSize", att("Int")),
+    )
+
+    r += node(Stream, "StreamMap", in("a", child), name, in("body", child)).typed("TStream")
+
+    r += node(Stream, "StreamTakeWhile", in("a", child), in("elementName", name), in("body", child))
+      .typed("TStream")
+
+    r += node(Stream, "StreamDropWhile", in("a", child), in("elementName", name), in("body", child))
+      .typed("TStream")
+
+    r += node(
+      Stream,
       "StreamZip",
       in("as", child.*),
       in("names", name.*),
@@ -818,9 +954,8 @@ object Main {
     )
       .typed("TStream")
 
-    r += node("StreamMultiMerge", in("as", child.*), key).typed("TStream")
-
     r += node(
+      Stream,
       "StreamZipJoinProducers",
       in("contexts", child),
       in("ctxName", name),
@@ -833,6 +968,7 @@ object Main {
       .typed("TStream")
 
     r += node(
+      Stream,
       "StreamZipJoin",
       in("as", child.*),
       key,
@@ -848,10 +984,11 @@ object Main {
           |""".stripMargin
       )
 
-    r += node("StreamFilter", in("a", child), name, in("cond", child)).typed("TStream")
-    r += node("StreamFlatMap", in("a", child), name, in("cond", child)).typed("TStream")
+    r += node(Stream, "StreamFilter", in("a", child), name, in("cond", child)).typed("TStream")
+    r += node(Stream, "StreamFlatMap", in("a", child), name, in("cond", child)).typed("TStream")
 
     r += node(
+      Stream,
       "StreamFold",
       in("a", child),
       in("zero", child),
@@ -861,6 +998,7 @@ object Main {
     )
 
     r += node(
+      Stream,
       "StreamFold2",
       in("a", child),
       in("accum", tup(name, child).*),
@@ -873,6 +1011,7 @@ object Main {
       .withCompanionExtension
 
     r += node(
+      Stream,
       "StreamScan",
       in("a", child),
       in("zero", child),
@@ -882,13 +1021,15 @@ object Main {
     )
       .typed("TStream")
 
-    r += node("StreamFor", in("a", child), in("valueName", name), in("body", child)).typed(
+    r += node(Stream, "StreamFor", in("a", child), in("valueName", name), in("body", child)).typed(
       "TVoid.type"
     )
-    r += node("StreamAgg", in("a", child), name, in("query", child))
-    r += node("StreamAggScan", in("a", child), name, in("query", child)).typed("TStream")
+
+    r += node(Stream, "StreamAgg", in("a", child), name, in("query", child))
+    r += node(Stream, "StreamAggScan", in("a", child), name, in("query", child)).typed("TStream")
 
     r += node(
+      Stream,
       "StreamLeftIntervalJoin",
       in("left", child),
       in("right", child),
@@ -901,6 +1042,7 @@ object Main {
       .typed("TStream")
 
     r += node(
+      Stream,
       "StreamJoinRightDistinct",
       in("left", child),
       in("right", child),
@@ -913,246 +1055,54 @@ object Main {
     )
       .typed("TStream").withClassExtension
 
-    r += node(
-      "StreamLocalLDPrune",
-      in("child", child),
-      in("r2Threshold", child),
-      in("windowSize", child),
-      in("maxQueueSize", child),
-      in("nSamples", child),
-    )
-      .typed("TStream")
+    r += node(Collection, "MakeArray", in("args", child.*), _typ("TArray")).withCompanionExtension
+    r += node(Collection, "ArrayRef", in("a", child), in("i", child), errorID)
 
-    r += node("MakeNDArray", in("data", child), in("shape", child), in("rowMajor", child), errorID)
-      .withTraits(NDArrayIR).withCompanionExtension
-    r += node("NDArrayShape", in("nd", child))
-    r += node("NDArrayReshape", in("nd", child), in("shape", child), errorID).withTraits(NDArrayIR)
-    r += node("NDArrayConcat", in("nds", child), in("axis", att("Int"))).withTraits(NDArrayIR)
-    r += node("NDArrayRef", in("nd", child), in("idxs", child.*), errorID)
-    r += node("NDArraySlice", in("nd", child), in("slices", child)).withTraits(NDArrayIR)
-    r += node("NDArrayFilter", in("nd", child), in("keep", child.*)).withTraits(NDArrayIR)
-    r += node("NDArrayMap", in("nd", child), in("valueName", name), in("body", child))
-      .withTraits(NDArrayIR)
     r += node(
-      "NDArrayMap2",
-      in("l", child),
-      in("r", child),
-      in("lName", name),
-      in("rName", name),
-      in("body", child),
-      errorID,
-    )
-      .withTraits(NDArrayIR)
-    r += node("NDArrayReindex", in("nd", child), in("indexExpr", att("Int").*))
-      .withTraits(NDArrayIR)
-    r += node("NDArrayAgg", in("nd", child), in("axes", att("Int").*)).withTraits(NDArrayIR)
-    r += node("NDArrayWrite", in("nd", child), in("path", child)).typed("TVoid.type")
-    r += node("NDArrayMatMul", in("l", child), in("r", child), errorID).withTraits(NDArrayIR)
-    r += node(
-      "NDArrayQR",
-      in("nd", child),
-      in("mode", att("String")),
-      errorID,
-    ).withCompanionExtension
-    r += node(
-      "NDArraySVD",
-      in("nd", child),
-      in("fullMatrices", att("Boolean")),
-      in("computeUV", att("Boolean")),
-      errorID,
-    )
-      .withCompanionExtension
-    r += node("NDArrayEigh", in("nd", child), in("eigvalsOnly", att("Boolean")), errorID)
-      .withCompanionExtension
-    r += node("NDArrayInv", in("nd", child), errorID).withTraits(NDArrayIR).withCompanionExtension
-
-    val isScan = in("isScan", att("Boolean"))
-
-    r += node("AggFilter", in("cond", child), in("aggIR", child), isScan)
-    r += node("AggExplode", in("array", child), name, in("aggBody", child), isScan)
-    r += node("AggGroupBy", in("key", child), in("aggIR", child), isScan)
-    r += node(
-      "AggArrayPerElement",
+      Collection,
+      "ArraySlice",
       in("a", child),
-      in("elementName", name),
-      in("indexName", name),
-      in("aggBody", child),
-      in("knownLength", child.?),
-      isScan,
-    )
-    r += node(
-      "AggFold",
-      in("zero", child),
-      in("seqOp", child),
-      in("combOp", child),
-      in("accumName", name),
-      in("otherAccumName", name),
-      isScan,
-    )
-      .withCompanionExtension
-
-    r += node(
-      "ApplyAggOp",
-      in("initOpArgs", child.*),
-      in("seqOpArgs", child.*),
-      in("op", att("AggOp")),
-    )
-      .withCompanionExtension
-    r += node(
-      "ApplyScanOp",
-      in("initOpArgs", child.*),
-      in("seqOpArgs", child.*),
-      in("op", att("AggOp")),
-    )
-      .withClassExtension.withCompanionExtension
-    r += node(
-      "InitOp",
-      in("i", att("Int")),
-      in("args", child.*),
-      in("aggSig", att("PhysicalAggSig")),
-    )
-    r += node(
-      "SeqOp",
-      in("i", att("Int")),
-      in("args", child.*),
-      in("aggSig", att("PhysicalAggSig")),
-    )
-    r += node(
-      "CombOp",
-      in("i1", att("Int")),
-      in("i2", att("Int")),
-      in("aggSig", att("PhysicalAggSig")),
-    )
-    r += node("ResultOp", in("idx", att("Int")), in("aggSig", att("PhysicalAggSig")))
-      .withCompanionExtension
-    r += node(
-      "CombOpValue",
-      in("i", att("Int")),
-      in("value", child),
-      in("aggSig", att("PhysicalAggSig")),
-    )
-    r += node("AggStateValue", in("i", att("Int")), in("aggSig", att("AggStateSig")))
-    r += node(
-      "InitFromSerializedValue",
-      in("i", att("Int")),
-      in("value", child),
-      in("aggSig", att("AggStateSig")),
-    )
-    r += node(
-      "SerializeAggs",
-      in("startIdx", att("Int")),
-      in("serializedIdx", att("Int")),
-      in("spec", att("BufferSpec")),
-      in("aggSigs", att("AggStateSig").*),
-    )
-    r += node(
-      "DeserializeAggs",
-      in("startIdx", att("Int")),
-      in("serializedIdx", att("Int")),
-      in("spec", att("BufferSpec")),
-      in("aggSigs", att("AggStateSig").*),
-    )
-    r += node(
-      "RunAgg",
-      in("body", child),
-      in("result", child),
-      in("signature", att("AggStateSig").*),
-    )
-    r += node(
-      "RunAggScan",
-      in("array", child),
-      name,
-      in("init", child),
-      in("seqs", child),
-      in("result", child),
-      in("signature", att("AggStateSig").*),
-    )
-
-    r += node("MakeStruct", in("fields", tup(att("String"), child).*)).typed("TStruct")
-    r += node("SelectFields", in("old", child), in("fields", att("String").*))
-      .typed("TStruct")
-    r += node(
-      "InsertFields",
-      in("old", child),
-      in("fields", tup(att("String"), child).*),
-      in("fieldOrder", att("String").*.?).withDefault("None"),
-    )
-      .typed("TStruct")
-    r += node("GetField", in("o", child), in("name", att("String")))
-    r += node("MakeTuple", in("fields", tup(att("Int"), child).*))
-      .typed("TTuple").withCompanionExtension
-    r += node("GetTupleElement", in("o", child), in("idx", att("Int")))
-
-    r += node("In", in("i", att("Int")), in("_typ", att("EmitParamType")))
-      .withTraits(Atom)
-      .withDocstring("Function input")
-      .withCompanionExtension
-
-    r += node("Die", in("message", child), in("_typ", att("Type")), errorID).withCompanionExtension
-    r += node("ConsoleLog", in("message", child), in("result", child))
-
-    r += node(
-      "ApplyIR",
-      in("function", att("String")),
-      in("typeArgs", att("IndexedSeq[Type]")),
-      in("args", child.*),
-      in("returnType", att("Type")),
+      in("start", child),
+      in("stop", child.?),
+      in("step", child).withDefault("I32(1)"),
       errorID,
     )
-      .withClassExtension
+
+    r += node(Collection, "ArrayLen", in("a", child))
+    r += node(Collection, "ArrayZeros", in("length", child))
+    r += node(Collection, "ToSet", in("a", child))
+    r += node(Collection, "ToDict", in("a", child))
+    r += node(Collection, "ToArray", in("a", child)).typed("TArray")
+    r += node(Collection, "CastToArray", in("a", child)).typed("TArray")
+    r += node(Collection, "GroupByKey", in("collection", child))
 
     r += node(
-      "Apply",
-      in("function", att("String")),
-      in("typeArgs", att("IndexedSeq[Type]")),
-      in("args", child.*),
-      in("returnType", att("Type")),
-      errorID,
-    ).withTraits(ApplyNode())
-
-    r += node(
-      "ApplySpecial",
-      in("function", att("String")),
-      in("typeArgs", att("IndexedSeq[Type]")),
-      in("args", child.*),
-      in("returnType", att("Type")),
-      errorID,
-    ).withTraits(ApplyNode(missingnessAware = true))
-
-    r += node("TableCount", tableChild)
-    r += node("MatrixCount", matrixChild)
-    r += node("TableAggregate", tableChild, in("query", child))
-    r += node("MatrixAggregate", matrixChild, in("query", child))
-    r += node("TableWrite", tableChild, in("writer", att("TableWriter")))
-    r += node(
-      "TableMultiWrite",
-      in("_children", tableChild.*),
-      in("writer", att("WrappedMatrixNativeMultiWriter")),
-    )
-    r += node("TableGetGlobals", tableChild)
-    r += node("TableCollect", tableChild)
-    r += node("MatrixWrite", matrixChild, in("writer", att("MatrixWriter")))
-    r += node(
-      "MatrixMultiWrite",
-      in("_children", matrixChild.*),
-      in("writer", att("MatrixNativeMultiWriter")),
-    )
-    r += node("TableToValueApply", tableChild, in("function", att("TableToValueFunction")))
-    r += node("MatrixToValueApply", matrixChild, in("function", att("MatrixToValueFunction")))
-    r += node(
-      "BlockMatrixToValueApply",
-      bmChild,
-      in("function", att("BlockMatrixToValueFunction")),
-    )
-    r += node("BlockMatrixCollect", bmChild)
-    r += node("BlockMatrixWrite", bmChild, in("writer", att("BlockMatrixWriter")))
-    r += node(
-      "BlockMatrixMultiWrite",
-      in("blockMatrices", bmChild.*),
-      in("writer", att("BlockMatrixMultiWriter")),
+      Collection,
+      "LowerBoundOnOrderedCollection",
+      in("orderedCollection", child),
+      in("elem", child),
+      in("onKey", att("Boolean")),
     )
 
     r += node(
+      Collection,
+      "ArrayMaximalIndependentSet",
+      in("edges", child),
+      in("tieBreaker", tup(name, name, child).?),
+    )
+
+    r += node(
+      Collection,
+      "ArraySort",
+      in("a", child),
+      in("left", name),
+      in("right", name),
+      in("lessThan", child),
+    )
+      .withCompanionExtension
+
+    r += node(
+      Collection,
       "CollectDistributedArray",
       in("contexts", child),
       in("globals", child),
@@ -1164,33 +1114,433 @@ object Main {
       in("tsd", att("Option[TableStageDependency]")).withDefault("None"),
     )
 
+    // Agg
     r += node(
+      Agg,
+      "InitOp",
+      in("i", att("Int")),
+      in("args", child.*),
+      in("aggSig", att("PhysicalAggSig")),
+    )
+
+    r += node(
+      Agg,
+      "SeqOp",
+      in("i", att("Int")),
+      in("args", child.*),
+      in("aggSig", att("PhysicalAggSig")),
+    )
+
+    r += node(
+      Agg,
+      "CombOpValue",
+      in("i", att("Int")),
+      in("value", child),
+      in("aggSig", att("PhysicalAggSig")),
+    )
+
+    r += node(
+      Agg,
+      "InitFromSerializedValue",
+      in("i", att("Int")),
+      in("value", child),
+      in("aggSig", att("AggStateSig")),
+    )
+
+    r += node(
+      Agg,
+      "RunAgg",
+      in("body", child),
+      in("result", child),
+      in("signature", att("AggStateSig").*),
+    )
+
+    r += node(Agg, "AggFilter", in("cond", child), in("aggIR", child), isScan)
+    r += node(Agg, "AggExplode", in("array", child), name, in("aggBody", child), isScan)
+    r += node(Agg, "AggGroupBy", in("key", child), in("aggIR", child), isScan)
+
+    r += node(
+      Agg,
+      "AggArrayPerElement",
+      in("a", child),
+      in("elementName", name),
+      in("indexName", name),
+      in("aggBody", child),
+      in("knownLength", child.?),
+      isScan,
+    )
+
+    r += node(
+      Agg,
+      "AggFold",
+      in("zero", child),
+      in("seqOp", child),
+      in("combOp", child),
+      in("accumName", name),
+      in("otherAccumName", name),
+      isScan,
+    )
+      .withCompanionExtension
+
+    r += node(
+      Agg,
+      "ApplyAggOp",
+      in("initOpArgs", child.*),
+      in("seqOpArgs", child.*),
+      in("op", att("AggOp")),
+    )
+      .withCompanionExtension
+
+    r += node(
+      Agg,
+      "ApplyScanOp",
+      in("initOpArgs", child.*),
+      in("seqOpArgs", child.*),
+      in("op", att("AggOp")),
+    )
+      .withClassExtension.withCompanionExtension
+
+    r += node(
+      Agg,
+      "RunAggScan",
+      in("array", child),
+      name,
+      in("init", child),
+      in("seqs", child),
+      in("result", child),
+      in("signature", att("AggStateSig").*),
+    )
+
+    r += node(
+      Agg,
+      "CombOp",
+      in("i1", att("Int")),
+      in("i2", att("Int")),
+      in("aggSig", att("PhysicalAggSig")),
+    )
+
+    r += node(Agg, "ResultOp", in("idx", att("Int")), in("aggSig", att("PhysicalAggSig")))
+      .withCompanionExtension
+
+    r += node(Agg, "AggStateValue", in("i", att("Int")), in("aggSig", att("AggStateSig")))
+
+    r += node(
+      Agg,
+      "SerializeAggs",
+      in("startIdx", att("Int")),
+      in("serializedIdx", att("Int")),
+      in("spec", att("BufferSpec")),
+      in("aggSigs", att("AggStateSig").*),
+    )
+
+    r += node(
+      Agg,
+      "DeserializeAggs",
+      in("startIdx", att("Int")),
+      in("serializedIdx", att("Int")),
+      in("spec", att("BufferSpec")),
+      in("aggSigs", att("AggStateSig").*),
+    )
+
+    r += node(
+      IO,
       "ReadPartition",
       in("context", child),
       in("rowType", att("TStruct")),
       in("reader", att("PartitionReader")),
     )
+
     r += node(
+      IO,
       "WritePartition",
       in("value", child),
       in("writeCtx", child),
       in("writer", att("PartitionWriter")),
     )
-    r += node("WriteMetadata", in("writeAnnotations", child), in("writer", att("MetadataWriter")))
+
     r += node(
+      IO,
+      "WriteMetadata",
+      in("writeAnnotations", child),
+      in("writer", att("MetadataWriter")),
+    )
+
+    r += node(
+      IO,
       "ReadValue",
       in("path", child),
       in("reader", att("ValueReader")),
       in("requestedType", att("Type")),
     )
+
     r += node(
+      IO,
       "WriteValue",
       in("value", child),
       in("path", child),
       in("writer", att("ValueWriter")),
     )
 
+    r += node(
+      NDArray,
+      "MakeNDArray",
+      in("data", child),
+      in("shape", child),
+      in("rowMajor", child),
+      errorID,
+    )
+      .typed("TNDArray").withCompanionExtension
+
+    r += node(NDArray, "NDArrayShape", in("nd", child))
+
+    r += node(NDArray, "NDArrayReshape", in("nd", child), in("shape", child), errorID).typed(
+      "TNDArray"
+    )
+
+    r += node(NDArray, "NDArrayConcat", in("nds", child), in("axis", att("Int"))).typed("TNDArray")
+    r += node(NDArray, "NDArrayRef", in("nd", child), in("idxs", child.*), errorID)
+    r += node(NDArray, "NDArraySlice", in("nd", child), in("slices", child)).typed("TNDArray")
+    r += node(NDArray, "NDArrayFilter", in("nd", child), in("keep", child.*)).typed("TNDArray")
+
+    r += node(NDArray, "NDArrayReindex", in("nd", child), in("indexExpr", att("Int").*))
+      .typed("TNDArray")
+
+    r += node(NDArray, "NDArrayAgg", in("nd", child), in("axes", att("Int").*)).typed("TNDArray")
+    r += node(NDArray, "NDArrayWrite", in("nd", child), in("path", child)).typed("TVoid.type")
+    r += node(NDArray, "NDArrayMatMul", in("l", child), in("r", child), errorID).typed("TNDArray")
+
+    r += node(
+      NDArray,
+      "NDArrayQR",
+      in("nd", child),
+      in("mode", att("String")),
+      errorID,
+    ).withCompanionExtension
+
+    r += node(
+      NDArray,
+      "NDArraySVD",
+      in("nd", child),
+      in("fullMatrices", att("Boolean")),
+      in("computeUV", att("Boolean")),
+      errorID,
+    )
+      .withCompanionExtension
+
+    r += node(NDArray, "NDArrayEigh", in("nd", child), in("eigvalsOnly", att("Boolean")), errorID)
+      .withCompanionExtension
+
+    r += node(NDArray, "NDArrayInv", in("nd", child), errorID).typed(
+      "TNDArray"
+    ).withCompanionExtension
+
+    r += node(NDArray, "NDArrayMap", in("nd", child), in("valueName", name), in("body", child))
+      .typed("TNDArray")
+
+    r += node(
+      NDArray,
+      "NDArrayMap2",
+      in("l", child),
+      in("r", child),
+      in("lName", name),
+      in("rName", name),
+      in("body", child),
+      errorID,
+    )
+      .typed("TNDArray")
+
+    r += node(Random, "RNGSplit", in("state", child), in("dynBitstring", child))
+    r += node(Random, "RNGSplitStatic", in("state", child), in("staticUid", att("Long")))
+    r += node(Random, "RNGStateLiteral")
+
+    r += node(Relational, "RelationalRef", name, _typ()).withTraits(BaseRef, Atom)
+    r += node(Relational, "RelationalLet", name, in("value", child), in("body", child))
+
+    r += handWritten(Table, "TableParallelize")
+    r += handWritten(Table, "TableKeyBy")
+    r += handWritten(Table, "TableJoin")
+    r += handWritten(Table, "TableMultiWayZipJoin")
+    r += handWritten(Table, "TableLeftJoinRightDistinct")
+    r += handWritten(Table, "TableExplode")
+    r += handWritten(Table, "TableUnion")
+    r += handWritten(Table, "TableRename")
+    r += node(Table, "TableAggregate", tableChild, in("query", child))
+
+    r += node(
+      Table,
+      "TableMultiWrite",
+      in("_children", tableChild.*),
+      in("writer", att("WrappedMatrixNativeMultiWriter")),
+    )
+
+    r += node(Table, "TableCollect", tableChild)
+    r += handWritten(Table, "TableGen")
+    r += handWritten(Table, "TableMapPartitions")
+    r += handWritten(Table, "TableMapRows")
+    r += handWritten(Table, "TableKeyByAndAggregate")
+    r += handWritten(Table, "TableAggregateByKey")
+    r += node(Table, "TableCount", tableChild)
+    r += node(Table, "TableWrite", tableChild, in("writer", att("TableWriter")))
+    r += node(Table, "TableGetGlobals", tableChild)
+
+    r += node(
+      Table,
+      "TableToValueApply",
+      tableChild,
+      in("function", att("TableToValueFunction")),
+    )
+
+    r += handWritten(Table, "TableFilter")
+    r += handWritten(Table, "TableMapGlobals")
+    r += handWritten(Table, "RelationalLetTable")
+    r += handWritten(Table, "TableLiteral")
+    r += handWritten(Table, "TableRead")
+    r += handWritten(Table, "TableRange")
+    r += handWritten(Table, "TableHead")
+    r += handWritten(Table, "TableTail")
+    r += handWritten(Table, "TableRepartition")
+    r += handWritten(Table, "TableIntervalJoin")
+    r += handWritten(Table, "TableDistinct")
+    r += handWritten(Table, "TableOrderBy")
+    r += handWritten(Table, "TableFilterIntervals")
+    r += handWritten(Table, "TableToTableApply")
+    r += handWritten(Table, "BlockMatrixToTable")
+    r += handWritten(Table, "BlockMatrixToTableApply")
+
+    r += handWritten(Matrix, "MatrixUnionCols")
+    r += handWritten(Matrix, "MatrixKeyRowsBy")
+    r += handWritten(Matrix, "MatrixAnnotateColsTable")
+    r += handWritten(Matrix, "MatrixAnnotateRowsTable")
+    r += handWritten(Matrix, "MatrixUnionRows")
+    r += handWritten(Matrix, "CastTableToMatrix")
+    r += handWritten(Matrix, "MatrixRename")
+    r += node(Matrix, "MatrixAggregate", matrixChild, in("query", child))
+
+    r += node(
+      Matrix,
+      "MatrixMultiWrite",
+      in("_children", matrixChild.*),
+      in("writer", att("MatrixNativeMultiWriter")),
+    )
+
+    r += handWritten(Matrix, "MatrixAggregateRowsByKey")
+    r += handWritten(Matrix, "MatrixAggregateColsByKey")
+    r += node(Matrix, "MatrixCount", matrixChild)
+    r += node(Matrix, "MatrixWrite", matrixChild, in("writer", att("MatrixWriter")))
+
+    r += node(
+      Matrix,
+      "MatrixToValueApply",
+      matrixChild,
+      in("function", att("MatrixToValueFunction")),
+    )
+
+    r += handWritten(Matrix, "MatrixFilterCols")
+    r += handWritten(Matrix, "MatrixFilterRows")
+    r += handWritten(Matrix, "MatrixMapEntries")
+    r += handWritten(Matrix, "MatrixMapRows")
+    r += handWritten(Matrix, "MatrixMapCols")
+    r += handWritten(Matrix, "MatrixMapGlobals")
+    r += handWritten(Matrix, "MatrixFilterEntries")
+    r += handWritten(Matrix, "RelationalLetMatrixTable")
+    r += handWritten(Matrix, "MatrixRowsTable")
+    r += handWritten(Matrix, "MatrixColsTable")
+    r += handWritten(Matrix, "MatrixEntriesTable")
+    r += handWritten(Matrix, "CastMatrixToTable")
+    r += handWritten(Matrix, "MatrixToTableApply")
+    r += handWritten(Matrix, "MatrixLiteral")
+    r += handWritten(Matrix, "MatrixRead")
+    r += handWritten(Matrix, "MatrixChooseCols")
+    r += handWritten(Matrix, "MatrixCollectColsByKey")
+    r += handWritten(Matrix, "MatrixExplodeRows")
+    r += handWritten(Matrix, "MatrixRepartition")
+    r += handWritten(Matrix, "MatrixDistinctByRow")
+    r += handWritten(Matrix, "MatrixRowsHead")
+    r += handWritten(Matrix, "MatrixColsHead")
+    r += handWritten(Matrix, "MatrixRowsTail")
+    r += handWritten(Matrix, "MatrixColsTail")
+    r += handWritten(Matrix, "MatrixExplodeCols")
+    r += handWritten(Matrix, "MatrixToMatrixApply")
+    r += handWritten(Matrix, "MatrixFilterIntervals")
+
+    r += handWritten(BlockMatrix, "BlockMatrixBroadcast")
+    r += handWritten(BlockMatrix, "ValueToBlockMatrix")
+    r += handWritten(BlockMatrix, "BlockMatrixMap")
+    r += handWritten(BlockMatrix, "BlockMatrixMap2")
+
+    r += node(
+      BlockMatrix,
+      "BlockMatrixToValueApply",
+      bmChild,
+      in("function", att("BlockMatrixToValueFunction")),
+    )
+
+    r += node(BlockMatrix, "BlockMatrixCollect", bmChild)
+    r += node(BlockMatrix, "BlockMatrixWrite", bmChild, in("writer", att("BlockMatrixWriter")))
+
+    r += node(
+      BlockMatrix,
+      "BlockMatrixMultiWrite",
+      in("blockMatrices", bmChild.*),
+      in("writer", att("BlockMatrixMultiWriter")),
+    )
+
+    r += handWritten(BlockMatrix, "BlockMatrixRead")
+    r += handWritten(BlockMatrix, "BlockMatrixDot")
+    r += handWritten(BlockMatrix, "BlockMatrixAgg")
+    r += handWritten(BlockMatrix, "BlockMatrixFilter")
+    r += handWritten(BlockMatrix, "BlockMatrixDensify")
+    r += handWritten(BlockMatrix, "BlockMatrixSparsify")
+    r += handWritten(BlockMatrix, "BlockMatrixSlice")
+    r += handWritten(BlockMatrix, "BlockMatrixRandom")
+
     r.result()
+  }
+
+  /* `Tag_gen.scala`: the `Family` and `Tag` types, and one constant per family and per node.
+   * Constants are untyped `final val` Int literals so that `@switch` matches on them compile to
+   * jump tables. */
+  private def tagFile(nodes: Seq[(Family, String)]): String = {
+    val byFamily = nodes.groupBy(_._1)
+    // A tag is stored as a Short, so that BaseIR's tag field fits in object padding.
+    require(
+      (Family.values.size << FamilyShift) <= Short.MaxValue + 1,
+      s"${Family.values.size} families do not fit in a Short tag",
+    )
+    val familyConsts = Family.values.toSeq.map(f => s"  final val $f = ${f.id}")
+    val tagConsts = Family.values.toSeq.flatMap { f =>
+      val members = byFamily.getOrElse(f, Seq.empty).map(_._2)
+      require(
+        members.length <= (1 << FamilyShift),
+        s"family $f has more than ${1 << FamilyShift} nodes",
+      )
+      s"\n  // $f" +: members.zipWithIndex.map { case (n, j) =>
+          s"  final val $n = ${(f.id << FamilyShift) | j}"
+        }
+    }
+    s"""// Generated by ir-gen; see `Family` in ir-gen.
+       |package is.hail.expr.ir
+       |
+       |// The group an IR node's class belongs to.
+       |final class Family private[ir] (val toInt: Int) extends AnyVal
+       |
+       |object Family {
+       |${familyConsts.mkString("\n")}
+       |}
+       |
+       |// Identifies an IR node's class. The bits above `Tag.FamilyShift` hold its [[Family]].
+       |// Stored as a Short so that `BaseIR.tag` fits in the object padding most node classes
+       |// already have.
+       |final class Tag private[ir] (private val repr: Short) extends AnyVal {
+       |  def toInt: Int = repr.toInt
+       |  def family: Family = new Family(toInt >>> Tag.FamilyShift)
+       |}
+       |
+       |object Tag {
+       |  final val FamilyShift = $FamilyShift
+       |${tagConsts.mkString("\n")}
+       |}
+       |""".stripMargin
   }
 
   @main
@@ -1200,12 +1550,12 @@ object Main {
       "is.hail.annotations.Annotation",
       "is.hail.collection.FastSeq",
       "is.hail.io.{AbstractTypedCodecSpec, BufferSpec}",
-      "is.hail.types.virtual.{Type, TArray, TStream, TVoid, TStruct, TTuple}",
+      "is.hail.types.virtual.{Type, TArray, TNDArray, TStream, TVoid, TStruct, TTuple}",
       "is.hail.utils.StringEscapeUtils",
       "is.hail.expr.ir.{AggOp, BaseIR, IR, TableIR, MatrixIR, BlockMatrixIR, Name, UnaryOp, BinaryOp, " +
         "ComparisonOp, CanEmit, EmitParamType, TableWriter, " +
         "WrappedMatrixNativeMultiWriter, MatrixWriter, MatrixNativeMultiWriter, BlockMatrixWriter, " +
-        "BlockMatrixMultiWriter, ValueReader, ValueWriter}",
+        "BlockMatrixMultiWriter, ValueReader, ValueWriter, Tag}",
       "is.hail.expr.ir.lowering.TableStageDependency",
       "is.hail.expr.ir.agg.{PhysicalAggSig, AggStateSig}",
       "is.hail.expr.ir.functions.{UnseededMissingnessAwareJVMFunction, " +
@@ -1213,10 +1563,12 @@ object Main {
         "BlockMatrixToValueFunction}",
       "is.hail.expr.ir.defs.exts._",
     )
-    val gen = pack + "\n\n" + imports.map(i => s"import $i").mkString("\n") + "\n\n" + allNodes.map(
-      _.generateDef
-    ).mkString("\n")
+    val nodes = allNodes
+    val gen = pack + "\n\n" + imports.map(i => s"import $i").mkString("\n") + "\n\n" +
+      nodes.filterNot(_.isHandWritten).map(_.generateDef).mkString("\n")
     os.write(os.Path(path) / "IR_gen.scala", gen)
+    val tagged = nodes.map(n => (n.family, n.name))
+    os.write(os.Path(path) / "Tag_gen.scala", tagFile(tagged))
   }
 
   def main(args: Array[String]): Unit = {

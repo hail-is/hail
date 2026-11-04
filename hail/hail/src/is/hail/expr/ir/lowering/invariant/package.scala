@@ -122,9 +122,9 @@ package object invariant {
       }
 
       def go(ir: BaseIR): StackFrame[Unit] =
-        ir.forEachChildWithEnvStackSafe((): E[Unit])((_, _) => ()) { (child, _, _) =>
-          go(child)
-        }(recording(record(ir, mutable.HashSet.empty)))
+        ir.forEachChildWithEnvStackSafe((): E[Unit])((_, _) => ())((child, _, _) => go(child))(
+          recording(record(ir, mutable.HashSet.empty))
+        )
 
       go(ir0).run()
     }
