@@ -24,11 +24,18 @@ files are only generated for Linux.
 `make generate-pip-lockfiles` ignores any release published in the last 7 days
 (`--exclude-newer "7 days"`), so a compromised release has time to be noticed and
 yanked before we pick it up. If you need something newer, such as a security fix,
-raise the floor in `requirements.txt` and lift the cooldown for that package:
+lift the cooldown for that package:
 
 ```bash
 make generate-pip-lockfiles COOLDOWN_EXEMPT="<package> [<package> ...]"
 ```
+
+If a security fix is the reason, also add a floor for the fixed version to
+`hail/python/hailtop/security-floors.txt` (e.g. `certifi>=2026.10.23`). Without one, the next
+run within 7 days of that release (such as the weekly bump workflow) quietly downgrades the
+package again. With one, that run fails instead, and nothing can go below the fixed version.
+That file is a constraints file, so floors don't add packages and don't become
+dependencies of the published wheels. Don't add exemptions to the bump workflow itself.
 
 The same cooldown applies to npm in `services/ui` through `min-release-age` in
 `services/ui/.npmrc`.
