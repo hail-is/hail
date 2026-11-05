@@ -23,8 +23,20 @@ export function isBuildOutOfDate(pr: PrConfig): boolean {
   return pr.out_of_date === true && pr.build_state !== null && BUILD_STATES_WITH_A_BUILD.has(pr.build_state);
 }
 
+// The stack entry directly below an upper-stack PR, whatever its state; null when there isn't one.
+export function stackedOn(pr: PrConfig): number | null {
+  const position = pr.stack_entry?.position;
+  if (position === undefined || pr.stack === null) return null;
+  return pr.stack.entries.find((e) => e.position === position - 1)?.number ?? null;
+}
+
+function stackedText(pr: PrConfig): string {
+  const below = stackedOn(pr);
+  return below === null ? 'stacked' : `stacked on #${below}`;
+}
+
 export function buildStateLabel(pr: PrConfig): string {
-  if (pr.display_only) return 'not built';
+  if (pr.display_only) return stackedText(pr);
   if (pr.build_state === null) return 'pending';
   return isBuildOutOfDate(pr) ? `${pr.build_state} *` : pr.build_state;
 }
@@ -122,7 +134,7 @@ export function reviewSlots(pr: PrConfig): [StageCell, StageCell] {
 const LABEL_BLOCKER = 'label: ';
 
 export function mergeCell(pr: PrConfig, branch: DeveloperBranchStatus | undefined, nowMs: number): StageCell {
-  if (pr.display_only || pr.merge_blockers === null) return { status: 'na', text: 'stacked' };
+  if (pr.display_only || pr.merge_blockers === null) return { status: 'na', text: stackedText(pr) };
   if (branch?.pending_merge?.pr === pr.number) {
     return { status: 'pending', text: 'merging', requestedAt: new Date(branch.pending_merge.requested_at_ms).toISOString() };
   }
@@ -154,6 +166,12 @@ export function formatAge(iso: string, nowMs: number): string {
   const hours = Math.floor(minutes / 60);
   if (hours < 48) return `${hours}h`;
   return `${Math.floor(hours / 24)}d`;
+}
+
+// Case-insensitive substring match; an empty term matches everything.
+export function matchesSearchTerm(text: string, term: string): boolean {
+  const needle = term.trim().toLowerCase();
+  return needle === '' || text.toLowerCase().includes(needle);
 }
 
 // Case-insensitive substring match against the text of every cell in the row.
