@@ -55,6 +55,8 @@ components:
           nullable: true
         out_of_date:
           type: boolean
+          nullable: true
+          description: Null for an upper-stack PR (display_only), which CI doesn't build.
         gh_statuses:
           type: object
           additionalProperties:
@@ -70,6 +72,13 @@ components:
           nullable: true
         author:
           type: string
+        stack_entry:
+          $ref: '#/components/schemas/StackEntryPosition'
+        stack:
+          $ref: '#/components/schemas/PRStack'
+        display_only:
+          type: boolean
+          description: An upper-stack PR, never built or merged by CI. See PRConfig.
 
     DeveloperPRs:
       type: object
@@ -684,6 +693,8 @@ components:
             type: string
         out_of_date:
           type: boolean
+          nullable: true
+          description: Null for an upper-stack PR (display_only), which CI doesn't build.
         gh_statuses:
           type: object
           additionalProperties:
@@ -725,10 +736,80 @@ components:
                 description: GitHub PullRequestReviewState, e.g. APPROVED, CHANGES_REQUESTED, DISMISSED.
         merge_blockers:
           type: array
+          nullable: true
           description: >-
             Why CI won't merge this PR right now; empty if nothing is blocking it. Queue position,
-            merge retries and branch-wide pauses are on ci_developer_status.
+            merge retries and branch-wide pauses are on ci_developer_status. Null for an upper-stack
+            PR (display_only), which CI doesn't merge.
           items:
+            type: string
+        stack_entry:
+          $ref: '#/components/schemas/StackEntryPosition'
+        stack:
+          $ref: '#/components/schemas/PRStack'
+        display_only:
+          type: boolean
+          description: >-
+            An upper-stack PR: open, in a native GitHub stack based on this branch, but targeting
+            another PR in the stack rather than the branch. Its review and GitHub status fields are
+            real, but CI never builds or merges it, so batch_id, build_state, out_of_date and
+            merge_blockers are null.
+
+    StackEntryPosition:
+      type: object
+      nullable: true
+      description: Where this PR sits in its native GitHub stack; null when it isn't in one.
+      properties:
+        position:
+          type: integer
+          description: 1 is nearest the stack's base branch.
+
+    PRStack:
+      type: object
+      nullable: true
+      description: >-
+        The native GitHub stack (gh stack) this PR is in, if that stack is based on this branch.
+        Every member of a stack carries the same object.
+      properties:
+        number:
+          type: integer
+          description: Identifies the stack (a group key). Not a PR number.
+        base_ref_name:
+          type: string
+        size:
+          type: integer
+          description: Number of PRs in the stack, merged and closed ones included.
+        entries:
+          type: array
+          description: Every PR in the stack by position, merged and closed ones included (at most 30).
+          items:
+            type: object
+            properties:
+              position:
+                type: integer
+              number:
+                type: integer
+              state:
+                type: string
+                description: GitHub PullRequestState, i.e. OPEN, CLOSED or MERGED.
+              title:
+                type: string
+        name:
+          type: string
+          nullable: true
+          description: >-
+            The `name` line of the position-1 PR's `## Stack Meta` section, else the title of the
+            lowest open PR in the stack.
+        doc_url:
+          type: string
+          nullable: true
+          description: The `reference doc` line of the position-1 PR's `## Stack Meta` section.
+        meta:
+          type: object
+          description: >-
+            Every other `key: value` line of the position-1 PR's `## Stack Meta` section. Keys are
+            lower-cased, with runs of spaces collapsed.
+          additionalProperties:
             type: string
 
     BatchSummary:
@@ -817,6 +898,10 @@ components:
         merge_commit_sha:
           type: string
           nullable: true
+        stack_entry:
+          $ref: '#/components/schemas/StackEntryPosition'
+        stack:
+          $ref: '#/components/schemas/PRStack'
 
     TeamMember:
       type: object
@@ -1453,7 +1538,9 @@ paths:
   /api/v1alpha/watched_branches/{branch}/prs:
     get:
       summary: List PRs for a watched branch
-      description: Returns all active PRs for the given branch with build and review state.
+      description: >-
+        Returns all active PRs for the given branch with build and review state, including
+        upper-stack PRs (display_only).
       tags: [PRs]
       parameters:
         - name: branch
@@ -1483,7 +1570,8 @@ paths:
       summary: Get PR details
       description: >
         Returns full details for a single PR. For active PRs (still open against this branch)
-        includes merge eligibility and queue position. For historical PRs fetches from GitHub.
+        includes merge eligibility and queue position. An upper-stack PR (display_only) returns
+        its PRConfig only. For any other PR (e.g. merged or closed) fetches from GitHub.
       tags: [PRs]
       parameters:
         - name: branch
@@ -1504,6 +1592,7 @@ paths:
               schema:
                 oneOf:
                   - $ref: '#/components/schemas/ActivePRDetail'
+                  - $ref: '#/components/schemas/PRConfig'
                   - $ref: '#/components/schemas/HistoricalPRDetail'
         '401':
           description: Unauthorized
@@ -1532,7 +1621,7 @@ paths:
         '200':
           description: Retry requested successfully
         '400':
-          description: PR has no batch or had a merge failure
+          description: PR has no batch, had a merge failure, or is an upper-stack PR (never built)
         '401':
           description: Unauthorized
         '403':

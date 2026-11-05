@@ -27,6 +27,9 @@ function pr(overrides: Partial<PrConfig> = {}): PrConfig {
     review_requests: [],
     reviews: [{ author: 'carol', state: 'APPROVED' }],
     merge_blockers: [],
+    stack_entry: null,
+    stack: null,
+    display_only: false,
     ...overrides,
   };
 }
@@ -246,6 +249,13 @@ describe('mergeCell', () => {
     const b = branch({ merge_queue: [queued(1), queued(15837)] });
     const cell = mergeCell(pr({ merge_blockers: ['checks pending: ci-test'] }), b, now);
     expect(cell.text).toBe('#2 in queue · checks pending: ci-test');
+  });
+
+  it('says an upper-stack PR is stacked rather than blocked', () => {
+    const stacked = pr({ display_only: true, merge_blockers: null, build_state: null, out_of_date: null, batch_id: null });
+    expect(mergeCell(stacked, branch(), now)).toEqual({ status: 'na', text: 'stacked' });
+    expect(buildStateLabel(stacked)).toBe('not built');
+    expect(isBuildOutOfDate(stacked)).toBe(false);
   });
 
   it('is ready when nothing blocks it', () => {

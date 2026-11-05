@@ -20,10 +20,11 @@ export function statusColumnNames(prs: PrConfig[]): string[] {
 const BUILD_STATES_WITH_A_BUILD = new Set(['success', 'failure', 'building']);
 
 export function isBuildOutOfDate(pr: PrConfig): boolean {
-  return pr.out_of_date && pr.build_state !== null && BUILD_STATES_WITH_A_BUILD.has(pr.build_state);
+  return pr.out_of_date === true && pr.build_state !== null && BUILD_STATES_WITH_A_BUILD.has(pr.build_state);
 }
 
 export function buildStateLabel(pr: PrConfig): string {
+  if (pr.display_only) return 'not built';
   if (pr.build_state === null) return 'pending';
   return isBuildOutOfDate(pr) ? `${pr.build_state} *` : pr.build_state;
 }
@@ -121,6 +122,7 @@ export function reviewSlots(pr: PrConfig): [StageCell, StageCell] {
 const LABEL_BLOCKER = 'label: ';
 
 export function mergeCell(pr: PrConfig, branch: DeveloperBranchStatus | undefined, nowMs: number): StageCell {
+  if (pr.display_only || pr.merge_blockers === null) return { status: 'na', text: 'stacked' };
   if (branch?.pending_merge?.pr === pr.number) {
     return { status: 'pending', text: 'merging', requestedAt: new Date(branch.pending_merge.requested_at_ms).toISOString() };
   }
