@@ -11,6 +11,7 @@ import is.hail.expr.ir.defs._
 import is.hail.expr.ir.functions.StringFunctions
 import is.hail.expr.ir.lowering.{LowerMatrixIR, TableStage}
 import is.hail.io.{BufferSpec, TypedCodecSpec}
+import is.hail.io.columnar.TableColumnarWriter
 import is.hail.io.fs.FS
 import is.hail.rvd.{AbstractRVDSpec, IndexSpec, RVDPartitioner, RVDSpecMaker}
 import is.hail.types._
@@ -34,7 +35,12 @@ import org.json4s.{DefaultFormats, Formats, JBool, JObject, ShortTypeHints}
 object TableWriter {
   implicit val formats: Formats = new DefaultFormats() {
     override val typeHints = ShortTypeHints(
-      List(classOf[TableNativeFanoutWriter], classOf[TableNativeWriter], classOf[TableTextWriter]),
+      List(
+        classOf[TableNativeFanoutWriter],
+        classOf[TableNativeWriter],
+        classOf[TableTextWriter],
+        classOf[TableColumnarWriter],
+      ),
       typeHintFieldName = "name",
     )
   }
