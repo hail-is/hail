@@ -84,6 +84,7 @@ Resources:
               Iops: 3000
               VolumeSize: 30
               DeleteOnTermination: true
+              Encrypted: true
         ImageId: "{{resolve:ssm:/aws/service/eks/optimized-ami/1.35/amazon-linux-2023/x86_64/standard/recommended/image_id}}"
         InstanceType: t3a.large
         UserData:
@@ -145,6 +146,7 @@ Resources:
               Iops: 3000
               VolumeSize: 30
               DeleteOnTermination: true
+              Encrypted: true
         ImageId: "{{resolve:ssm:/aws/service/eks/optimized-ami/1.35/amazon-linux-2023/x86_64/standard/recommended/image_id}}"
         InstanceType: t3a.large
         UserData:
