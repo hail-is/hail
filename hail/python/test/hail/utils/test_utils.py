@@ -17,7 +17,7 @@ from hail.utils import (
 )
 from hail.utils.java import FatalError
 from hail.utils.linkedlist import LinkedList
-from hail.utils.misc import escape_id, escape_str
+from hail.utils.misc import escape_id, escape_str, is_committed, new_temp_file
 
 from ..conftest import init_hail_scope
 from ..helpers import fails_local_backend, fails_service_backend, qobtest, resource
@@ -446,3 +446,25 @@ def test_struct_rich_comparison():
     assert hl.eval(struct <= expr) and hl.eval(expr <= struct)
     assert not (hl.eval(struct < expr) or hl.eval(expr < struct))
     assert not (hl.eval(struct > expr) or hl.eval(expr > struct))
+
+
+def test_is_committed_native_format():
+    path = new_temp_file(extension='ht')
+    touch(f'{path}/_SUCCESS')
+    assert is_committed(path)
+
+
+def test_is_committed_columnar_format():
+    path = new_temp_file(extension='ht')
+    touch(f'{path}/manifest.json')
+    assert is_committed(path)
+
+
+def test_is_committed_without_commit_marker():
+    path = new_temp_file(extension='ht')
+    touch(f'{path}/metadata.json.gz')
+    assert not is_committed(path)
+
+
+def test_is_committed_missing_path():
+    assert not is_committed(new_temp_file(extension='ht'))

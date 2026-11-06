@@ -66,6 +66,7 @@ from hail.utils.misc import (
     get_nice_attr_error,
     get_nice_field_error,
     get_select_exprs,
+    is_committed,
     plural,
     process_joins,
     storage_level,
@@ -1962,7 +1963,7 @@ class Table(BaseTable):
         """
         hl.current_backend().validate_file(output)
 
-        if not _read_if_exists or not hl.hadoop_exists(f'{output}/_SUCCESS'):
+        if not _read_if_exists or not is_committed(output):
             self.write(output=output, overwrite=overwrite, _codec_spec=_codec_spec)
             _assert_type = self._type
             _load_refs = False

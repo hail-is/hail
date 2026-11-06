@@ -212,6 +212,16 @@ def with_local_temp_file(filename: str = 'temp') -> str:
             pass
 
 
+def is_committed(path: str) -> bool:
+    """Whether the table or matrix table at `path` was completely written.
+
+    The native format commits by writing ``_SUCCESS``. The columnar format writes no ``_SUCCESS``;
+    it commits by writing its manifest root last.
+    """
+    fs = Env.fs()
+    return fs.exists(f'{path}/_SUCCESS') or fs.exists(f'{path}/manifest.json')
+
+
 storage_level = enumeration(
     'NONE',
     'DISK_ONLY',
