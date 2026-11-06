@@ -649,7 +649,7 @@ function DashboardPage({ basePath, batchBaseUrl }: { basePath: string; batchBase
             );
           })}
           <DevDeploysPanel api={api} batchBaseUrl={batchBaseUrl} refreshKey={countdownKey} />
-          <Panel title="Recent failures" subtitle="Merges and build starts that failed, with GitHub's or the error's reason">
+          <Panel title="Recent failures" subtitle="Merges, build starts and GitHub updates that failed, with the reason">
             <div className="flex flex-col gap-4">
               <div>
                 <SubHeading>Merge failures</SubHeading>
@@ -668,6 +668,17 @@ function DashboardPage({ basePath, batchBaseUrl }: { basePath: string; batchBase
                   basePath={basePath}
                   batchBaseUrl={batchBaseUrl}
                   event="build_start_failed"
+                  pageSize={10}
+                  refreshKey={countdownKey}
+                  prHref={prHref}
+                />
+              </div>
+              <div>
+                <SubHeading>Update failures</SubHeading>
+                <EventLog
+                  basePath={basePath}
+                  batchBaseUrl={batchBaseUrl}
+                  event="update_failed"
                   pageSize={10}
                   refreshKey={countdownKey}
                   prHref={prHref}
