@@ -1007,9 +1007,9 @@ ipykernel==6.29.5 \
     #   jupyterlab
     #   nbclassic
     #   notebook
-ipython==9.17.1 \
-    --hash=sha256:6d1645743cfd1a07eb695d85aa2b5fa66721f8cbae9431d4049f7084bbf06509 \
-    --hash=sha256:8919be8c27f20a6f4423145028063f6637b42a03ce57665bb12015ee1f073529
+ipython==9.18.0 \
+    --hash=sha256:93ec98e27d5ce494c962758111c7dff1ef45f9efdd55604ae70a7d4cabb3e1ea \
+    --hash=sha256:d9b8e19267e811cafbc9d72e794a130c3fc60518108d20f5e1f05dae74f619ec
     # via
     #   ipykernel
     #   ipywidgets
@@ -1127,9 +1127,9 @@ jupyter-server-terminals==0.5.4 \
     --hash=sha256:55be353fc74a80bc7f3b20e6be50a55a61cd525626f578dcb66a5708e2007d14 \
     --hash=sha256:bbda128ed41d0be9020349f9f1f2a4ab9952a73ed5f5ac9f1419794761fb87f5
     # via jupyter-server
-jupyterlab==4.6.4 \
-    --hash=sha256:15b13f991d3985129c797eb84d9949eeb8b6615e14b444868e642411f2c418b2 \
-    --hash=sha256:404f49b081819378524886c9db66dba57a5565981eff885830df1baba3a17df5
+jupyterlab==4.6.5 \
+    --hash=sha256:cb96fc3d59d20b6f17d0cc1afe6e0508a61d881ab39be89236c55b01fa0e2b99 \
+    --hash=sha256:e115a0ef663927d60afd20bd9a8e822a5c61d7d22bcab489d8e37f4885d0d2ce
     # via jupyter
 jupyterlab-pygments==0.3.0 \
     --hash=sha256:721aca4d9029252b11cfa9d185e5b5af4d54772bb8072f9b7036f4170054d35d \
@@ -1713,9 +1713,9 @@ nest-asyncio==1.6.0 \
     #   jupyter-client
     #   nbclassic
     #   notebook
-nodeenv==1.11.0 \
-    --hash=sha256:3ce8fe5b71d16e8af7039ca65257354100bc772965d6bc549070649e53b1b146 \
-    --hash=sha256:edaa16e6c14d7cf395d75d4bbd5a26390f4dc06501a33b4e76282b02cc688a25
+nodeenv==1.11.1 \
+    --hash=sha256:bc0fb085d8ed0d67a6471892535f3d9b795eb911b7cd129d3a24967aab7a538f \
+    --hash=sha256:d7fa027c1df437bdd974b0502a8dc76fa1b3183e369ac9539602bc6bab9100ba
     # via
     #   pre-commit
     #   pyright
@@ -1938,9 +1938,9 @@ pillow==13.0.0 \
     #   -c hail/python/dev/../pinned-requirements.txt
     #   -r hail/python/dev/requirements.txt
     #   matplotlib
-platformdirs==4.13.7 \
-    --hash=sha256:47664602fbecad0a6efa561fb690d20dbc26875fe8aedf65ba362935df619bbb \
-    --hash=sha256:f7f351c027d6632c30471124e1fdb6ac0fef9ccc5cbac1b34cb333431b1fc3e1
+platformdirs==4.14.0 \
+    --hash=sha256:1dadfc59a8a5d7565b3d9270ae8fa71c065595352c4277b41c11ee6c222c4b91 \
+    --hash=sha256:83f009c1e8c5fc36869b5171755b291887bd2cade7965233cdfabd23d754720b
     # via
     #   jupyter-core
     #   pylint
@@ -2776,13 +2776,13 @@ types-pymysql==1.2.0.20260923 \
     --hash=sha256:2042fc2d0745eba181c3070221fdc9ac12baaa4908f79c1cb0f953c8c44efcc5 \
     --hash=sha256:2d02420956deeed7366c3b2b7dfaac3b33ad800d754327857f7b38f59751a59c
     # via -r hail/python/dev/requirements.txt
-types-python-dateutil==2.9.0.20261021 \
-    --hash=sha256:12aab3bdfe55e1d9de7f54301e025d6276ce17e6a08e31644f2202d59c8d1fca \
-    --hash=sha256:62d66fcdd293e38745eae644e5da4cb399b98799c0ae61f03a54896fb51b3140
+types-python-dateutil==2.9.0.20261029 \
+    --hash=sha256:3258b491686c441d8074cfc8712308741900c9ff128a06421baec3767c503511 \
+    --hash=sha256:8fd04c6e1722d2523a74d6670596fc0007077651465b686f144ae1d200dcacf5
     # via -r hail/python/dev/requirements.txt
-types-pyyaml==6.0.12.20260906 \
-    --hash=sha256:bca893ff0d51df5c9053137d5d0e6ccd36e939a196356f1d5c16372422f5137b \
-    --hash=sha256:f59c1cc05010b833d2d72287bbaa72610106b28d42d89a907313117faba85212
+types-pyyaml==6.0.12.20261030 \
+    --hash=sha256:508cc80546918201026a955356222111224e1f4f7deab0b91f2a95933f764e67 \
+    --hash=sha256:9123d707aa31a3883eeb2cb290537c75246dfcb1c00abed7a70f5419d3bd31ae
     # via -r hail/python/dev/requirements.txt
 types-requests==2.31.0.6 \
     --hash=sha256:a2db9cb228a81da8348b49ad6db3f5519452dd20a9c1e1a868c83c5fe88fd1a9 \
