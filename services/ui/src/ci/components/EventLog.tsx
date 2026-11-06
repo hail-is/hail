@@ -4,7 +4,7 @@ import type { CIEvent } from '../../shared/ciApi';
 import { formatTimestamp } from '../../shared/timeUtils';
 import { collapseRepeats, eventDetails, isFailureEvent } from './eventLogModel';
 
-const PAGE_SIZE = 50;
+const DEFAULT_PAGE_SIZE = 50;
 
 interface EventLogProps {
   basePath: string;
@@ -15,10 +15,12 @@ interface EventLogProps {
   event?: string;
   // Changing this refetches the first page, so the host page decides when to poll.
   refreshKey?: number;
-  prHref?: (pr: number) => string;
+  pageSize?: number;
+  // Link for an event's PR number; null leaves it as plain text.
+  prHref?: (e: CIEvent) => string | null;
 }
 
-function MessageCell({ message }: { message: string | null }): JSX.Element | null {
+export function MessageCell({ message }: { message: string | null }): JSX.Element | null {
   const [expanded, setExpanded] = useState(false);
   if (!message) return null;
   const firstLine = message.split('\n', 1)[0];
@@ -40,8 +42,14 @@ function MessageCell({ message }: { message: string | null }): JSX.Element | nul
   );
 }
 
+function PrCell({ event, prHref }: { event: CIEvent; prHref?: (e: CIEvent) => string | null }): JSX.Element {
+  const href = prHref?.(event) ?? null;
+  const label = `#${event.pr_number}`;
+  return href === null ? <>{label}</> : <a href={href} className="text-sky-600 hover:underline">{label}</a>;
+}
+
 export function EventLog({
-  basePath, batchBaseUrl, targetBranch, pr, event, refreshKey = 0, prHref,
+  basePath, batchBaseUrl, targetBranch, pr, event, refreshKey = 0, pageSize = DEFAULT_PAGE_SIZE, prHref,
 }: EventLogProps): JSX.Element {
   const api = useMemo(() => createCiApi(basePath), [basePath]);
   const [rows, setRows] = useState<CIEvent[] | null>(null);
@@ -51,7 +59,7 @@ export function EventLog({
 
   useEffect(() => {
     let cancelled = false;
-    api.getEvents({ targetBranch, pr, event, limit: PAGE_SIZE })
+    api.getEvents({ targetBranch, pr, event, limit: pageSize })
       .then((r) => {
         if (cancelled) return;
         setRows(r.rows);
@@ -62,13 +70,13 @@ export function EventLog({
         if (!cancelled) setError(e instanceof Error ? e.message : String(e));
       });
     return () => { cancelled = true; };
-  }, [api, targetBranch, pr, event, refreshKey]);
+  }, [api, targetBranch, pr, event, refreshKey, pageSize]);
 
   const loadMore = async () => {
     if (cursor === null) return;
     setLoadingMore(true);
     try {
-      const r = await api.getEvents({ targetBranch, pr, event, cursor, limit: PAGE_SIZE });
+      const r = await api.getEvents({ targetBranch, pr, event, cursor, limit: pageSize });
       setRows((prev) => [...(prev ?? []), ...r.rows]);
       setCursor(r.cursor);
     } catch (e: unknown) {
@@ -117,9 +125,7 @@ export function EventLog({
               {showBranch && <td className="px-3 py-0.5 whitespace-nowrap">{e.target_branch ?? ''}</td>}
               {showPr && (
                 <td className="px-3 py-0.5">
-                  {e.pr_number !== null && (prHref ? (
-                    <a href={prHref(e.pr_number)} className="text-sky-600 hover:underline">#{e.pr_number}</a>
-                  ) : `#${e.pr_number}`)}
+                  {e.pr_number !== null && <PrCell event={e} prHref={prHref} />}
                 </td>
               )}
               <td className="px-3 py-0.5">{e.username ?? <span className="text-zinc-400">ci</span>}</td>

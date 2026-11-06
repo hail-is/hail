@@ -540,6 +540,9 @@ components:
             properties:
               pr:
                 type: integer
+              source_sha:
+                type: string
+                description: "PR head SHA; with the branch's sha, identifies the merge attempt that failures counts"
               blockers:
                 type: array
                 items:

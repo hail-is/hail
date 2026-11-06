@@ -30,6 +30,27 @@ export function collapseRepeats(rows: CIEvent[]): EventGroup[] {
   return groups;
 }
 
+// The newest merge_failed event for each PR's current merge attempt (its source SHA against the
+// branch's current SHA), so a failure from before a new commit or a main update isn't shown.
+// Rows are newest first.
+export function currentMergeFailures(
+  rows: CIEvent[],
+  branchFqn: string,
+  targetSha: string | null,
+  queue: { pr: number; source_sha: string }[],
+): Map<number, CIEvent> {
+  const failures = new Map<number, CIEvent>();
+  for (const { pr, source_sha } of queue) {
+    const latest = rows.find((e) => e.event === 'merge_failed'
+      && e.target_branch === branchFqn
+      && e.pr_number === pr
+      && e.source_sha === source_sha
+      && e.target_sha === targetSha);
+    if (latest) failures.set(pr, latest);
+  }
+  return failures;
+}
+
 export function isFailureEvent(event: string): boolean {
   return event.endsWith('_failed') || event === 'merge_expired';
 }

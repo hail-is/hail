@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { CIEvent } from '../../shared/ciApi';
-import { collapseRepeats, eventDetails, isFailureEvent } from './eventLogModel';
+import { collapseRepeats, currentMergeFailures, eventDetails, isFailureEvent } from './eventLogModel';
 
 function ev(id: number, overrides: Partial<CIEvent> = {}): CIEvent {
   return {
@@ -81,5 +81,31 @@ describe('eventDetails', () => {
 
   it('is empty when nothing applies', () => {
     expect(eventDetails(ev(1))).toEqual([]);
+  });
+});
+
+describe('currentMergeFailures', () => {
+  const branch = 'hail-is/hail:main';
+  const failed = (id: number, overrides: Partial<CIEvent> = {}) => ev(id, {
+    event: 'merge_failed', pr_number: 1, source_sha: 'src', target_sha: 'tgt', message: `fail ${id}`, ...overrides,
+  });
+
+  it('picks the newest failure for the current attempt', () => {
+    const result = currentMergeFailures([failed(3), failed(2)], branch, 'tgt', [{ pr: 1, source_sha: 'src' }]);
+    expect(result.get(1)?.id).toBe(3);
+  });
+
+  it('ignores failures from an older source or target sha', () => {
+    const rows = [failed(3, { source_sha: 'old' }), failed(2, { target_sha: 'old' })];
+    expect(currentMergeFailures(rows, branch, 'tgt', [{ pr: 1, source_sha: 'src' }]).size).toBe(0);
+  });
+
+  it('ignores other branches, PRs and events', () => {
+    const rows = [
+      failed(4, { target_branch: 'hail-is/hail:other' }),
+      failed(3, { pr_number: 2 }),
+      failed(2, { event: 'merge_requested' }),
+    ];
+    expect(currentMergeFailures(rows, branch, 'tgt', [{ pr: 1, source_sha: 'src' }]).size).toBe(0);
   });
 });

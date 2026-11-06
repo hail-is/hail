@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import {
   createCiApi,
   type CiApi,
+  type CIEvent,
   type CiDeveloperStatus,
   type CiOperatorStatus,
   type DeployStatus,
@@ -14,6 +15,8 @@ import {
 import { hasPermission } from '../shared/authUtils';
 import { AutoRefreshBar } from '../shared/AutoRefreshBar';
 import { Panel } from '../shared/Panel';
+import { EventLog, MessageCell } from './components/EventLog';
+import { currentMergeFailures } from './components/eventLogModel';
 import { disableReactUi } from '../shared/reactUiCookie';
 import { formatRelative, formatTimestamp } from '../shared/timeUtils';
 import {
@@ -235,8 +238,17 @@ function DeploySection({ branch, repo, batchBaseUrl, failure, failureError }: {
   );
 }
 
-function MergeSection({ branch, prBase, nowMs }: { branch: DeveloperBranchStatus; prBase: string; nowMs: number }): JSX.Element {
+function MergeSection({ branch, branchFqn, prBase, nowMs, mergeFailedEvents }: {
+  branch: DeveloperBranchStatus;
+  branchFqn: string | undefined;
+  prBase: string;
+  nowMs: number;
+  mergeFailedEvents: CIEvent[];
+}): JSX.Element {
   const paused = mergePausedLabel(branch.merge_paused_reason);
+  const failures = branchFqn === undefined
+    ? new Map<number, CIEvent>()
+    : currentMergeFailures(mergeFailedEvents, branchFqn, branch.sha, branch.merge_queue);
   return (
     <div>
       <SubHeading>Merge queue</SubHeading>
@@ -253,13 +265,24 @@ function MergeSection({ branch, prBase, nowMs }: { branch: DeveloperBranchStatus
           <ol className="text-sm">
             {branch.merge_queue.map((entry) => {
               const status = mergeQueueStatus(entry, nowMs);
+              const failure = failures.get(entry.pr);
               return (
-                <li key={entry.pr} className="flex gap-2 py-0.5">
-                  <span className="w-16 shrink-0"><PrLink pr={entry.pr} prBase={prBase} /></span>
-                  {entry.pr === branch.merge_candidate && (
-                    <span className="shrink-0 rounded bg-sky-100 px-1.5 text-xs leading-5 text-sky-800">candidate</span>
+                <li key={entry.pr} className="py-0.5">
+                  <div className="flex gap-2">
+                    <span className="w-16 shrink-0"><PrLink pr={entry.pr} prBase={prBase} /></span>
+                    {entry.pr === branch.merge_candidate && (
+                      <span className="shrink-0 rounded bg-sky-100 px-1.5 text-xs leading-5 text-sky-800">candidate</span>
+                    )}
+                    <span className={toneClass(status.tone)}>{status.text}</span>
+                  </div>
+                  {failure && (
+                    <div className="ml-[4.5rem] text-xs text-zinc-600">
+                      <span className="text-red-600" title={formatTimestamp(failure.time)}>
+                        merge failed {formatRelative(Date.parse(failure.time))}:
+                      </span>{' '}
+                      <MessageCell message={failure.message} />
+                    </div>
                   )}
-                  <span className={toneClass(status.tone)}>{status.text}</span>
                 </li>
               );
             })}
@@ -338,7 +361,7 @@ function OperatorBranchSection({ op }: { op: OperatorBranchStatus }): JSX.Elemen
   );
 }
 
-function BranchPanel({ index, branch, summary, op, basePath, batchBaseUrl, failure, failureError, nowMs }: {
+function BranchPanel({ index, branch, summary, op, basePath, batchBaseUrl, failure, failureError, nowMs, mergeFailedEvents }: {
   index: number;
   branch: DeveloperBranchStatus;
   summary: WatchedBranchSummary | undefined;
@@ -348,6 +371,7 @@ function BranchPanel({ index, branch, summary, op, basePath, batchBaseUrl, failu
   failure: DeployStatus | undefined;
   failureError: string | null;
   nowMs: number;
+  mergeFailedEvents: CIEvent[];
 }): JSX.Element {
   const prBase = `${basePath}/watched_branches/${index}/pr`;
   const lastUpdate = branch.last_update;
@@ -372,7 +396,13 @@ function BranchPanel({ index, branch, summary, op, basePath, batchBaseUrl, failu
           failure={failure}
           failureError={failureError}
         />
-        <MergeSection branch={branch} prBase={prBase} nowMs={nowMs} />
+        <MergeSection
+          branch={branch}
+          branchFqn={summary?.branch_fqn}
+          prBase={prBase}
+          nowMs={nowMs}
+          mergeFailedEvents={mergeFailedEvents}
+        />
         <BuildSlotsSection branch={branch} prBase={prBase} />
         {op && <OperatorBranchSection op={op} />}
       </div>
@@ -499,6 +529,22 @@ function DashboardPage({ basePath, batchBaseUrl }: { basePath: string; batchBase
     return () => { clearInterval(id); };
   }, [autoRefresh, refresh]);
 
+  // Recent merge failures, for the reasons shown next to merge-queue entries. Refetched with each
+  // status refresh; the reasons are a nicety, so errors are ignored.
+  const [mergeFailedEvents, setMergeFailedEvents] = useState<CIEvent[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    api.getEvents({ event: 'merge_failed', limit: 100 })
+      .then((r) => { if (!cancelled) setMergeFailedEvents(r.rows); })
+      .catch(() => { /* leave the previous reasons */ });
+    return () => { cancelled = true; };
+  }, [api, countdownKey]);
+
+  const prHref = useCallback((e: CIEvent) => {
+    const index = summaries.findIndex((s) => s.branch_fqn === e.target_branch);
+    return index === -1 ? null : `${basePath}/watched_branches/${index}/pr/${e.pr_number}`;
+  }, [basePath, summaries]);
+
   const failedKey = dev ? failedDeploysKey(dev.branches) : '';
   useEffect(() => {
     if (failedKey === '') {
@@ -546,8 +592,43 @@ function DashboardPage({ basePath, batchBaseUrl }: { basePath: string; batchBase
               failure={deployStatus.at(i)}
               failureError={deployError}
               nowMs={nowMs}
+              mergeFailedEvents={mergeFailedEvents}
             />
           ))}
+          <Panel title="Recent failures" subtitle="Merges and build starts that failed, with GitHub's or the error's reason">
+            <div className="flex flex-col gap-4">
+              <div>
+                <SubHeading>Merge failures</SubHeading>
+                <EventLog
+                  basePath={basePath}
+                  batchBaseUrl={batchBaseUrl}
+                  event="merge_failed"
+                  pageSize={10}
+                  refreshKey={countdownKey}
+                  prHref={prHref}
+                />
+              </div>
+              <div>
+                <SubHeading>Build start failures</SubHeading>
+                <EventLog
+                  basePath={basePath}
+                  batchBaseUrl={batchBaseUrl}
+                  event="build_start_failed"
+                  pageSize={10}
+                  refreshKey={countdownKey}
+                  prHref={prHref}
+                />
+              </div>
+            </div>
+          </Panel>
+          <Panel title="Events" subtitle="All branches, including CI-wide events · last 90 days">
+            <EventLog
+              basePath={basePath}
+              batchBaseUrl={batchBaseUrl}
+              refreshKey={countdownKey}
+              prHref={prHref}
+            />
+          </Panel>
           {op && <OperatorPanel op={op} />}
         </div>
       </>
