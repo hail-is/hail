@@ -143,6 +143,39 @@ export interface DeployStatus {
   failure_information: FailedDeployJob[] | string[] | null;
 }
 
+// One row of the CI event log (ci_events). Columns are sparse: each event type fills the ones
+// that apply to it.
+export interface CIEvent {
+  id: number; // increases with time
+  time: string; // ISO 8601
+  event: string;
+  target_branch: string | null; // fully-qualified, e.g. hail-is/hail:main
+  pr_number: number | null;
+  username: string | null; // null when CI acted on its own
+  batch_id: number | null;
+  source_sha: string | null;
+  target_sha: string | null;
+  previous_sha: string | null;
+  namespace: string | null;
+  service: string | null;
+  merge_uuid: string | null;
+  message: string | null;
+}
+
+export interface CIEventsResponse {
+  rows: CIEvent[]; // newest first
+  cursor: number | null; // pass back as `cursor` for the next (older) page
+  has_more: boolean;
+}
+
+export interface CIEventsQuery {
+  targetBranch?: string;
+  pr?: number;
+  event?: string;
+  cursor?: number;
+  limit?: number;
+}
+
 // A small, hand-written mirror of just the endpoints callers actually use — not the ci
 // service's full API surface. Add to this as more pages need more of it.
 export function createCiApi(basePath: string) {
@@ -172,6 +205,16 @@ export function createCiApi(basePath: string) {
     freeze: () => hailApiFetchVoid(`${basePath}/api/v1alpha/freeze`, { method: 'POST' }),
 
     unfreeze: () => hailApiFetchVoid(`${basePath}/api/v1alpha/unfreeze`, { method: 'POST' }),
+
+    getEvents: (q: CIEventsQuery) => {
+      const params = new URLSearchParams();
+      if (q.targetBranch !== undefined) params.set('target_branch', q.targetBranch);
+      if (q.pr !== undefined) params.set('pr', String(q.pr));
+      if (q.event !== undefined) params.set('event', q.event);
+      if (q.cursor !== undefined) params.set('cursor', String(q.cursor));
+      if (q.limit !== undefined) params.set('limit', String(q.limit));
+      return hailApiFetch<CIEventsResponse>(`${basePath}/api/v1alpha/events?${params.toString()}`);
+    },
 
     authorizeSha: (sha: string) =>
       hailApiFetchVoid(`${basePath}/api/v1alpha/authorize_sha`, jsonPost({ sha })),
