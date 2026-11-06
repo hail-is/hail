@@ -12,6 +12,7 @@ import is.hail.types.virtual.{MatrixType, TArray, TInterval, TStream, TableType,
 import is.hail.utils.{space => _, _}
 import is.hail.utils.prettyPrint._
 
+import scala.annotation.switch
 import scala.collection.immutable.ArraySeq
 import scala.collection.mutable
 
@@ -205,447 +206,776 @@ class Pretty(
 
   def single(d: Doc): Iterable[Doc] = RichIterable.single(d)
 
-  def header(ir: BaseIR, elideBindings: Boolean = false): Iterable[Doc] = ir match {
-    case ApplyAggOp(_, _, op) => single(Pretty.prettyClass(op))
-    case ApplyScanOp(_, _, op) => single(Pretty.prettyClass(op))
-    case InitOp(i, _, aggSig) => FastSeq(i.toString, prettyPhysicalAggSig(aggSig))
-    case SeqOp(i, _, aggSig) => FastSeq(i.toString, prettyPhysicalAggSig(aggSig))
-    case CombOp(i1, i2, aggSig) => FastSeq(i1.toString, i2.toString, prettyPhysicalAggSig(aggSig))
-    case ResultOp(i, aggSig) => FastSeq(i.toString, prettyPhysicalAggSig(aggSig))
-    case AggStateValue(i, sig) => FastSeq(i.toString, prettyAggStateSignature(sig))
-    case InitFromSerializedValue(i, _, aggSig) =>
-      FastSeq(i.toString, prettyAggStateSignature(aggSig))
-    case CombOpValue(i, _, sig) => FastSeq(i.toString, prettyPhysicalAggSig(sig))
-    case SerializeAggs(i, i2, spec, aggSigs) =>
-      FastSeq(
-        i.toString,
-        i2.toString,
-        prettyStringLiteral(spec.toString),
-        prettyAggStateSignatures(aggSigs),
-      )
-    case DeserializeAggs(i, i2, spec, aggSigs) =>
-      FastSeq(
-        i.toString,
-        i2.toString,
-        prettyStringLiteral(spec.toString),
-        prettyAggStateSignatures(aggSigs),
-      )
-    case RunAgg(_, _, signature) => single(prettyAggStateSignatures(signature))
-    case RunAggScan(_, name, _, _, _, signature) =>
-      FastSeq(prettyName(name), prettyAggStateSignatures(signature))
-    case I32(x) => single(x.toString)
-    case I64(x) => single(x.toString)
-    case F32(x) => single(x.toString)
-    case F64(x) => single(x.toString)
-    case Str(x) =>
-      single(prettyStringLiteral(if (elideLiterals && x.length > 13) x.take(10) + "..." else x))
-    case UUID4(id) => single(prettyIdentifier(id))
-    case Cast(_, typ) => single(typ.parsableString())
-    case CastRename(_, typ) => single(typ.parsableString())
-    case NA(typ) => single(typ.parsableString())
-    case Literal(typ, value) =>
-      FastSeq(
-        typ.parsableString(),
-        if (!elideLiterals)
-          prettyStringLiteral(JsonMethods.compact(JSONAnnotationImpex.exportAnnotation(value, typ)))
+  /* Dispatch is on the node's tag, in two levels, as in TypeCheck: `header` switches on the family,
+   * and each family's method switches on the tag. One match over every node class was over 8000
+   * bytes of bytecode, so HotSpot never compiled it. */
+  def header(ir: BaseIR, elideBindings: Boolean = false): Iterable[Doc] =
+    (ir.tag.family.toInt: @switch) match {
+      case Family.Const => headerConst(ir)
+      case Family.Core => headerCore(ir, elideBindings)
+      case Family.Struct => headerStruct(ir)
+      case Family.Stream => headerStream(ir, elideBindings)
+      case Family.Collection => headerCollection(ir, elideBindings)
+      case Family.Agg => headerAgg(ir, elideBindings)
+      case Family.IO => headerIO(ir)
+      case Family.NDArray => headerNDArray(ir, elideBindings)
+      case Family.Random => headerRandom(ir)
+      case Family.Relational => headerRelational(ir, elideBindings)
+      case Family.Table => headerTable(ir)
+      case Family.Matrix => headerMatrix(ir)
+      case Family.BlockMatrix => headerBlockMatrix(ir, elideBindings)
+      case _ => Iterable.empty
+    }
+
+  private def headerConst(ir: BaseIR): Iterable[Doc] =
+    (ir.tag.toInt: @switch) match {
+      case Tag.I32 =>
+        single(ir.asInstanceOf[I32].x.toString)
+      case Tag.I64 =>
+        single(ir.asInstanceOf[I64].x.toString)
+      case Tag.F32 =>
+        single(ir.asInstanceOf[F32].x.toString)
+      case Tag.F64 =>
+        single(ir.asInstanceOf[F64].x.toString)
+      case Tag.Str =>
+        val x = ir.asInstanceOf[Str].x
+        single(prettyStringLiteral(if (elideLiterals && x.length > 13) x.take(10) + "..." else x))
+      case Tag.NA =>
+        single(ir.asInstanceOf[NA]._typ.parsableString())
+      case Tag.Literal =>
+        val x = ir.asInstanceOf[Literal]
+        FastSeq(
+          x._typ.parsableString(),
+          if (!elideLiterals)
+            prettyStringLiteral(
+              JsonMethods.compact(JSONAnnotationImpex.exportAnnotation(x.value, x._typ))
+            )
+          else
+            "<literal value>",
+        )
+      case Tag.EncodedLiteral =>
+        single(ir.asInstanceOf[EncodedLiteral].codec.encodedVirtualType.parsableString())
+      case _ =>
+        Iterable.empty
+    }
+
+  private def headerCore(ir: BaseIR, elideBindings: Boolean): Iterable[Doc] =
+    (ir.tag.toInt: @switch) match {
+      case Tag.Cast =>
+        single(ir.asInstanceOf[Cast]._typ.parsableString())
+      case Tag.UUID4 =>
+        single(prettyIdentifier(ir.asInstanceOf[UUID4].id))
+      case Tag.Block =>
+        if (elideBindings) Iterable.empty
         else
-          "<literal value>",
-      )
-    case EncodedLiteral(codec, _) => single(codec.encodedVirtualType.parsableString())
-    case Block(bindings, _) if !elideBindings =>
-      bindings.flatMap { b =>
-        val bindType = b.scope match {
-          case Scope.EVAL => "eval"
-          case Scope.AGG => "agg"
-          case Scope.SCAN => "scan"
-        }
-        FastSeq(text(bindType), prettyName(b.name))
-      }
-    case TailLoop(name, args, returnType, _) if !elideBindings =>
-      FastSeq(
-        prettyName(name),
-        prettyNames(args.map(_._1)),
-        returnType.parsableString(),
-      )
-    case Recur(name, _, _) if !elideBindings =>
-      FastSeq(prettyName(name))
-//    case Ref(name, t) if t != null => FastSeq(prettyIdentifier(name), t.parsableString())  // For debug purposes
-    case Ref(name, _) => single(prettyName(name))
-    case RelationalRef(name, t) => if (elideBindings)
-        single(t.parsableString())
-      else
-        FastSeq(prettyName(name), t.parsableString())
-    case RelationalLet(name, _, _) if !elideBindings => single(prettyName(name))
-    case RNGSplitStatic(_, staticUid) => single(prettyLong(staticUid))
-    case ApplyBinaryPrimOp(op, _, _) => single(Pretty.prettyClass(op))
-    case ApplyUnaryPrimOp(op, _) => single(Pretty.prettyClass(op))
-    case ApplyComparisonOp(op, _, _) => single(op.render())
-    case GetField(_, name) => single(prettyIdentifier(name))
-    case GetTupleElement(_, idx) => single(idx.toString)
-    case MakeTuple(fields) => FastSeq(prettyInts(fields.map(_._1), elideLiterals))
-    case MakeArray(_, typ) => single(typ.parsableString())
-    case MakeStream(_, typ, requiresMemoryManagementPerElement) =>
-      FastSeq(typ.parsableString(), Pretty.prettyBooleanLiteral(requiresMemoryManagementPerElement))
-    case StreamBufferedAggregate(_, _, _, _, name, sigs, size) =>
-      ArraySeq(prettyName(name), prettyPhysicalAggSigs(sigs), prettyInt(size))
-    case StreamIota(_, _, requiresMemoryManagementPerElement) =>
-      FastSeq(Pretty.prettyBooleanLiteral(requiresMemoryManagementPerElement))
-    case StreamRange(_, _, _, requiresMemoryManagementPerElement, errorID) =>
-      FastSeq(errorID.toString, Pretty.prettyBooleanLiteral(requiresMemoryManagementPerElement))
-    case ToStream(_, requiresMemoryManagementPerElement) =>
-      single(Pretty.prettyBooleanLiteral(requiresMemoryManagementPerElement))
-    case StreamMap(_, name, _) if !elideBindings => single(prettyName(name))
-    case StreamZip(_, names, _, behavior, errorID) => if (elideBindings)
-        FastSeq(
-          errorID.toString,
-          behavior match {
-            case ArrayZipBehavior.AssertSameLength => "AssertSameLength"
-            case ArrayZipBehavior.TakeMinLength => "TakeMinLength"
-            case ArrayZipBehavior.ExtendNA => "ExtendNA"
-            case ArrayZipBehavior.AssumeSameLength => "AssumeSameLength"
-          },
-        )
-      else
-        FastSeq(
-          errorID.toString,
-          behavior match {
-            case ArrayZipBehavior.AssertSameLength => "AssertSameLength"
-            case ArrayZipBehavior.TakeMinLength => "TakeMinLength"
-            case ArrayZipBehavior.ExtendNA => "ExtendNA"
-            case ArrayZipBehavior.AssumeSameLength => "AssumeSameLength"
-          },
-          prettyNames(names),
-        )
-    case StreamZipJoin(streams, key, curKey, curVals, _) if !elideBindings =>
-      FastSeq(
-        streams.length.toString,
-        prettyIdentifiers(key),
-        prettyName(curKey),
-        prettyName(curVals),
-      )
-    case StreamZipJoinProducers(_, ctxName, _, key, curKey, curVals, _) if !elideBindings =>
-      FastSeq(
-        prettyIdentifiers(key),
-        prettyName(ctxName),
-        prettyName(curKey),
-        prettyName(curVals),
-      )
-    case StreamMultiMerge(_, key) => single(prettyIdentifiers(key))
-    case StreamFilter(_, name, _) if !elideBindings => single(prettyName(name))
-    case StreamTakeWhile(_, name, _) if !elideBindings => single(prettyName(name))
-    case StreamDropWhile(_, name, _) if !elideBindings => single(prettyName(name))
-    case StreamFlatMap(_, name, _) if !elideBindings => single(prettyName(name))
-    case StreamFold(_, _, accumName, valueName, _) if !elideBindings =>
-      FastSeq(prettyName(accumName), prettyName(valueName))
-    case StreamFold2(_, acc, valueName, _, _) if !elideBindings =>
-      FastSeq(prettyNames(acc.map(_._1)), prettyName(valueName))
-    case StreamScan(_, _, accumName, valueName, _) if !elideBindings =>
-      FastSeq(prettyName(accumName), prettyName(valueName))
-    case StreamWhiten(_, newChunk, prevWindow, vecSize, windowSize, chunkSize, blockSize,
-          normalizeAfterWhiten) =>
-      FastSeq(
-        prettyIdentifier(newChunk),
-        prettyIdentifier(prevWindow),
-        vecSize.toString,
-        windowSize.toString,
-        chunkSize.toString,
-        blockSize.toString,
-        Pretty.prettyBooleanLiteral(normalizeAfterWhiten),
-      )
-    case StreamJoinRightDistinct(_, _, lKey, rKey, l, r, _, joinType) => if (elideBindings)
-        FastSeq(prettyIdentifiers(lKey), prettyIdentifiers(rKey), joinType)
-      else
-        FastSeq(
-          prettyIdentifiers(lKey),
-          prettyIdentifiers(rKey),
-          prettyName(l),
-          prettyName(r),
-          joinType,
-        )
-    case StreamLeftIntervalJoin(_, _, lKeyFieldName, rIntrvlName, lEltName, rEltName, _) =>
-      val builder = ArraySeq.newBuilder[Doc]
-      builder.sizeHint(if (elideBindings) 2 else 4)
-
-      builder += prettyIdentifier(lKeyFieldName)
-      builder += prettyIdentifier(rIntrvlName)
-
-      if (!elideBindings) {
-        builder += prettyName(lEltName)
-        builder += prettyName(rEltName)
-      }
-
-      builder.result()
-    case StreamFor(_, valueName, _) if !elideBindings => single(prettyName(valueName))
-    case StreamAgg(_, name, _) if !elideBindings => single(prettyName(name))
-    case StreamAggScan(_, name, _) if !elideBindings => single(prettyName(name))
-    case StreamGroupByKey(_, key, missingEqual) =>
-      FastSeq(prettyIdentifiers(key), prettyBooleanLiteral(missingEqual))
-    case AggFold(_, _, _, accumName, otherAccumName, isScan) => if (elideBindings)
-        single(Pretty.prettyBooleanLiteral(isScan))
-      else
-        FastSeq(
-          prettyName(accumName),
-          prettyName(otherAccumName),
-          Pretty.prettyBooleanLiteral(isScan),
-        )
-    case AggExplode(_, name, _, isScan) => if (elideBindings)
-        single(Pretty.prettyBooleanLiteral(isScan))
-      else
-        FastSeq(prettyName(name), Pretty.prettyBooleanLiteral(isScan))
-    case AggFilter(_, _, isScan) => single(Pretty.prettyBooleanLiteral(isScan))
-    case AggGroupBy(_, _, isScan) => single(Pretty.prettyBooleanLiteral(isScan))
-    case AggArrayPerElement(_, elementName, indexName, _, knownLength, isScan) => if (elideBindings)
-        FastSeq(
-          Pretty.prettyBooleanLiteral(isScan),
-          Pretty.prettyBooleanLiteral(knownLength.isDefined),
-        )
-      else
-        FastSeq(
-          prettyName(elementName),
-          prettyName(indexName),
-          Pretty.prettyBooleanLiteral(isScan),
-          Pretty.prettyBooleanLiteral(knownLength.isDefined),
-        )
-    case NDArrayMap(_, name, _) if !elideBindings => single(prettyName(name))
-    case NDArrayMap2(_, _, lName, rName, _, errorID) => if (elideBindings)
-        single(s"$errorID")
-      else
-        FastSeq(s"$errorID", prettyName(lName), prettyName(rName))
-    case NDArrayReindex(_, indexExpr) => single(prettyInts(indexExpr, elideLiterals))
-    case NDArrayConcat(_, axis) => single(axis.toString)
-    case NDArrayAgg(_, axes) => single(prettyInts(axes, elideLiterals))
-    case NDArrayRef(_, _, errorID) => single(s"$errorID")
-    case NDArrayReshape(_, _, errorID) => single(s"$errorID")
-    case NDArrayMatMul(_, _, errorID) => single(s"$errorID")
-    case NDArrayQR(_, mode, errorID) => FastSeq(errorID.toString, mode)
-    case NDArraySVD(_, fullMatrices, computeUV, errorID) =>
-      FastSeq(errorID.toString, fullMatrices.toString, computeUV.toString)
-    case NDArrayEigh(_, eigvalsOnly, errorID) => FastSeq(errorID.toString, eigvalsOnly.toString)
-    case NDArrayInv(_, errorID) => single(s"$errorID")
-    case ArraySort(_, l, r, _) if !elideBindings =>
-      FastSeq(prettyName(l), prettyName(r))
-    case ArrayRef(_, _, errorID) => single(s"$errorID")
-    case ApplyIR(function, typeArgs, _, _, errorID) => FastSeq(
-        s"$errorID",
-        prettyIdentifier(function),
-        prettyTypes(typeArgs),
-        ir.typ.parsableString(),
-      )
-    case Apply(function, typeArgs, _, t, errorID) =>
-      FastSeq(s"$errorID", prettyIdentifier(function), prettyTypes(typeArgs), t.parsableString())
-    case ApplySpecial(function, typeArgs, _, t, errorID) =>
-      FastSeq(s"$errorID", prettyIdentifier(function), prettyTypes(typeArgs), t.parsableString())
-    case SelectFields(_, fields) =>
-      single(fillList(fields.view.map(f => text(prettyIdentifier(f)))))
-    case LowerBoundOnOrderedCollection(_, _, onKey) => single(Pretty.prettyBooleanLiteral(onKey))
-    case In(i, typ) => FastSeq(typ.toString, i.toString)
-    case Die(_, typ, errorID) => FastSeq(typ.parsableString(), errorID.toString)
-    case CollectDistributedArray(_, _, cname, gname, _, _, staticID, _) if !elideBindings =>
-      FastSeq(staticID, prettyName(cname), prettyName(gname))
-    case MatrixRead(typ, dropCols, dropRows, reader) =>
-      FastSeq(
-        if (typ == reader.fullMatrixType) "None" else typ.parsableString(),
-        Pretty.prettyBooleanLiteral(dropCols),
-        Pretty.prettyBooleanLiteral(dropRows),
-        if (elideLiterals) reader.renderShort()
-        else s""""${StringEscapeUtils.escapeString(JsonMethods.compact(reader.toJValue))}"""",
-      )
-    case MatrixWrite(_, writer) =>
-      single(
-        s""""${StringEscapeUtils.escapeString(Serialization.write(writer)(MatrixWriter.formats))}""""
-      )
-    case MatrixMultiWrite(_, writer) =>
-      single(
-        s""""${StringEscapeUtils.escapeString(Serialization.write(writer)(MatrixNativeMultiWriter.formats))}""""
-      )
-    case BlockMatrixRead(reader) =>
-      single(s""""${StringEscapeUtils.escapeString(JsonMethods.compact(reader.toJValue))}"""")
-    case BlockMatrixWrite(_, writer) =>
-      single(
-        s""""${StringEscapeUtils.escapeString(Serialization.write(writer)(BlockMatrixWriter.formats))}""""
-      )
-    case BlockMatrixMultiWrite(_, writer) =>
-      single(
-        s""""${StringEscapeUtils.escapeString(Serialization.write(writer)(BlockMatrixWriter.formats))}""""
-      )
-    case BlockMatrixBroadcast(_, inIndexExpr, shape, blockSize) =>
-      FastSeq(
-        prettyInts(inIndexExpr, elideLiterals),
-        prettyLongs(shape, elideLiterals),
-        blockSize.toString,
-      )
-    case BlockMatrixAgg(_, outIndexExpr) => single(prettyInts(outIndexExpr, elideLiterals))
-    case BlockMatrixSlice(_, slices) =>
-      single(fillList(slices.view.map(slice => prettyLongs(slice, elideLiterals))))
-    case ValueToBlockMatrix(_, shape, blockSize) =>
-      FastSeq(prettyLongs(shape, elideLiterals), blockSize.toString)
-    case BlockMatrixFilter(_, indicesToKeepPerDim) =>
-      single(fillList(indicesToKeepPerDim.toSeq.view.map(indices =>
-        prettyLongs(indices, elideLiterals)
-      )))
-    case BlockMatrixSparsify(_, sparsifier) =>
-      single(sparsifier.pretty())
-    case BlockMatrixRandom(staticUID, gaussian, shape, blockSize) =>
-      FastSeq(
-        staticUID.toString,
-        Pretty.prettyBooleanLiteral(gaussian),
-        prettyLongs(shape, elideLiterals),
-        blockSize.toString,
-      )
-    case BlockMatrixMap(_, name, _, needsDense) => if (elideBindings)
-        single(Pretty.prettyBooleanLiteral(needsDense))
-      else
-        FastSeq(prettyName(name), Pretty.prettyBooleanLiteral(needsDense))
-    case BlockMatrixMap2(_, _, lName, rName, _, sparsityStrategy) => if (elideBindings)
-        single(Pretty.prettyClass(sparsityStrategy))
-      else
-        FastSeq(
-          prettyName(lName),
-          prettyName(rName),
-          Pretty.prettyClass(sparsityStrategy),
-        )
-    case MatrixRowsHead(_, n) => single(n.toString)
-    case MatrixColsHead(_, n) => single(n.toString)
-    case MatrixRowsTail(_, n) => single(n.toString)
-    case MatrixColsTail(_, n) => single(n.toString)
-    case MatrixAnnotateRowsTable(_, _, uid, product) =>
-      FastSeq(prettyStringLiteral(uid), Pretty.prettyBooleanLiteral(product))
-    case MatrixAnnotateColsTable(_, _, uid) => single(prettyStringLiteral(uid))
-    case MatrixExplodeRows(_, path) => single(prettyIdentifiers(path))
-    case MatrixExplodeCols(_, path) => single(prettyIdentifiers(path))
-    case MatrixRepartition(_, n, strategy) => single(s"$n $strategy")
-    case MatrixChooseCols(_, oldIndices) => single(prettyInts(oldIndices, elideLiterals))
-    case MatrixMapCols(_, _, newKey) => single(prettyStringsOpt(newKey))
-    case MatrixUnionCols(_, _, joinType) => single(joinType)
-    case MatrixKeyRowsBy(_, keys, isSorted) =>
-      FastSeq(prettyIdentifiers(keys), Pretty.prettyBooleanLiteral(isSorted))
-    case TableRead(typ, dropRows, tr) =>
-      FastSeq(
-        if (typ == tr.fullType) "None" else typ.parsableString(),
-        Pretty.prettyBooleanLiteral(dropRows),
-        if (elideLiterals) tr.renderShort()
-        else s""""${StringEscapeUtils.escapeString(JsonMethods.compact(tr.toJValue))}"""",
-      )
-    case TableWrite(_, writer) =>
-      single(
-        s""""${StringEscapeUtils.escapeString(Serialization.write(writer)(TableWriter.formats))}""""
-      )
-    case TableMultiWrite(_, writer) =>
-      single(
-        s""""${StringEscapeUtils.escapeString(Serialization.write(writer)(WrappedMatrixNativeMultiWriter.formats))}""""
-      )
-    case TableKeyBy(_, keys, isSorted, nPartitions) =>
-      FastSeq(
-        prettyIdentifiers(keys),
-        Pretty.prettyBooleanLiteral(isSorted),
-        prettyIntOpt(nPartitions),
-      )
-    case TableRange(n, nPartitions) => FastSeq(n.toString, nPartitions.toString)
-    case TableRepartition(_, n, strategy) => FastSeq(n.toString, strategy.toString)
-    case TableHead(_, n) => single(n.toString)
-    case TableTail(_, n) => single(n.toString)
-    case TableJoin(_, _, joinType, joinKey) => FastSeq(joinType, joinKey.toString)
-    case TableLeftJoinRightDistinct(_, _, root) => single(prettyIdentifier(root))
-    case TableIntervalJoin(_, _, root, product) =>
-      FastSeq(prettyIdentifier(root), Pretty.prettyBooleanLiteral(product))
-    case TableMultiWayZipJoin(_, dataName, globalName) =>
-      FastSeq(prettyStringLiteral(dataName), prettyStringLiteral(globalName))
-    case TableKeyByAndAggregate(_, _, _, nPartitions, bufferSize) =>
-      FastSeq(prettyIntOpt(nPartitions), bufferSize.toString)
-    case TableExplode(_, path) => single(prettyStrings(path))
-    case TableMapPartitions(_, g, p, _, requestedKey, allowedOverlap) => FastSeq(
-        prettyName(g),
-        prettyName(p),
-        requestedKey.toString,
-        allowedOverlap.toString,
-      )
-    case TableParallelize(_, nPartitions) => single(prettyIntOpt(nPartitions))
-    case TableOrderBy(_, sortFields) => single(prettySortFields(sortFields))
-    case CastMatrixToTable(_, entriesFieldName, colsFieldName) =>
-      FastSeq(prettyStringLiteral(entriesFieldName), prettyStringLiteral(colsFieldName))
-    case CastTableToMatrix(_, entriesFieldName, colsFieldName, colKey) =>
-      FastSeq(
-        prettyIdentifier(entriesFieldName),
-        prettyIdentifier(colsFieldName),
-        prettyIdentifiers(colKey),
-      )
-    case MatrixToMatrixApply(_, function) =>
-      single(prettyStringLiteral(Serialization.write(function)(RelationalFunctions.formats)))
-    case MatrixToTableApply(_, function) =>
-      single(prettyStringLiteral(Serialization.write(function)(RelationalFunctions.formats)))
-    case TableToTableApply(_, function) =>
-      single(prettyStringLiteral(JsonMethods.compact(function.toJValue)))
-    case TableToValueApply(_, function) =>
-      single(prettyStringLiteral(Serialization.write(function)(RelationalFunctions.formats)))
-    case MatrixToValueApply(_, function) =>
-      single(prettyStringLiteral(Serialization.write(function)(RelationalFunctions.formats)))
-    case BlockMatrixToValueApply(_, function) =>
-      single(prettyStringLiteral(Serialization.write(function)(RelationalFunctions.formats)))
-    case BlockMatrixToTableApply(_, _, function) =>
-      single(prettyStringLiteral(Serialization.write(function)(RelationalFunctions.formats)))
-    case TableGen(_, _, cname, gname, _, partitioner, errorId) =>
-      implicit val jsonFormats = DefaultFormats
-      FastSeq(
-        prettyName(cname),
-        prettyName(gname), {
-          val boundsJson =
-            Serialization.write(partitioner.rangeBounds.map(_.toJSON(partitioner.kType.export)))
-          list(
-            "Partitioner " + partitioner.kType.parsableString() + prettyStringLiteral(boundsJson)
+          ir.asInstanceOf[Block].bindings.flatMap { b =>
+            val bindType = b.scope match {
+              case Scope.EVAL => "eval"
+              case Scope.AGG => "agg"
+              case Scope.SCAN => "scan"
+            }
+            FastSeq(text(bindType), prettyName(b.name))
+          }
+      case Tag.TailLoop =>
+        if (elideBindings) Iterable.empty
+        else {
+          val x = ir.asInstanceOf[TailLoop]
+          FastSeq(
+            prettyName(x.name),
+            prettyNames(x.params.map(_._1)),
+            x.resultType.parsableString(),
           )
-        },
-        text(errorId.toString),
-      )
-    case TableRename(_, rowMap, globalMap) =>
-      FastSeq(
-        prettyStrings(ArraySeq.from(rowMap.keys)),
-        prettyStrings(ArraySeq.from(rowMap.values)),
-        prettyStrings(ArraySeq.from(globalMap.keys)),
-        prettyStrings(ArraySeq.from(globalMap.values)),
-      )
-    case MatrixRename(_, globalMap, colMap, rowMap, entryMap) =>
-      FastSeq(
-        prettyStrings(ArraySeq.from(globalMap.keys)),
-        prettyStrings(ArraySeq.from(globalMap.values)),
-        prettyStrings(ArraySeq.from(colMap.keys)),
-        prettyStrings(ArraySeq.from(colMap.values)),
-        prettyStrings(ArraySeq.from(rowMap.keys)),
-        prettyStrings(ArraySeq.from(rowMap.values)),
-        prettyStrings(ArraySeq.from(entryMap.keys)),
-        prettyStrings(ArraySeq.from(entryMap.values)),
-      )
-    case TableFilterIntervals(child, intervals, keep) =>
-      FastSeq(
-        child.typ.keyType.parsableString(),
-        prettyStringLiteral(Serialization.write(
-          JSONAnnotationImpex.exportAnnotation(intervals, TArray(TInterval(child.typ.keyType)))
-        )(RelationalSpec.formats)),
-        Pretty.prettyBooleanLiteral(keep),
-      )
-    case MatrixFilterIntervals(child, intervals, keep) =>
-      FastSeq(
-        child.typ.rowType.parsableString(),
-        prettyStringLiteral(Serialization.write(
-          JSONAnnotationImpex.exportAnnotation(intervals, TArray(TInterval(child.typ.rowKeyStruct)))
-        )(RelationalSpec.formats)),
-        Pretty.prettyBooleanLiteral(keep),
-      )
-    case RelationalLetTable(name, _, _) => single(prettyName(name))
-    case RelationalLetMatrixTable(name, _, _) => single(prettyName(name))
-    case ReadPartition(_, rowType, reader) =>
-      FastSeq(rowType.parsableString(), prettyStringLiteral(JsonMethods.compact(reader.toJValue)))
-    case WritePartition(_, _, writer) =>
-      single(prettyStringLiteral(JsonMethods.compact(writer.toJValue)))
-    case WriteMetadata(_, writer) =>
-      single(prettyStringLiteral(JsonMethods.compact(writer.toJValue), elide = elideLiterals))
-    case ReadValue(_, reader, reqType) =>
-      FastSeq(prettyStringLiteral(JsonMethods.compact(reader.toJValue)), reqType.parsableString())
-    case WriteValue(_, _, writer) =>
-      single(prettyStringLiteral(JsonMethods.compact(writer.toJValue)))
-    case MakeNDArray(_, _, _, errorId) => FastSeq(errorId.toString)
+        }
+      case Tag.Recur =>
+        if (elideBindings) Iterable.empty
+        else FastSeq(prettyName(ir.asInstanceOf[Recur].name))
+      // For debug purposes, Ref can also print its type:
+      // FastSeq(prettyIdentifier(name), t.parsableString())
+      case Tag.Ref =>
+        single(prettyName(ir.asInstanceOf[Ref].name))
+      case Tag.ApplyBinaryPrimOp =>
+        single(Pretty.prettyClass(ir.asInstanceOf[ApplyBinaryPrimOp].op))
+      case Tag.ApplyUnaryPrimOp =>
+        single(Pretty.prettyClass(ir.asInstanceOf[ApplyUnaryPrimOp].op))
+      case Tag.ApplyComparisonOp =>
+        single(ir.asInstanceOf[ApplyComparisonOp].op.render())
+      case Tag.ApplyIR =>
+        val x = ir.asInstanceOf[ApplyIR]
+        FastSeq(
+          s"${x.errorID}",
+          prettyIdentifier(x.function),
+          prettyTypes(x.typeArgs),
+          x.typ.parsableString(),
+        )
+      case Tag.Apply =>
+        val x = ir.asInstanceOf[Apply]
+        FastSeq(
+          s"${x.errorID}",
+          prettyIdentifier(x.function),
+          prettyTypes(x.typeArgs),
+          x.returnType.parsableString(),
+        )
+      case Tag.ApplySpecial =>
+        val x = ir.asInstanceOf[ApplySpecial]
+        FastSeq(
+          s"${x.errorID}",
+          prettyIdentifier(x.function),
+          prettyTypes(x.typeArgs),
+          x.returnType.parsableString(),
+        )
+      case Tag.In =>
+        val x = ir.asInstanceOf[In]
+        FastSeq(x._typ.toString, x.i.toString)
+      case Tag.Die =>
+        val x = ir.asInstanceOf[Die]
+        FastSeq(x._typ.parsableString(), x.errorID.toString)
+      case _ =>
+        Iterable.empty
+    }
 
-    case _ => Iterable.empty
-  }
+  private def headerStruct(ir: BaseIR): Iterable[Doc] =
+    (ir.tag.toInt: @switch) match {
+      case Tag.CastRename =>
+        single(ir.asInstanceOf[CastRename]._typ.parsableString())
+      case Tag.GetField =>
+        single(prettyIdentifier(ir.asInstanceOf[GetField].name))
+      case Tag.GetTupleElement =>
+        single(ir.asInstanceOf[GetTupleElement].idx.toString)
+      case Tag.MakeTuple =>
+        FastSeq(prettyInts(ir.asInstanceOf[MakeTuple].fields.map(_._1), elideLiterals))
+      case Tag.SelectFields =>
+        single(fillList(ir.asInstanceOf[SelectFields].fields.view.map(f =>
+          text(prettyIdentifier(f))
+        )))
+      case _ =>
+        Iterable.empty
+    }
+
+  private def headerStream(ir: BaseIR, elideBindings: Boolean): Iterable[Doc] =
+    (ir.tag.toInt: @switch) match {
+      case Tag.MakeStream =>
+        val x = ir.asInstanceOf[MakeStream]
+        FastSeq(
+          x._typ.parsableString(),
+          Pretty.prettyBooleanLiteral(x.requiresMemoryManagementPerElement),
+        )
+      case Tag.StreamBufferedAggregate =>
+        val x = ir.asInstanceOf[StreamBufferedAggregate]
+        ArraySeq(prettyName(x.name), prettyPhysicalAggSigs(x.aggSignature), prettyInt(x.bufferSize))
+      case Tag.StreamIota =>
+        FastSeq(Pretty.prettyBooleanLiteral(
+          ir.asInstanceOf[StreamIota].requiresMemoryManagementPerElement
+        ))
+      case Tag.StreamRange =>
+        val x = ir.asInstanceOf[StreamRange]
+        FastSeq(
+          x.errorID.toString,
+          Pretty.prettyBooleanLiteral(x.requiresMemoryManagementPerElement),
+        )
+      case Tag.ToStream =>
+        single(Pretty.prettyBooleanLiteral(
+          ir.asInstanceOf[ToStream].requiresMemoryManagementPerElement
+        ))
+      case Tag.StreamMap =>
+        if (elideBindings) Iterable.empty
+        else single(prettyName(ir.asInstanceOf[StreamMap].name))
+      case Tag.StreamZip =>
+        val x = ir.asInstanceOf[StreamZip]
+        val behavior = x.behavior match {
+          case ArrayZipBehavior.AssertSameLength => "AssertSameLength"
+          case ArrayZipBehavior.TakeMinLength => "TakeMinLength"
+          case ArrayZipBehavior.ExtendNA => "ExtendNA"
+          case ArrayZipBehavior.AssumeSameLength => "AssumeSameLength"
+        }
+        if (elideBindings)
+          FastSeq(x.errorID.toString, behavior)
+        else
+          FastSeq(x.errorID.toString, behavior, prettyNames(x.names))
+      case Tag.StreamZipJoin =>
+        if (elideBindings) Iterable.empty
+        else {
+          val x = ir.asInstanceOf[StreamZipJoin]
+          FastSeq(
+            x.as.length.toString,
+            prettyIdentifiers(x.key),
+            prettyName(x.curKey),
+            prettyName(x.curVals),
+          )
+        }
+      case Tag.StreamZipJoinProducers =>
+        if (elideBindings) Iterable.empty
+        else {
+          val x = ir.asInstanceOf[StreamZipJoinProducers]
+          FastSeq(
+            prettyIdentifiers(x.key),
+            prettyName(x.ctxName),
+            prettyName(x.curKey),
+            prettyName(x.curVals),
+          )
+        }
+      case Tag.StreamMultiMerge =>
+        single(prettyIdentifiers(ir.asInstanceOf[StreamMultiMerge].key))
+      case Tag.StreamFilter =>
+        if (elideBindings) Iterable.empty
+        else single(prettyName(ir.asInstanceOf[StreamFilter].name))
+      case Tag.StreamTakeWhile =>
+        if (elideBindings) Iterable.empty
+        else single(prettyName(ir.asInstanceOf[StreamTakeWhile].elementName))
+      case Tag.StreamDropWhile =>
+        if (elideBindings) Iterable.empty
+        else single(prettyName(ir.asInstanceOf[StreamDropWhile].elementName))
+      case Tag.StreamFlatMap =>
+        if (elideBindings) Iterable.empty
+        else single(prettyName(ir.asInstanceOf[StreamFlatMap].name))
+      case Tag.StreamFold =>
+        if (elideBindings) Iterable.empty
+        else {
+          val x = ir.asInstanceOf[StreamFold]
+          FastSeq(prettyName(x.accumName), prettyName(x.valueName))
+        }
+      case Tag.StreamFold2 =>
+        if (elideBindings) Iterable.empty
+        else {
+          val x = ir.asInstanceOf[StreamFold2]
+          FastSeq(prettyNames(x.accum.map(_._1)), prettyName(x.valueName))
+        }
+      case Tag.StreamScan =>
+        if (elideBindings) Iterable.empty
+        else {
+          val x = ir.asInstanceOf[StreamScan]
+          FastSeq(prettyName(x.accumName), prettyName(x.valueName))
+        }
+      case Tag.StreamWhiten =>
+        val x = ir.asInstanceOf[StreamWhiten]
+        FastSeq(
+          prettyIdentifier(x.newChunk),
+          prettyIdentifier(x.prevWindow),
+          x.vecSize.toString,
+          x.windowSize.toString,
+          x.chunkSize.toString,
+          x.blockSize.toString,
+          Pretty.prettyBooleanLiteral(x.normalizeAfterWhiten),
+        )
+      case Tag.StreamJoinRightDistinct =>
+        val x = ir.asInstanceOf[StreamJoinRightDistinct]
+        if (elideBindings)
+          FastSeq(prettyIdentifiers(x.lKey), prettyIdentifiers(x.rKey), x.joinType)
+        else
+          FastSeq(
+            prettyIdentifiers(x.lKey),
+            prettyIdentifiers(x.rKey),
+            prettyName(x.l),
+            prettyName(x.r),
+            x.joinType,
+          )
+      case Tag.StreamLeftIntervalJoin =>
+        val x = ir.asInstanceOf[StreamLeftIntervalJoin]
+        val builder = ArraySeq.newBuilder[Doc]
+        builder.sizeHint(if (elideBindings) 2 else 4)
+
+        builder += prettyIdentifier(x.lKeyFieldName)
+        builder += prettyIdentifier(x.rIntervalFieldName)
+
+        if (!elideBindings) {
+          builder += prettyName(x.lname)
+          builder += prettyName(x.rname)
+        }
+
+        builder.result()
+      case Tag.StreamFor =>
+        if (elideBindings) Iterable.empty
+        else single(prettyName(ir.asInstanceOf[StreamFor].valueName))
+      case Tag.StreamAgg =>
+        if (elideBindings) Iterable.empty
+        else single(prettyName(ir.asInstanceOf[StreamAgg].name))
+      case Tag.StreamAggScan =>
+        if (elideBindings) Iterable.empty
+        else single(prettyName(ir.asInstanceOf[StreamAggScan].name))
+      case Tag.StreamGroupByKey =>
+        val x = ir.asInstanceOf[StreamGroupByKey]
+        FastSeq(prettyIdentifiers(x.key), prettyBooleanLiteral(x.missingEqual))
+      case _ =>
+        Iterable.empty
+    }
+
+  private def headerCollection(ir: BaseIR, elideBindings: Boolean): Iterable[Doc] =
+    (ir.tag.toInt: @switch) match {
+      case Tag.MakeArray =>
+        single(ir.asInstanceOf[MakeArray]._typ.parsableString())
+      case Tag.ArraySort =>
+        if (elideBindings) Iterable.empty
+        else {
+          val x = ir.asInstanceOf[ArraySort]
+          FastSeq(prettyName(x.left), prettyName(x.right))
+        }
+      case Tag.ArrayRef =>
+        single(s"${ir.asInstanceOf[ArrayRef].errorID}")
+      case Tag.LowerBoundOnOrderedCollection =>
+        single(Pretty.prettyBooleanLiteral(ir.asInstanceOf[LowerBoundOnOrderedCollection].onKey))
+      case Tag.CollectDistributedArray =>
+        if (elideBindings) Iterable.empty
+        else {
+          val x = ir.asInstanceOf[CollectDistributedArray]
+          FastSeq(x.staticID, prettyName(x.cname), prettyName(x.gname))
+        }
+      case _ =>
+        Iterable.empty
+    }
+
+  private def headerAgg(ir: BaseIR, elideBindings: Boolean): Iterable[Doc] =
+    (ir.tag.toInt: @switch) match {
+      case Tag.ApplyAggOp =>
+        single(Pretty.prettyClass(ir.asInstanceOf[ApplyAggOp].op))
+      case Tag.ApplyScanOp =>
+        single(Pretty.prettyClass(ir.asInstanceOf[ApplyScanOp].op))
+      case Tag.InitOp =>
+        val x = ir.asInstanceOf[InitOp]
+        FastSeq(x.i.toString, prettyPhysicalAggSig(x.aggSig))
+      case Tag.SeqOp =>
+        val x = ir.asInstanceOf[SeqOp]
+        FastSeq(x.i.toString, prettyPhysicalAggSig(x.aggSig))
+      case Tag.CombOp =>
+        val x = ir.asInstanceOf[CombOp]
+        FastSeq(x.i1.toString, x.i2.toString, prettyPhysicalAggSig(x.aggSig))
+      case Tag.ResultOp =>
+        val x = ir.asInstanceOf[ResultOp]
+        FastSeq(x.idx.toString, prettyPhysicalAggSig(x.aggSig))
+      case Tag.AggStateValue =>
+        val x = ir.asInstanceOf[AggStateValue]
+        FastSeq(x.i.toString, prettyAggStateSignature(x.aggSig))
+      case Tag.InitFromSerializedValue =>
+        val x = ir.asInstanceOf[InitFromSerializedValue]
+        FastSeq(x.i.toString, prettyAggStateSignature(x.aggSig))
+      case Tag.CombOpValue =>
+        val x = ir.asInstanceOf[CombOpValue]
+        FastSeq(x.i.toString, prettyPhysicalAggSig(x.aggSig))
+      case Tag.SerializeAggs =>
+        val x = ir.asInstanceOf[SerializeAggs]
+        FastSeq(
+          x.startIdx.toString,
+          x.serializedIdx.toString,
+          prettyStringLiteral(x.spec.toString),
+          prettyAggStateSignatures(x.aggSigs),
+        )
+      case Tag.DeserializeAggs =>
+        val x = ir.asInstanceOf[DeserializeAggs]
+        FastSeq(
+          x.startIdx.toString,
+          x.serializedIdx.toString,
+          prettyStringLiteral(x.spec.toString),
+          prettyAggStateSignatures(x.aggSigs),
+        )
+      case Tag.RunAgg =>
+        single(prettyAggStateSignatures(ir.asInstanceOf[RunAgg].signature))
+      case Tag.RunAggScan =>
+        val x = ir.asInstanceOf[RunAggScan]
+        FastSeq(prettyName(x.name), prettyAggStateSignatures(x.signature))
+      case Tag.AggFold =>
+        val x = ir.asInstanceOf[AggFold]
+        if (elideBindings)
+          single(Pretty.prettyBooleanLiteral(x.isScan))
+        else
+          FastSeq(
+            prettyName(x.accumName),
+            prettyName(x.otherAccumName),
+            Pretty.prettyBooleanLiteral(x.isScan),
+          )
+      case Tag.AggExplode =>
+        val x = ir.asInstanceOf[AggExplode]
+        if (elideBindings) single(Pretty.prettyBooleanLiteral(x.isScan))
+        else FastSeq(prettyName(x.name), Pretty.prettyBooleanLiteral(x.isScan))
+      case Tag.AggFilter =>
+        single(Pretty.prettyBooleanLiteral(ir.asInstanceOf[AggFilter].isScan))
+      case Tag.AggGroupBy =>
+        single(Pretty.prettyBooleanLiteral(ir.asInstanceOf[AggGroupBy].isScan))
+      case Tag.AggArrayPerElement =>
+        val x = ir.asInstanceOf[AggArrayPerElement]
+        if (elideBindings)
+          FastSeq(
+            Pretty.prettyBooleanLiteral(x.isScan),
+            Pretty.prettyBooleanLiteral(x.knownLength.isDefined),
+          )
+        else
+          FastSeq(
+            prettyName(x.elementName),
+            prettyName(x.indexName),
+            Pretty.prettyBooleanLiteral(x.isScan),
+            Pretty.prettyBooleanLiteral(x.knownLength.isDefined),
+          )
+      case _ =>
+        Iterable.empty
+    }
+
+  private def headerIO(ir: BaseIR): Iterable[Doc] =
+    (ir.tag.toInt: @switch) match {
+      case Tag.ReadPartition =>
+        val x = ir.asInstanceOf[ReadPartition]
+        FastSeq(
+          x.rowType.parsableString(),
+          prettyStringLiteral(JsonMethods.compact(x.reader.toJValue)),
+        )
+      case Tag.WritePartition =>
+        single(prettyStringLiteral(JsonMethods.compact(
+          ir.asInstanceOf[WritePartition].writer.toJValue
+        )))
+      case Tag.WriteMetadata =>
+        single(prettyStringLiteral(
+          JsonMethods.compact(ir.asInstanceOf[WriteMetadata].writer.toJValue),
+          elide = elideLiterals,
+        ))
+      case Tag.ReadValue =>
+        val x = ir.asInstanceOf[ReadValue]
+        FastSeq(
+          prettyStringLiteral(JsonMethods.compact(x.reader.toJValue)),
+          x.requestedType.parsableString(),
+        )
+      case Tag.WriteValue =>
+        single(prettyStringLiteral(JsonMethods.compact(
+          ir.asInstanceOf[WriteValue].writer.toJValue
+        )))
+      case _ =>
+        Iterable.empty
+    }
+
+  private def headerNDArray(ir: BaseIR, elideBindings: Boolean): Iterable[Doc] =
+    (ir.tag.toInt: @switch) match {
+      case Tag.NDArrayMap =>
+        if (elideBindings) Iterable.empty
+        else single(prettyName(ir.asInstanceOf[NDArrayMap].valueName))
+      case Tag.NDArrayMap2 =>
+        val x = ir.asInstanceOf[NDArrayMap2]
+        if (elideBindings) single(s"${x.errorID}")
+        else FastSeq(s"${x.errorID}", prettyName(x.lName), prettyName(x.rName))
+      case Tag.NDArrayReindex =>
+        single(prettyInts(ir.asInstanceOf[NDArrayReindex].indexExpr, elideLiterals))
+      case Tag.NDArrayConcat =>
+        single(ir.asInstanceOf[NDArrayConcat].axis.toString)
+      case Tag.NDArrayAgg =>
+        single(prettyInts(ir.asInstanceOf[NDArrayAgg].axes, elideLiterals))
+      case Tag.NDArrayRef =>
+        single(s"${ir.asInstanceOf[NDArrayRef].errorID}")
+      case Tag.NDArrayReshape =>
+        single(s"${ir.asInstanceOf[NDArrayReshape].errorID}")
+      case Tag.NDArrayMatMul =>
+        single(s"${ir.asInstanceOf[NDArrayMatMul].errorID}")
+      case Tag.NDArrayQR =>
+        val x = ir.asInstanceOf[NDArrayQR]
+        FastSeq(x.errorID.toString, x.mode)
+      case Tag.NDArraySVD =>
+        val x = ir.asInstanceOf[NDArraySVD]
+        FastSeq(x.errorID.toString, x.fullMatrices.toString, x.computeUV.toString)
+      case Tag.NDArrayEigh =>
+        val x = ir.asInstanceOf[NDArrayEigh]
+        FastSeq(x.errorID.toString, x.eigvalsOnly.toString)
+      case Tag.NDArrayInv =>
+        single(s"${ir.asInstanceOf[NDArrayInv].errorID}")
+      case Tag.MakeNDArray =>
+        FastSeq(ir.asInstanceOf[MakeNDArray].errorID.toString)
+      case _ =>
+        Iterable.empty
+    }
+
+  private def headerRandom(ir: BaseIR): Iterable[Doc] =
+    (ir.tag.toInt: @switch) match {
+      case Tag.RNGSplitStatic => single(prettyLong(ir.asInstanceOf[RNGSplitStatic].staticUid))
+      case _ => Iterable.empty
+    }
+
+  private def headerRelational(ir: BaseIR, elideBindings: Boolean): Iterable[Doc] =
+    (ir.tag.toInt: @switch) match {
+      case Tag.RelationalRef =>
+        val x = ir.asInstanceOf[RelationalRef]
+        if (elideBindings) single(x._typ.parsableString())
+        else FastSeq(prettyName(x.name), x._typ.parsableString())
+      case Tag.RelationalLet =>
+        if (elideBindings) Iterable.empty
+        else single(prettyName(ir.asInstanceOf[RelationalLet].name))
+      case _ =>
+        Iterable.empty
+    }
+
+  private def headerTable(ir: BaseIR): Iterable[Doc] =
+    (ir.tag.toInt: @switch) match {
+      case Tag.TableRead =>
+        val x = ir.asInstanceOf[TableRead]
+        FastSeq(
+          if (x.typ == x.tr.fullType) "None" else x.typ.parsableString(),
+          Pretty.prettyBooleanLiteral(x.dropRows),
+          if (elideLiterals) x.tr.renderShort()
+          else s""""${StringEscapeUtils.escapeString(JsonMethods.compact(x.tr.toJValue))}"""",
+        )
+      case Tag.TableWrite =>
+        val writer = ir.asInstanceOf[TableWrite].writer
+        single(
+          s""""${StringEscapeUtils.escapeString(Serialization.write(writer)(TableWriter.formats))}""""
+        )
+      case Tag.TableMultiWrite =>
+        val writer = ir.asInstanceOf[TableMultiWrite].writer
+        single(
+          s""""${StringEscapeUtils.escapeString(Serialization.write(writer)(WrappedMatrixNativeMultiWriter.formats))}""""
+        )
+      case Tag.TableKeyBy =>
+        val x = ir.asInstanceOf[TableKeyBy]
+        FastSeq(
+          prettyIdentifiers(x.keys),
+          Pretty.prettyBooleanLiteral(x.isSorted),
+          prettyIntOpt(x.nPartitions),
+        )
+      case Tag.TableRange =>
+        val x = ir.asInstanceOf[TableRange]
+        FastSeq(x.n.toString, x.nPartitions.toString)
+      case Tag.TableRepartition =>
+        val x = ir.asInstanceOf[TableRepartition]
+        FastSeq(x.n.toString, x.strategy.toString)
+      case Tag.TableHead =>
+        single(ir.asInstanceOf[TableHead].n.toString)
+      case Tag.TableTail =>
+        single(ir.asInstanceOf[TableTail].n.toString)
+      case Tag.TableJoin =>
+        val x = ir.asInstanceOf[TableJoin]
+        FastSeq(x.joinType, x.joinKey.toString)
+      case Tag.TableLeftJoinRightDistinct =>
+        single(prettyIdentifier(ir.asInstanceOf[TableLeftJoinRightDistinct].root))
+      case Tag.TableIntervalJoin =>
+        val x = ir.asInstanceOf[TableIntervalJoin]
+        FastSeq(prettyIdentifier(x.root), Pretty.prettyBooleanLiteral(x.product))
+      case Tag.TableMultiWayZipJoin =>
+        val x = ir.asInstanceOf[TableMultiWayZipJoin]
+        FastSeq(prettyStringLiteral(x.fieldName), prettyStringLiteral(x.globalName))
+      case Tag.TableKeyByAndAggregate =>
+        val x = ir.asInstanceOf[TableKeyByAndAggregate]
+        FastSeq(prettyIntOpt(x.nPartitions), x.bufferSize.toString)
+      case Tag.TableExplode =>
+        single(prettyStrings(ir.asInstanceOf[TableExplode].path))
+      case Tag.TableMapPartitions =>
+        val x = ir.asInstanceOf[TableMapPartitions]
+        FastSeq(
+          prettyName(x.globalName),
+          prettyName(x.partitionStreamName),
+          x.requestedKey.toString,
+          x.allowedOverlap.toString,
+        )
+      case Tag.TableParallelize =>
+        single(prettyIntOpt(ir.asInstanceOf[TableParallelize].nPartitions))
+      case Tag.TableOrderBy =>
+        single(prettySortFields(ir.asInstanceOf[TableOrderBy].sortFields))
+      case Tag.TableToTableApply =>
+        val function = ir.asInstanceOf[TableToTableApply].function
+        single(prettyStringLiteral(JsonMethods.compact(function.toJValue)))
+      case Tag.TableToValueApply =>
+        val function = ir.asInstanceOf[TableToValueApply].function
+        single(prettyStringLiteral(Serialization.write(function)(RelationalFunctions.formats)))
+      case Tag.BlockMatrixToTableApply =>
+        val function = ir.asInstanceOf[BlockMatrixToTableApply].function
+        single(prettyStringLiteral(Serialization.write(function)(RelationalFunctions.formats)))
+      case Tag.TableGen =>
+        val x = ir.asInstanceOf[TableGen]
+        implicit val jsonFormats = DefaultFormats
+        FastSeq(
+          prettyName(x.cname),
+          prettyName(x.gname), {
+            val boundsJson =
+              Serialization.write(x.partitioner.rangeBounds.map(_.toJSON(
+                x.partitioner.kType.export
+              )))
+            list(
+              "Partitioner " + x.partitioner.kType.parsableString() + prettyStringLiteral(
+                boundsJson
+              )
+            )
+          },
+          text(x.errorId.toString),
+        )
+      case Tag.TableRename =>
+        val x = ir.asInstanceOf[TableRename]
+        FastSeq(
+          prettyStrings(ArraySeq.from(x.rowMap.keys)),
+          prettyStrings(ArraySeq.from(x.rowMap.values)),
+          prettyStrings(ArraySeq.from(x.globalMap.keys)),
+          prettyStrings(ArraySeq.from(x.globalMap.values)),
+        )
+      case Tag.TableFilterIntervals =>
+        val x = ir.asInstanceOf[TableFilterIntervals]
+        FastSeq(
+          x.child.typ.keyType.parsableString(),
+          prettyStringLiteral(Serialization.write(
+            JSONAnnotationImpex.exportAnnotation(
+              x.intervals,
+              TArray(TInterval(x.child.typ.keyType)),
+            )
+          )(RelationalSpec.formats)),
+          Pretty.prettyBooleanLiteral(x.keep),
+        )
+      case Tag.RelationalLetTable =>
+        single(prettyName(ir.asInstanceOf[RelationalLetTable].name))
+      case _ =>
+        Iterable.empty
+    }
+
+  private def headerMatrix(ir: BaseIR): Iterable[Doc] =
+    (ir.tag.toInt: @switch) match {
+      case Tag.MatrixRead =>
+        val x = ir.asInstanceOf[MatrixRead]
+        FastSeq(
+          if (x.typ == x.reader.fullMatrixType) "None" else x.typ.parsableString(),
+          Pretty.prettyBooleanLiteral(x.dropCols),
+          Pretty.prettyBooleanLiteral(x.dropRows),
+          if (elideLiterals) x.reader.renderShort()
+          else s""""${StringEscapeUtils.escapeString(JsonMethods.compact(x.reader.toJValue))}"""",
+        )
+      case Tag.MatrixWrite =>
+        val writer = ir.asInstanceOf[MatrixWrite].writer
+        single(
+          s""""${StringEscapeUtils.escapeString(Serialization.write(writer)(MatrixWriter.formats))}""""
+        )
+      case Tag.MatrixMultiWrite =>
+        val writer = ir.asInstanceOf[MatrixMultiWrite].writer
+        single(
+          s""""${StringEscapeUtils.escapeString(Serialization.write(writer)(MatrixNativeMultiWriter.formats))}""""
+        )
+      case Tag.MatrixRowsHead =>
+        single(ir.asInstanceOf[MatrixRowsHead].n.toString)
+      case Tag.MatrixColsHead =>
+        single(ir.asInstanceOf[MatrixColsHead].n.toString)
+      case Tag.MatrixRowsTail =>
+        single(ir.asInstanceOf[MatrixRowsTail].n.toString)
+      case Tag.MatrixColsTail =>
+        single(ir.asInstanceOf[MatrixColsTail].n.toString)
+      case Tag.MatrixAnnotateRowsTable =>
+        val x = ir.asInstanceOf[MatrixAnnotateRowsTable]
+        FastSeq(prettyStringLiteral(x.root), Pretty.prettyBooleanLiteral(x.product))
+      case Tag.MatrixAnnotateColsTable =>
+        single(prettyStringLiteral(ir.asInstanceOf[MatrixAnnotateColsTable].root))
+      case Tag.MatrixExplodeRows =>
+        single(prettyIdentifiers(ir.asInstanceOf[MatrixExplodeRows].path))
+      case Tag.MatrixExplodeCols =>
+        single(prettyIdentifiers(ir.asInstanceOf[MatrixExplodeCols].path))
+      case Tag.MatrixRepartition =>
+        val x = ir.asInstanceOf[MatrixRepartition]
+        single(s"${x.n} ${x.strategy}")
+      case Tag.MatrixChooseCols =>
+        single(prettyInts(ir.asInstanceOf[MatrixChooseCols].oldIndices, elideLiterals))
+      case Tag.MatrixMapCols =>
+        single(prettyStringsOpt(ir.asInstanceOf[MatrixMapCols].newKey))
+      case Tag.MatrixUnionCols =>
+        single(ir.asInstanceOf[MatrixUnionCols].joinType)
+      case Tag.MatrixKeyRowsBy =>
+        val x = ir.asInstanceOf[MatrixKeyRowsBy]
+        FastSeq(prettyIdentifiers(x.keys), Pretty.prettyBooleanLiteral(x.isSorted))
+      case Tag.CastMatrixToTable =>
+        val x = ir.asInstanceOf[CastMatrixToTable]
+        FastSeq(prettyStringLiteral(x.entriesFieldName), prettyStringLiteral(x.colsFieldName))
+      case Tag.CastTableToMatrix =>
+        val x = ir.asInstanceOf[CastTableToMatrix]
+        FastSeq(
+          prettyIdentifier(x.entriesFieldName),
+          prettyIdentifier(x.colsFieldName),
+          prettyIdentifiers(x.colKey),
+        )
+      case Tag.MatrixToMatrixApply =>
+        val function = ir.asInstanceOf[MatrixToMatrixApply].function
+        single(prettyStringLiteral(Serialization.write(function)(RelationalFunctions.formats)))
+      case Tag.MatrixToTableApply =>
+        val function = ir.asInstanceOf[MatrixToTableApply].function
+        single(prettyStringLiteral(Serialization.write(function)(RelationalFunctions.formats)))
+      case Tag.MatrixToValueApply =>
+        val function = ir.asInstanceOf[MatrixToValueApply].function
+        single(prettyStringLiteral(Serialization.write(function)(RelationalFunctions.formats)))
+      case Tag.MatrixRename =>
+        val x = ir.asInstanceOf[MatrixRename]
+        FastSeq(
+          prettyStrings(ArraySeq.from(x.globalMap.keys)),
+          prettyStrings(ArraySeq.from(x.globalMap.values)),
+          prettyStrings(ArraySeq.from(x.colMap.keys)),
+          prettyStrings(ArraySeq.from(x.colMap.values)),
+          prettyStrings(ArraySeq.from(x.rowMap.keys)),
+          prettyStrings(ArraySeq.from(x.rowMap.values)),
+          prettyStrings(ArraySeq.from(x.entryMap.keys)),
+          prettyStrings(ArraySeq.from(x.entryMap.values)),
+        )
+      case Tag.MatrixFilterIntervals =>
+        val x = ir.asInstanceOf[MatrixFilterIntervals]
+        FastSeq(
+          x.child.typ.rowType.parsableString(),
+          prettyStringLiteral(Serialization.write(
+            JSONAnnotationImpex.exportAnnotation(
+              x.intervals,
+              TArray(TInterval(x.child.typ.rowKeyStruct)),
+            )
+          )(RelationalSpec.formats)),
+          Pretty.prettyBooleanLiteral(x.keep),
+        )
+      case Tag.RelationalLetMatrixTable =>
+        single(prettyName(ir.asInstanceOf[RelationalLetMatrixTable].name))
+      case _ =>
+        Iterable.empty
+    }
+
+  private def headerBlockMatrix(ir: BaseIR, elideBindings: Boolean): Iterable[Doc] =
+    (ir.tag.toInt: @switch) match {
+      case Tag.BlockMatrixRead =>
+        val reader = ir.asInstanceOf[BlockMatrixRead].reader
+        single(s""""${StringEscapeUtils.escapeString(JsonMethods.compact(reader.toJValue))}"""")
+      case Tag.BlockMatrixWrite =>
+        val writer = ir.asInstanceOf[BlockMatrixWrite].writer
+        single(
+          s""""${StringEscapeUtils.escapeString(Serialization.write(writer)(BlockMatrixWriter.formats))}""""
+        )
+      case Tag.BlockMatrixMultiWrite =>
+        val writer = ir.asInstanceOf[BlockMatrixMultiWrite].writer
+        single(
+          s""""${StringEscapeUtils.escapeString(Serialization.write(writer)(BlockMatrixWriter.formats))}""""
+        )
+      case Tag.BlockMatrixBroadcast =>
+        val x = ir.asInstanceOf[BlockMatrixBroadcast]
+        FastSeq(
+          prettyInts(x.inIndexExpr, elideLiterals),
+          prettyLongs(x.shape, elideLiterals),
+          x.blockSize.toString,
+        )
+      case Tag.BlockMatrixAgg =>
+        single(prettyInts(ir.asInstanceOf[BlockMatrixAgg].axesToSumOut, elideLiterals))
+      case Tag.BlockMatrixSlice =>
+        single(fillList(ir.asInstanceOf[BlockMatrixSlice].slices.view.map(slice =>
+          prettyLongs(slice, elideLiterals)
+        )))
+      case Tag.ValueToBlockMatrix =>
+        val x = ir.asInstanceOf[ValueToBlockMatrix]
+        FastSeq(prettyLongs(x.shape, elideLiterals), x.blockSize.toString)
+      case Tag.BlockMatrixFilter =>
+        single(fillList(ir.asInstanceOf[BlockMatrixFilter].indices.view.map(indices =>
+          prettyLongs(indices, elideLiterals)
+        )))
+      case Tag.BlockMatrixSparsify =>
+        single(ir.asInstanceOf[BlockMatrixSparsify].sparsifier.pretty())
+      case Tag.BlockMatrixRandom =>
+        val x = ir.asInstanceOf[BlockMatrixRandom]
+        FastSeq(
+          x.staticUID.toString,
+          Pretty.prettyBooleanLiteral(x.gaussian),
+          prettyLongs(x.shape, elideLiterals),
+          x.blockSize.toString,
+        )
+      case Tag.BlockMatrixMap =>
+        val x = ir.asInstanceOf[BlockMatrixMap]
+        if (elideBindings) single(Pretty.prettyBooleanLiteral(x.needsDense))
+        else FastSeq(prettyName(x.eltName), Pretty.prettyBooleanLiteral(x.needsDense))
+      case Tag.BlockMatrixMap2 =>
+        val x = ir.asInstanceOf[BlockMatrixMap2]
+        if (elideBindings)
+          single(Pretty.prettyClass(x.sparsityStrategy))
+        else
+          FastSeq(
+            prettyName(x.leftName),
+            prettyName(x.rightName),
+            Pretty.prettyClass(x.sparsityStrategy),
+          )
+      case Tag.BlockMatrixToValueApply =>
+        val function = ir.asInstanceOf[BlockMatrixToValueApply].function
+        single(prettyStringLiteral(Serialization.write(function)(RelationalFunctions.formats)))
+      case _ =>
+        Iterable.empty
+    }
 
   def apply(ir: BaseIR): String = if (useSSA)
     ssaStyle(ir)
