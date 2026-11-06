@@ -14,10 +14,11 @@ from ci.environment import DEFAULT_NAMESPACE, DOMAIN, KUBERNETES_SERVER_URL, STO
 from ci.github import clone_or_fetch_script
 from ci.utils import generate_token
 from gear import K8sCache
+from gear.cloud_config import get_global_config
 from hailtop.utils import check_shell_output
 
 BATCH_WORKER_IMAGE = os.environ['BATCH_WORKER_IMAGE']
-
+CLOUD = get_global_config()['cloud']
 
 def populate_secret_host_path(host_path: str, secret_data: Dict[str, bytes]):
     os.makedirs(host_path)
@@ -165,12 +166,21 @@ class LocalBatchBuilder:
             if input_ok:
                 mount_options = ['-v', f'{job_root}/io:/io', '-v', f'{root}/deploy-config:/deploy-config']
 
-                env_options = [
-                    '-e',
-                    'GOOGLE_APPLICATION_CREDENTIALS=/gsa-key/key.json',
-                    '-e',
-                    'HAIL_IDENTITY_PROVIDER_JSON={"idp": "Google"}',
-                ]
+                if CLOUD == 'aws':
+                    env_options = [
+                        '-e',
+                        'AWS_DOCKER_CREDENTIALS=/aws-key/docker-password',
+                        '-e'
+                        'HAIL_IDENTITY_PROVIDER_JSON={"idp": "Amazon"}',
+                    ]
+                    mount_options.extend(['-v', '/aws-key:/aws-key'])
+                else:
+                    env_options = [
+                        '-e',
+                        'GOOGLE_APPLICATION_CREDENTIALS=/gsa-key/key.json',
+                        '-e',
+                        'HAIL_IDENTITY_PROVIDER_JSON={"idp": "Google"}',
+                    ]
                 if j._env:
                     for key, value in j._env.items():
                         env_options.extend(['-e', f'{key}={value}'])
