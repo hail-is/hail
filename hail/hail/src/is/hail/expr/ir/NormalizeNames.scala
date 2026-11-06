@@ -1,7 +1,9 @@
 package is.hail.expr.ir
 
 import is.hail.backend.ExecuteContext
+import is.hail.collection.FastSeq
 import is.hail.expr.ir.NormalizeNames.needsRenaming
+import is.hail.expr.ir.Scopes.ScopesSyntax
 import is.hail.expr.ir.defs._
 import is.hail.expr.ir.lowering.invariant.{NoSharedNodes, UniquelyNamed}
 import is.hail.types.virtual.Type
@@ -74,7 +76,7 @@ class NormalizeNames(freeVariables: Set[Name]) {
           }
           for (newValue <- normalizeIR(value, valueEnv)) yield {
             val newName = gen()
-            newEnv = newEnv.bindInScope(name, newName, scope)
+            newEnv = newEnv.bind(scope, FastSeq(name -> newName))
             Binding(newName, newValue.asInstanceOf[IR], scope)
           }
         }
@@ -108,12 +110,10 @@ class NormalizeNames(freeVariables: Set[Name]) {
       Recur(newName, args, typ).mapChildrenStackSafe(normalizeIR(_, env))
     case ir =>
       val bindingsMap = mutable.HashMap.empty[Name, Name]
-      val updateEnv: (BindingEnv[Name], Bindings[Type]) => BindingEnv[Name] =
-        if (needsRenaming(ir)) { (env, bindings) =>
-          val bindingsNames = bindings.map((name, _) => bindingsMap.getOrElseUpdate(name, gen()))
-          env.extend(bindingsNames)
-        } else { (env, bindings) => env.extend(bindings.map((name, _) => name)) }
-      ir.mapChildrenWithEnvStackSafe(env, updateEnv)(normalizeIR).map(modifyNames(_, bindingsMap))
+      val v: (Name, Type) => Name =
+        if (needsRenaming(ir)) (name, _) => bindingsMap.getOrElseUpdate(name, gen())
+        else (name, _) => name
+      ir.mapChildrenWithEnvStackSafe(env)(v)(normalizeIR).map(modifyNames(_, bindingsMap))
   }
 
   private def modifyNames(ir: BaseIR, map: collection.Map[Name, Name]): BaseIR = {
