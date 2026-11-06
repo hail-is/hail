@@ -254,8 +254,27 @@ describe('mergeCell', () => {
   it('says an upper-stack PR is stacked rather than blocked', () => {
     const stacked = pr({ display_only: true, merge_blockers: null, build_state: null, out_of_date: null, batch_id: null });
     expect(mergeCell(stacked, branch(), now)).toEqual({ status: 'na', text: 'stacked' });
-    expect(buildStateLabel(stacked)).toBe('not built');
+    expect(buildStateLabel(stacked)).toBe('stacked');
     expect(isBuildOutOfDate(stacked)).toBe(false);
+  });
+
+  it('names the stack entry directly below, whatever its state', () => {
+    const stack = {
+      number: 900,
+      base_ref_name: 'main',
+      size: 3,
+      entries: [
+        { position: 1, number: 10, state: 'OPEN', title: 'Bottom' },
+        { position: 2, number: 11, state: 'CLOSED', title: 'Abandoned' },
+        { position: 3, number: 12, state: 'OPEN', title: 'Top' },
+      ],
+      name: null,
+      doc_url: null,
+      meta: {},
+    };
+    const top = pr({ display_only: true, merge_blockers: null, build_state: null, out_of_date: null, stack, stack_entry: { position: 3 } });
+    expect(mergeCell(top, branch(), now)).toEqual({ status: 'na', text: 'stacked on #11' });
+    expect(buildStateLabel(top)).toBe('stacked on #11');
   });
 
   it('is ready when nothing blocks it', () => {

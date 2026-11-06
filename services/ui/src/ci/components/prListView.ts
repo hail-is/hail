@@ -1,6 +1,6 @@
-import type { DeveloperBranchStatus, PrConfig } from '../../shared/ciApi';
+import type { DeveloperBranchStatus, PrConfig, PrStack, PrStackEntry } from '../../shared/ciApi';
 import { labelEffect, visibleLabels } from './labelModel';
-import { ghStatuses, mergeCell, reviewSlots, reviewWait, type StageCell } from './prTableModel';
+import { ghStatuses, matchesSearchTerm, mergeCell, reviewSlots, reviewWait, type StageCell } from './prTableModel';
 
 // Author / reviewer filters. `viewer` is the signed-in user's GitHub username; the filters that
 // need it are hidden when it's unknown.
@@ -130,11 +130,108 @@ function compareKeys(a: SortKey, b: SortKey): number {
   return a.length - b.length;
 }
 
-// Sorted copy of `prs`; ties (and an unset sort) keep API order, in both directions.
-export function sortPrs(prs: PrConfig[], sort: SortState | null, ctx: SortContext): PrConfig[] {
-  if (sort === null) return prs;
+// Sorted copy of `items`, each keyed by the PR `prOf` picks; ties (and an unset sort) keep the
+// given order, in both directions.
+function sortBy<T>(items: T[], prOf: (_item: T) => PrConfig, sort: SortState | null, ctx: SortContext): T[] {
+  if (sort === null) return items;
   const sign = sort.dir === 'asc' ? 1 : -1;
-  const keyed = prs.map((pr, index) => ({ pr, index, key: sortKey(pr, sort.column, ctx) }));
+  const keyed = items.map((item, index) => ({ item, index, key: sortKey(prOf(item), sort.column, ctx) }));
   keyed.sort((a, b) => sign * compareKeys(a.key, b.key) || a.index - b.index);
-  return keyed.map((k) => k.pr);
+  return keyed.map((k) => k.item);
+}
+
+export function sortPrs(prs: PrConfig[], sort: SortState | null, ctx: SortContext): PrConfig[] {
+  return sortBy(prs, (pr) => pr, sort, ctx);
+}
+
+// Rows of the PR list. A stack is one item: a summary row plus its entries by position. Entries
+// the API lists are full PR rows; merged, closed and unlisted open entries come from
+// `stack.entries` and render muted.
+export type StackRow =
+  | { kind: 'pr'; pr: PrConfig; position: number }
+  | { kind: 'entry'; entry: PrStackEntry };
+
+export type ListItem =
+  | { kind: 'pr'; pr: PrConfig }
+  | {
+    kind: 'stack';
+    stack: PrStack;
+    rows: StackRow[]; // the rows left after filtering, by position
+    // Rows matching the active filter / search; null when neither is active.
+    matchCount: number | null;
+  };
+
+export interface ListQuery {
+  filter: PrFilter;
+  viewer: string | null;
+  search: string;
+  // Search over a listed PR's cells (`matchesSearch` with the page's columns).
+  searchPr: (_pr: PrConfig) => boolean;
+}
+
+// Groups `prs` into stacks, applies the filter and search, and sorts. A stack sorts as a unit
+// keyed by its bottom PR (the one targeting the branch) and stays in the list while any of its
+// rows match. Merged / closed rows have no author or review data, so any filter but All hides
+// them; search matches their title. A search matching the stack's name matches every member.
+export function buildListItems(prs: PrConfig[], query: ListQuery, sort: SortState | null, ctx: SortContext): ListItem[] {
+  const filtering = query.filter !== 'all';
+  const searching = query.search.trim() !== '';
+  const units: { item: ListItem; keyPr: PrConfig }[] = [];
+  const stacks = new Map<number, PrConfig[]>();
+  for (const pr of prs) {
+    if (pr.stack === null) {
+      if (matchesFilter(pr, query.filter, query.viewer) && query.searchPr(pr)) units.push({ item: { kind: 'pr', pr }, keyPr: pr });
+      continue;
+    }
+    const members = stacks.get(pr.stack.number);
+    if (members === undefined) {
+      stacks.set(pr.stack.number, [pr]);
+      // Placeholder keeps the stack where its first member was in API order.
+      units.push({ item: { kind: 'stack', stack: pr.stack, rows: [], matchCount: null }, keyPr: pr });
+    } else {
+      members.push(pr);
+    }
+  }
+
+  const result: { item: ListItem; keyPr: PrConfig }[] = [];
+  for (const unit of units) {
+    if (unit.item.kind === 'pr') {
+      result.push(unit);
+      continue;
+    }
+    const stack = unit.item.stack;
+    const members = stacks.get(stack.number) ?? [];
+    const nameMatches = stack.name !== null && matchesSearchTerm(stack.name, query.search);
+    const rows = stackRows(stack, members);
+    const shown = rows.filter((row) => {
+      if (row.kind === 'pr') {
+        return matchesFilter(row.pr, query.filter, query.viewer) && (nameMatches || query.searchPr(row.pr));
+      }
+      return !filtering && (nameMatches || matchesSearchTerm(`${row.entry.title} #${row.entry.number}`, query.search));
+    });
+    if (shown.length === 0) continue;
+    const keyPr = members.find((m) => !m.display_only)
+      ?? [...members].sort((a, b) => (a.stack_entry?.position ?? 0) - (b.stack_entry?.position ?? 0))[0];
+    result.push({
+      item: { kind: 'stack', stack, rows: shown, matchCount: filtering || searching ? shown.length : null },
+      keyPr,
+    });
+  }
+  return sortBy(result, (u) => u.keyPr, sort, ctx).map((u) => u.item);
+}
+
+// Every entry of `stack` by position, using the listed PR where there is one. Listed members
+// missing from `entries` (it's capped) are added from their own `stack_entry`.
+function stackRows(stack: PrStack, members: PrConfig[]): StackRow[] {
+  const byNumber = new Map(members.map((m) => [m.number, m]));
+  const rows: StackRow[] = stack.entries.map((entry) => {
+    const pr = byNumber.get(entry.number);
+    return pr === undefined ? { kind: 'entry', entry } : { kind: 'pr', pr, position: entry.position };
+  });
+  const inEntries = new Set(stack.entries.map((e) => e.number));
+  for (const m of members) {
+    if (!inEntries.has(m.number)) rows.push({ kind: 'pr', pr: m, position: m.stack_entry?.position ?? 0 });
+  }
+  const position = (row: StackRow): number => (row.kind === 'pr' ? row.position : row.entry.position);
+  return rows.sort((a, b) => position(a) - position(b));
 }
