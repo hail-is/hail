@@ -88,6 +88,8 @@ object `package` extends HailScalaModule:
       `lz4-java` :: "1.8.0",
       `log4j-api`,
       `log4j-core`,
+      `parquet-column` :: "1.16.0",
+      `parquet-hadoop` :: "1.16.0",
       `zstd-jni` :: "1.5.7-6",
       `scalac-compat-annotation` :: "0.1.4",
       (`spark-core` :: Env.sparkVersion()).excludeOrg("org.scalanlp"),
