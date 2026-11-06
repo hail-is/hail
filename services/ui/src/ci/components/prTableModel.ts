@@ -24,7 +24,7 @@ export function isBuildOutOfDate(pr: PrConfig): boolean {
 }
 
 // The stack entry directly below an upper-stack PR, whatever its state; null when there isn't one.
-export function stackedOn(pr: PrConfig): number | null {
+export function stackedOn(pr: Pick<PrConfig, 'stack' | 'stack_entry'>): number | null {
   const position = pr.stack_entry?.position;
   if (position === undefined || pr.stack === null) return null;
   return pr.stack.entries.find((e) => e.position === position - 1)?.number ?? null;
