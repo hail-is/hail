@@ -13,11 +13,12 @@ import {
   type WatchedBranchSummary,
 } from '../shared/ciApi';
 import { hasPermission } from '../shared/authUtils';
+import type { Batch } from '../shared/batchApi';
+import { BatchStateIcon } from '../shared/BatchStateIcon';
 import { AutoRefreshBar } from '../shared/AutoRefreshBar';
 import { Panel } from '../shared/Panel';
 import { EventLog, MessageCell } from './components/EventLog';
 import { currentMergeFailures } from './components/eventLogModel';
-import { disableReactUi } from '../shared/reactUiCookie';
 import { formatRelative, formatTimestamp } from '../shared/timeUtils';
 import {
   deployDisplay,
@@ -361,6 +362,54 @@ function OperatorBranchSection({ op }: { op: OperatorBranchStatus }): JSX.Elemen
   );
 }
 
+// Hidden for viewers who aren't CI developers, since the endpoint 404s for them.
+function DevDeploysPanel({ api, batchBaseUrl, refreshKey }: {
+  api: CiApi;
+  batchBaseUrl: string;
+  refreshKey: number;
+}): JSX.Element | null {
+  const [deploys, setDeploys] = useState<Batch[] | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    api.getDevDeploys('me')
+      .then((r) => { if (!cancelled) setDeploys(r); })
+      .catch((e: unknown) => { console.warn('Could not load dev deploys', e); });
+    return () => { cancelled = true; };
+  }, [api, refreshKey]);
+
+  if (deploys === null) return null;
+  return (
+    <Panel title="My dev deploys" subtitle="Your 10 most recent hailctl dev deploy batches">
+      {deploys.length === 0 ? (
+        <p className="text-sm text-zinc-500">No dev deploys.</p>
+      ) : (
+        <table className="text-sm">
+          <thead>
+            <tr className="text-left text-zinc-500">
+              <th className="pr-6 font-normal">Batch</th>
+              <th className="pr-6 font-normal">Branch</th>
+              <th className="pr-6 font-normal">State</th>
+              <th className="font-normal">Created</th>
+            </tr>
+          </thead>
+          <tbody>
+            {deploys.map((b) => (
+              <tr key={b.id}>
+                <td className="pr-6 py-0.5">
+                  <a href={`${batchBaseUrl}/batches/${b.id}`} className="text-sky-600 hover:underline">{b.id}</a>
+                </td>
+                <td className="pr-6 py-0.5">{b.attributes?.target_branch ?? ''}</td>
+                <td className="pr-6 py-0.5 whitespace-nowrap"><BatchStateIcon state={b.state} /> {b.state}</td>
+                <td className="py-0.5 whitespace-nowrap">{formatTimestamp(b.time_created)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </Panel>
+  );
+}
+
 function BranchPanel({ index, branch, summary, op, basePath, batchBaseUrl, failure, failureError, nowMs, mergeFailedEvents }: {
   index: number;
   branch: DeveloperBranchStatus;
@@ -599,6 +648,7 @@ function DashboardPage({ basePath, batchBaseUrl }: { basePath: string; batchBase
               />
             );
           })}
+          <DevDeploysPanel api={api} batchBaseUrl={batchBaseUrl} refreshKey={countdownKey} />
           <Panel title="Recent failures" subtitle="Merges and build starts that failed, with GitHub's or the error's reason">
             <div className="flex flex-col gap-4">
               <div>
@@ -644,9 +694,6 @@ function DashboardPage({ basePath, batchBaseUrl }: { basePath: string; batchBase
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-xl font-light text-zinc-800">CI</h1>
-          <button type="button" onClick={disableReactUi} className="text-sm text-sky-600 hover:underline cursor-pointer">
-            Back to classic layout
-          </button>
         </div>
         <div className="w-48">
           <AutoRefreshBar

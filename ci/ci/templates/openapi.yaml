@@ -838,80 +838,41 @@ paths:
   '/':
     get:
       summary: "Home"
-      description: "Render the CI dashboard page, or (dev only) its supporting jinja context"
+      description: "Render the CI dashboard page"
       tags: [UI Pages]
-      parameters:
-        - name: x-hail-return-jinja-context
-          in: header
-          description: "Do not render, and instead return the jinja context json."
-          required: false
-          schema:
-            type: boolean
-            default: false
-            example: true
       responses:
         '200':
-          description: "Successfully rendered the CI dashboard or returned the jinja context."
-          content:
-            application/json:
-              schema:
-                type: object
-
-  '/watched_branches/{watched_branch_index}/pr/{pr_number}':
-    get:
-      summary: "PR details (UI)"
-      description: "Render a PR details page, or (dev only) its supporting jinja context"
-      tags: [UI Pages]
-      parameters:
-        - name: watched_branch_index
-          in: path
-          required: true
-          schema:
-            type: integer
-        - name: pr_number
-          in: path
-          required: true
-          schema:
-            type: integer
-        - name: x-hail-return-jinja-context
-          in: header
-          description: "Do not render, and instead return the jinja context json."
-          required: false
-          schema:
-            type: boolean
-            default: false
-            example: true
-      responses:
-        '200':
-          description: "Successfully rendered the PR page or returned the jinja context."
-          content:
-            application/json:
-              schema:
-                type: object
-
-  '/watched_branches/{watched_branch_index}/pr/{pr_number}/retry':
-    post:
-      summary: "Retry PR build"
-      description: "Request a retry of the CI build for this PR"
-      tags: [Deployments]
-      parameters:
-        - name: watched_branch_index
-          in: path
-          required: true
-          schema:
-            type: integer
-        - name: pr_number
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        '200':
-          description: "Retry requested successfully"
+          description: "Successfully rendered the CI dashboard"
         '401':
           description: Unauthorized
         '403':
           description: Forbidden - requires developer privileges
+
+  '/watched_branches/{watched_branch_index}/pr/{pr_number}':
+    get:
+      summary: "PR details (UI)"
+      description: "Render a PR details page"
+      tags: [UI Pages]
+      parameters:
+        - name: watched_branch_index
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: pr_number
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: "Successfully rendered the PR page"
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden - requires developer privileges
+        '404':
+          description: No watched branch at that index
 
   '/batches':
     get:
@@ -939,25 +900,12 @@ paths:
 
   '/me':
     get:
-      summary: "User page (UI)"
-      description: "Render the current user's page, or (dev only) its supporting jinja context"
+      summary: "Former user page"
+      description: "Redirects to the CI dashboard, which now holds the user page's content"
       tags: [UI Pages]
-      parameters:
-        - name: x-hail-return-jinja-context
-          in: header
-          description: "Do not render, and instead return the jinja context json."
-          required: false
-          schema:
-            type: boolean
-            default: false
-            example: true
       responses:
-        '200':
-          description: "Successfully rendered the user page or returned the jinja context."
-          content:
-            application/json:
-              schema:
-                type: object
+        '302':
+          description: "Redirect to the CI dashboard"
 
   /api/v1alpha/version:
     get:
@@ -1138,55 +1086,6 @@ paths:
                     description: Route Discovery Service configuration
         '400':
           description: Invalid proxy specified
-        '401':
-          description: Unauthorized
-        '403':
-          description: Forbidden - requires developer privileges
-
-  /authorize_source_sha:
-    post:
-      summary: Authorize source SHA
-      description: Authorize a source SHA for deployment
-      tags: [Builds]
-      requestBody:
-        required: true
-        content:
-          application/x-www-form-urlencoded:
-            schema:
-              type: object
-              properties:
-                sha:
-                  type: string
-                  description: Git commit SHA to authorize
-      responses:
-        '200':
-          description: SHA authorized successfully
-        '401':
-          description: Unauthorized
-        '403':
-          description: Forbidden - requires developer privileges
-
-  /freeze_merge_deploy:
-    post:
-      summary: Freeze merges and deploys
-      description: Freeze all merges and deployments
-      tags: [Deployments]
-      responses:
-        '200':
-          description: Successfully froze merges and deploys
-        '401':
-          description: Unauthorized
-        '403':
-          description: Forbidden - requires developer privileges
-
-  /unfreeze_merge_deploy:
-    post:
-      summary: Unfreeze merges and deploys
-      description: Unfreeze all merges and deployments
-      tags: [Deployments]
-      responses:
-        '200':
-          description: Successfully unfroze merges and deploys
         '401':
           description: Unauthorized
         '403':

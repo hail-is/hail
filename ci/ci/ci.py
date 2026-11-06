@@ -8,7 +8,7 @@ import traceback
 from collections import defaultdict
 from contextlib import AsyncExitStack
 from datetime import timezone
-from typing import Any, Callable, Dict, List, NoReturn, Optional, Set, Tuple, TypedDict, Union
+from typing import Any, Dict, List, NoReturn, Optional, Set, Tuple, TypedDict, Union
 
 import aiohttp_session  # type: ignore
 import gidgethub
@@ -44,7 +44,6 @@ from hailtop.config import get_deploy_config
 from hailtop.hail_logging import AccessLogger
 from hailtop.utils import (
     collect_aiter,
-    humanize_timedelta_msecs,
     periodically_call,
     retry_transient_errors,
     time_msecs,
@@ -61,7 +60,7 @@ from web_common import (
 
 from . import status as ci_status
 from .constants import AUTHORIZED_USERS, TEAMS, User
-from .environment import CLOUD, DEFAULT_NAMESPACE, DOMAIN, STORAGE_URI
+from .environment import DEFAULT_NAMESPACE, DOMAIN, STORAGE_URI
 from .envoy import Service, create_cds_response, create_rds_response
 from .events import CIEvent, cleanup_old_events, record_event
 from .github import (
@@ -73,9 +72,8 @@ from .github import (
     UnwatchedBranch,
     WatchedBranch,
     describe_exception,
-    select_random_teammate,
 )
-from .utils import gcp_logging_queries, record_success
+from .utils import record_success
 
 with open(os.environ.get('HAIL_CI_OAUTH_TOKEN', 'oauth-token/oauth-token'), 'r', encoding='utf-8') as f:
     oauth_token = f.read().strip()
@@ -174,30 +172,7 @@ async def watched_branch_config(app: web.Application, wb: WatchedBranch, index: 
 @web_security_headers
 @auth.authenticated_users_with_permission(SystemPermission.READ_CI)
 async def index(request: web.Request, userdata: UserData) -> web.Response:
-    if request.cookies.get('hail_react_ui') == '1':
-        return await render_template('ci', request, userdata, 'dashboard.html', {'use_tailwind': True})
-
-    wb_configs = [await watched_branch_config(request.app, wb, i) for i, wb in enumerate(watched_branches)]
-    page_context = {
-        'watched_branches': wb_configs,
-        'frozen_merge_deploy': request.app[AppKeys.FROZEN_MERGE_DEPLOY],
-        # Kept out of WatchedBranchConfig, which read_ci JSON endpoints also return
-        'graphql_rate_limits': [wb.graphql_rate_limit for wb in watched_branches],
-    }
-    return await render_template('ci', request, userdata, 'index.html', page_context)
-
-
-def wb_and_pr_from_request(request: web.Request) -> Tuple[WatchedBranch, PR]:
-    watched_branch_index = int(request.match_info['watched_branch_index'])
-    pr_number = int(request.match_info['pr_number'])
-
-    if watched_branch_index < 0 or watched_branch_index >= len(watched_branches):
-        raise web.HTTPNotFound()
-    wb = watched_branches[watched_branch_index]
-
-    if not wb.prs or pr_number not in wb.prs:
-        raise web.HTTPNotFound()
-    return wb, wb.prs[pr_number]
+    return await render_template('ci', request, userdata, 'dashboard.html', {'use_tailwind': True})
 
 
 def _wb_by_branch(branch_name: str) -> WatchedBranch:
@@ -205,36 +180,6 @@ def _wb_by_branch(branch_name: str) -> WatchedBranch:
         if wb.branch.name == branch_name:
             return wb
     raise web.HTTPNotFound()
-
-
-def filter_jobs(jobs):
-    filtered: Dict[str, list] = {
-        state: []
-        # the order of this list is the order in which the states will be displayed on the page
-        for state in ["failed", "error", "cancelled", "running", "pending", "ready", "creating", "success"]
-    }
-    for job in jobs:
-        filtered[job["state"].lower()].append(job)
-    return {"jobs": filtered}
-
-
-async def _populate_batch_context(page_context: Dict[str, Any], batch: Batch) -> None:
-    status = await batch.last_known_status()
-    jobs = await collect_aiter(batch.jobs())
-    for j in jobs:
-        j['duration'] = humanize_timedelta_msecs(j['duration'])  # type: ignore
-    page_context['batch'] = status
-    page_context.update(filter_jobs(jobs))
-    artifacts_uri = f'{STORAGE_URI}/build/{batch.attributes["token"]}'
-    page_context['artifacts_uri'] = artifacts_uri
-    page_context['artifacts_url'] = storage_uri_to_url(artifacts_uri)
-    if CLOUD == 'gcp':
-        start_time = status['time_created']
-        end_time = status['time_completed']
-        assert start_time is not None
-        page_context['logging_queries'] = gcp_logging_queries(batch.attributes['namespace'], start_time, end_time)
-    else:
-        page_context['logging_queries'] = None
 
 
 async def _active_pr_json(wb: WatchedBranch, pr: PR, db: Database) -> dict:
@@ -289,52 +234,6 @@ async def _active_pr_json(wb: WatchedBranch, pr: PR, db: Database) -> dict:
     }
 
 
-async def _populate_active_pr_context(
-    page_context: Dict[str, Any], wb: WatchedBranch, pr_number: int, db: Database
-) -> None:
-    pr = wb.prs[pr_number]
-    page_context['pr'] = pr
-    page_context['active_pr'] = True
-    page_context['pr_authorized'] = await pr.authorized(db)
-    page_context['build_failing'] = pr.build_failed_on_at_least_one_platform()
-
-    active_data = await _active_pr_json(wb, pr, db)
-    page_context.update(active_data)
-    page_context.pop('batch', None)
-
-    batch = pr.batch
-    if batch:
-        if isinstance(batch, Batch):
-            await _populate_batch_context(page_context, batch)
-        else:
-            page_context['exception'] = '\n'.join(
-                traceback.format_exception(None, batch.exception, batch.exception.__traceback__)
-            )
-
-
-async def _populate_historical_pr_context(
-    page_context: Dict[str, Any], gh_client: gh_aiohttp.GitHubAPI, wb: WatchedBranch, pr_number: int
-) -> None:
-    try:
-        gh_pr = await gh_client.getitem(f'/repos/{wb.branch.repo.short_str()}/pulls/{pr_number}')
-        page_context['pr'] = {
-            'title': gh_pr['title'],
-            'number': gh_pr['number'],
-            'labels': [label['name'] for label in gh_pr.get('labels', [])],
-            'merged': gh_pr['merged'],
-            'merge_commit_sha': gh_pr.get('merge_commit_sha') if gh_pr['merged'] else None,
-        }
-    except gidgethub.HTTPException as e:
-        if e.status_code == 404:
-            raise web.HTTPNotFound()
-        log.warning(f'GitHub API error fetching PR {pr_number}: {e}')
-        page_context['pr'] = {'title': '', 'number': pr_number, 'labels': [], 'merged': None}
-    except ClientError as e:
-        log.warning(f'GitHub connectivity error fetching PR {pr_number}: {e}')
-        page_context['pr'] = {'title': '', 'number': pr_number, 'labels': [], 'merged': None}
-    page_context['active_pr'] = False
-
-
 @routes.get('/watched_branches/{watched_branch_index}/pr/{pr_number}')
 @web_security_headers_inline_styles
 @auth.authenticated_users_with_permission(SystemPermission.READ_CI)
@@ -344,72 +243,18 @@ async def get_pr(request: web.Request, userdata: UserData) -> web.Response:
 
     if watched_branch_index < 0 or watched_branch_index >= len(watched_branches):
         raise web.HTTPNotFound()
-    wb = watched_branches[watched_branch_index]
 
-    if request.cookies.get('hail_react_ui') == '1':
-        return await render_template(
-            'ci',
-            request,
-            userdata,
-            'pr_react.html',
-            {
-                'use_tailwind': True,
-                'watched_branch_index': watched_branch_index,
-                'pr_number': pr_number,
-            },
-        )
-
-    page_context: Dict[str, Any] = {'repo': wb.branch.repo.short_str(), 'wb': wb}
-
-    if wb.prs and pr_number in wb.prs:
-        await _populate_active_pr_context(page_context, wb, pr_number, request.app[AppKeys.DB])
-    else:
-        await _populate_historical_pr_context(page_context, request.app[AppKeys.GH_CLIENT], wb, pr_number)
-
-    batch_client = request.app[AppKeys.BATCH_CLIENT]
-    batches = sorted(
-        [
-            b
-            async for b in batch_client.list_batches(
-                f'test=1 pr={pr_number} target_branch={wb.branch.short_str()} user:ci'
-            )
-        ],
-        key=lambda b: b.id,
-        reverse=True,
+    return await render_template(
+        'ci',
+        request,
+        userdata,
+        'pr_react.html',
+        {
+            'use_tailwind': True,
+            'watched_branch_index': watched_branch_index,
+            'pr_number': pr_number,
+        },
     )
-    if not page_context['active_pr'] and batches:
-        await _populate_batch_context(page_context, batches[0])
-    page_context['history'] = [await b.last_known_status() for b in batches]
-
-    deploy_batches = []
-    pr_data = page_context.get('pr')
-    if (
-        not page_context['active_pr']
-        and isinstance(pr_data, dict)
-        and pr_data.get('merged')
-        and pr_data.get('merge_commit_sha')
-    ):
-        merge_commit_sha = pr_data['merge_commit_sha']
-        deploy_batches = sorted(
-            [
-                b
-                async for b in batch_client.list_batches(
-                    f'deploy=1 target_branch={wb.branch.short_str()} sha={merge_commit_sha} user:ci'
-                )
-            ],
-            key=lambda b: b.id,
-            reverse=True,
-        )
-    page_context['deploy_batches'] = [await b.last_known_status() for b in deploy_batches]
-
-    return await render_template('ci', request, userdata, 'pr.html', page_context)
-
-
-def storage_uri_to_url(uri: str) -> str:
-    if uri.startswith('gs://'):
-        path = uri.removeprefix('gs://')
-        return f'https://console.cloud.google.com/storage/browser/{path}'
-    return uri
 
 
 async def _retry_pr_core(
@@ -479,27 +324,6 @@ async def _retry_pr_core(
     return None
 
 
-async def retry_pr(wb: WatchedBranch, pr: PR, request: web.Request, userdata: UserData):
-    session = await aiohttp_session.get_session(request)
-    post_data = await request.post()
-    tactical = post_data.get('tactical') == 'true'
-    error = await _retry_pr_core(wb, pr, request.app, userdata['username'], tactical=tactical)
-    if error:
-        set_message(session, error, 'error')
-    else:
-        set_message(session, f'{"Tactical retry" if tactical else "Retry"} requested for PR #{pr.number}.', 'info')
-
-
-@routes.post('/watched_branches/{watched_branch_index}/pr/{pr_number}/retry')
-@web_security_headers
-@auth.authenticated_users_with_permission(SystemPermission.MANAGE_CI, redirect=False)
-async def post_retry_pr(request: web.Request, userdata: UserData) -> NoReturn:
-    wb, pr = wb_and_pr_from_request(request)
-
-    await asyncio.shield(retry_pr(wb, pr, request, userdata))
-    raise web.HTTPFound(deploy_config.external_url('ci', f'/watched_branches/{wb.index}/pr/{pr.number}'))
-
-
 @routes.get('/batches')
 async def get_batches(request: web.Request) -> NoReturn:
     raise web.HTTPFound(deploy_config.external_url('batch', '/batches'))
@@ -526,10 +350,6 @@ async def get_batch(request: web.Request, _: UserData):
     raise web.HTTPFound(pr_url or deploy_config.external_url('batch', f'/batches/{batch_id}'))
 
 
-def filter_wbs(wbs: List[WatchedBranchConfig], pred: Callable[[PRConfig], bool]):
-    return [{**wb, 'prs': [pr for pr in wb['prs'] if pred(pr)]} for wb in wbs]
-
-
 def is_pr_author(gh_username: str, pr_config: PRConfig) -> bool:
     return gh_username == pr_config['author']
 
@@ -548,37 +368,8 @@ def pr_requires_action(gh_username: str, pr_config: PRConfig) -> bool:
 
 
 @routes.get('/me')
-@web_security_headers
-@auth.authenticated_users_with_permission(SystemPermission.READ_CI)
-async def get_user(request: web.Request, userdata: UserData) -> web.Response:
-    for authorized_user in AUTHORIZED_USERS:
-        if authorized_user.hail_username == userdata['username']:
-            user = authorized_user
-            break
-    else:
-        raise web.HTTPForbidden()
-
-    wbs = [await watched_branch_config(request.app, wb, i) for i, wb in enumerate(watched_branches)]
-    pr_wbs = filter_wbs(wbs, lambda pr: is_pr_author(user.gh_username, pr))
-    review_wbs = filter_wbs(wbs, lambda pr: is_pr_reviewer(user.gh_username, pr))
-    actionable_wbs = filter_wbs(wbs, lambda pr: pr_requires_action(user.gh_username, pr))
-
-    batch_client = request.app[AppKeys.BATCH_CLIENT]
-    dev_deploys = batch_client.list_batches(f'user={user.hail_username} dev_deploy=1', limit=10)
-    dev_deploys = sorted([b async for b in dev_deploys], key=lambda b: b.id, reverse=True)
-
-    team_random_member = {team: select_random_teammate(team).gh_username for team in TEAMS}
-
-    page_context = {
-        'username': user.hail_username,
-        'gh_username': user.gh_username,
-        'pr_wbs': pr_wbs,
-        'review_wbs': review_wbs,
-        'actionable_wbs': actionable_wbs,
-        'team_member': team_random_member,
-        'dev_deploys': [await b.last_known_status() for b in dev_deploys],
-    }
-    return await render_template('ci', request, userdata, 'user.html', page_context)
+async def get_user(_request: web.Request) -> NoReturn:
+    raise web.HTTPFound(deploy_config.external_url('ci', '/'))
 
 
 _FULL_SHA_RE = re.compile(r'[0-9a-f]{40}')
@@ -586,26 +377,6 @@ _FULL_SHA_RE = re.compile(r'[0-9a-f]{40}')
 
 def is_full_sha(sha: str) -> bool:
     return _FULL_SHA_RE.fullmatch(sha) is not None
-
-
-@routes.post('/authorize_source_sha')
-@web_security_headers
-@auth.authenticated_users_with_permission(SystemPermission.MANAGE_CI, redirect=False)
-async def post_authorized_source_sha(request: web.Request, userdata: UserData) -> NoReturn:
-    app = request.app
-    db = app[AppKeys.DB]
-    post = await request.post()
-    sha = str(post['sha']).strip().lower()
-    if not is_full_sha(sha):
-        session = await aiohttp_session.get_session(request)
-        set_message(session, f'Invalid SHA {sha!r}: expected 40 hex characters.', 'error')
-        raise web.HTTPFound(deploy_config.external_url('ci', '/'))
-    await db.execute_insertone('INSERT INTO authorized_shas (sha) VALUES (%s);', sha)
-    log.info(f'authorized sha: {sha}')
-    await record_event(db, CIEvent.SHA_AUTHORIZED, username=userdata['username'], source_sha=sha)
-    session = await aiohttp_session.get_session(request)
-    set_message(session, f'SHA {sha} authorized.', 'info')
-    raise web.HTTPFound(deploy_config.external_url('ci', '/'))
 
 
 @routes.get('/healthcheck')
@@ -845,54 +616,6 @@ async def dev_deploy_branch(request: web.Request, userdata: UserData) -> web.Res
 async def batch_callback(request: web.Request):
     await asyncio.shield(batch_callback_handler(request))
     return web.Response(status=200)
-
-
-@routes.post('/freeze_merge_deploy')
-@web_security_headers
-@auth.authenticated_users_with_permission(SystemPermission.MANAGE_CI)
-async def freeze_deploys(request: web.Request, userdata: UserData) -> NoReturn:
-    app = request.app
-    db = app[AppKeys.DB]
-    session = await aiohttp_session.get_session(request)
-
-    if app[AppKeys.FROZEN_MERGE_DEPLOY]:
-        set_message(session, 'CI is already frozen.', 'info')
-        raise web.HTTPFound(deploy_config.external_url('ci', '/'))
-
-    await db.execute_update("""
-UPDATE globals SET frozen_merge_deploy = 1;
-""")
-
-    app[AppKeys.FROZEN_MERGE_DEPLOY] = True
-    await record_event(db, CIEvent.FROZEN, username=userdata['username'])
-
-    set_message(session, 'Froze all merges and deploys.', 'info')
-
-    raise web.HTTPFound(deploy_config.external_url('ci', '/'))
-
-
-@routes.post('/unfreeze_merge_deploy')
-@web_security_headers
-@auth.authenticated_users_with_permission(SystemPermission.MANAGE_CI)
-async def unfreeze_deploys(request: web.Request, userdata: UserData) -> NoReturn:
-    app = request.app
-    db = app[AppKeys.DB]
-    session = await aiohttp_session.get_session(request)
-
-    if not app[AppKeys.FROZEN_MERGE_DEPLOY]:
-        set_message(session, 'CI is already unfrozen.', 'info')
-        raise web.HTTPFound(deploy_config.external_url('ci', '/'))
-
-    await db.execute_update("""
-UPDATE globals SET frozen_merge_deploy = 0;
-""")
-
-    app[AppKeys.FROZEN_MERGE_DEPLOY] = False
-    await record_event(db, CIEvent.UNFROZEN, username=userdata['username'])
-
-    set_message(session, 'Unfroze all merges and deploys.', 'info')
-
-    raise web.HTTPFound(deploy_config.external_url('ci', '/'))
 
 
 async def _fetch_active_namespaces(db: Database, namespace: Optional[str] = None) -> list:
@@ -1840,7 +1563,6 @@ def run():
     app.on_cleanup.append(on_cleanup)
 
     setup_common_static_routes(routes)
-    routes.static('/ci/static/js', f'{CI_ROOT}/static/js')
     routes.static('/ci/static/compiled-js', f'{CI_ROOT}/static/compiled-js')
     app.add_routes(routes)
     app.router.add_get("/metrics", server_stats)
