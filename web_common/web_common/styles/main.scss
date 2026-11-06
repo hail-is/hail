@@ -161,6 +161,11 @@ a {
     left: 20px;
 }
 
+.billing-caret:after {
+    /* 40 (measured width of Billing) / 2 + 9 - 20 / 2 = 19px */
+    left: 19px;
+}
+
 .ci-caret:after {
     /* 18 (measured width of CI) / 2 + 9 - 20 / 2 = 8px */
     left: 8px;
