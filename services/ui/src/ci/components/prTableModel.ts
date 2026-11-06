@@ -1,4 +1,4 @@
-import type { PrConfig, ReviewRequest } from '../../shared/ciApi';
+import type { DeveloperBranchStatus, PrConfig, ReviewRequest } from '../../shared/ciApi';
 
 export function ghStatuses(pr: PrConfig): Map<string, string> {
   return new Map(Object.entries(pr.gh_statuses));
@@ -97,6 +97,32 @@ export function reviewSlots(pr: PrConfig): [StageCell, StageCell] {
   return [one, two];
 }
 
+// The Merge column. Blockers show as pending rather than failed: whatever is failing (checks,
+// reviews) is already red in its own column, so this column says why CI isn't merging. Queue
+// position, retries and pauses come from the branch's developer status; without it, only the
+// PR's own blockers are shown.
+export function mergeCell(pr: PrConfig, branch: DeveloperBranchStatus | undefined, nowMs: number): StageCell {
+  if (branch?.pending_merge?.pr === pr.number) {
+    return { status: 'pending', text: 'merging', requestedAt: new Date(branch.pending_merge.requested_at_ms).toISOString() };
+  }
+  const queueIndex = branch?.merge_queue.findIndex((e) => e.pr === pr.number) ?? -1;
+  const entry = queueIndex >= 0 ? branch?.merge_queue[queueIndex] : undefined;
+  const parts = entry ? [`#${queueIndex + 1} in queue`] : [];
+
+  if (pr.merge_blockers.length > 0) {
+    return { status: 'pending', text: [...parts, ...pr.merge_blockers].join(' · ') };
+  }
+  if (branch?.merge_paused_reason) {
+    return { status: 'pending', text: [...parts, `merging paused (${branch.merge_paused_reason})`].join(' · ') };
+  }
+  if (entry?.backoff_until_ms != null && entry.backoff_until_ms > nowMs) {
+    const retryIn = formatAge(new Date(nowMs).toISOString(), entry.backoff_until_ms);
+    const failed = `merge failed${entry.failures > 1 ? ` ×${entry.failures}` : ''}, retrying in ${retryIn}`;
+    return { status: 'pending', text: [...parts, failed].join(' · ') };
+  }
+  return { status: 'pass', text: ['ready', ...parts].join(' · ') };
+}
+
 // Coarse age for "waiting since": 45m, 5h, 3d.
 export function formatAge(iso: string, nowMs: number): string {
   const minutes = Math.max(0, Math.floor((nowMs - Date.parse(iso)) / 60_000));
@@ -107,7 +133,13 @@ export function formatAge(iso: string, nowMs: number): string {
 }
 
 // Case-insensitive substring match against the text of every cell in the row.
-export function matchesSearch(pr: PrConfig, statusNames: string[], term: string): boolean {
+export function matchesSearch(
+  pr: PrConfig,
+  statusNames: string[],
+  term: string,
+  branch?: DeveloperBranchStatus,
+  nowMs: number = Date.now(),
+): boolean {
   const needle = term.trim().toLowerCase();
   if (needle === '') return true;
   const statuses = ghStatuses(pr);
@@ -118,6 +150,7 @@ export function matchesSearch(pr: PrConfig, statusNames: string[], term: string)
     pr.labels.join(', '),
     pr.source_branch_name,
     ...reviewSlots(pr).map((cell) => cell.text),
+    mergeCell(pr, branch, nowMs).text,
     pr.author,
   ];
   return cells.some((cell) => cell.toLowerCase().includes(needle));
