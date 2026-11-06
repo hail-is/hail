@@ -43,12 +43,35 @@ export interface PrConfig {
   build_state: string | null;
   review_state: string | null;
   labels: string[];
-  out_of_date: boolean;
+  out_of_date: boolean | null; // null when display_only
   gh_statuses: Record<string, string>;
   batch_id: number | null;
   review_requests: ReviewRequest[];
   reviews: Review[];
-  merge_blockers: string[]; // empty if nothing blocks the merge
+  merge_blockers: string[] | null; // empty if nothing blocks the merge; null when display_only
+  stack_entry: { position: number } | null; // 1 is nearest the stack's base branch
+  stack: PrStack | null;
+  // An upper-stack PR: in a native stack based on the branch, targeting another PR in it. Listed,
+  // but CI never builds or merges it.
+  display_only: boolean;
+}
+
+export interface PrStackEntry {
+  position: number;
+  number: number;
+  state: string; // GitHub PullRequestState: OPEN, CLOSED, MERGED
+  title: string;
+}
+
+// A native GitHub stack (gh stack); every member carries the same object.
+export interface PrStack {
+  number: number; // a group key, not a PR number
+  base_ref_name: string;
+  size: number;
+  entries: PrStackEntry[]; // by position, merged and closed included
+  name: string | null; // from the position-1 PR's Stack Meta, else the lowest open entry's title
+  doc_url: string | null;
+  meta: Record<string, string>;
 }
 
 export interface Developer {

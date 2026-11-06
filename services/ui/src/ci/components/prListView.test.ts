@@ -19,6 +19,9 @@ function pr(overrides: Partial<PrConfig> = {}): PrConfig {
     review_requests: [],
     reviews: [],
     merge_blockers: [],
+    stack_entry: null,
+    stack: null,
+    display_only: false,
     ...overrides,
   };
 }
