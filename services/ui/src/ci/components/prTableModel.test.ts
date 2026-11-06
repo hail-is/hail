@@ -103,6 +103,10 @@ describe('matchesSearch', () => {
     }
   });
 
+  it('matches labels the table hides', () => {
+    expect(matchesSearch(pr({ labels: ['docs'] }), names, 'docs')).toBe(true);
+  });
+
   it('matches build state and status values', () => {
     expect(matchesSearch(pr({ build_state: null }), names, 'pending')).toBe(true);
     expect(matchesSearch(pr({ gh_statuses: { Gate: 'failure' } }), names, 'failure')).toBe(true);
@@ -250,7 +254,7 @@ describe('mergeCell', () => {
 
   it('falls back to the PR alone without branch status', () => {
     expect(mergeCell(pr(), undefined, now)).toEqual({ status: 'pass', text: 'ready' });
-    expect(mergeCell(pr({ merge_blockers: ['label: WIP'] }), undefined, now).text).toBe('label: WIP');
+    expect(mergeCell(pr({ merge_blockers: ['label: WIP'] }), undefined, now)).toEqual({ status: 'pending', text: '', labels: ['WIP'] });
   });
 
   it('shows an in-flight merge with its age', () => {
@@ -276,6 +280,12 @@ describe('mergeCell', () => {
   it('ignores a backoff that has expired', () => {
     const b = branch({ merge_queue: [queued(15837, { failures: 1, backoff_until_ms: now - 1 })] });
     expect(mergeCell(pr(), b, now).status).toBe('pass');
+  });
+
+  it('returns label blockers as chips, keeping other blockers as text', () => {
+    const b = branch({ merge_queue: [queued(15837)] });
+    const cell = mergeCell(pr({ merge_blockers: ['not built', 'label: WIP', 'label: stacked PR'] }), b, now);
+    expect(cell).toEqual({ status: 'pending', text: '#1 in queue · not built', labels: ['WIP', 'stacked PR'] });
   });
 
   it('is searchable', () => {
