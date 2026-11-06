@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { createRoot } from 'react-dom/client';
 import { hailApiFetch as apiFetch, hailApiFetchVoid as apiFetchVoid } from '../shared/hailApiFetch';
+import { createCiApi } from '../shared/ciApi';
 import { hasPermission } from '../shared/authUtils';
 import { SegmentedBar, Segment } from '../shared/SegmentedBar';
 import { StateIcon } from '../batch/components/StateIcon';
@@ -754,12 +755,6 @@ function AuthorizeButton({ basePath, sha, authorizing, setAuthorizing, setError 
   );
 }
 
-interface WatchedBranchListEntry {
-  branch: string;
-  branch_fqn: string;
-  repo: string;
-}
-
 function PrPage({ basePath, batchBaseUrl, wbIndex, prNumber }: {
   basePath: string;
   batchBaseUrl: string;
@@ -832,7 +827,7 @@ function PrPage({ basePath, batchBaseUrl, wbIndex, prNumber }: {
   }, [batchStatus, refreshBuild, autoRefresh]);
 
   useEffect(() => {
-    apiFetch<{ branches: WatchedBranchListEntry[] }>(`${basePath}/api/v1alpha/watched_branches`)
+    createCiApi(basePath).getWatchedBranches()
       .then((r) => {
         const entry = r.branches[Number(wbIndex)];
         if (!entry) { setWbError(`No watched branch at index ${wbIndex}`); return; }
@@ -904,7 +899,7 @@ function PrPage({ basePath, batchBaseUrl, wbIndex, prNumber }: {
       <nav className="flex items-center gap-2 text-xl font-light text-zinc-500 flex-wrap">
         <a href={`${basePath}/`} className="hover:text-sky-600">CI</a>
         <span className="text-zinc-300">›</span>
-        <span className="text-zinc-800">{wbBranch}</span>
+        <a href={`${basePath}/watched_branches/${wbIndex}/prs`} className="text-zinc-800 hover:text-sky-600">{wbBranch} PRs</a>
         <span className="text-zinc-300">›</span>
         <span className="text-zinc-800">
           <a
