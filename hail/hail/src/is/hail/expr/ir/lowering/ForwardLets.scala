@@ -3,7 +3,7 @@ package is.hail.expr.ir.lowering
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
 import is.hail.expr.ir.{
-  BaseIR, BindingEnv, ChildEnv, ComputeUsesAndDefs, ContainsAgg, ContainsAggIntermediate,
+  BaseIR, BindingEnv, Binds, ComputeUsesAndDefs, ContainsAgg, ContainsAggIntermediate,
   ContainsScan, IR, IsPure, Pretty, RefEquality, Scope, UsesAndDefs,
 }
 import is.hail.expr.ir.Scopes.ScopesSyntax
@@ -40,12 +40,7 @@ object ForwardLets extends Logging {
             val refs = uses(l)
             val newEnv = l.bindings.foldLeft(env) {
               case (env, Binding(name, value, scope)) =>
-                val valueEnv = scope match {
-                  case Scope.EVAL => env
-                  case Scope.AGG => env.promoteAgg.noScan
-                  case Scope.SCAN => env.promoteScan.noAgg
-                }
-                val rewriteValue = rewrite(value, valueEnv).asInstanceOf[IR]
+                val rewriteValue = rewrite(value, Binds.aggSeq(env, scope)).asInstanceOf[IR]
                 val refs_ = refs.filter(_.t.name == name)
                 if (shouldForward(rewriteValue, refs_, l, scope)) {
                   if (refs_.nonEmpty) env.bind(scope, FastSeq(name -> Some(rewriteValue)))
@@ -77,9 +72,7 @@ object ForwardLets extends Logging {
               }
               .getOrElse(x)
           case _ =>
-            ir.mapChildrenWithIndex((ir1, i) =>
-              rewrite(ir1, ChildEnv.get(env, ir, i)((_, _) => None))
-            )
+            ir.mapChildrenWithEnv(env)((_, _) => None)(rewrite)
         }
 
       rewrite(ir0, BindingEnv.empty[Option[IR]].createAgg.createScan).asInstanceOf[T]
