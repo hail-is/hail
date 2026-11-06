@@ -42,6 +42,26 @@ class TableNativeWriter(TableWriter):
         )
 
 
+class TableColumnarWriter(TableWriter):
+    """Writes a table in the experimental columnar format.
+
+    Private: not part of Hail's public interface, and its output format may change.
+    """
+
+    @typecheck_method(path=str, overwrite=bool)
+    def __init__(self, path, overwrite):
+        super(TableColumnarWriter, self).__init__()
+        self.path = path
+        self.overwrite = overwrite
+
+    def render(self):
+        writer = {'name': 'TableColumnarWriter', 'path': self.path, 'overwrite': self.overwrite}
+        return escape_str(json.dumps(writer))
+
+    def __eq__(self, other):
+        return isinstance(other, TableColumnarWriter) and other.path == self.path and other.overwrite == self.overwrite
+
+
 class TableTextWriter(TableWriter):
     @typecheck_method(path=str, types_file=nullable(str), header=bool, export_type=ExportType.checker, delimiter=str)
     def __init__(self, path, types_file, header, export_type, delimiter):
