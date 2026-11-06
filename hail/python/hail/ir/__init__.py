@@ -266,7 +266,13 @@ from .table_reader import (
     TableReader,
     TextTableReader,
 )
-from .table_writer import TableNativeFanoutWriter, TableNativeWriter, TableTextWriter, TableWriter
+from .table_writer import (
+    TableColumnarWriter,
+    TableNativeFanoutWriter,
+    TableNativeWriter,
+    TableTextWriter,
+    TableWriter,
+)
 from .utils import filter_predicate_with_keep, finalize_randomness, make_filter_and_replace
 
 __all__ = [
@@ -473,6 +479,7 @@ __all__ = [
     'TableAggregate',
     'TableAggregateByKey',
     'TableCollect',
+    'TableColumnarWriter',
     'TableCount',
     'TableDistinct',
     'TableExplode',

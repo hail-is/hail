@@ -242,16 +242,17 @@ One row per row partition, ordered by `partition_index`.
 | Field | Arrow type | Notes |
 |---|---|---|
 | `partition_index` | `int32`, non-null | 0, 1, 2, ... |
-| `start` | struct of the key fields, nullable | key of the partition's first row |
-| `end` | struct of the key fields, nullable | key of the partition's last row |
+| `start` | struct of the key fields, nullable | key of the partition's first row; keyed tables only |
+| `end` | struct of the key fields, nullable | key of the partition's last row; keyed tables only |
 | `row_count` | `int64`, non-null | |
 | `row_file` | `struct<path: utf8, container: utf8>`, non-null | |
 | `entry_files` | `list<struct<path: utf8, container: utf8>>`, nullable | matrix tables only; index *c* is column block *c* |
 
 The `start` and `end` structs use exactly the Arrow types of the key fields in the
 row schema, including extension types. Bounds are therefore stored in the same
-value encoding as the data. Both are `null` for unkeyed tables and for partitions
-with `row_count = 0`.
+value encoding as the data. Both are `null` for partitions with `row_count = 0`.
+The partitions table of an unkeyed table has no `start` or `end` field, because
+Parquet can't store a struct with no fields.
 
 **Key invariants** (keyed tables):
 
