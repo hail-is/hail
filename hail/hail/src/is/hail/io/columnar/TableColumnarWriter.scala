@@ -32,8 +32,28 @@ object TableColumnarWriter {
   val RowsDirectory: String = "rows"
   val DefaultRowIdField: String = "__row_id"
 
-  /** Row IDs hold the row partition index above bit 40. */
-  val MaxPartitions: Int = 1 << 23
+  /** A field of the partitions table: its type, and its value given one row file's write result
+    * (see [[ColumnarPartitionWriter]]) and its partition index.
+    */
+  private case class PartitionsField(name: String, typ: PType, value: (Atom, Atom) => IR)
+
+  /** The `start` and `end` fields of a keyed table's partitions table. */
+  private def boundFields(rowPType: PStruct, key: IndexedSeq[String])
+    : IndexedSeq[PartitionsField] = {
+    val boundPType = rowPType.selectFields(key).setRequired(false)
+    def bound(name: String, resultField: String) =
+      PartitionsField(
+        name,
+        boundPType,
+        (part, _) =>
+          If(
+            GetField(part, "rowCount") > I64(0),
+            GetField(part, resultField),
+            NA(boundPType.virtualType),
+          ),
+      )
+    FastSeq(bound("start", "firstKey"), bound("end", "lastKey"))
+  }
 }
 
 /** Writes a table in the columnar format (`dev-docs/hail-query/columnar-format-spec.md`).
@@ -63,35 +83,49 @@ case class TableColumnarWriter(path: String, overwrite: Boolean = false) extends
     ColumnarSchema.checkSupported("row", stage.rowType)
     ColumnarSchema.checkSupported("global", stage.globalType)
 
-    val ts = if (key.isEmpty) stage else stage.strictify(ctx, key.length - 1)
-    if (ts.numPartitions > MaxPartitions)
-      fatal(s"columnar writer: at most $MaxPartitions row partitions are supported, " +
-        s"found ${ts.numPartitions}")
+    val rowPType = r.rowType.canonicalPType(stage.rowType).asInstanceOf[PStruct]
+    val globalPType = r.globalType.canonicalPType(stage.globalType).asInstanceOf[PStruct]
 
-    val rowPType = r.rowType.canonicalPType(ts.rowType).asInstanceOf[PStruct]
-    val globalPType = r.globalType.canonicalPType(ts.globalType).asInstanceOf[PStruct]
+    // Only a keyed table needs a strict partitioner and has partition bounds.
+    val (ts, bounds) =
+      if (key.isEmpty) (stage, FastSeq())
+      else (stage.strictify(ctx, key.length - 1), boundFields(rowPType, key))
+    if (ts.numPartitions > ColumnarPartitionWriter.MaxPartitions)
+      fatal(
+        s"columnar writer: at most ${ColumnarPartitionWriter.MaxPartitions} row partitions are " +
+          s"supported, found ${ts.numPartitions}"
+      )
+
     val rowIdField = ColumnarSchema.internalFieldName(DefaultRowIdField, ts.rowType.fieldNames)
-
     val rowWriter = ColumnarPartitionWriter(path, rowPType, key, Some(rowIdField))
 
-    val bounds: Seq[(String, PType)] =
-      if (key.isEmpty) FastSeq()
-      else {
-        val keyPType = rowPType.selectFields(key).setRequired(false)
-        FastSeq("start" -> keyPType, "end" -> keyPType)
-      }
-    val partitionsPType = PCanonicalStruct(
-      true,
-      (("partition_index" -> PInt32(true)) +: bounds) ++ FastSeq(
-        "row_count" -> PInt64(true),
-        "row_file" -> PCanonicalStruct(
-          true,
-          "path" -> PCanonicalString(true),
-          "container" -> PCanonicalString(true),
+    val partitionsFields =
+      (PartitionsField("partition_index", PInt32(true), (_, idx) => idx) +: bounds) ++ FastSeq(
+        PartitionsField("row_count", PInt64(true), (part, _) => GetField(part, "rowCount")),
+        PartitionsField(
+          "row_file",
+          PCanonicalStruct(
+            true,
+            "path" -> PCanonicalString(true),
+            "container" -> PCanonicalString(true),
+          ),
+          (part, _) =>
+            MakeStruct(FastSeq("path" -> GetField(part, "path"), "container" -> Str(Container))),
         ),
-      ): _*
+      )
+    val partitionsWriter = ColumnarPartitionWriter(
+      path,
+      PCanonicalStruct(true, partitionsFields.map(f => f.name -> f.typ): _*),
+      FastSeq(),
+      None,
     )
-    val partitionsWriter = ColumnarPartitionWriter(path, partitionsPType, FastSeq(), None)
+
+    def partitionsTable(parts: IR): IR =
+      mapIR(zipWithIndex(ToStream(parts))) { elt =>
+        bindIRs(GetField(elt, "elt"), GetField(elt, "idx")) { case Seq(part, idx) =>
+          MakeStruct(partitionsFields.map(f => f.name -> f.value(part, idx)))
+        }
+      }
 
     val globalsWriter =
       if (globalPType.size == 0) None
@@ -99,28 +133,6 @@ case class TableColumnarWriter(path: String, overwrite: Boolean = false) extends
 
     def fileContext(relPath: IR, partitionIndex: IR): IR =
       MakeStruct(FastSeq("path" -> relPath, "partitionIndex" -> partitionIndex))
-
-    val keyType = ts.rowType.typeAfterSelectNames(key)
-
-    def partitionsTable(parts: IR): IR =
-      mapIR(zipWithIndex(ToStream(parts))) { elt =>
-        bindIRs(GetField(elt, "elt"), GetField(elt, "idx")) { case Seq(part, idx) =>
-          def nonEmpty: IR = GetField(part, "rowCount") > I64(0)
-          def bound(field: String): IR = If(nonEmpty, GetField(part, field), NA(keyType))
-          val boundFields =
-            if (key.isEmpty) FastSeq()
-            else FastSeq("start" -> bound("firstKey"), "end" -> bound("lastKey"))
-          MakeStruct(
-            (("partition_index" -> (idx: IR)) +: boundFields) ++ FastSeq(
-              "row_count" -> GetField(part, "rowCount"),
-              "row_file" -> MakeStruct(FastSeq(
-                "path" -> GetField(part, "path"),
-                "container" -> Str(Container),
-              )),
-            )
-          )
-        }
-      }
 
     val d = digitsNeeded(ts.numPartitions)
     val writeContexts = Literal(
@@ -142,9 +154,10 @@ case class TableColumnarWriter(path: String, overwrite: Boolean = false) extends
           )
         }
     } { (parts, globals) =>
-      val distinctlyKeyed =
-        if (key.isEmpty) False()
-        else foldIR(ToStream(parts), True())((acc, part) => acc && GetField(part, "distinct"))
+      // An unkeyed table is never distinctly keyed, as in the native format.
+      val distinctlyKeyed = foldIR(ToStream(parts), Literal.coerce(TBoolean, key.nonEmpty)) {
+        (acc, part) => acc && GetField(part, "distinct")
+      }
       MakeStruct(
         FastSeq(
           "partitions" -> WritePartition(
