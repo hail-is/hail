@@ -386,7 +386,11 @@ components:
 
     WatchedBranchSummary:
       type: object
+      description: "Branch identity and config. CI state (deploys, merge candidate, freeze) is on /api/v1alpha/ci_developer_status."
       properties:
+        index:
+          type: integer
+          description: "Position in CI's watched branch list; the {watched_branch_index} in UI page URLs."
         branch:
           type: string
           description: "Branch name (e.g. main). Use this as the {branch} path parameter."
@@ -400,36 +404,12 @@ components:
           type: string
           nullable: true
           description: "Current HEAD SHA"
-        deploy_state:
-          type: string
-          nullable: true
-          description: "Latest deploy state"
-        deploy_batch_id:
-          type: integer
-          nullable: true
-          description: "Latest deploy batch ID"
-        n_prs:
-          type: integer
-          description: "Number of active PRs"
-        merge_candidate:
-          type: string
-          nullable: true
-          description: "Current merge candidate PR (eg pr-123)"
-        graphql_rate_limit:
-          type: object
-          nullable: true
-          description: "GitHub GraphQL rate limit after the last GitHub update's PR query; null until the first one."
-          properties:
-            last_update_cost:
-              type: integer
-              description: "Points, summed over every request in that update."
-            remaining:
-              type: integer
-            limit:
-              type: integer
-            reset_at:
-              type: string
-              format: date-time
+        deployable:
+          type: boolean
+          description: "Whether CI deploys this branch when its HEAD changes."
+        mergeable:
+          type: boolean
+          description: "Whether CI merges approved, passing PRs into this branch."
 
     WatchedBranchesResponse:
       type: object
@@ -438,9 +418,6 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/WatchedBranchSummary'
-        frozen:
-          type: boolean
-          description: "Whether merges and deploys are frozen"
 
     RateLimit:
       type: object
@@ -1526,7 +1503,7 @@ paths:
   /api/v1alpha/watched_branches:
     get:
       summary: List watched branches
-      description: "Returns all branches CI is monitoring, plus the current freeze status."
+      description: "Returns the branches CI is monitoring and their config. CI state is on ci_developer_status."
       tags: [PRs]
       responses:
         '200':

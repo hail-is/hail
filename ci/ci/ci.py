@@ -1266,22 +1266,21 @@ def _wb_config_json(cfg: Dict[str, Any]) -> dict:
 
 @routes.get('/api/v1alpha/watched_branches')
 @auth.authenticated_users_with_permission(SystemPermission.READ_CI, redirect=False)
-async def api_watched_branches(request: web.Request, _) -> web.Response:
+async def api_watched_branches(_request: web.Request, _) -> web.Response:
+    # Branch identity and config only; CI state is on the status endpoints
     result = [
         {
+            'index': wb.index,
             'branch': wb.branch.name,
             'branch_fqn': wb.branch.short_str(),
             'repo': wb.branch.repo.short_str(),
             'sha': wb.sha,
-            'deploy_state': wb.deploy_state,
-            'deploy_batch_id': wb.deploy_batch.id if wb.deploy_batch and isinstance(wb.deploy_batch, Batch) else None,
-            'n_prs': len(wb.prs) if wb.prs else 0,
-            'merge_candidate': wb.merge_candidate.short_str() if wb.merge_candidate else None,
-            'graphql_rate_limit': wb.graphql_rate_limit._asdict() if wb.graphql_rate_limit else None,
+            'deployable': wb.deployable,
+            'mergeable': wb.mergeable,
         }
         for wb in watched_branches
     ]
-    return json_response({'branches': result, 'frozen': request.app[AppKeys.FROZEN_MERGE_DEPLOY]})
+    return json_response({'branches': result})
 
 
 @routes.get('/api/v1alpha/watched_branches/{branch}/prs')

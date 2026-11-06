@@ -36,7 +36,7 @@ function PrsPage({ basePath, wbIndex }: { basePath: string; wbIndex: number }): 
     const api = createCiApi(basePath);
     api.getWatchedBranches()
       .then((r) => {
-        const entry = Number.isInteger(wbIndex) && wbIndex >= 0 ? r.branches.at(wbIndex) : undefined;
+        const entry = r.branches.find((b) => b.index === wbIndex);
         if (entry === undefined) throw new Error(`No watched branch at index ${wbIndex}`);
         if (cancelled) return null;
         setWb(entry);

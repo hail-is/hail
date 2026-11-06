@@ -834,7 +834,7 @@ function PrPage({ basePath, batchBaseUrl, wbIndex, prNumber }: {
   useEffect(() => {
     createCiApi(basePath).getWatchedBranches()
       .then((r) => {
-        const entry = r.branches[Number(wbIndex)];
+        const entry = r.branches.find((b) => b.index === Number(wbIndex));
         if (!entry) { setWbError(`No watched branch at index ${wbIndex}`); return; }
         setWbBranchName(entry.branch);
         setWbBranch(entry.branch_fqn);
