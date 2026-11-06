@@ -6,83 +6,53 @@ import scala.collection.immutable.ArraySeq
 
 object StackSafe {
 
-  def done[A](result: A): StackFrame[A] = Done(result)
+  def done[A](result: A): StackFrame[A] = new Done(result)
+  def call[A](body: => StackFrame[A]): StackFrame[A] = new Thunk(() => body)
 
-  def call[A](body: => StackFrame[A]): StackFrame[A] =
-    Thunk(() => body)
+  def run[A](frame: StackFrame[A]): A = {
+    @tailrec def go(cur: StackFrame[_], stack: List[StackFrame[_]]): Any =
+      cur match {
+        case fm: FlatMapped[_, _] => go(fm.source, fm :: stack)
+        case m: Mapped[_, _] => go(m.source, m :: stack)
+        case d: Done[_] =>
+          var value: Any = d.result
+          var s = stack
+          while (s.nonEmpty && s.head.isInstanceOf[Mapped[_, _]]) {
+            value = s.head.asInstanceOf[Mapped[Any, Any]].f(value)
+            s = s.tail
+          }
+          if (s.isEmpty) value
+          else go(s.head.asInstanceOf[FlatMapped[Any, Any]].f(value), s.tail)
+        case t: Thunk[_] => go(t.force(), stack)
+      }
 
-  @tailrec def run[A](frame: StackFrame[A]): A = frame match {
-    case Done(result) => result
-    case Thunk(thunk) => run(thunk())
-    case more: More[_, A] => run(more.advance())
+    go(frame, Nil).asInstanceOf[A]
   }
 
-  abstract class StackFrame[A] {
-    def flatMap[B](f: A => StackFrame[B]): StackFrame[B] = this match {
-      case Done(result) => f(result)
-      case thunk: Thunk[A] =>
-        val cell = new ContCell[A, B](f)
-        new More[A, B](thunk, cell, cell)
-      case more: More[_, A] =>
-        val cell = new ContCell[A, B](f)
-        more.append(cell, cell)
-    }
+  sealed abstract class StackFrame[A] {
+    final def flatMap[B](f: A => StackFrame[B]): StackFrame[B] =
+      this match {
+        case d: Done[A] => f(d.result)
+        case _ => new FlatMapped(this, f)
+      }
 
-    def map[B](f: A => B): StackFrame[B] = flatMap(a => Done(f(a)))
+    final def map[B](f: A => B): StackFrame[B] =
+      this match {
+        case d: Done[A] => done(f(d.result))
+        case _ => new Mapped(this, f)
+      }
 
     final def run(): A = StackSafe.run(this)
   }
 
-  private class ContCell[A, B](val f: A => StackFrame[B], var next: ContCell[B, _] = null)
+  final private class Done[A](val result: A) extends StackFrame[A]
 
-  final private case class Done[A](result: A) extends StackFrame[A]
+  final private class Thunk[A](val force: () => StackFrame[A]) extends StackFrame[A]
 
-  final private case class Thunk[A](force: () => StackFrame[A]) extends StackFrame[A]
+  final private class FlatMapped[X, A](val source: StackFrame[X], val f: X => StackFrame[A])
+      extends StackFrame[A]
 
-  final private class More[A, B](
-    _next: StackFrame[A],
-    _contHead: ContCell[A, _],
-    _contTail: ContCell[_, B],
-  ) extends StackFrame[B] {
-    // type erased locals allow mutating to different type parameters, then
-    // casting `this` if needed
-    private[this] var nextTE: StackFrame[_] = _next
-    private[this] var contHeadTE: ContCell[_, _] = _contHead
-    private[this] var contTailTE: ContCell[_, _] = _contTail
-
-    @inline def next: StackFrame[A] = nextTE.asInstanceOf[StackFrame[A]]
-    @inline def contHead: ContCell[A, _] = contHeadTE.asInstanceOf[ContCell[A, _]]
-    @inline def contTail: ContCell[_, B] = contTailTE.asInstanceOf[ContCell[_, B]]
-
-    @inline def advance(): StackFrame[B] = {
-      if (contHead == null) next.asInstanceOf[StackFrame[B]]
-      else next match {
-        case Done(result) =>
-          nextTE = contHead.f(result)
-          contHeadTE = contHead.next
-          this
-        case thunk: Thunk[A] =>
-          nextTE = thunk.force()
-          this
-        case more2: More[_, A] =>
-          if (contHead != null)
-            more2.append(contHead, contTail)
-          else
-            more2.asInstanceOf[More[_, B]]
-      }
-    }
-
-    @inline def append[C](head: ContCell[B, _], tail: ContCell[_, C]): More[A, C] = {
-      if (contHeadTE == null) {
-        // A = B
-        contHeadTE = head
-      } else {
-        contTail.next = head
-      }
-      contTailTE = tail
-      this.asInstanceOf[More[A, C]]
-    }
-  }
+  final private class Mapped[X, A](val source: StackFrame[X], val f: X => A) extends StackFrame[A]
 
   implicit class RichIndexedSeq[A](private val s: IndexedSeq[A]) extends AnyVal {
     def mapRecur[B, That](f: A => StackFrame[B])(implicit bf: BuildFrom[IndexedSeq[A], B, That])
@@ -90,18 +60,18 @@ object StackSafe {
       val builder = bf.newBuilder(s)
       builder.sizeHint(s)
       var i = 0
-      var cont: B => StackFrame[That] = null
+      var step: StackFrame[That] = null
+
       def loop(): StackFrame[That] =
-        if (i < s.size) {
-          f(s(i)).flatMap(cont)
-        } else {
-          done(builder.result())
-        }
-      cont = { b =>
+        if (i < s.size) step
+        else done(builder.result())
+
+      val k: B => StackFrame[That] = { b =>
         builder += b
         i += 1
         loop()
       }
+      step = call(f(s(i)).flatMap(k))
       loop()
     }
   }
@@ -112,18 +82,19 @@ object StackSafe {
       val builder = bf.newBuilder(a)
       builder.sizeHint(a)
       var i = 0
-      var cont: B => StackFrame[Array[B]] = null
+      var step: StackFrame[Array[B]] = null
+
       def loop(): StackFrame[Array[B]] =
-        if (i < a.size) {
-          f(a(i)).flatMap(cont)
-        } else {
-          done(builder.result())
-        }
-      cont = { b =>
+        if (i < a.length) step
+        else done(builder.result())
+
+      val k: B => StackFrame[Array[B]] = { b =>
         builder += b
         i += 1
         loop()
       }
+
+      step = call(f(a(i)).flatMap(k))
       loop()
     }
   }
@@ -139,12 +110,14 @@ object StackSafe {
   implicit class RichIterator[A](private val i: Iterable[A]) extends AnyVal {
     def foreachRecur(f: A => StackFrame[Unit]): StackFrame[Unit] = {
       val it = i.iterator
+      var step: StackFrame[Unit] = null
+
       def loop(): StackFrame[Unit] =
-        if (it.hasNext) {
-          f(it.next()).flatMap(_ => call(loop()))
-        } else {
-          done(())
-        }
+        if (it.hasNext) step else done(())
+
+      val k: Unit => StackFrame[Unit] = _ => loop()
+
+      step = call(f(it.next()).flatMap(k))
       loop()
     }
   }
@@ -152,17 +125,17 @@ object StackSafe {
   implicit class RichIteratorStackFrame[A](private val i: Iterator[StackFrame[A]]) extends AnyVal {
     def collectRecur(implicit bf: Factory[A, ArraySeq[A]]): StackFrame[IndexedSeq[A]] = {
       val builder = bf.newBuilder
-      var cont: A => StackFrame[IndexedSeq[A]] = null
+      var step: StackFrame[IndexedSeq[A]] = null
+
       def loop(): StackFrame[IndexedSeq[A]] =
-        if (i.hasNext) {
-          i.next().flatMap(cont)
-        } else {
-          done(builder.result())
-        }
-      cont = { a =>
+        if (i.hasNext) step else done(builder.result())
+
+      val k: A => StackFrame[IndexedSeq[A]] = { a =>
         builder += a
-        call(loop())
+        loop()
       }
+
+      step = call(i.next().flatMap(k))
       loop()
     }
   }
@@ -171,18 +144,18 @@ object StackSafe {
     val builder = bf.newBuilder
     builder.sizeHint(n)
     var i = 0
-    var cont: A => StackFrame[C] = null
+    var step: StackFrame[C] = null
+
     def loop(): StackFrame[C] =
-      if (i < n) {
-        body.flatMap(cont)
-      } else {
-        done(builder.result())
-      }
-    cont = { a =>
+      if (i < n) step else done(builder.result())
+
+    val k: A => StackFrame[C] = { a =>
       builder += a
       i += 1
       loop()
     }
+
+    step = call(body.flatMap(k))
     loop()
   }
 }
