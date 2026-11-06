@@ -199,6 +199,7 @@ class TrustedSingleTenantAuthenticator(Authenticator):
                     'update_all_billing_projects': True,
                     'delete_all_billing_projects': True,
                     'assign_users_to_all_billing_projects': True,
+                    'create_quotes': True,
                     'read_ci': True,
                     'manage_ci': True,
                     'read_deployed_system_state': True,
