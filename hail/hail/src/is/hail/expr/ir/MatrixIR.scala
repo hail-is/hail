@@ -56,7 +56,7 @@ object MatrixIR {
   val entryName: Name = Name("g")
 }
 
-sealed abstract class MatrixIR extends BaseIR {
+sealed abstract class MatrixIR(tag: Tag) extends BaseIR(tag) {
   override def typ: MatrixType
   override def deepCopy: MatrixIR = super.deepCopy.asInstanceOf[MatrixIR]
   override protected def copyWithNewChildren(newChildren: IndexedSeq[BaseIR]): MatrixIR
@@ -90,7 +90,8 @@ object MatrixLiteral {
   }
 }
 
-case class MatrixLiteral(typ: MatrixType, tl: TableLiteral) extends MatrixIR {
+case class MatrixLiteral(typ: MatrixType, tl: TableLiteral)
+    extends MatrixIR(new Tag(Tag.MatrixLiteral)) {
   lazy val childrenSeq: IndexedSeq[BaseIR] = ArraySeq.empty
 
   override protected def copyWithNewChildren(newChildren: IndexedSeq[BaseIR]): MatrixLiteral = {
@@ -453,7 +454,7 @@ case class MatrixRead(
   dropCols: Boolean,
   dropRows: Boolean,
   reader: MatrixReader,
-) extends MatrixIR {
+) extends MatrixIR(new Tag(Tag.MatrixRead)) {
   assert(
     PruneDeadFields.isSupertype(typ, reader.fullMatrixType),
     s"\n  original:  ${reader.fullMatrixType}\n  requested: $typ",
@@ -476,7 +477,8 @@ case class MatrixRead(
     reader.lower(ctx, typ, dropCols, dropRows)
 }
 
-case class MatrixFilterCols(child: MatrixIR, pred: IR) extends MatrixIR with PreservesRows {
+case class MatrixFilterCols(child: MatrixIR, pred: IR)
+    extends MatrixIR(new Tag(Tag.MatrixFilterCols)) with PreservesRows {
 
   lazy val childrenSeq: IndexedSeq[BaseIR] = ArraySeq(child, pred)
 
@@ -491,7 +493,7 @@ case class MatrixFilterCols(child: MatrixIR, pred: IR) extends MatrixIR with Pre
 }
 
 case class MatrixFilterRows(child: MatrixIR, pred: IR)
-    extends MatrixIR with PreservesOrRemovesRows with PreservesCols {
+    extends MatrixIR(new Tag(Tag.MatrixFilterRows)) with PreservesOrRemovesRows with PreservesCols {
 
   lazy val childrenSeq: IndexedSeq[BaseIR] = ArraySeq(child, pred)
 
@@ -506,7 +508,7 @@ case class MatrixFilterRows(child: MatrixIR, pred: IR)
 }
 
 case class MatrixChooseCols(child: MatrixIR, oldIndices: IndexedSeq[Int])
-    extends MatrixIR with PreservesRows {
+    extends MatrixIR(new Tag(Tag.MatrixChooseCols)) with PreservesRows {
   lazy val childrenSeq: IndexedSeq[BaseIR] = ArraySeq(child)
 
   override protected def copyWithNewChildren(newChildren: IndexedSeq[BaseIR]): MatrixChooseCols = {
@@ -519,7 +521,8 @@ case class MatrixChooseCols(child: MatrixIR, oldIndices: IndexedSeq[Int])
   override def preservesRowsOrColsFrom: BaseIR = child
 }
 
-case class MatrixCollectColsByKey(child: MatrixIR) extends MatrixIR with PreservesRows {
+case class MatrixCollectColsByKey(child: MatrixIR)
+    extends MatrixIR(new Tag(Tag.MatrixCollectColsByKey)) with PreservesRows {
   lazy val childrenSeq: IndexedSeq[BaseIR] = ArraySeq(child)
 
   override protected def copyWithNewChildren(newChildren: IndexedSeq[BaseIR])
@@ -541,7 +544,8 @@ case class MatrixCollectColsByKey(child: MatrixIR) extends MatrixIR with Preserv
 }
 
 case class MatrixAggregateRowsByKey(child: MatrixIR, entryExpr: IR, rowExpr: IR)
-    extends MatrixIR with PreservesOrRemovesRows with PreservesCols {
+    extends MatrixIR(new Tag(Tag.MatrixAggregateRowsByKey)) with PreservesOrRemovesRows
+    with PreservesCols {
   lazy val childrenSeq: IndexedSeq[BaseIR] = ArraySeq(child, entryExpr, rowExpr)
 
   override protected def copyWithNewChildren(newChildren: IndexedSeq[BaseIR])
@@ -559,7 +563,7 @@ case class MatrixAggregateRowsByKey(child: MatrixIR, entryExpr: IR, rowExpr: IR)
 }
 
 case class MatrixAggregateColsByKey(child: MatrixIR, entryExpr: IR, colExpr: IR)
-    extends MatrixIR with PreservesRows {
+    extends MatrixIR(new Tag(Tag.MatrixAggregateColsByKey)) with PreservesRows {
   lazy val childrenSeq: IndexedSeq[BaseIR] = ArraySeq(child, entryExpr, colExpr)
 
   override protected def copyWithNewChildren(newChildren: IndexedSeq[BaseIR])
@@ -576,7 +580,8 @@ case class MatrixAggregateColsByKey(child: MatrixIR, entryExpr: IR, colExpr: IR)
   override def preservesRowsOrColsFrom: BaseIR = child
 }
 
-case class MatrixUnionCols(left: MatrixIR, right: MatrixIR, joinType: String) extends MatrixIR {
+case class MatrixUnionCols(left: MatrixIR, right: MatrixIR, joinType: String)
+    extends MatrixIR(new Tag(Tag.MatrixUnionCols)) {
   require(joinType == "inner" || joinType == "outer")
 
   lazy val childrenSeq: IndexedSeq[BaseIR] = ArraySeq(left, right)
@@ -617,7 +622,7 @@ case class MatrixUnionCols(left: MatrixIR, right: MatrixIR, joinType: String) ex
 }
 
 case class MatrixMapEntries(child: MatrixIR, newEntries: IR)
-    extends MatrixIR with PreservesRows with PreservesCols {
+    extends MatrixIR(new Tag(Tag.MatrixMapEntries)) with PreservesRows with PreservesCols {
   lazy val childrenSeq: IndexedSeq[BaseIR] = ArraySeq(child, newEntries)
 
   override protected def copyWithNewChildren(newChildren: IndexedSeq[BaseIR]): MatrixMapEntries = {
@@ -632,7 +637,7 @@ case class MatrixMapEntries(child: MatrixIR, newEntries: IR)
 }
 
 case class MatrixKeyRowsBy(child: MatrixIR, keys: IndexedSeq[String], isSorted: Boolean = false)
-    extends MatrixIR with PreservesRows with PreservesCols {
+    extends MatrixIR(new Tag(Tag.MatrixKeyRowsBy)) with PreservesRows with PreservesCols {
   val childrenSeq: IndexedSeq[BaseIR] = ArraySeq(child)
 
   lazy val typ: MatrixType = child.typ.copy(rowKey = keys)
@@ -648,7 +653,7 @@ case class MatrixKeyRowsBy(child: MatrixIR, keys: IndexedSeq[String], isSorted: 
 }
 
 case class MatrixMapRows(child: MatrixIR, newRow: IR)
-    extends MatrixIR with PreservesRows with PreservesCols {
+    extends MatrixIR(new Tag(Tag.MatrixMapRows)) with PreservesRows with PreservesCols {
 
   lazy val childrenSeq: IndexedSeq[BaseIR] = ArraySeq(child, newRow)
 
@@ -664,7 +669,7 @@ case class MatrixMapRows(child: MatrixIR, newRow: IR)
 }
 
 case class MatrixMapCols(child: MatrixIR, newCol: IR, newKey: Option[IndexedSeq[String]])
-    extends MatrixIR with PreservesRows with PreservesCols {
+    extends MatrixIR(new Tag(Tag.MatrixMapCols)) with PreservesRows with PreservesCols {
   lazy val childrenSeq: IndexedSeq[BaseIR] = ArraySeq(child, newCol)
 
   override protected def copyWithNewChildren(newChildren: IndexedSeq[BaseIR]): MatrixMapCols = {
@@ -682,7 +687,7 @@ case class MatrixMapCols(child: MatrixIR, newCol: IR, newKey: Option[IndexedSeq[
 }
 
 case class MatrixMapGlobals(child: MatrixIR, newGlobals: IR)
-    extends MatrixIR with PreservesRows with PreservesCols {
+    extends MatrixIR(new Tag(Tag.MatrixMapGlobals)) with PreservesRows with PreservesCols {
   val childrenSeq: IndexedSeq[BaseIR] = ArraySeq(child, newGlobals)
 
   lazy val typ: MatrixType =
@@ -697,7 +702,7 @@ case class MatrixMapGlobals(child: MatrixIR, newGlobals: IR)
 }
 
 case class MatrixFilterEntries(child: MatrixIR, pred: IR)
-    extends MatrixIR with PreservesRows with PreservesCols {
+    extends MatrixIR(new Tag(Tag.MatrixFilterEntries)) with PreservesRows with PreservesCols {
   val childrenSeq: IndexedSeq[BaseIR] = ArraySeq(child, pred)
 
   override protected def copyWithNewChildren(newChildren: IndexedSeq[BaseIR])
@@ -715,7 +720,7 @@ case class MatrixAnnotateColsTable(
   child: MatrixIR,
   table: TableIR,
   root: String,
-) extends MatrixIR with PreservesRows with PreservesCols {
+) extends MatrixIR(new Tag(Tag.MatrixAnnotateColsTable)) with PreservesRows with PreservesCols {
   lazy val childrenSeq: IndexedSeq[BaseIR] = FastSeq(child, table)
 
   lazy val typ: MatrixType = child.typ.copy(
@@ -738,7 +743,7 @@ case class MatrixAnnotateRowsTable(
   table: TableIR,
   root: String,
   product: Boolean,
-) extends MatrixIR with PreservesRows with PreservesCols {
+) extends MatrixIR(new Tag(Tag.MatrixAnnotateRowsTable)) with PreservesRows with PreservesCols {
   lazy val childrenSeq: IndexedSeq[BaseIR] = FastSeq(child, table)
 
   private def annotationType =
@@ -760,7 +765,7 @@ case class MatrixAnnotateRowsTable(
 }
 
 case class MatrixExplodeRows(child: MatrixIR, path: IndexedSeq[String])
-    extends MatrixIR with PreservesCols {
+    extends MatrixIR(new Tag(Tag.MatrixExplodeRows)) with PreservesCols {
   assert(path.nonEmpty)
 
   lazy val childrenSeq: IndexedSeq[BaseIR] = FastSeq(child)
@@ -784,7 +789,7 @@ case class MatrixExplodeRows(child: MatrixIR, path: IndexedSeq[String])
 }
 
 case class MatrixRepartition(child: MatrixIR, n: Int, strategy: Int)
-    extends MatrixIR with PreservesRows with PreservesCols {
+    extends MatrixIR(new Tag(Tag.MatrixRepartition)) with PreservesRows with PreservesCols {
   override def typ: MatrixType = child.typ
 
   lazy val childrenSeq: IndexedSeq[BaseIR] = FastSeq(child)
@@ -799,7 +804,8 @@ case class MatrixRepartition(child: MatrixIR, n: Int, strategy: Int)
   override def preservesPartitioning: Boolean = false
 }
 
-case class MatrixUnionRows(childrenSeq: IndexedSeq[MatrixIR]) extends MatrixIR {
+case class MatrixUnionRows(childrenSeq: IndexedSeq[MatrixIR])
+    extends MatrixIR(new Tag(Tag.MatrixUnionRows)) {
   require(childrenSeq.length > 1)
 
   override def typ: MatrixType = childrenSeq.head.typ
@@ -809,7 +815,8 @@ case class MatrixUnionRows(childrenSeq: IndexedSeq[MatrixIR]) extends MatrixIR {
 }
 
 case class MatrixDistinctByRow(child: MatrixIR)
-    extends MatrixIR with PreservesOrRemovesRows with PreservesCols {
+    extends MatrixIR(new Tag(Tag.MatrixDistinctByRow)) with PreservesOrRemovesRows
+    with PreservesCols {
   override def typ: MatrixType = child.typ
 
   lazy val childrenSeq: IndexedSeq[BaseIR] = FastSeq(child)
@@ -823,7 +830,8 @@ case class MatrixDistinctByRow(child: MatrixIR)
   override def preservesRowsOrColsFrom: BaseIR = child
 }
 
-case class MatrixRowsHead(child: MatrixIR, n: Long) extends MatrixIR with PreservesCols {
+case class MatrixRowsHead(child: MatrixIR, n: Long)
+    extends MatrixIR(new Tag(Tag.MatrixRowsHead)) with PreservesCols {
   require(n >= 0)
   override def typ: MatrixType = child.typ
 
@@ -837,7 +845,8 @@ case class MatrixRowsHead(child: MatrixIR, n: Long) extends MatrixIR with Preser
   override def preservesRowsOrColsFrom: BaseIR = child
 }
 
-case class MatrixColsHead(child: MatrixIR, n: Int) extends MatrixIR with PreservesRows {
+case class MatrixColsHead(child: MatrixIR, n: Int)
+    extends MatrixIR(new Tag(Tag.MatrixColsHead)) with PreservesRows {
   require(n >= 0)
   override def typ: MatrixType = child.typ
 
@@ -851,7 +860,8 @@ case class MatrixColsHead(child: MatrixIR, n: Int) extends MatrixIR with Preserv
   override def preservesRowsOrColsFrom: BaseIR = child
 }
 
-case class MatrixRowsTail(child: MatrixIR, n: Long) extends MatrixIR with PreservesCols {
+case class MatrixRowsTail(child: MatrixIR, n: Long)
+    extends MatrixIR(new Tag(Tag.MatrixRowsTail)) with PreservesCols {
   require(n >= 0)
   override def typ: MatrixType = child.typ
 
@@ -865,7 +875,8 @@ case class MatrixRowsTail(child: MatrixIR, n: Long) extends MatrixIR with Preser
   override def preservesRowsOrColsFrom: BaseIR = child
 }
 
-case class MatrixColsTail(child: MatrixIR, n: Int) extends MatrixIR with PreservesRows {
+case class MatrixColsTail(child: MatrixIR, n: Int)
+    extends MatrixIR(new Tag(Tag.MatrixColsTail)) with PreservesRows {
   require(n >= 0)
   override def typ: MatrixType = child.typ
 
@@ -880,7 +891,7 @@ case class MatrixColsTail(child: MatrixIR, n: Int) extends MatrixIR with Preserv
 }
 
 case class MatrixExplodeCols(child: MatrixIR, path: IndexedSeq[String])
-    extends MatrixIR with PreservesRows {
+    extends MatrixIR(new Tag(Tag.MatrixExplodeCols)) with PreservesRows {
 
   lazy val childrenSeq: IndexedSeq[BaseIR] = FastSeq(child)
 
@@ -911,7 +922,7 @@ case class CastTableToMatrix(
   entriesFieldName: String,
   colsFieldName: String,
   colKey: IndexedSeq[String],
-) extends MatrixIR with PreservesRows {
+) extends MatrixIR(new Tag(Tag.CastTableToMatrix)) with PreservesRows {
   lazy val typ: MatrixType =
     MatrixType.fromTableType(child.typ, colsFieldName, entriesFieldName, colKey)
 
@@ -931,7 +942,7 @@ case class CastTableToMatrix(
 }
 
 case class MatrixToMatrixApply(child: MatrixIR, function: MatrixToMatrixFunction)
-    extends MatrixIR with PreservesRows {
+    extends MatrixIR(new Tag(Tag.MatrixToMatrixApply)) with PreservesRows {
   lazy val childrenSeq: IndexedSeq[BaseIR] = ArraySeq(child)
 
   override protected def copyWithNewChildren(newChildren: IndexedSeq[BaseIR]): MatrixIR = {
@@ -952,7 +963,7 @@ case class MatrixRename(
   colMap: Map[String, String],
   rowMap: Map[String, String],
   entryMap: Map[String, String],
-) extends MatrixIR with PreservesRows with PreservesCols {
+) extends MatrixIR(new Tag(Tag.MatrixRename)) with PreservesRows with PreservesCols {
   lazy val typ: MatrixType = MatrixType(
     globalType = child.typ.globalType.rename(globalMap),
     colKey = child.typ.colKey.map(k => colMap.getOrElse(k, k)),
@@ -973,7 +984,8 @@ case class MatrixRename(
 }
 
 case class MatrixFilterIntervals(child: MatrixIR, intervals: IndexedSeq[Interval], keep: Boolean)
-    extends MatrixIR with PreservesOrRemovesRows with PreservesCols {
+    extends MatrixIR(new Tag(Tag.MatrixFilterIntervals)) with PreservesOrRemovesRows
+    with PreservesCols {
   lazy val childrenSeq: IndexedSeq[BaseIR] = ArraySeq(child)
 
   override protected def copyWithNewChildren(newChildren: IndexedSeq[BaseIR]): MatrixIR = {
@@ -987,7 +999,7 @@ case class MatrixFilterIntervals(child: MatrixIR, intervals: IndexedSeq[Interval
 }
 
 case class RelationalLetMatrixTable(name: Name, value: IR, body: MatrixIR)
-    extends MatrixIR with PreservesRows {
+    extends MatrixIR(new Tag(Tag.RelationalLetMatrixTable)) with PreservesRows {
   override def typ: MatrixType = body.typ
 
   override def childrenSeq: IndexedSeq[BaseIR] = ArraySeq(value, body)
