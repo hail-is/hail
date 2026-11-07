@@ -219,7 +219,7 @@ def is_committed(path: str) -> bool:
     it commits by writing its manifest root last.
     """
     fs = Env.fs()
-    return fs.exists(f'{path}/_SUCCESS') or fs.exists(f'{path}/manifest.json')
+    return fs.is_file(f'{path}/_SUCCESS') or fs.is_file(f'{path}/manifest.json')
 
 
 storage_level = enumeration(
