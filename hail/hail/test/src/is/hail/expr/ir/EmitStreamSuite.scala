@@ -1208,6 +1208,40 @@ class EmitStreamSuite {
     }
   }
 
+  /* The inner element is computed lazily (the ToArray in the outer map of the inner stream), so it
+   * is allocated only when the consumer evaluates it, after StreamFlatMap has produced it.
+   * StreamZipJoin holds each input's current element while pulling the next one, so the last
+   * element of each inner stream is read after StreamFlatMap has moved on to the next outer
+   * element. The takeWhile evaluates each element as it is produced, allocating in the inner
+   * element region the way a partition reader does, so memory freed too early is overwritten. */
+  @Test def testStreamFlatMapLazyInnerElementOutlivesInnerStream(implicit ctx: ExecuteContext)
+    : Unit = {
+    val nCols = 5
+    val parts = FastSeq(FastSeq(0, 1, 2), FastSeq(3, 4, 5))
+
+    def input: IR =
+      flatMapIR(ToStream(Literal(TArray(TArray(TInt32)), parts), true)) { part =>
+        val produced = takeWhile(mapIR(ToStream(part, true)) { k =>
+          makestruct("k" -> k, "a" -> ToArray(mapIR(rangeIR(nCols))(j => k * 100 + j)))
+        })(_ => True())
+        mapIR(produced) { row =>
+          makestruct(
+            "k" -> GetField(row, "k"),
+            "a" -> ToArray(mapIR(ToStream(GetField(row, "a")))(x => x + 0)),
+          )
+        }
+      }
+
+    val joined = zipJoin2IR(FastSeq(input, input), FastSeq("k")) { (key, vals) =>
+      InsertFields(key, FastSeq("as" -> mapArray(vals)(GetField(_, "a"))))
+    }
+
+    val expected = parts.flatten.map { k =>
+      RowSeq(k, ArraySeq.fill(2)(ArraySeq.tabulate(nCols)(k * 100 + _)))
+    }
+    assert(evalStream(joined) == expected)
+  }
+
   @Test def testGroupedFlatMapMemManagementMismatch(implicit ctx: ExecuteContext): Unit =
     assertMemoryDoesNotScaleWithStreamSize() { size =>
       foldLength(flatMapIR(mapIR(StreamGrouped(rangeStructs(size), 16))(x => ToArray(x))) { a =>
