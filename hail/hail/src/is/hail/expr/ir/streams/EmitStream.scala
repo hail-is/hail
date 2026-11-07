@@ -1702,6 +1702,14 @@ object EmitStream {
                     },
                   )
                 },
+                /* The previous element came from the current inner stream. Clear the inner element
+                 * region only now, not when that element was produced: the inner element may be
+                 * computed lazily (e.g. a StreamMap body) and allocate into
+                 * innerProducer.elementRegion when the consumer evaluates it. Clearing before that
+                 * would put the allocation in memory resultElementRegion does not reference, which
+                 * is freed when the inner stream ends. */
+                if (innerProducer.requiresMemoryManagementPerElement)
+                  cb += innerProducer.elementRegion.clearRegion(),
               )
 
               cb.define(LnextInner)
@@ -1715,13 +1723,11 @@ object EmitStream {
 
                 // if outer requires memory management and inner doesn't,
                 // then innerProducer.elementRegion is outerProducer.elementRegion
-                // and we shouldn't clear it.
-                if (innerProducer.requiresMemoryManagementPerElement) {
+                // and must not be cleared per element.
+                if (innerProducer.requiresMemoryManagementPerElement)
                   cb += resultElementRegion.trackAndIncrementReferenceCountOf(
                     outerProducer.elementRegion
                   )
-                  cb += innerProducer.elementRegion.clearRegion()
-                }
               }
               cb.goto(LproduceElementDone)
             }
