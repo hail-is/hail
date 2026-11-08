@@ -2327,11 +2327,11 @@ object PruneDeadFields extends Logging {
           ))
         }
       case x: ApplyAggOp =>
-        x.mapChildrenWithEnv(env) { (child, childEnv) =>
+        x.mapChildrenWithEnv(env)((_, t) => t) { (child, childEnv) =>
           rebuildIR(ctx, child.asInstanceOf[IR], childEnv, memo)
         }.asInstanceOf[ApplyAggOp]
       case x: ApplyScanOp =>
-        x.mapChildrenWithEnv(env) { (child, childEnv) =>
+        x.mapChildrenWithEnv(env)((_, t) => t) { (child, childEnv) =>
           rebuildIR(ctx, child.asInstanceOf[IR], childEnv, memo)
         }.asInstanceOf[ApplyScanOp]
       case CollectDistributedArray(contexts, globals, cname, gname, body, dynamicID, staticID,
@@ -2355,7 +2355,7 @@ object PruneDeadFields extends Logging {
         val dynamicID2 = rebuildIR(ctx, dynamicID, env, memo)
         CollectDistributedArray(contexts2, globals2, cname, gname, body2, dynamicID2, staticID, tsd)
       case _ =>
-        ir.mapChildrenWithEnv(env) { (child, childEnv) =>
+        ir.mapChildrenWithEnv(env)((_, t) => t) { (child, childEnv) =>
           child match {
             case valueIR: IR => rebuildIR(ctx, valueIR, childEnv, memo)
             case mir: MatrixIR => rebuild(ctx, mir, memo)

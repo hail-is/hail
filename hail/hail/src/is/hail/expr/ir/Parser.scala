@@ -2044,7 +2044,7 @@ object IRParser {
 
   def annotateTypes(ctx: ExecuteContext, ir: BaseIR, env: BindingEnv[Type]): BaseIR = {
     def run(ir: BaseIR, env: BindingEnv[Type]): BaseIR = {
-      val rw = ir.mapChildrenWithEnv(env)(run)
+      val rw = ir.mapChildrenWithEnv(env)((_, t) => t)(run)
       rw match {
         case x: Ref =>
           x._typ = env.eval(x.name)
