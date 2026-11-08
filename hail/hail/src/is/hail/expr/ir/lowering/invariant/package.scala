@@ -2,9 +2,11 @@ package is.hail.expr.ir.lowering
 
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir._
+import is.hail.expr.ir.NormalizeNames.needsRenaming
 import is.hail.expr.ir.defs.{ApplyIR, RelationalLet, RelationalRef}
 import is.hail.expr.ir.lowering.invariant.Flags.StrictInvariants
-import is.hail.utils.{TimedBlock, TreeTraversal}
+import is.hail.utils.StackSafe._
+import is.hail.utils.TimedBlock
 import is.hail.utils.implicits.toRichPredicate
 
 import scala.collection.mutable
@@ -81,8 +83,24 @@ package object invariant {
   }
 
   object UniquelyNamed extends Invariant {
-    override private[invariant] def verify(ctx: ExecuteContext, ir: BaseIR): Unit = {
-      val globalNames = mutable.HashMap[Name, BaseIR]()
+
+    private type E[_] = Unit
+
+    // calls record with the names each bind adds
+    private def recording(record: Seq[Name] => Unit): Scopes[E] =
+      new Scopes[E] {
+        override def fresh[A](e: E[A]): E[A] = ()
+        override def create[A](e: E[A], s: Scope): E[A] = ()
+        override def drop[A](e: E[A], s: Scope): E[A] = ()
+        override def promote[A](e: E[A], s: Scope): E[A] = ()
+        override def bind[A](e: E[A], s: EnvScope, bs: Seq[(Name, A)]): E[A] = record(bs.map(_._1))
+      }
+
+    // A name bound by a node that needs renaming is bound by no other node. Nodes that keep
+    // their names (e.g. `row`) may share them with each other, but not with a renamed node.
+    override private[invariant] def verify(ctx: ExecuteContext, ir0: BaseIR): Unit = {
+      val renamed = mutable.HashMap.empty[Name, BaseIR]
+      val kept = mutable.HashMap.empty[Name, BaseIR]
 
       def collision(name: Name, ir: BaseIR, original: BaseIR): Nothing =
         throw new UnsatisfiedInvariantError(
@@ -90,25 +108,25 @@ package object invariant {
             "Originally bound in" + Pretty(ctx, original)
         )
 
-      type A = (BaseIR, Env[BaseIR])
-
-      val adj: A => Iterator[A] = { case (ir, env) =>
-        val newNames = mutable.HashSet.empty[Name] // ir may bind the same name in multiple children
-        ir.children.iterator.zipWithIndex.map { case (child, i) =>
-          val bindings = Bindings.get(ir, i).all.map { case (name, _) => (name, ir) }
-          if (!NormalizeNames.needsRenaming(ir)) (child, env.bindIterable(bindings))
-          else {
-            bindings.foreach { case (name, ir) =>
-              env.lookupOption(name).foreach(collision(name, ir, _))
-              !newNames.add(name) || globalNames.put(name, ir).forall(collision(name, ir, _))
-            }
-
-            (child, env)
-          }
+      def record(ir: BaseIR, newNames: mutable.Set[Name])(names: Seq[Name]): Unit = {
+        // ir may bind the same name in multiple children
+        val filtered = names.filter(newNames.add)
+        if (needsRenaming(ir)) filtered.foreach { name =>
+          kept.get(name).foreach(collision(name, ir, _))
+          renamed.put(name, ir).foreach(collision(name, ir, _))
+        }
+        else filtered.foreach { name =>
+          renamed.get(name).foreach(collision(name, ir, _))
+          kept.update(name, ir)
         }
       }
 
-      TreeTraversal.preOrder(adj)((ir, Env.empty)).foreach(_ => ())
+      def go(ir: BaseIR): StackFrame[Unit] =
+        ir.forEachChildWithEnvStackSafe((): E[Unit])((_, _) => ()) { (child, _, _) =>
+          call(go(child))
+        }(recording(record(ir, mutable.HashSet.empty)))
+
+      go(ir0).run()
     }
   }
 
