@@ -133,8 +133,8 @@ object ChildEnv {
   }
 
   /** Walks Block `b`'s children (each binding's value, then the body), threading `b`'s env so the
-    * walk is linear in its bindings. `f` takes child `i`, `i` and child `i`'s env, and returns child
-    * `i`'s final form, whose type binding `i` binds.
+    * walk is linear in its bindings. `f` takes child `i`, `i` and child `i`'s env, and returns
+    * child `i`'s final form, whose type binding `i` binds.
     */
   def walkBlock[E[_]: Scopes, A](
     b: Block,

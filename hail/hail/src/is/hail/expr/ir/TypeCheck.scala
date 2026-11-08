@@ -39,8 +39,7 @@ object TypeCheck extends Logging {
       }
     } yield checkSingleNode(ctx, ir, env)
 
-  private def checkVoidTypedChild(ctx: ExecuteContext, ir: BaseIR, i: Int)
-    : Unit = ir match {
+  private def checkVoidTypedChild(ctx: ExecuteContext, ir: BaseIR, i: Int): Unit = ir match {
     case l: Block if i == l.bindings.length || l.body.typ == TVoid =>
     case _: StreamFor if i == 1 =>
     case _: RunAggScan if (i == 1 || i == 2) =>

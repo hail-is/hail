@@ -3,8 +3,8 @@ package is.hail.expr.ir.lowering
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
 import is.hail.expr.ir.{
-  BaseIR, BindingEnv, Binds, ComputeUsesAndDefs, ContainsAgg, ContainsAggIntermediate,
-  ContainsScan, IR, IsPure, Pretty, RefEquality, Scope, UsesAndDefs,
+  BaseIR, BindingEnv, Binds, ComputeUsesAndDefs, ContainsAgg, ContainsAggIntermediate, ContainsScan,
+  IR, IsPure, Pretty, RefEquality, Scope, UsesAndDefs,
 }
 import is.hail.expr.ir.Scopes.ScopesSyntax
 import is.hail.expr.ir.defs._
