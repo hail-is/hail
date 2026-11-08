@@ -16,7 +16,7 @@ import org.apache.arrow.vector.ipc.WriteChannel
 import org.apache.arrow.vector.ipc.message.{IpcOption, MessageSerializer}
 import org.apache.arrow.vector.types.FloatingPointPrecision
 import org.apache.arrow.vector.types.pojo.{ArrowType, Field, FieldType, Schema}
-import org.apache.parquet.schema.{LogicalTypeAnnotation, MessageType, Types, Type => ParquetType}
+import org.apache.parquet.schema.{LogicalTypeAnnotation, MessageType, Type => ParquetType, Types}
 import org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName
 import org.apache.parquet.schema.Type.Repetition
 

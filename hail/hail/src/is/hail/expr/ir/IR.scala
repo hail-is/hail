@@ -11,9 +11,9 @@ import is.hail.expr.ir.defs.ArrayZipBehavior.{ArrayZipBehavior, AssertSameLength
 import is.hail.expr.ir.functions._
 import is.hail.expr.ir.streams.StreamProducer
 import is.hail.io.{AbstractTypedCodecSpec, BufferSpec, TypedCodecSpec}
-import is.hail.io.columnar.{ColumnarPartitionWriter, ColumnarTableCommit, ColumnarTableManifest}
 import is.hail.io.avro.{AvroPartitionReader, AvroSchemaSerializer}
 import is.hail.io.bgen.BgenPartitionReader
+import is.hail.io.columnar.{ColumnarPartitionWriter, ColumnarTableCommit, ColumnarTableManifest}
 import is.hail.io.vcf.{GVCFPartitionReader, VCFHeaderInfo}
 import is.hail.rvd.RVDSpecMaker
 import is.hail.types.{tcoerce, RIterable, RStruct, TypeWithRequiredness}
