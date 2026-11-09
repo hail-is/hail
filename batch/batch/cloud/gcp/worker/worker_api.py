@@ -24,11 +24,12 @@ class GCPWorkerAPI(CloudWorkerAPI):
 
     # async because ClientSession must be created inside a running event loop
     @staticmethod
-    async def from_env(machine_type: str) -> 'GCPWorkerAPI':
+    async def from_env() -> 'GCPWorkerAPI':
         project = os.environ['PROJECT']
         zone = os.environ['ZONE'].rsplit('/', 1)[1]
         worker_credentials = aiogoogle.GoogleInstanceMetadataCredentials()
         http_session = httpx.client_session()
+        machine_type = orjson.loads(base64.b64decode(os.environ['INSTANCE_CONFIG']).decode())['machine_type']
         machine_type_parts = gcp_machine_type_to_parts(machine_type)
         assert machine_type_parts is not None, machine_type
         disk_type = gcp_external_storage_disk_type(machine_type_parts.machine_family)
