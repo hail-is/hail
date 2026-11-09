@@ -24,8 +24,20 @@ export function isBuildOutOfDate(pr: PrConfig): boolean {
   return pr.out_of_date === true && pr.build_state !== null && BUILD_STATES_WITH_A_BUILD.has(pr.build_state);
 }
 
+// The stack entry directly below an upper-stack PR, whatever its state; null when there isn't one.
+export function stackedOn(pr: PrConfig): number | null {
+  const position = pr.stack_entry?.position;
+  if (position === undefined || pr.stack === null) return null;
+  return pr.stack.entries.find((e) => e.position === position - 1)?.number ?? null;
+}
+
+function stackedText(pr: PrConfig): string {
+  const below = stackedOn(pr);
+  return below === null ? 'stacked' : `stacked on #${below}`;
+}
+
 export function buildStateLabel(pr: PrConfig): string {
-  if (pr.display_only) return 'not built';
+  if (pr.display_only) return stackedText(pr);
   return pr.build_state ?? 'pending';
 }
 
@@ -38,6 +50,8 @@ export interface StageCell {
   text: string;
   requestedAt?: string;
   detail?: string;
+  // An upper-stack PR's Merge cell: blank, but counted as pending in a stack's summary.
+  stacked?: boolean;
 }
 
 function oldestRequestedAt(requests: ReviewRequest[]): string | undefined {
@@ -155,7 +169,7 @@ export function upToDateCell(pr: PrConfig): StageCell {
 // earlier steps show why; the blockers are in the tooltip). Queue position, retries and pauses come
 // from the branch's developer status; without it, a PR with no blockers is just "ready".
 export function mergeCell(pr: PrConfig, branch: DeveloperBranchStatus | undefined, nowMs: number): StageCell {
-  if (pr.display_only || pr.merge_blockers === null) return { status: 'na', text: 'stacked' };
+  if (pr.display_only || pr.merge_blockers === null) return { status: 'na', text: '', detail: stackedText(pr), stacked: true };
   if (branch?.pending_merge?.pr === pr.number) {
     return { status: 'pending', text: 'merging', requestedAt: new Date(branch.pending_merge.requested_at_ms).toISOString() };
   }
@@ -245,6 +259,51 @@ export function formatAge(iso: string, nowMs: number): string {
   const hours = Math.floor(minutes / 60);
   if (hours < 48) return `${hours}h`;
   return `${Math.floor(hours / 24)}d`;
+}
+
+// One part of a stack summary cell: how many of the stack's PRs are in a state. `kind` says which
+// icon to show: a merge journey step status, or a build / GitHub status state.
+export interface TallyItem {
+  kind: 'stage' | 'build';
+  state: string;
+  count: number;
+}
+
+function tally(kind: TallyItem['kind'], states: string[], order: string[] = []): TallyItem[] {
+  const counts = new Map<string, number>();
+  for (const s of states) counts.set(s, (counts.get(s) ?? 0) + 1);
+  const rank = (s: string): number => (order.includes(s) ? order.indexOf(s) : order.length);
+  return [...counts.entries()]
+    .sort(([a], [b]) => rank(a) - rank(b) || a.localeCompare(b))
+    .map(([state, count]) => ({ kind, state, count }));
+}
+
+// Journey step cells counted by status. An upper-stack PR's n/a Merge cell counts as pending;
+// other n/a cells aren't counted.
+export function stageTally(cells: StageCell[]): TallyItem[] {
+  const states = cells.flatMap((c) => {
+    if (c.status !== 'na') return [c.status];
+    return c.stacked === true ? ['pending'] : [];
+  });
+  return tally('stage', states, ['pass', 'pending', 'fail']);
+}
+
+// CI build states counted; an upper-stack PR (not built yet) counts as pending.
+export function buildTally(prs: PrConfig[]): TallyItem[] {
+  const states = prs.map((pr) => (pr.display_only ? 'pending' : pr.build_state ?? 'pending'));
+  return tally('build', states, ['success', 'building', 'pending', 'failure']);
+}
+
+// One GitHub status counted across PRs; PRs without it are left out.
+export function statusTally(prs: PrConfig[], name: string): TallyItem[] {
+  const states = prs.map((pr) => pr.gh_statuses[name]).filter((s): s is string => s !== undefined && s !== '');
+  return tally('build', states, ['success', 'pending', 'failure']);
+}
+
+// Case-insensitive substring match; an empty term matches everything.
+export function matchesSearchTerm(text: string, term: string): boolean {
+  const needle = term.trim().toLowerCase();
+  return needle === '' || text.toLowerCase().includes(needle);
 }
 
 // Case-insensitive substring match against the text of every cell in the row.
