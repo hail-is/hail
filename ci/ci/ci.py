@@ -7,7 +7,7 @@ import re
 import traceback
 from collections import defaultdict
 from contextlib import AsyncExitStack
-from datetime import timezone
+from datetime import datetime, timezone
 from typing import Any, Callable, Dict, List, NoReturn, Optional, Set, Tuple, TypedDict, Union
 
 import aiohttp_session  # type: ignore
@@ -59,10 +59,11 @@ from web_common import (
     web_security_headers_swagger,
 )
 
+from . import status as ci_status
 from .constants import AUTHORIZED_USERS, TEAMS, User
 from .environment import CLOUD, DEFAULT_NAMESPACE, DOMAIN, STORAGE_URI
 from .envoy import Service, create_cds_response, create_rds_response
-from .events import CIEvent, cleanup_old_events, record_event
+from .events import CIEvent, cleanup_old_events, error_condition, is_error, record_event
 from .github import (
     PR,
     WIP,
@@ -107,6 +108,7 @@ class PRConfig(TypedDict):
     out_of_date: bool
     review_requests: List[Dict[str, Any]]
     reviews: List[Dict[str, Any]]
+    merge_blockers: List[str]
 
 
 async def pr_config(app: web.Application, pr: PR) -> PRConfig:
@@ -130,6 +132,7 @@ async def pr_config(app: web.Application, pr: PR) -> PRConfig:
         'out_of_date': pr.build_state in ['failure', 'success', None] and not pr.is_up_to_date(),
         'review_requests': [r._asdict() for r in pr.review_requests],
         'reviews': [r._asdict() for r in pr.reviews],
+        'merge_blockers': pr.merge_blockers(),
     }
 
 
@@ -1125,6 +1128,17 @@ _EVENT_COLUMNS = (
 )
 
 
+def _bool_query_param(query, name: str, *, default: bool) -> bool:
+    value = query.get(name)
+    if value is None:
+        return default
+    if value in ('true', '1'):
+        return True
+    if value in ('false', '0'):
+        return False
+    raise web.HTTPBadRequest(text=f'{name} must be true or false')
+
+
 @routes.get('/api/v1alpha/events')
 @auth.authenticated_users_with_permission(SystemPermission.READ_CI, redirect=False)
 async def api_events(request: web.Request, _) -> web.Response:
@@ -1159,6 +1173,24 @@ async def api_events(request: web.Request, _) -> web.Response:
             raise web.HTTPBadRequest(text=f'unknown event: {event!r}') from exc
         conditions.append('event = %s')
 
+    if (since_ms := query.get('since_ms')) is not None:
+        try:
+            since = datetime.fromtimestamp(int(since_ms) / 1000, tz=timezone.utc)
+        except ValueError as exc:
+            raise web.HTTPBadRequest(text='since_ms must be an integer') from exc
+        # time is stored as naive UTC
+        conditions.append('time >= %s')
+        args.append(since.replace(tzinfo=None))
+
+    error_sql, error_args = error_condition()
+    if _bool_query_param(query, 'errors_only', default=False):
+        conditions.append(error_sql)
+        args.extend(error_args)
+    if not _bool_query_param(query, 'include_pr_events', default=True):
+        # PR-scoped errors stay, so a PR's failures still show without its routine events
+        conditions.append(f'(pr_number IS NULL OR {error_sql})')
+        args.extend(error_args)
+
     if (cursor := query.get('cursor')) is not None:
         try:
             args.append(int(cursor))
@@ -1191,6 +1223,7 @@ LIMIT %s
             {
                 **{column: r[column] for column in _EVENT_COLUMNS},
                 'time': r['time'].replace(tzinfo=timezone.utc).isoformat(),
+                'is_error': is_error(r['event'], r['message']),
             }
             for r in rows
         ],
@@ -1417,6 +1450,55 @@ async def api_unfreeze(request: web.Request, userdata: UserData) -> web.Response
     app[AppKeys.FROZEN_MERGE_DEPLOY] = False
     await record_event(app[AppKeys.DB], CIEvent.UNFROZEN, username=userdata['username'])
     return json_response({'frozen': False})
+
+
+def _expected_background_loops() -> Dict[str, int]:
+    loops = {cleanup_old_events.__name__: ci_status.HOURLY_LOOP_STALE_MS}
+    if DEFAULT_NAMESPACE == 'default':
+        loops[update_envoy_configs.__name__] = ci_status.LOOP_STALE_MS
+        loops[cleanup_expired_namespaces.__name__] = ci_status.LOOP_STALE_MS
+    return loops
+
+
+def _health_problems(app: web.Application) -> List[str]:
+    return ci_status.health_problems(
+        watched_branches,
+        now_ms=time_msecs(),
+        started_at_ms=app[AppKeys.STARTED_AT_MS],
+        last_webhook_ms=app[AppKeys.LAST_WEBHOOK_MS],
+        loop_last_success_ms=app[AppKeys.LOOP_LAST_SUCCESS_MS],
+        expected_loops=_expected_background_loops(),
+    )
+
+
+@routes.get('/api/v1alpha/ci_developer_status')
+@auth.authenticated_users_with_permission(SystemPermission.READ_CI, redirect=False)
+async def api_ci_developer_status(request: web.Request, _) -> web.Response:
+    app = request.app
+    frozen = app[AppKeys.FROZEN_MERGE_DEPLOY]
+    return json_response({
+        'started_at_ms': app[AppKeys.STARTED_AT_MS],
+        'ci_unhealthy': bool(_health_problems(app)),
+        'frozen': frozen,
+        'branches': [await ci_status.developer_branch_status(wb, app[AppKeys.DB], frozen) for wb in watched_branches],
+    })
+
+
+@routes.get('/api/v1alpha/ci_operator_status')
+@auth.authenticated_users_with_permission(SystemPermission.READ_DEPLOYED_SYSTEM_STATE, redirect=False)
+async def api_ci_operator_status(request: web.Request, _) -> web.Response:
+    app = request.app
+    loop_last_success_ms = app[AppKeys.LOOP_LAST_SUCCESS_MS]
+    return json_response({
+        'started_at_ms': app[AppKeys.STARTED_AT_MS],
+        'health_problems': _health_problems(app),
+        'github': {
+            'last_webhook_ms': app[AppKeys.LAST_WEBHOOK_MS],
+            'last_api_error': ci_status.latest_github_api_error(watched_branches),
+        },
+        'loops': {loop: {'last_success_ms': loop_last_success_ms.get(loop)} for loop in _expected_background_loops()},
+        'branches': [ci_status.operator_branch_status(wb) for wb in watched_branches],
+    })
 
 
 @routes.post('/api/v1alpha/watched_branches/{branch}/prs/{number}/retry')
@@ -1689,7 +1771,7 @@ async def on_startup(app: web.Application):
 SELECT frozen_merge_deploy FROM globals;
 """)
 
-    app[AppKeys.FROZEN_MERGE_DEPLOY] = row['frozen_merge_deploy']
+    app[AppKeys.FROZEN_MERGE_DEPLOY] = bool(row['frozen_merge_deploy'])
     app[AppKeys.TASK_MANAGER] = aiotools.BackgroundTaskManager()
     exit_stack.callback(app[AppKeys.TASK_MANAGER].shutdown)
 
@@ -1698,7 +1780,9 @@ SELECT frozen_merge_deploy FROM globals;
         CIEvent.CI_STARTED,
         message=f'version: {os.environ.get("HAIL_SHA")}\npod: {os.environ.get("HOSTNAME")}',
     )
-    app[AppKeys.TASK_MANAGER].ensure_future(periodically_call(3600, cleanup_old_events, app[AppKeys.DB]))
+    app[AppKeys.TASK_MANAGER].ensure_future(
+        periodically_call(3600, record_success(cleanup_old_events, app[AppKeys.LOOP_LAST_SUCCESS_MS]), app[AppKeys.DB])
+    )
 
     if DEFAULT_NAMESPACE == 'default':
         kubernetes_asyncio.config.load_incluster_config()

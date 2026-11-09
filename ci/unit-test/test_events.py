@@ -5,7 +5,15 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import gidgethub
 
-from ci.events import MAX_MESSAGE_LENGTH, CIEvent, record_event, truncate_message
+from ci.events import (
+    ERROR_EVENTS,
+    MAX_MESSAGE_LENGTH,
+    CIEvent,
+    error_condition,
+    is_error,
+    record_event,
+    truncate_message,
+)
 from ci.github import PR, describe_exception
 from hailtop.utils import CalledProcessError
 
@@ -24,6 +32,22 @@ def test_python_enum_matches_migration():
 
 def test_python_enum_matches_estimated_current():
     assert _sql_enum_values((SQL_DIR / 'estimated-current.sql').read_text()) == [e.value for e in CIEvent]
+
+
+def test_is_error_counts_failure_events_and_failed_deploys():
+    assert is_error('update_failed', None)
+    assert is_error('merge_expired', 'whatever')
+    assert is_error('deploy_finished', 'failure')
+    assert not is_error('deploy_finished', 'success')
+    assert not is_error('build_started', None)
+    assert not is_error('deploy_failure_alerted', None)
+
+
+def test_error_condition_lists_every_error_event():
+    sql, args = error_condition()
+    assert sql.count('%s') == len(args)
+    assert set(args[: len(ERROR_EVENTS)]) == {e.value for e in ERROR_EVENTS}
+    assert args[len(ERROR_EVENTS) :] == ['deploy_finished', 'failure']
 
 
 def test_truncate_message_keeps_short_messages():
