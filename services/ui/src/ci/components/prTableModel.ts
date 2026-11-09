@@ -1,0 +1,125 @@
+import type { PrConfig, ReviewRequest } from '../../shared/ciApi';
+
+export function ghStatuses(pr: PrConfig): Map<string, string> {
+  return new Map(Object.entries(pr.gh_statuses));
+}
+
+// The API doesn't list status names, so the columns are the union of names across all PRs.
+// Sorted so the column order doesn't shift between page loads.
+export function statusColumnNames(prs: PrConfig[]): string[] {
+  const names = new Set<string>();
+  for (const pr of prs) {
+    for (const name of Object.keys(pr.gh_statuses)) names.add(name);
+  }
+  return [...names].sort();
+}
+
+// A build that ran (or is running) against an older target SHA; its label gets a `*`. Only
+// applies when there is a build: `null` (pending) and `unauthorized` mean there isn't one, even
+// though the API's `out_of_date` can still be set for them.
+const BUILD_STATES_WITH_A_BUILD = new Set(['success', 'failure', 'building']);
+
+export function isBuildOutOfDate(pr: PrConfig): boolean {
+  return pr.out_of_date === true && pr.build_state !== null && BUILD_STATES_WITH_A_BUILD.has(pr.build_state);
+}
+
+export function buildStateLabel(pr: PrConfig): string {
+  if (pr.display_only) return 'not built';
+  if (pr.build_state === null) return 'pending';
+  return isBuildOutOfDate(pr) ? `${pr.build_state} *` : pr.build_state;
+}
+
+// One PR-flow stage column (Review 1, Review 2, ...). `requestedAt` is the oldest open request
+// the stage is waiting on, for showing its age.
+export type StageStatus = 'pass' | 'fail' | 'pending' | 'na';
+
+export interface StageCell {
+  status: StageStatus;
+  text: string;
+  requestedAt?: string;
+}
+
+function oldestRequestedAt(requests: ReviewRequest[]): string | undefined {
+  const times = requests.map((r) => r.requested_at).filter((t): t is string => t !== null).sort();
+  return times[0];
+}
+
+function nonAuthorReviewers(pr: PrConfig, state: string): string[] {
+  return pr.reviews.filter((r) => r.author !== pr.author && r.state === state).map((r) => r.author);
+}
+
+function awaiting(names: string[], requests: ReviewRequest[]): StageCell {
+  const asked = requests.filter((r) => r.reviewer !== null && names.includes(r.reviewer));
+  return { status: 'pending', text: `awaiting ${names.join(', ')}`, requestedAt: oldestRequestedAt(asked) };
+}
+
+function codeownerCell(requests: ReviewRequest[]): StageCell {
+  // A null reviewer is one CI's GitHub token can't read (a team, without the org Members permission)
+  const known = requests.map((r) => r.reviewer).filter((n): n is string => n !== null);
+  const text = known.length > 0 ? `awaiting ${known.join(', ')} (codeowner)` : 'awaiting codeowner';
+  return { status: 'pending', text, requestedAt: oldestRequestedAt(requests) };
+}
+
+// Review 1 / Review 2 as two reviewer slots. An open codeowner request always takes slot 2. The
+// other slots are filled in order: outstanding change requests (which fail slot 1, whatever the
+// approvals), then approvals, then everyone still waited on, oldest request first. Hail asks
+// internal reviewers via Assignees, so those count as waited on too. The last slot lists everyone
+// left waiting, so nobody drops off the page.
+export function reviewSlots(pr: PrConfig): [StageCell, StageCell] {
+  const codeowner = pr.review_requests.filter((r) => r.as_code_owner);
+  const requests = pr.review_requests
+    .filter((r) => !r.as_code_owner)
+    .sort((a, b) => (a.requested_at ?? '\uffff').localeCompare(b.requested_at ?? '\uffff'));
+
+  const blockers = nonAuthorReviewers(pr, 'CHANGES_REQUESTED');
+  const approvers = nonAuthorReviewers(pr, 'APPROVED');
+  const reviewed = new Set([...blockers, ...approvers, pr.author]);
+  const requested = requests.map((r) => r.reviewer).filter((n): n is string => n !== null);
+  const waiting = [...new Set([...requested, ...pr.assignees])].filter((n) => !reviewed.has(n));
+
+  const filled: StageCell[] = [];
+  if (blockers.length > 0) filled.push({ status: 'fail', text: `changes requested by ${blockers.join(', ')}` });
+  for (const a of approvers) filled.push({ status: 'pass', text: `approved by ${a}` });
+
+  const nSlots = codeowner.length > 0 ? 1 : 2;
+  const slots = filled.slice(0, nSlots);
+  for (let i = 0; slots.length < nSlots && i < waiting.length; i++) {
+    const isLast = slots.length === nSlots - 1;
+    slots.push(awaiting(isLast ? waiting.slice(i) : [waiting[i]], requests));
+    if (isLast) break;
+  }
+
+  const one = slots[0] ?? { status: 'pending', text: 'no reviewer assigned' };
+  let two: StageCell;
+  if (codeowner.length > 0) two = codeownerCell(codeowner);
+  else if (slots[1]) two = slots[1];
+  else if (one.status === 'pass') two = { status: 'pending', text: 'needs a 2nd reviewer' };
+  else two = { status: 'na', text: '' };
+  return [one, two];
+}
+
+// Coarse age for "waiting since": 45m, 5h, 3d.
+export function formatAge(iso: string, nowMs: number): string {
+  const minutes = Math.max(0, Math.floor((nowMs - Date.parse(iso)) / 60_000));
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 48) return `${hours}h`;
+  return `${Math.floor(hours / 24)}d`;
+}
+
+// Case-insensitive substring match against the text of every cell in the row.
+export function matchesSearch(pr: PrConfig, statusNames: string[], term: string): boolean {
+  const needle = term.trim().toLowerCase();
+  if (needle === '') return true;
+  const statuses = ghStatuses(pr);
+  const cells = [
+    `${pr.title} #${pr.number}`,
+    buildStateLabel(pr),
+    ...statusNames.map((name) => statuses.get(name) ?? ''),
+    pr.labels.join(', '),
+    pr.source_branch_name,
+    ...reviewSlots(pr).map((cell) => cell.text),
+    pr.author,
+  ];
+  return cells.some((cell) => cell.toLowerCase().includes(needle));
+}
