@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { createCiApi, type PrConfig, type WatchedBranchSummary } from '../shared/ciApi';
+import { createCiApi, type DeveloperBranchStatus, type PrConfig, type WatchedBranchSummary } from '../shared/ciApi';
 import { PrTable } from './components/PrTable';
 import { matchesSearch, statusColumnNames } from './components/prTableModel';
 
@@ -11,6 +11,7 @@ function errorMessage(e: unknown): string {
 function PrsPage({ basePath, wbIndex }: { basePath: string; wbIndex: number }): JSX.Element {
   const [wb, setWb] = useState<WatchedBranchSummary | null>(null);
   const [prs, setPrs] = useState<PrConfig[] | null>(null);
+  const [branchStatus, setBranchStatus] = useState<DeveloperBranchStatus | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
 
@@ -25,6 +26,12 @@ function PrsPage({ basePath, wbIndex }: { basePath: string; wbIndex: number }): 
         if (entry === undefined) throw new Error(`No watched branch at index ${wbIndex}`);
         if (cancelled) return null;
         setWb(entry);
+        // Only the Merge column's queue details need this, so the table renders without it
+        api.getDeveloperStatus()
+          .then((status) => {
+            if (!cancelled) setBranchStatus(status.branches.find((b) => b.branch === entry.branch));
+          })
+          .catch((e: unknown) => { console.warn('Could not load CI developer status', e); });
         return api.getWatchedBranchPrs(entry.branch);
       })
       .then((branchPrs) => {
@@ -45,10 +52,11 @@ function PrsPage({ basePath, wbIndex }: { basePath: string; wbIndex: number }): 
     body = <p className="text-sm text-zinc-500">No PRs.</p>;
   } else {
     const statusNames = statusColumnNames(prs);
-    const shown = prs.filter((pr) => matchesSearch(pr, statusNames, search));
+    const nowMs = Date.now();
+    const shown = prs.filter((pr) => matchesSearch(pr, statusNames, search, branchStatus, nowMs));
     body = shown.length === 0
       ? <p className="text-sm text-zinc-500">No PRs match &ldquo;{search}&rdquo;.</p>
-      : <PrTable prs={shown} statusNames={statusNames} repo={wb.repo} basePath={basePath} wbIndex={wbIndex} />;
+      : <PrTable prs={shown} statusNames={statusNames} repo={wb.repo} basePath={basePath} wbIndex={wbIndex} branchStatus={branchStatus} />;
   }
 
   return (

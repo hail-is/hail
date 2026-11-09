@@ -1,14 +1,20 @@
-import type { PrConfig } from '../../shared/ciApi';
+import type { DeveloperBranchStatus, PrConfig } from '../../shared/ciApi';
 import { BuildStateIcon } from './BuildStateIcon';
+import { LabelChip } from './LabelChip';
 import { ReviewStateIcon } from './ReviewStateIcon';
 import {
   buildStateLabel,
   formatAge,
   ghStatuses,
-  isBuildOutOfDate,
+  type JourneyMark,
+  journeyMarks,
+  labelsCell,
+  mergeCell,
   reviewSlots,
   type StageCell,
+  upToDateCell,
 } from './prTableModel';
+import { visibleLabels } from './labelModel';
 
 // GitHub's mark (octicons `mark-github`, 16px).
 function GitHubIcon(): JSX.Element {
@@ -19,10 +25,14 @@ function GitHubIcon(): JSX.Element {
   );
 }
 
-function ReviewCell({ cell, nowMs }: { cell: StageCell; nowMs: number }): JSX.Element {
-  if (cell.status === 'na') return <span className="text-zinc-300">&mdash;</span>;
+function StageCellView({ cell, nowMs }: { cell: StageCell; nowMs: number }): JSX.Element {
+  if (cell.status === 'na') {
+    return cell.text === ''
+      ? <span className="text-zinc-300" title={cell.detail}>&mdash;</span>
+      : <span className="text-zinc-400" title={cell.detail}>{cell.text}</span>;
+  }
   return (
-    <span className="inline-flex items-center gap-1.5">
+    <span className="inline-flex items-center gap-1.5" title={cell.detail}>
       <ReviewStateIcon status={cell.status} />
       <span>
         {cell.text}
@@ -34,14 +44,43 @@ function ReviewCell({ cell, nowMs }: { cell: StageCell; nowMs: number }): JSX.El
   );
 }
 
-// Table of a watched branch's open PRs. `statusNames` is the column set for the whole branch,
-// so filtering rows doesn't add or drop columns.
-export function PrTable({ prs, statusNames, repo, basePath, wbIndex }: {
+// Each merge journey step starts with a left border, so the steps read left to right.
+const STEP = 'border-l border-zinc-200';
+
+// Background for a journey cell: green while every cell up to it is done; the first cell that
+// isn't is tinted red (failed) or amber (waiting).
+const MARK_CLASS: Record<JourneyMark, string> = {
+  done: 'bg-green-50',
+  fail: 'bg-red-50',
+  pending: 'bg-amber-50',
+  todo: '',
+};
+
+// The `›` on the border into a journey cell, shown only when the cell before it (`after`) is done.
+function StepArrow({ after }: { after: JourneyMark }): JSX.Element | null {
+  if (after !== 'done') return null;
+  return (
+    <span
+      aria-hidden="true"
+      className="material-symbols-outlined absolute left-0 top-1/2 -translate-x-1/2 -translate-y-1/2 text-2xl leading-none text-green-600"
+    >
+      chevron_right
+    </span>
+  );
+}
+
+// Table of a watched branch's open PRs. The merge journey columns run in the order CI needs them
+// (build, reviews, labels, up to date, merge), so the first step that isn't green is what's
+// holding a PR up. `statusNames` is the column set for the whole branch, so filtering rows doesn't
+// add or drop columns. `branchStatus` adds queue position and merge progress to the Merge step;
+// it's optional so the table still renders without it.
+export function PrTable({ prs, statusNames, repo, basePath, wbIndex, branchStatus }: {
   prs: PrConfig[];
   statusNames: string[];
   repo: string;
   basePath: string;
   wbIndex: number;
+  branchStatus?: DeveloperBranchStatus;
 }): JSX.Element {
   const th = 'px-3 py-1 font-medium';
   const td = 'px-3 py-1 align-top';
@@ -52,18 +91,21 @@ export function PrTable({ prs, statusNames, repo, basePath, wbIndex }: {
         <table className="w-full text-sm border border-zinc-200">
           <thead className="bg-zinc-100 text-left text-xs uppercase text-zinc-500">
             <tr>
-              <th rowSpan={2} className={th}>PR</th>
-              <th rowSpan={2} className={th}>Build state</th>
-              {statusNames.length > 0 && (
-                <th colSpan={statusNames.length} className={`${th} text-center border-x border-zinc-200`}>GitHub statuses</th>
-              )}
-              <th rowSpan={2} className={th}>Labels</th>
-              <th rowSpan={2} className={th}>Branch</th>
-              <th rowSpan={2} className={th}>Review 1</th>
-              <th rowSpan={2} className={th}>Review 2</th>
-              <th rowSpan={2} className={th}>Author</th>
+              <th rowSpan={3} className={th}>PR</th>
+              <th colSpan={6 + statusNames.length} className={`${th} ${STEP} text-center`}>Merge journey</th>
+              <th rowSpan={3} className={`${th} ${STEP}`}>Branch</th>
+              <th rowSpan={3} className={th}>Author</th>
             </tr>
             <tr>
+              <th colSpan={1 + statusNames.length} className={`${th} ${STEP} text-center`}>Build</th>
+              <th rowSpan={2} className={`${th} ${STEP}`}>Review 1</th>
+              <th rowSpan={2} className={`${th} ${STEP}`}>Review 2</th>
+              <th rowSpan={2} className={`${th} ${STEP}`}>Labels</th>
+              <th rowSpan={2} className={`${th} ${STEP}`}>Up to date</th>
+              <th rowSpan={2} className={`${th} ${STEP}`}>Merge</th>
+            </tr>
+            <tr>
+              <th className={`${th} ${STEP}`}>CI</th>
               {statusNames.map((name) => (
                 <th key={name} className={`${th} normal-case`}>{name}</th>
               ))}
@@ -73,6 +115,10 @@ export function PrTable({ prs, statusNames, repo, basePath, wbIndex }: {
             {prs.map((pr) => {
               const statuses = ghStatuses(pr);
               const [review1, review2] = reviewSlots(pr);
+              // Journey cells: 0 = CI, then the statuses, then Review 1 at `r`, ..., Merge at `r + 4`.
+              const marks = journeyMarks(pr, statusNames, branchStatus, nowMs);
+              const r = 1 + statusNames.length;
+              const step = (i: number): string => `${td} ${STEP} ${MARK_CLASS[marks[i]]} relative`;
               return (
                 <tr key={pr.number} className="hover:bg-zinc-50">
                   <td className={td}>
@@ -87,7 +133,7 @@ export function PrTable({ prs, statusNames, repo, basePath, wbIndex }: {
                       {pr.title} <span className="text-zinc-400">#{pr.number}</span>
                     </a>
                   </td>
-                  <td className={`${td} whitespace-nowrap`}>
+                  <td className={`${td} ${STEP} ${MARK_CLASS[marks[0]]} whitespace-nowrap`}>
                     <a
                       href={`${basePath}/watched_branches/${wbIndex}/pr/${pr.number}`}
                       title="CI details"
@@ -98,10 +144,11 @@ export function PrTable({ prs, statusNames, repo, basePath, wbIndex }: {
                       <span className="group-hover:underline">{buildStateLabel(pr)}</span>
                     </a>
                   </td>
-                  {statusNames.map((name) => {
+                  {statusNames.map((name, i) => {
                     const status = statuses.get(name) ?? '';
                     return (
-                      <td key={name} className={`${td} whitespace-nowrap`}>
+                      <td key={name} className={`${td} ${MARK_CLASS[marks[1 + i]]} relative whitespace-nowrap`}>
+                        <StepArrow after={marks[i]} />
                         {status !== '' && (
                           <span className="inline-flex items-center gap-1.5" title={`${name}: ${status}`}>
                             <BuildStateIcon state={status} />
@@ -111,10 +158,16 @@ export function PrTable({ prs, statusNames, repo, basePath, wbIndex }: {
                       </td>
                     );
                   })}
-                  <td className={td}>{pr.labels.join(', ')}</td>
-                  <td className={`${td} font-mono text-xs`}>{pr.source_branch_name}</td>
-                  <td className={td}><ReviewCell cell={review1} nowMs={nowMs} /></td>
-                  <td className={td}><ReviewCell cell={review2} nowMs={nowMs} /></td>
+                  <td className={step(r)}><StepArrow after={marks[r - 1]} /><StageCellView cell={review1} nowMs={nowMs} /></td>
+                  <td className={step(r + 1)}><StepArrow after={marks[r]} /><StageCellView cell={review2} nowMs={nowMs} /></td>
+                  <td className={step(r + 2)} title={labelsCell(pr).detail}><StepArrow after={marks[r + 1]} />
+                    <span className="inline-flex flex-wrap gap-1">
+                      {visibleLabels(pr.labels).map((label) => <LabelChip key={label} label={label} />)}
+                    </span>
+                  </td>
+                  <td className={`${step(r + 3)} whitespace-nowrap`}><StepArrow after={marks[r + 2]} /><StageCellView cell={upToDateCell(pr)} nowMs={nowMs} /></td>
+                  <td className={step(r + 4)}><StepArrow after={marks[r + 3]} /><StageCellView cell={mergeCell(pr, branchStatus, nowMs)} nowMs={nowMs} /></td>
+                  <td className={`${td} ${STEP} font-mono text-xs`}>{pr.source_branch_name}</td>
                   <td className={td}>
                   <a
                     href={`https://github.com/${repo}/pulls/${encodeURIComponent(pr.author)}`}
@@ -133,12 +186,6 @@ export function PrTable({ prs, statusNames, repo, basePath, wbIndex }: {
           </tbody>
         </table>
       </div>
-      {prs.some(isBuildOutOfDate) && (
-        <p className="mt-2 text-xs text-zinc-500">
-          * Built or building against an older commit of the target branch. CI rebuilds it against the latest
-          commit when it becomes the merge candidate.
-        </p>
-      )}
     </>
   );
 }

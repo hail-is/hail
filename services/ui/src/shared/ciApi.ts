@@ -47,6 +47,7 @@ export interface PrConfig {
   batch_id: number | null;
   review_requests: ReviewRequest[];
   reviews: Review[];
+  merge_blockers: string[] | null; // empty if nothing blocks the merge; null when display_only
   stack_entry: { position: number } | null; // 1 is nearest the stack's base branch
   stack: PrStack | null;
   // An upper-stack PR: in a native stack based on the branch, targeting another PR in it. Listed,
