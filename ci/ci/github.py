@@ -1072,12 +1072,17 @@ def _graphql_reviewer(node: Optional[Dict[str, Any]]) -> Optional[Tuple[str, boo
     return (login, False) if login is not None else None
 
 
+def _graphql_nodes(pr_data: Dict[str, Any], connection: str) -> List[Dict[str, Any]]:
+    """A connection's nodes, skipping any GitHub nulled out on a partial error."""
+    return [n for n in ((pr_data.get(connection) or {}).get('nodes') or []) if n is not None]
+
+
 def _parse_review_data(pr_data: Dict[str, Any]) -> Tuple[List[ReviewRequest], List[Review]]:
     # Latest event per reviewer, so a removed-then-re-requested review shows the newer time.
     # ISO 8601 UTC strings from GitHub sort chronologically.
     # Hidden reviewers share the None key, so a hidden codeowner request takes the latest hidden-reviewer event.
     requested_at: Dict[Optional[Tuple[str, bool]], str] = {}
-    for event in pr_data['timelineItems']['nodes']:
+    for event in _graphql_nodes(pr_data, 'timelineItems'):
         if 'createdAt' not in event:  # some other timeline item type
             continue
         key = _graphql_reviewer(event.get('requestedReviewer'))
@@ -1085,7 +1090,7 @@ def _parse_review_data(pr_data: Dict[str, Any]) -> Tuple[List[ReviewRequest], Li
             requested_at[key] = event['createdAt']
 
     requests = []
-    for node in pr_data['reviewRequests']['nodes']:
+    for node in _graphql_nodes(pr_data, 'reviewRequests'):
         key = _graphql_reviewer(node['requestedReviewer'])
         if key is not None:
             requests.append(ReviewRequest(key[0], key[1], node['asCodeOwner'], requested_at.get(key)))
@@ -1095,7 +1100,7 @@ def _parse_review_data(pr_data: Dict[str, Any]) -> Tuple[List[ReviewRequest], Li
 
     reviews = [
         Review(node['author']['login'], node['state'])
-        for node in pr_data['latestOpinionatedReviews']['nodes']
+        for node in _graphql_nodes(pr_data, 'latestOpinionatedReviews')
         if node['author'] is not None
     ]
     return requests, reviews
@@ -1519,6 +1524,8 @@ class WatchedBranch(Code):
 
             for pr in new_prs.values():
                 pr._apply_github_data(pr_github_data[pr.number])
+        else:
+            self.graphql_rate_limit = None
 
     async def _update_deploy(self, batch_client, db: Database):
         assert self.deployable

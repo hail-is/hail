@@ -293,6 +293,18 @@ async def test_hidden_codeowner_request_kept_without_reviewer():
     assert 'Resource not accessible by personal access token' in log.warning.call_args.args[0]
 
 
+async def test_null_review_connections_and_nodes_are_skipped():
+    pr_data = pr_response('APPROVED', [], review_requests=[None], reviews=[None])
+    pr_data["timelineItems"] = None
+    gh = MockGH([graphql_response({9: pr_data})])
+
+    result, _ = await _fetch_pr_github_data(gh, 'hail-is', 'hail', [9])
+
+    assert result[9].review_decision == 'APPROVED'
+    assert result[9].review_requests == []
+    assert result[9].reviews == []
+
+
 async def test_review_request_without_event_has_no_time():
     gh = MockGH([
         graphql_response({

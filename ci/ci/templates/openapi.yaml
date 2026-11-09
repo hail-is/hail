@@ -501,7 +501,7 @@ components:
                 description: When the request was (last) made; null if not found in recent PR history.
         reviews:
           type: array
-          description: Each reviewer's latest approve / request-changes review (at most 10).
+          description: Latest approve / request-changes review from each reviewer with repository write access (at most 10).
           items:
             type: object
             properties:
