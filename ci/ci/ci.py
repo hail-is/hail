@@ -68,11 +68,15 @@ from .github import (
     PR,
     WIP,
     FQBranch,
+    GitHubGraphQLError,
     MergeFailureBatch,
     Repo,
+    StackedPr,
+    StackInfo,
     UnwatchedBranch,
     WatchedBranch,
     describe_exception,
+    fetch_pr_summary,
     select_random_teammate,
 )
 from .utils import gcp_logging_queries, record_success
@@ -105,10 +109,59 @@ class PRConfig(TypedDict):
     assignees: Set[str]
     reviewers: Set[str]
     labels: Set[str]
-    out_of_date: bool
+    out_of_date: Optional[bool]  # None for an upper-stack PR, as CI doesn't build it
     review_requests: List[Dict[str, Any]]
     reviews: List[Dict[str, Any]]
-    merge_blockers: List[str]
+    merge_blockers: Optional[List[str]]  # None for an upper-stack PR, as CI doesn't merge it
+    stack_entry: Optional[Dict[str, int]]
+    stack: Optional[Dict[str, Any]]
+    display_only: bool  # an upper-stack PR: listed, but never built or merged
+
+
+def stack_json(stack: Optional[StackInfo]) -> Optional[Dict[str, Any]]:
+    if stack is None:
+        return None
+    return {
+        'number': stack.number,
+        'base_ref_name': stack.base_ref_name,
+        'size': stack.size,
+        'entries': [e._asdict() for e in stack.entries],
+        'name': stack.name,
+        'doc_url': stack.doc_url,
+        'meta': stack.meta,
+    }
+
+
+def stack_entry_json(position: Optional[int]) -> Optional[Dict[str, int]]:
+    return {'position': position} if position is not None else None
+
+
+def _branch_stack_json(wb: WatchedBranch, stack_number: Optional[int]) -> Optional[Dict[str, Any]]:
+    return stack_json(wb.stacks.get(stack_number)) if stack_number is not None else None
+
+
+def stacked_pr_config(wb: WatchedBranch, pr: StackedPr) -> PRConfig:
+    gh = pr.github
+    return {
+        'number': gh.number,
+        'title': gh.title,
+        'batch_id': None,
+        'build_state': None,
+        'gh_statuses': {k: v.value for k, v in pr.github_statuses.items()},
+        'source_branch_name': gh.source_branch.name,
+        'review_state': pr.review_state,
+        'author': gh.author,
+        'assignees': set(gh.assignees),
+        'reviewers': set(gh.reviewers),
+        'labels': set(gh.labels),
+        'out_of_date': None,
+        'review_requests': [r._asdict() for r in pr.review_requests],
+        'reviews': [r._asdict() for r in pr.reviews],
+        'merge_blockers': None,
+        'stack_entry': stack_entry_json(gh.stack_position),
+        'stack': _branch_stack_json(wb, gh.stack.number if gh.stack is not None else None),
+        'display_only': True,
+    }
 
 
 async def pr_config(app: web.Application, pr: PR) -> PRConfig:
@@ -133,6 +186,9 @@ async def pr_config(app: web.Application, pr: PR) -> PRConfig:
         'review_requests': [r._asdict() for r in pr.review_requests],
         'reviews': [r._asdict() for r in pr.reviews],
         'merge_blockers': pr.merge_blockers(),
+        'stack_entry': stack_entry_json(pr.stack_position),
+        'stack': _branch_stack_json(pr.target_branch, pr.stack_number),
+        'display_only': False,
     }
 
 
@@ -149,10 +205,8 @@ class WatchedBranchConfig(TypedDict):
 
 
 async def watched_branch_config(app: web.Application, wb: WatchedBranch, index: int) -> WatchedBranchConfig:
-    if wb.prs:
-        pr_configs = [await pr_config(app, pr) for pr in wb.prs.values()]
-    else:
-        pr_configs = []
+    pr_configs = [await pr_config(app, pr) for pr in wb.prs.values()]
+    pr_configs += [stacked_pr_config(wb, pr) for pr in wb.stacked_prs.values()]
     # FIXME recent deploy history
     gh_status_names = {k for pr in pr_configs for k in pr['gh_statuses'].keys()}
     return {
@@ -633,9 +687,9 @@ gh_router = gh_routing.Router()
 async def pull_request_callback(event):
     gh_pr = event.data['pull_request']
     number = gh_pr['number']
-    target_branch = FQBranch.from_gh_json(gh_pr['base'])
+    base = FQBranch.from_gh_json(gh_pr['base'])
     for wb in watched_branches:
-        if (wb.prs and number in wb.prs) or (wb.branch == target_branch):
+        if wb.tracks_pr_event(number, base):
             app: web.Application = event.app
             await wb.notify_github_changed(
                 app[AppKeys.DB], app[AppKeys.BATCH_CLIENT], app[AppKeys.GH_CLIENT], app[AppKeys.FROZEN_MERGE_DEPLOY]
@@ -661,8 +715,9 @@ async def push_callback(event):
 async def pull_request_review_callback(event):
     gh_pr = event.data['pull_request']
     number = gh_pr['number']
+    base = FQBranch.from_gh_json(gh_pr['base'])
     for wb in watched_branches:
-        if number in wb.prs:
+        if wb.tracks_pr_event(number, base):
             app: web.Application = event.app
             await wb.notify_github_changed(
                 app[AppKeys.DB], app[AppKeys.BATCH_CLIENT], app[AppKeys.GH_CLIENT], app[AppKeys.FROZEN_MERGE_DEPLOY]
@@ -1254,6 +1309,9 @@ def _pr_flat_json(cfg: PRConfig, wb: WatchedBranchConfig) -> dict:
         'source_branch_name': cfg['source_branch_name'],
         'review_state': cfg['review_state'],
         'author': cfg['author'],
+        'stack_entry': cfg['stack_entry'],
+        'stack': cfg['stack'],
+        'display_only': cfg['display_only'],
     }
 
 
@@ -1288,8 +1346,8 @@ async def api_watched_branches(_request: web.Request, _) -> web.Response:
 @auth.authenticated_users_with_permission(SystemPermission.READ_CI, redirect=False)
 async def api_watched_branch_prs(request: web.Request, _) -> web.Response:
     wb = _wb_by_branch(request.match_info['branch'])
-    prs = [_pr_config_json(await pr_config(request.app, pr)) for pr in (wb.prs or {}).values()]
-    return json_response(prs)
+    config = await watched_branch_config(request.app, wb, wb.index)
+    return json_response([_pr_config_json(pr) for pr in config['prs']])
 
 
 @routes.get('/api/v1alpha/watched_branches/{branch}/prs/{number}')
@@ -1307,23 +1365,30 @@ async def api_watched_branch_pr(request: web.Request, _) -> web.Response:
         result.update(await _active_pr_json(wb, pr, request.app[AppKeys.DB]))
         return json_response(result)
 
+    if pr_number in wb.stacked_prs:
+        return json_response(_pr_config_json(stacked_pr_config(wb, wb.stacked_prs[pr_number])))
+
     try:
-        gh_pr = await request.app[AppKeys.GH_CLIENT].getitem(f'/repos/{wb.branch.repo.short_str()}/pulls/{pr_number}')
-        return json_response({
-            'number': gh_pr['number'],
-            'title': gh_pr['title'],
-            'labels': [label['name'] for label in gh_pr.get('labels', [])],
-            'merged': gh_pr['merged'],
-            'merge_commit_sha': gh_pr.get('merge_commit_sha') if gh_pr['merged'] else None,
-        })
-    except gidgethub.HTTPException as e:
-        if e.status_code == 404:
-            raise web.HTTPNotFound()
+        summary = await fetch_pr_summary(
+            request.app[AppKeys.GH_CLIENT], wb.branch.repo.owner, wb.branch.repo.name, pr_number
+        )
+    except (GitHubGraphQLError, gidgethub.HTTPException) as exc:
         log.exception('GitHub API error fetching PR %s', pr_number)
-        raise web.HTTPBadGateway(text='GitHub API error')
+        raise web.HTTPBadGateway(text='GitHub API error') from exc
     except ClientError as exc:
         log.exception('GitHub API network error fetching PR %s', pr_number)
         raise web.HTTPBadGateway(text='GitHub API unreachable') from exc
+    if summary is None:
+        raise web.HTTPNotFound()
+    return json_response({
+        'number': summary.number,
+        'title': summary.title,
+        'labels': summary.labels,
+        'merged': summary.merged,
+        'merge_commit_sha': summary.merge_commit_sha,
+        'stack_entry': stack_entry_json(summary.stack_position),
+        'stack': stack_json(summary.stack),
+    })
 
 
 @routes.get('/api/v1alpha/namespaces')
@@ -1508,7 +1573,11 @@ async def api_retry_pr(request: web.Request, userdata: UserData) -> web.Response
         pr_number = int(request.match_info['number'])
     except ValueError as exc:
         raise web.HTTPBadRequest(text='PR number must be an integer') from exc
-    if not wb.prs or pr_number not in wb.prs:
+    if pr_number in wb.stacked_prs:
+        raise web.HTTPBadRequest(
+            text='Retry cannot be requested because this PR is stacked on another PR, so is not built.'
+        )
+    if pr_number not in wb.prs:
         raise web.HTTPNotFound()
     pr = wb.prs[pr_number]
     params = {}
