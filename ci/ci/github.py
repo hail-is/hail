@@ -271,6 +271,52 @@ class Review(NamedTuple):
     state: str  # GraphQL PullRequestReviewState, e.g. APPROVED / CHANGES_REQUESTED / DISMISSED
 
 
+class UnreadablePr(Exception):
+    """GitHub returned a PR without a field CI needs, e.g. its head repository was deleted."""
+
+
+class GitHubPr(NamedTuple):
+    """A PR's fields as GitHub reports them, read from a GraphQL PullRequest node."""
+
+    number: int
+    title: str
+    body: str
+    author: str
+    assignees: FrozenSet[str]
+    reviewers: FrozenSet[str]  # users with an open review request; teams are left out, as REST did
+    labels: FrozenSet[str]
+    source_branch: FQBranch
+    source_sha: str
+    state: str  # GraphQL PullRequestState: OPEN / CLOSED / MERGED
+    base_ref_name: str
+
+    @staticmethod
+    def from_graphql(node: Dict[str, Any]) -> 'GitHubPr':
+        head_repo = node['headRepository']
+        if head_repo is None:
+            raise UnreadablePr('head repository is unavailable (deleted fork, or not readable by our token)')
+        reviewers = frozenset(
+            key[0]
+            for request in _graphql_nodes(node, 'reviewRequests')
+            if (key := _graphql_reviewer(request['requestedReviewer'])) is not None and not key[1]
+        )
+        author = node['author']
+        return GitHubPr(
+            number=node['number'],
+            title=node['title'],
+            body=node['body'],
+            # REST reports a deleted account as 'ghost'; GraphQL as null
+            author=author['login'] if author is not None else 'ghost',
+            assignees=frozenset(user['login'] for user in node['assignees']['nodes']),
+            reviewers=reviewers,
+            labels=frozenset(label['name'] for label in node['labels']['nodes']),
+            source_branch=FQBranch(Repo(head_repo['owner']['login'], head_repo['name']), node['headRefName']),
+            source_sha=node['headRefOid'],
+            state=node['state'],
+            base_ref_name=node['baseRefName'],
+        )
+
+
 class GraphQLRateLimit(NamedTuple):
     last_update_cost: int  # summed over every request in one GitHub update
     remaining: int
@@ -512,21 +558,19 @@ class PR(Code):
     def short_str(self):
         return f'pr-{self.number}'
 
-    def update_from_gh_json(self, gh_json):
-        assert self.number == gh_json['number']
-        self.title = gh_json['title']
-        self.body = gh_json['body']
-        self.author = gh_json['user']['login']
-        self.assignees = {user['login'] for user in gh_json['assignees']}
-        self.reviewers = {user['login'] for user in gh_json['requested_reviewers']}
+    def update_from_github(self, gh_pr: GitHubPr):
+        assert self.number == gh_pr.number
+        self.title = gh_pr.title
+        self.body = gh_pr.body
+        self.author = gh_pr.author
+        self.assignees = set(gh_pr.assignees)
+        self.reviewers = set(gh_pr.reviewers)
 
-        new_labels = {label['name'] for label in gh_json['labels']}
-        if new_labels != self.labels:
-            self.labels = new_labels
+        if gh_pr.labels != self.labels:
+            self.labels = set(gh_pr.labels)
             self.target_branch.state_changed = True
 
-        head = gh_json['head']
-        new_source_sha = head['sha']
+        new_source_sha = gh_pr.source_sha
         if self.source_sha != new_source_sha:
             log.info(f'{self.short_str()} source sha changed: {self.source_sha} => {new_source_sha}')
             self.source_sha = new_source_sha
@@ -537,22 +581,21 @@ class PR(Code):
             self.target_branch.batch_changed = True
             self.target_branch.state_changed = True
 
-        self.source_branch = FQBranch.from_gh_json(head)
+        self.source_branch = gh_pr.source_branch
 
     @staticmethod
-    def from_gh_json(gh_json, target_branch):
-        head = gh_json['head']
+    def from_github(gh_pr: GitHubPr, target_branch: 'WatchedBranch') -> 'PR':
         pr = PR(
-            gh_json['number'],
-            gh_json['title'],
-            gh_json['body'],
-            FQBranch.from_gh_json(head),
-            head['sha'],
+            gh_pr.number,
+            gh_pr.title,
+            gh_pr.body,
+            gh_pr.source_branch,
+            gh_pr.source_sha,
             target_branch,
-            gh_json['user']['login'],
-            {user['login'] for user in gh_json['assignees']},
-            {user['login'] for user in gh_json['requested_reviewers']},
-            {label['name'] for label in gh_json['labels']},
+            gh_pr.author,
+            set(gh_pr.assignees),
+            set(gh_pr.reviewers),
+            set(gh_pr.labels),
             target_branch.developers,
         )
         pr.increment_pr_metric()
@@ -1070,6 +1113,7 @@ class _GitHubGraphQL(Protocol):
 
 
 _GITHUB_GRAPHQL_PR_CHUNK_SIZE = 100
+_GITHUB_GRAPHQL_PR_LIST_PAGE_SIZE = 100
 
 _GRAPHQL_REVIEWER_FIELDS = """
   __typename
@@ -1079,9 +1123,22 @@ _GRAPHQL_REVIEWER_FIELDS = """
   ... on Mannequin { login }
 """
 
-# Fetched on each PR's first page only; the check-context pagination doesn't repeat them
-_GRAPHQL_REVIEW_FIELDS = f"""
-  reviewRequests(first: 10) {{
+# Fetched on each PR's first page only; the check-context pagination doesn't repeat them.
+# The connection limits are generous: REST returned every assignee, label and requested reviewer.
+_GRAPHQL_PR_FIELDS = f"""
+  number
+  title
+  body
+  state
+  baseRefName
+  headRefName
+  headRefOid
+  headRepository {{ name owner {{ login }} }}
+  author {{ login }}
+  assignees(first: 100) {{ nodes {{ login }} }}
+  labels(first: 100) {{ nodes {{ name }} }}
+  reviewDecision
+  reviewRequests(first: 100) {{
     nodes {{
       asCodeOwner
       requestedReviewer {{ {_GRAPHQL_REVIEWER_FIELDS} }}
@@ -1105,10 +1162,33 @@ _GRAPHQL_REVIEW_FIELDS = f"""
 
 
 class _PrGithubData(NamedTuple):
+    pr: GitHubPr
     review_decision: str  # raw GraphQL PullRequestReviewDecision, or "API_NONE" when null
     check_nodes: List[Dict[str, Any]]
     review_requests: List[ReviewRequest]
     reviews: List[Review]
+
+
+_UNREADABLE_PR_ERROR_TYPES = ('NOT_FOUND', 'FORBIDDEN')
+
+
+class UnreadablePrInfo(NamedTuple):
+    source_sha: Optional[str]  # None when GitHub didn't return the PR at all
+    message: str
+
+
+class _PrFetch(NamedTuple):
+    prs: Dict[int, _PrGithubData]
+    unreadable: Dict[int, UnreadablePrInfo]  # GitHub says gone or hidden from us: drop the PR
+    unexplained: Dict[int, UnreadablePrInfo]  # nulled for another reason, maybe transient: keep the PR as it was
+
+
+class _BranchPrs(NamedTuple):
+    numbers: List[int]  # open PRs targeting the branch, newest first
+    prs: Dict[int, _PrGithubData]
+    unreadable: Dict[int, UnreadablePrInfo]
+    unexplained: Dict[int, UnreadablePrInfo]
+    rate_limit: Optional[GraphQLRateLimit]
 
 
 def _graphql_reviewer(node: Optional[Dict[str, Any]]) -> Optional[Tuple[str, bool]]:
@@ -1155,25 +1235,158 @@ def _parse_review_data(pr_data: Dict[str, Any]) -> Tuple[List[ReviewRequest], Li
     return requests, reviews
 
 
+class _GraphQLCost:
+    """Sums query cost over one GitHub update and keeps the rate limit from the last request."""
+
+    def __init__(self):
+        self.total_cost = 0
+        self.last: Optional[Dict[str, Any]] = None
+
+    def add(self, rate_limit: Optional[Dict[str, Any]]):
+        if rate_limit is not None:
+            self.total_cost += rate_limit["cost"]
+            self.last = rate_limit
+
+    def rate_limit(self) -> Optional[GraphQLRateLimit]:
+        if self.last is None:
+            return None
+        return GraphQLRateLimit(self.total_cost, self.last["remaining"], self.last["limit"], self.last["resetAt"])
+
+
+class GitHubGraphQLError(Exception):
+    pass
+
+
+class _GraphQLResponse(NamedTuple):
+    data: Dict[str, Any]
+    errors: List[Dict[str, Any]]  # each with a `path` to the field GitHub nulled; GitHub adds a `type`, e.g. NOT_FOUND
+
+
+async def _graphql(
+    gh: _GitHubGraphQL, query: str, cost: _GraphQLCost, variables: Optional[Dict[str, Any]] = None
+) -> _GraphQLResponse:
+    """Run `query` (the body inside `query { ... }`, with variable declarations in `variables`' keys).
+    Also asks for the rate limit, adding it to `cost`. Raises GitHubGraphQLError if GitHub returned no data at all."""
+    declarations = ''
+    if variables:
+        declarations = '(' + ', '.join(f'${name}: String!' for name in variables) + ')'
+    request: Dict[str, Any] = {
+        "query": f'query{declarations} {{ rateLimit {{ cost remaining limit resetAt }} {query} }}'
+    }
+    if variables:
+        request["variables"] = variables
+    response = await gh.post("/graphql", data=request)
+    errors = response.get("errors") or []
+    messages = sorted({e.get("message", str(e)) for e in errors})
+    data = response.get("data")
+    if data is None:
+        # e.g. GitHub's query timeout: "Something went wrong while executing your query..."
+        raise GitHubGraphQLError(f'no data returned: {messages}')
+    if errors:
+        # GitHub returns partial data with nulls where a field failed (e.g. the token can't read it), rather than failing
+        log.warning(f'GitHub GraphQL: {len(errors)} errors: {messages}')
+    cost.add(data.get("rateLimit"))
+    return _GraphQLResponse(data, errors)
+
+
+async def _list_open_pr_numbers(
+    gh: _GitHubGraphQL, owner: str, repo_name: str, branch: str, cost: _GraphQLCost
+) -> List[int]:
+    """Numbers of the open PRs targeting `branch`, newest first (the REST listing's order)."""
+    numbers: List[int] = []
+    cursor: Optional[str] = None
+    while True:
+        variables = {"owner": owner, "name": repo_name, "branch": branch}
+        after = ''
+        if cursor is not None:
+            variables["after"] = cursor
+            after = ', after: $after'
+        data, _ = await _graphql(
+            gh,
+            f"""
+            repository(owner: $owner, name: $name) {{
+              pullRequests(
+                states: OPEN, baseRefName: $branch, first: {_GITHUB_GRAPHQL_PR_LIST_PAGE_SIZE}{after},
+                orderBy: {{field: CREATED_AT, direction: DESC}}
+              ) {{
+                nodes {{ number }}
+                pageInfo {{ endCursor hasNextPage }}
+              }}
+            }}
+            """,
+            cost,
+            variables,
+        )
+        page = data["repository"]["pullRequests"]
+        numbers.extend(node["number"] for node in page["nodes"])
+        if not page["pageInfo"]["hasNextPage"]:
+            return numbers
+        cursor = page["pageInfo"]["endCursor"]
+
+
 async def _fetch_pr_github_data(
     gh: _GitHubGraphQL,
     owner: str,
     repo_name: str,
     pr_numbers: List[int],
-) -> Tuple[Dict[int, _PrGithubData], Optional[GraphQLRateLimit]]:
-    """Fetch review decisions, review requests / reviews and status check rollup for all PRs, batched in chunks.
+    cost: Optional[_GraphQLCost] = None,
+) -> _PrFetch:
+    """Fetch each PR's fields, review decision, review requests / reviews and status check rollup, batched in chunks.
 
     Uses GraphQL aliases (pr_N: pullRequest(number: N) {{ ... }}) to reduce round-trips.
-    Chunks requests to avoid GitHub query complexity timeouts (~2s per 20-PR chunk vs ~6s for 56).
+    Chunks requests to avoid GitHub query complexity timeouts.
     Paginates if any PR has more than 20 check contexts, which is not expected in practice.
 
-    Also returns the GraphQL rate limit after the last request, with the cost summed over all of them.
+    A PR GitHub says is gone or hidden from us, or returns without a field CI needs, goes in `unreadable`; a PR GitHub
+    nulls for any other reason goes in `unexplained`. Neither fails the fetch.
     """
+    if cost is None:
+        cost = _GraphQLCost()
+    pr_fields: Dict[int, GitHubPr] = {}
     accumulated_nodes: Dict[int, List[Dict[str, Any]]] = {n: [] for n in pr_numbers}
-    review_decisions: Dict[int, Optional[str]] = {n: None for n in pr_numbers}
-    review_data: Dict[int, Tuple[List[ReviewRequest], List[Review]]] = {n: ([], []) for n in pr_numbers}
-    total_cost = 0
-    last_rate_limit: Optional[Dict[str, Any]] = None
+    review_decisions: Dict[int, str] = {}
+    review_data: Dict[int, Tuple[List[ReviewRequest], List[Review]]] = {}
+    unreadable: Dict[int, UnreadablePrInfo] = {}
+    unexplained: Dict[int, UnreadablePrInfo] = {}
+
+    def build_query(remaining: Dict[int, Optional[str]]) -> str:
+        aliases = []
+        for pr_number, cursor in remaining.items():
+            cursor_arg = f', after: "{cursor}"' if cursor is not None else ''
+            first_page_fields = _GRAPHQL_PR_FIELDS if cursor is None else ''
+            aliases.append(f"""
+                pr_{pr_number}: pullRequest(number: {pr_number}) {{
+                  {first_page_fields}
+                  commits(last: 1) {{
+                    nodes {{
+                      commit {{
+                        statusCheckRollup {{
+                          contexts(first: 20{cursor_arg}) {{
+                            nodes {{
+                              __typename
+                              ... on CheckRun {{
+                                name
+                                conclusion
+                                isRequired(pullRequestNumber: {pr_number})
+                              }}
+                              ... on StatusContext {{
+                                context
+                                state
+                                isRequired(pullRequestNumber: {pr_number})
+                              }}
+                            }}
+                            pageInfo {{
+                              endCursor
+                              hasNextPage
+                            }}
+                          }}
+                        }}
+                      }}
+                    }}
+                  }}
+                }}
+            """)
+        return f'repository(owner: "{owner}", name: "{repo_name}") {{ {"".join(aliases)} }}'
 
     chunks = [
         pr_numbers[i : i + _GITHUB_GRAPHQL_PR_CHUNK_SIZE]
@@ -1184,88 +1397,74 @@ async def _fetch_pr_github_data(
         remaining: Dict[int, Optional[str]] = {n: None for n in chunk}
 
         while remaining:
-
-            def build_query(remaining: Dict[int, Optional[str]]) -> str:
-                aliases = []
-                for pr_number, cursor in remaining.items():
-                    cursor_arg = f', after: "{cursor}"' if cursor is not None else ''
-                    review_fields = _GRAPHQL_REVIEW_FIELDS if cursor is None else ''
-                    aliases.append(f"""
-                        pr_{pr_number}: pullRequest(number: {pr_number}) {{
-                          reviewDecision
-                          {review_fields}
-                          commits(last: 1) {{
-                            nodes {{
-                              commit {{
-                                statusCheckRollup {{
-                                  contexts(first: 20{cursor_arg}) {{
-                                    nodes {{
-                                      __typename
-                                      ... on CheckRun {{
-                                        name
-                                        conclusion
-                                        isRequired(pullRequestNumber: {pr_number})
-                                      }}
-                                      ... on StatusContext {{
-                                        context
-                                        state
-                                        isRequired(pullRequestNumber: {pr_number})
-                                      }}
-                                    }}
-                                    pageInfo {{
-                                      endCursor
-                                      hasNextPage
-                                    }}
-                                  }}
-                                }}
-                              }}
-                            }}
-                          }}
-                        }}
-                    """)
-                return (
-                    'query { rateLimit { cost remaining limit resetAt } '
-                    f'repository(owner: "{owner}", name: "{repo_name}") {{ {"".join(aliases)} }} }}'
-                )
-
-            response = await gh.post("/graphql", data={"query": build_query(remaining)})
-            if errors := response.get("errors"):
-                # GitHub returns partial data with nulls where the token can't read a field, rather than failing
-                messages = sorted({e.get("message", str(e)) for e in errors})
-                log.warning(f'_fetch_pr_github_data: {len(errors)} GraphQL errors: {messages}')
-            data = response["data"]
-            repo_data = data["repository"]
-            if (rate_limit := data.get("rateLimit")) is not None:
-                total_cost += rate_limit["cost"]
-                last_rate_limit = rate_limit
+            response = await _graphql(gh, build_query(remaining), cost)
+            repo_data = response.data["repository"]
+            pr_errors = {
+                e["path"][1]: e
+                for e in response.errors
+                if (e.get("path") or [])[:1] == ["repository"] and len(e["path"]) == 2
+            }
 
             next_remaining: Dict[int, Optional[str]] = {}
-            for pr_number in list(remaining.keys()):
-                pr_data = repo_data[f"pr_{pr_number}"]
-                if remaining[pr_number] is None:
-                    review_data[pr_number] = _parse_review_data(pr_data)
-                if review_decisions[pr_number] is None:
-                    raw = pr_data["reviewDecision"]
-                    review_decisions[pr_number] = raw if raw is not None else "API_NONE"
-                rollup = pr_data["commits"]["nodes"][0]["commit"]["statusCheckRollup"]
-                if rollup is not None:
-                    accumulated_nodes[pr_number].extend(rollup["contexts"]["nodes"])
-                    if rollup["contexts"]["pageInfo"]["hasNextPage"]:
-                        next_remaining[pr_number] = rollup["contexts"]["pageInfo"]["endCursor"]
+            for pr_number, cursor in remaining.items():
+                pr_data = repo_data.get(f"pr_{pr_number}")
+                try:
+                    if pr_data is None:
+                        error = pr_errors.get(f"pr_{pr_number}")
+                        if error is not None and error.get("type") in _UNREADABLE_PR_ERROR_TYPES:
+                            raise UnreadablePr(error.get("message", error["type"]))
+                        # Anything else (e.g. a partial timeout) may be transient: don't drop the PR and whatever CI
+                        # was doing with it, just skip its update this time
+                        reason = error.get("message", str(error)) if error is not None else 'no error given'
+                        message = f"PR kept at its previous state: missing from GitHub's response ({reason})"
+                        log.warning(f'_fetch_pr_github_data: PR {pr_number} {message}')
+                        unexplained[pr_number] = UnreadablePrInfo(None, message)
+                        continue
+                    if cursor is None:
+                        pr_fields[pr_number] = GitHubPr.from_graphql(pr_data)
+                        review_data[pr_number] = _parse_review_data(pr_data)
+                        raw = pr_data["reviewDecision"]
+                        review_decisions[pr_number] = raw if raw is not None else "API_NONE"
+                    rollup = pr_data["commits"]["nodes"][0]["commit"]["statusCheckRollup"]
+                    if rollup is not None:
+                        accumulated_nodes[pr_number].extend(rollup["contexts"]["nodes"])
+                        if rollup["contexts"]["pageInfo"]["hasNextPage"]:
+                            next_remaining[pr_number] = rollup["contexts"]["pageInfo"]["endCursor"]
+                except (UnreadablePr, KeyError, TypeError, IndexError) as e:
+                    message = str(e) if isinstance(e, UnreadablePr) else f'unexpected response: {type(e).__name__}: {e}'
+                    log.warning(f'_fetch_pr_github_data: skipping PR {pr_number}: {message}')
+                    source_sha = pr_data.get("headRefOid") if isinstance(pr_data, dict) else None
+                    unreadable[pr_number] = UnreadablePrInfo(source_sha, f'PR skipped: {message}')
+                    next_remaining.pop(pr_number, None)
 
             if next_remaining:
                 log.warning(f'_fetch_pr_github_data: pagination required for PRs {list(next_remaining.keys())}')
             remaining = next_remaining
 
     prs = {
-        n: _PrGithubData(review_decisions[n] or "API_NONE", accumulated_nodes[n], *review_data[n]) for n in pr_numbers
+        n: _PrGithubData(pr_fields[n], review_decisions[n], accumulated_nodes[n], *review_data[n])
+        for n in pr_numbers
+        if n not in unreadable and n not in unexplained
     }
-    rate_limit = (
-        GraphQLRateLimit(total_cost, last_rate_limit["remaining"], last_rate_limit["limit"], last_rate_limit["resetAt"])
-        if last_rate_limit is not None
-        else None
-    )
-    return prs, rate_limit
+    return _PrFetch(prs, unreadable, unexplained)
+
+
+async def _fetch_branch_prs(gh: _GitHubGraphQL, owner: str, repo_name: str, branch: str) -> _BranchPrs:
+    """Everything CI reads from GitHub about the open PRs targeting `branch`: list their numbers, then fetch details."""
+    cost = _GraphQLCost()
+    numbers = await _list_open_pr_numbers(gh, owner, repo_name, branch, cost)
+    fetched = await _fetch_pr_github_data(gh, owner, repo_name, numbers, cost)
+    prs: Dict[int, _PrGithubData] = {}
+    for number in numbers:
+        data = fetched.prs.get(number)
+        if data is None:
+            continue
+        if data.pr.state != 'OPEN' or data.pr.base_ref_name != branch:
+            # Merged, closed or retargeted between the listing and the details fetch
+            log.info(f'PR {number} is now {data.pr.state} targeting {data.pr.base_ref_name}; skipped for this update')
+            continue
+        prs[number] = data
+    return _BranchPrs(numbers, prs, fetched.unreadable, fetched.unexplained, cost.rate_limit())
 
 
 class WatchedBranch(Code):
@@ -1300,14 +1499,16 @@ class WatchedBranch(Code):
 
         self.n_running_batches: int = 0
 
-        # From the last GitHub update's PR GraphQL query; None until the first one
+        # From the last GitHub update's PR GraphQL queries; None until the first one
         self.graphql_rate_limit: Optional[GraphQLRateLimit] = None
+        # (PR number, head SHA) of the PRs CI couldn't read last update, so each is recorded as an event once
+        self.pr_read_errors: Set[Tuple[int, Optional[str]]] = set()
 
         # Recorded for display only; nothing reads these to make a decision
         self.last_update_started_ms: Optional[int] = None
         self.last_update: Optional[LastUpdate] = None
         self.last_github_api_error: Optional[GitHubApiError] = None
-        # Snapshot after the REST calls, before the GraphQL query overwrites gh.rate_limit
+        # Snapshot after the REST ref fetch, before the GraphQL queries overwrite gh.rate_limit
         self.rest_rate_limit: Optional[RestRateLimit] = None
 
         self.merge_candidate: Optional[PR] = None
@@ -1547,17 +1748,31 @@ class WatchedBranch(Code):
                 )
             self.last_seen_sha = new_sha
 
+        if gh.rate_limit is not None:
+            self.rest_rate_limit = RestRateLimit(
+                gh.rate_limit.remaining, gh.rate_limit.limit, gh.rate_limit.reset_datetime.isoformat()
+            )
+
+        fetched = await _fetch_branch_prs(gh, self.branch.repo.owner, self.branch.repo.name, self.branch.name)
+        if fetched.rate_limit is not None:
+            self.graphql_rate_limit = fetched.rate_limit
+        await self._record_pr_read_errors(db, {**fetched.unreadable, **fetched.unexplained})
+
         new_prs: Dict[int, PR] = {}
-        async for gh_json_pr in gh.getiter(f'/repos/{repo_ss}/pulls?state=open&base={self.branch.name}'):
-            number = gh_json_pr['number']
+        for number in fetched.numbers:
+            pr_data = fetched.prs.get(number)
+            if pr_data is None:
+                if number in fetched.unexplained and number in self.prs:
+                    new_prs[number] = self.prs[number]
+                continue
             if number in self.prs:
                 pr = self.prs[number]
                 old_source_sha = pr.source_sha
-                pr.update_from_gh_json(gh_json_pr)
+                pr.update_from_github(pr_data.pr)
                 if pr.source_sha != old_source_sha:
                     await pr.request_build(db, f'new commit {pr.source_sha[:8]}')
             else:
-                pr = PR.from_gh_json(gh_json_pr, self)
+                pr = PR.from_github(pr_data.pr, self)
                 if self.prs:
                     await pr.request_build(db, 'initial build')
             new_prs[number] = pr
@@ -1572,46 +1787,48 @@ class WatchedBranch(Code):
             self.pending_merge = None
             self._target_merged()
 
-        for pr in new_prs.values():
-            await pr.assign_gh_reviewer_if_requested(db, gh)
+        for number in fetched.prs:
+            # Not PRs kept at their previous state: their assignees may be stale
+            await new_prs[number].assign_gh_reviewer_if_requested(db, gh)
 
-        if gh.rate_limit is not None:
-            self.rest_rate_limit = RestRateLimit(
-                gh.rate_limit.remaining, gh.rate_limit.limit, gh.rate_limit.reset_datetime.isoformat()
-            )
+        summary = []
+        for pr_number, pr_data in fetched.prs.items():
+            review_decision, check_nodes = pr_data.review_decision, pr_data.check_nodes
+            required_nodes = [c for c in check_nodes if c["isRequired"]]
+            required_statuses = [
+                github_status(c["conclusion"] if c["__typename"] == "CheckRun" else c["state"]) for c in required_nodes
+            ]
+            if any(s == GithubStatus.FAILURE for s in required_statuses):
+                check_decision = 'failing'
+            elif required_statuses and all(s == GithubStatus.SUCCESS for s in required_statuses):
+                check_decision = 'passing'
+            else:
+                check_decision = 'pending'
+            summary.append((pr_number, review_decision, len(check_nodes), len(required_nodes), check_decision))
+        log.info(
+            f'update github {self.short_str()}: PR data fetched '
+            f'(pr_number, review_decision, total_checks, required_checks, check_decision): {summary}; '
+            f'graphql rate limit: {fetched.rate_limit}'
+        )
 
-        if new_prs:
-            pr_github_data, rate_limit = await _fetch_pr_github_data(
-                gh, self.branch.repo.owner, self.branch.repo.name, list(new_prs.keys())
-            )
-            if rate_limit is not None:
-                self.graphql_rate_limit = rate_limit
+        for number, pr_data in fetched.prs.items():
+            new_prs[number]._apply_github_data(pr_data)
 
-            summary = []
-            for pr_number, pr_data in pr_github_data.items():
-                review_decision, check_nodes = pr_data.review_decision, pr_data.check_nodes
-                required_nodes = [c for c in check_nodes if c["isRequired"]]
-                required_statuses = [
-                    github_status(c["conclusion"] if c["__typename"] == "CheckRun" else c["state"])
-                    for c in required_nodes
-                ]
-                if any(s == GithubStatus.FAILURE for s in required_statuses):
-                    check_decision = 'failing'
-                elif required_statuses and all(s == GithubStatus.SUCCESS for s in required_statuses):
-                    check_decision = 'passing'
-                else:
-                    check_decision = 'pending'
-                summary.append((pr_number, review_decision, len(check_nodes), len(required_nodes), check_decision))
-            log.info(
-                f'update github {self.short_str()}: PR data fetched '
-                f'(pr_number, review_decision, total_checks, required_checks, check_decision): {summary}; '
-                f'graphql rate limit: {rate_limit}'
-            )
-
-            for pr in new_prs.values():
-                pr._apply_github_data(pr_github_data[pr.number])
-        else:
-            self.graphql_rate_limit = None
+    async def _record_pr_read_errors(self, db: Database, unreadable: Dict[int, UnreadablePrInfo]):
+        """Record an update_failed event, with its pr_number, for each PR newly unreadable (or at a new head SHA).
+        The update itself carried on without that PR."""
+        current = {(number, info.source_sha) for number, info in unreadable.items()}
+        for number, info in unreadable.items():
+            if (number, info.source_sha) not in self.pr_read_errors:
+                await record_event(
+                    db,
+                    CIEvent.UPDATE_FAILED,
+                    target_branch=self.branch.short_str(),
+                    pr_number=number,
+                    source_sha=info.source_sha,
+                    message=info.message,
+                )
+        self.pr_read_errors = current
 
     async def _update_deploy(self, batch_client, db: Database):
         assert self.deployable

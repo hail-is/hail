@@ -424,13 +424,14 @@ async def test_update_github_snapshots_rest_rate_limit():
     wb = make_branch()
     gh = MagicMock()
     gh.getitem = AsyncMock(return_value={'object': {'sha': TARGET_SHA}})
-
-    async def no_prs(_url):
-        return
-        yield
-
-    gh.getiter = no_prs
     gh.rate_limit = gidgethub.sansio.RateLimit(limit=5000, remaining=4123, reset_epoch=0)
+
+    async def graphql_no_prs(_url, *, data):  # pylint: disable=unused-argument
+        # gidgethub updates rate_limit from GraphQL responses too, which must not reach the REST snapshot
+        gh.rate_limit = gidgethub.sansio.RateLimit(limit=5000, remaining=1, reset_epoch=0)
+        return {'data': {'repository': {'pullRequests': {'nodes': [], 'pageInfo': {'hasNextPage': False}}}}}
+
+    gh.post = graphql_no_prs
 
     await wb._update_github(DB, gh)
 
