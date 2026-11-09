@@ -1,0 +1,14 @@
+{% extends "layout.html" %}
+{% block title %}CI PRs{% endblock %}
+{% block content %}
+<h1>PRs</h1>
+{% if branches %}
+<ul>
+  {% for b in branches %}
+  <li><a href="{{ base_path }}/watched_branches/{{ b.index }}/prs">{{ b.name }}</a></li>
+  {% endfor %}
+</ul>
+{% else %}
+No watched branches.
+{% endif %}
+{% endblock %}
