@@ -13,6 +13,7 @@ from ....inst_coll_config import InstanceCollectionConfigs
 from .activity_logs import process_activity_log_events_since
 from .billing_manager import GCPBillingManager
 from .disks import delete_orphaned_disks
+from .machine_type_rollout import GCPN4Rollout
 from .resource_manager import GCPResourceManager
 from .zones import ZoneMonitor
 
@@ -78,6 +79,7 @@ ON DUPLICATE KEY UPDATE region = region;
                 config,
                 app['async_worker_pool'],
                 task_manager,
+                GCPN4Rollout(),
             )
             for config in inst_coll_configs.name_pool_config.values()
         ]
