@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { DeveloperBranchStatus, MergeQueueEntry, PrConfig, ReviewRequest } from '../../shared/ciApi';
 import {
   buildStateLabel,
+  buildTally,
   formatAge,
   isBuildOutOfDate,
   journeyFill,
@@ -10,6 +11,8 @@ import {
   matchesSearch,
   mergeCell,
   reviewSlots,
+  stageTally,
+  statusTally,
   statusColumnNames,
   upToDateCell,
 } from './prTableModel';
@@ -322,6 +325,38 @@ describe('journeyMarks', () => {
   });
 });
 
+describe('stack summary tallies', () => {
+  it('counts journey steps by status, stacked n/a as pending', () => {
+    const cells = [
+      { status: 'pass' as const, text: 'approved by carol' },
+      { status: 'pending' as const, text: 'awaiting bob' },
+      { status: 'pass' as const, text: 'approved by bob' },
+      { status: 'na' as const, text: '', stacked: true },
+      { status: 'na' as const, text: '' },
+    ];
+    expect(stageTally(cells)).toEqual([
+      { kind: 'stage', state: 'pass', count: 2 },
+      { kind: 'stage', state: 'pending', count: 2 },
+    ]);
+  });
+
+  it('counts build states with upper-stack PRs as pending', () => {
+    const prs = [pr(), pr({ build_state: null }), pr({ display_only: true, build_state: null }), pr({ display_only: true, build_state: null })];
+    expect(buildTally(prs)).toEqual([
+      { kind: 'build', state: 'success', count: 1 },
+      { kind: 'build', state: 'pending', count: 3 },
+    ]);
+  });
+
+  it('counts a GitHub status, skipping PRs without it', () => {
+    const prs = [pr(), pr({ gh_statuses: { 'ci-test': 'failure' } }), pr({ gh_statuses: {} })];
+    expect(statusTally(prs, 'ci-test')).toEqual([
+      { kind: 'build', state: 'success', count: 1 },
+      { kind: 'build', state: 'failure', count: 1 },
+    ]);
+  });
+});
+
 describe('mergeCell', () => {
   const now = Date.parse('2026-11-04T12:00:00Z');
 
@@ -338,11 +373,30 @@ describe('mergeCell', () => {
 
   it('says an upper-stack PR is stacked rather than blocked', () => {
     const stacked = pr({ display_only: true, merge_blockers: null, build_state: null, out_of_date: null, batch_id: null });
-    expect(mergeCell(stacked, branch(), now)).toEqual({ status: 'na', text: 'stacked' });
-    expect(buildStateLabel(stacked)).toBe('not built');
+    expect(mergeCell(stacked, branch(), now)).toEqual({ status: 'na', text: '', detail: 'stacked', stacked: true });
+    expect(buildStateLabel(stacked)).toBe('stacked');
     expect(isBuildOutOfDate(stacked)).toBe(false);
     expect(upToDateCell(stacked).status).toBe('na');
     expect(labelsCell({ ...stacked, labels: ['WIP'] }).status).toBe('fail');
+  });
+
+  it('names the stack entry directly below, whatever its state', () => {
+    const stack = {
+      number: 900,
+      base_ref_name: 'main',
+      size: 3,
+      entries: [
+        { position: 1, number: 10, state: 'OPEN', title: 'Bottom' },
+        { position: 2, number: 11, state: 'CLOSED', title: 'Abandoned' },
+        { position: 3, number: 12, state: 'OPEN', title: 'Top' },
+      ],
+      name: null,
+      doc_url: null,
+      meta: {},
+    };
+    const top = pr({ display_only: true, merge_blockers: null, build_state: null, out_of_date: null, stack, stack_entry: { position: 3 } });
+    expect(mergeCell(top, branch(), now)).toEqual({ status: 'na', text: '', detail: 'stacked on #11', stacked: true });
+    expect(buildStateLabel(top)).toBe('stacked on #11');
   });
 
   it('is ready when nothing blocks it', () => {

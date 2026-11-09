@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { createCiApi, type DeveloperBranchStatus, type PrConfig, type WatchedBranchSummary } from '../shared/ciApi';
 import { PrTable } from './components/PrTable';
-import { matchesFilter, nextSort, PR_FILTERS, sortPrs, type PrFilter, type SortState } from './components/prListView';
+import { buildListItems, nextSort, PR_FILTERS, type PrFilter, type SortState } from './components/prListView';
 import { matchesSearch, statusColumnNames } from './components/prTableModel';
 
 function errorMessage(e: unknown): string {
@@ -17,6 +17,8 @@ function PrsPage({ basePath, wbIndex }: { basePath: string; wbIndex: number }): 
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<PrFilter>('all');
   const [sort, setSort] = useState<SortState | null>(null);
+  // Stacks start collapsed; filters and search never expand or collapse them.
+  const [expandedStacks, setExpandedStacks] = useState<ReadonlySet<number>>(new Set());
   // GitHub username of the signed-in user, for the Mine / Waiting on me filters. Null until
   // loaded, and stays null for anyone who isn't a CI developer, which hides those filters.
   const [viewer, setViewer] = useState<string | null>(null);
@@ -67,8 +69,14 @@ function PrsPage({ basePath, wbIndex }: { basePath: string; wbIndex: number }): 
   } else {
     const statusNames = statusColumnNames(prs);
     const nowMs = Date.now();
-    const shown = sortPrs(
-      prs.filter((pr) => matchesFilter(pr, filter, viewer) && matchesSearch(pr, statusNames, search, branchStatus, nowMs)),
+    const shown = buildListItems(
+      prs,
+      {
+        filter,
+        viewer,
+        search,
+        searchPr: (pr) => matchesSearch(pr, statusNames, search, branchStatus, nowMs),
+      },
       sort,
       { branch: branchStatus, nowMs },
     );
@@ -76,7 +84,7 @@ function PrsPage({ basePath, wbIndex }: { basePath: string; wbIndex: number }): 
       ? <p className="text-sm text-zinc-500">No PRs match these filters.</p>
       : (
         <PrTable
-          prs={shown}
+          items={shown}
           statusNames={statusNames}
           repo={wb.repo}
           basePath={basePath}
@@ -84,6 +92,14 @@ function PrsPage({ basePath, wbIndex }: { basePath: string; wbIndex: number }): 
           branchStatus={branchStatus}
           sort={sort}
           onSort={(column) => { setSort((current) => nextSort(current, column)); }}
+          expandedStacks={expandedStacks}
+          onToggleStack={(stackNumber) => {
+            setExpandedStacks((current) => {
+              const next = new Set(current);
+              if (!next.delete(stackNumber)) next.add(stackNumber);
+              return next;
+            });
+          }}
         />
       );
   }
