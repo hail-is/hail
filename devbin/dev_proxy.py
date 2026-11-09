@@ -122,9 +122,10 @@ _LOCAL_REACT_ROUTES: list[tuple[str, str, str, str, dict]] = [
     ('batch-driver', 'GET', '/batch-driver/', 'index_react.html', {}),
     ('batch-driver', 'GET', '/batch-driver', 'index_react.html', {}),
     ('batch-driver', 'GET', '/batch-driver/swagger', 'swagger/index.html', {}),
+    ('ci', 'GET', '/ci', 'dashboard.html', {}),
+    ('ci', 'GET', '/ci/', 'dashboard.html', {}),
     ('ci', 'GET', '/ci/flaky_tests', 'flaky_tests.html', {}),
     ('ci', 'GET', '/ci/watched_branches/{watched_branch_index}/prs', 'prs.html', {}),
-    # classic page_context holds `pr`/`wb` directly (a PR/WatchedBranch instance, not a dict) — not JSON-serializable
     ('ci', 'GET', '/ci/watched_branches/{watched_branch_index}/pr/{pr_number}', 'pr_react.html', {}),
     ('batch', 'GET', '/batch/swagger', 'swagger/index.html', {}),
     ('ci', 'GET', '/ci/swagger', 'swagger/index.html', {}),
@@ -160,16 +161,6 @@ for _service, _verb, _path, _template, _extra_ctx in _LOCAL_REACT_ROUTES:
 @routes.get('/ci/prs')
 async def ci_prs_redirect(_request: web.Request) -> web.Response:
     raise web.HTTPFound('/ci/watched_branches/0/prs')
-
-
-# Like the real CI index, serve the React dashboard only when the opt-in cookie is set.
-@routes.get('/ci')
-@routes.get('/ci/')
-@web_security_headers
-async def ci_index(request: web.Request) -> web.Response:
-    if request.cookies.get('hail_react_ui') == '1':
-        return await _render_html(request, 'ci', _FAKE_DEV_USERDATA, 'dashboard.html', {'use_tailwind': True})
-    return await _render_html(request, 'ci', **await _proxy(request, 'ci'))
 
 
 @routes.view('/{service:[^/]+}/api/{route:.*}')

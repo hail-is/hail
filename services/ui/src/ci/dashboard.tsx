@@ -13,11 +13,13 @@ import {
   type WatchedBranchSummary,
 } from '../shared/ciApi';
 import { hasPermission } from '../shared/authUtils';
+import type { Batch } from '../shared/batchApi';
+import { BatchStateIcon } from '../shared/BatchStateIcon';
 import { AutoRefreshBar } from '../shared/AutoRefreshBar';
 import { Panel } from '../shared/Panel';
+import { DataTr, EmptyCell, Td, Th } from '../shared/Table';
 import { EventLog, MessageCell } from './components/EventLog';
 import { currentMergeFailures } from './components/eventLogModel';
-import { disableReactUi } from '../shared/reactUiCookie';
 import { formatRelative, formatTimestamp } from '../shared/timeUtils';
 import {
   deployDisplay,
@@ -355,6 +357,56 @@ function PrCountTile({ href, n }: { href: string; n: number }): JSX.Element {
   );
 }
 
+// Hidden for viewers who aren't CI developers, since the endpoint 404s for them.
+function DevDeploysPanel({ api, batchBaseUrl, refreshKey }: {
+  api: CiApi;
+  batchBaseUrl: string;
+  refreshKey: number;
+}): JSX.Element | null {
+  const [deploys, setDeploys] = useState<Batch[] | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    api.getDevDeploys('me')
+      .then((r) => { if (!cancelled) setDeploys(r); })
+      .catch((e: unknown) => { console.warn('Could not load dev deploys', e); });
+    return () => { cancelled = true; };
+  }, [api, refreshKey]);
+
+  if (deploys === null) return null;
+  return (
+    <Panel title="My dev deploys" subtitle="Your 10 most recent hailctl dev deploy batches">
+      {deploys.length === 0 ? (
+        <p className="text-sm text-zinc-500">No dev deploys.</p>
+      ) : (
+        <div className="overflow-x-auto rounded border border-zinc-200">
+          <table className="w-full text-sm">
+            <thead>
+              <tr>
+                <Th>Batch</Th>
+                <Th>Branch</Th>
+                <Th>State</Th>
+                <Th>Created</Th>
+              </tr>
+            </thead>
+            <tbody>
+              {deploys.map((b) => (
+                <DataTr key={b.id}>
+                  <Td>
+                    <a href={`${batchBaseUrl}/batches/${b.id}`} className="text-sky-600 hover:underline">{b.id}</a>
+                  </Td>
+                  <Td className="break-all">{b.attributes?.target_branch ?? <EmptyCell />}</Td>
+                  <Td className="whitespace-nowrap"><BatchStateIcon state={b.state} /> {b.state}</Td>
+                  <Td className="whitespace-nowrap">{formatTimestamp(b.time_created)}</Td>
+                </DataTr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </Panel>
+  );
+}
+
 function BranchPanel({ index, branch, summary, op, basePath, batchBaseUrl, failure, failureError, nowMs, mergeFailedEvents }: {
   index: number;
   branch: DeveloperBranchStatus;
@@ -403,7 +455,8 @@ function OperatorPanel({ op }: { op: CiOperatorStatus }): JSX.Element {
   const apiError = op.github.last_api_error;
   return (
     <Panel title="CI internals">
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+      {/* One row when full width; stacked when it sits beside dev deploys on wide screens */}
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-3 xl:grid-cols-1">
         <Tile title="Last webhook, by event">
           {webhooks.length === 0
             ? <p className="text-sm text-zinc-500">None since CI started.</p>
@@ -644,7 +697,10 @@ function DashboardPage({ basePath, batchBaseUrl }: { basePath: string; batchBase
             refreshKey={countdownKey}
             prHref={prHref}
           />
-          {op && <OperatorPanel op={op} />}
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+            <DevDeploysPanel api={api} batchBaseUrl={batchBaseUrl} refreshKey={countdownKey} />
+            {op && <OperatorPanel op={op} />}
+          </div>
         </div>
       </>
     );
@@ -655,9 +711,6 @@ function DashboardPage({ basePath, batchBaseUrl }: { basePath: string; batchBase
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-xl font-light text-zinc-800">CI</h1>
-          <button type="button" onClick={disableReactUi} className="text-sm text-sky-600 hover:underline cursor-pointer">
-            Back to classic layout
-          </button>
         </div>
         <div className="w-48">
           <AutoRefreshBar

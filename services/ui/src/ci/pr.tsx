@@ -941,16 +941,6 @@ function PrPage({ basePath, batchBaseUrl, wbIndex, prNumber }: {
         </div>
       )}
 
-      <div className="mt-1 text-sm">
-        <button
-          type="button"
-          onClick={() => { document.cookie = 'hail_react_ui=; max-age=0; path=/; SameSite=Lax'; location.reload(); }}
-          className="text-sky-600 hover:underline cursor-pointer"
-        >
-          Back to classic layout
-        </button>
-      </div>
-
       <div className={stack !== null ? 'mt-4 flex flex-col gap-6 lg:flex-row lg:items-start' : 'mt-4'}>
         <div className="min-w-0 flex-1">
           <div className="text-sm">

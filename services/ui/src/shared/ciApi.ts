@@ -1,3 +1,4 @@
+import type { Batch } from './batchApi';
 import { hailApiFetch, hailApiFetchVoid } from './hailApiFetch';
 
 // Wire types + client for the ci service's API. See batchApi.ts for why this lives in shared/.
@@ -227,6 +228,10 @@ export function createCiApi(basePath: string) {
     // `me` is the signed-in user; 404s for anyone who isn't a CI developer.
     getDeveloper: (username: string) =>
       hailApiFetch<Developer>(`${basePath}/api/v1alpha/developers/${encodeURIComponent(username)}`),
+
+    // The developer's 10 most recent dev deploy batches, newest first; 404s like getDeveloper.
+    getDevDeploys: (username: string) =>
+      hailApiFetch<Batch[]>(`${basePath}/api/v1alpha/developers/${encodeURIComponent(username)}/dev_deploys`),
 
     getDeveloperStatus: () =>
       hailApiFetch<CiDeveloperStatus>(`${basePath}/api/v1alpha/ci_developer_status`),
