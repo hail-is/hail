@@ -32,6 +32,14 @@
     {{ wb.merge_candidate }}
     {% endif %}
       </div>
+      {% set rate_limit = graphql_rate_limits[loop.index0] %}
+      <div>GraphQL (last update):
+    {% if rate_limit is not none %}
+    {{ rate_limit.last_update_cost }} pts &middot; {{ rate_limit.remaining }} / {{ rate_limit.limit }} remaining &middot; resets {{ rate_limit.reset_at }}
+    {% else %}
+    unknown
+    {% endif %}
+      </div>
     </div>
 
     {% if userdata['system_permissions']['manage_ci'] %}
