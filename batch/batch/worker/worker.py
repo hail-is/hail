@@ -3614,7 +3614,7 @@ async def async_main():
     docker = aiodocker.Docker()
 
     if CLOUD == 'gcp':
-        CLOUD_WORKER_API = await GCPWorkerAPI.from_env()
+        CLOUD_WORKER_API = await GCPWorkerAPI.from_env(INSTANCE_CONFIG['machine_type'])
     else:
         assert CLOUD == 'azure'
         if os.environ.get('HAIL_TERRA'):
