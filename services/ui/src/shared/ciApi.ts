@@ -73,6 +73,11 @@ export interface PrStack {
   meta: Record<string, string>;
 }
 
+export interface Developer {
+  hail_username: string;
+  gh_username: string;
+}
+
 // Status endpoints: in-memory state that resets when CI restarts. Times are epoch ms.
 
 export interface QueuedBuild {
@@ -218,6 +223,10 @@ export function createCiApi(basePath: string) {
 
     getWatchedBranchPrs: (branch: string) =>
       hailApiFetch<PrConfig[]>(`${basePath}/api/v1alpha/watched_branches/${encodeURIComponent(branch)}/prs`),
+
+    // `me` is the signed-in user; 404s for anyone who isn't a CI developer.
+    getDeveloper: (username: string) =>
+      hailApiFetch<Developer>(`${basePath}/api/v1alpha/developers/${encodeURIComponent(username)}`),
 
     getDeveloperStatus: () =>
       hailApiFetch<CiDeveloperStatus>(`${basePath}/api/v1alpha/ci_developer_status`),
