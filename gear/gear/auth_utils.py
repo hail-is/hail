@@ -1,4 +1,3 @@
-import logging
 import os
 import secrets
 from typing import Optional
@@ -16,8 +15,10 @@ def max_age():
         if (s := os.getenv('SESSION_MAX_AGE_SECS')) is not None:
             try:
                 MAX_AGE_SECS = int(s)
-            except ValueError:
-                logging.exception("Unable to interpret SESSION_MAX_AGE_SECS as an integer.")
+            except ValueError as e:
+                raise ValueError(f"Invalid SESSION_MAX_AGE_SECS={s!r}; expected integer seconds") from e
+            if MAX_AGE_SECS <= 0:
+                raise ValueError('SESSION_MAX_AGE_SECS must be > 0')
 
     if MAX_AGE_SECS is None:
         # Default value, no env. variable set: 2592000 seconds (30 days)
