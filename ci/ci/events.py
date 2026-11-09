@@ -1,6 +1,6 @@
 import logging
 from enum import Enum
-from typing import Optional
+from typing import List, Optional, Tuple
 
 from gear import Database
 
@@ -47,6 +47,37 @@ class CIEvent(Enum):
     SERVICE_EDITED = 'service_edited'
     SERVICE_DELETED = 'service_deleted'
     NAMESPACE_EXPIRED_CLEANUP = 'namespace_expired_cleanup'
+
+
+# Events that report something going wrong. A failed deploy is recorded as deploy_finished
+# with message 'failure', so error_condition() and is_error() count that too.
+ERROR_EVENTS = frozenset({
+    CIEvent.MERGE_FAILED,
+    CIEvent.MERGE_EXPIRED,
+    CIEvent.BUILD_START_FAILED,
+    CIEvent.DEPLOY_START_FAILED,
+    CIEvent.DEPLOY_STATUS_FAILED,
+    CIEvent.REVIEWER_ASSIGN_FAILED,
+    CIEvent.STATUS_POST_FAILED,
+    CIEvent.UPDATE_FAILED,
+})
+_FAILED_DEPLOY_MESSAGE = 'failure'
+
+
+def is_error(event: str, message: Optional[str]) -> bool:
+    if event == CIEvent.DEPLOY_FINISHED.value:
+        return message == _FAILED_DEPLOY_MESSAGE
+    return event in {e.value for e in ERROR_EVENTS}
+
+
+def error_condition() -> Tuple[str, List[str]]:
+    """SQL condition on ci_events matching the same rows as is_error, with its arguments."""
+    values = sorted(e.value for e in ERROR_EVENTS)
+    placeholders = ', '.join(['%s'] * len(values))
+    return (
+        f'(event IN ({placeholders}) OR (event = %s AND message = %s))',
+        [*values, CIEvent.DEPLOY_FINISHED.value, _FAILED_DEPLOY_MESSAGE],
+    )
 
 
 def truncate_message(message: str) -> str:
