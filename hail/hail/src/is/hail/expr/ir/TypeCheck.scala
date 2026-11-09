@@ -30,21 +30,16 @@ object TypeCheck extends Logging {
       }
     }
 
-  def check(ctx: ExecuteContext, ir: BaseIR, env: BindingEnv[Type]): StackFrame[Unit] = {
+  def check(ctx: ExecuteContext, ir: BaseIR, env: BindingEnv[Type]): StackFrame[Unit] =
     for {
       _ <- ir.forEachChildWithEnvStackSafe(env)((_, t) => t) { (child, i, childEnv) =>
-        for {
-          _ <- check(ctx, child, childEnv)
-        } yield
-          if (child.typ == TVoid) {
-            checkVoidTypedChild(ctx, ir, i, env)
-          } else ()
+        check(ctx, child, childEnv).map { _ =>
+          if (child.typ == TVoid) checkVoidTypedChild(ctx, ir, i)
+        }
       }
     } yield checkSingleNode(ctx, ir, env)
-  }
 
-  private def checkVoidTypedChild(ctx: ExecuteContext, ir: BaseIR, i: Int, env: BindingEnv[Type])
-    : Unit = ir match {
+  private def checkVoidTypedChild(ctx: ExecuteContext, ir: BaseIR, i: Int): Unit = ir match {
     case l: Block if i == l.bindings.length || l.body.typ == TVoid =>
     case _: StreamFor if i == 1 =>
     case _: RunAggScan if (i == 1 || i == 2) =>

@@ -69,12 +69,7 @@ class NormalizeNames(freeVariables: Set[Name]) {
       var newEnv = env
       for {
         newBindings <- bindings.mapRecur { case Binding(name, value, scope) =>
-          val valueEnv = scope match {
-            case Scope.EVAL => newEnv
-            case Scope.AGG => newEnv.promoteAgg.noScan
-            case Scope.SCAN => newEnv.promoteScan.noAgg
-          }
-          for (newValue <- normalizeIR(value, valueEnv)) yield {
+          for (newValue <- normalizeIR(value, Binds.aggSeq(newEnv, scope))) yield {
             val newName = gen()
             newEnv = newEnv.bind(scope, FastSeq(name -> newName))
             Binding(newName, newValue.asInstanceOf[IR], scope)

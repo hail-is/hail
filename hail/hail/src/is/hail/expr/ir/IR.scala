@@ -46,6 +46,15 @@ abstract class IR extends BaseIR {
   override def mapChildrenWithIndex(f: (BaseIR, Int) => BaseIR): IR =
     super.mapChildrenWithIndex(f).asInstanceOf[IR]
 
+  override def mapChildrenWithEnv[E[_]: Scopes, A](
+    env: E[A]
+  )(
+    v: (Name, Type) => A
+  )(
+    f: (BaseIR, E[A]) => BaseIR
+  ): IR =
+    super.mapChildrenWithEnv(env)(v)(f).asInstanceOf[IR]
+
   override def deepCopy: IR = {
     val cp = super.deepCopy.asInstanceOf[IR]
     if (_typ != null) cp._typ = _typ
