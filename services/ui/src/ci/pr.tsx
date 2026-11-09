@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { createRoot } from 'react-dom/client';
 import { hailApiFetch as apiFetch, hailApiFetchVoid as apiFetchVoid } from '../shared/hailApiFetch';
 import { createCiApi } from '../shared/ciApi';
+import type { PrStack } from '../shared/ciApi';
 import { hasPermission } from '../shared/authUtils';
 import { SegmentedBar, Segment } from '../shared/SegmentedBar';
 import { StateIcon } from '../batch/components/StateIcon';
@@ -12,6 +13,8 @@ import { formatTimestamp } from '../shared/timeUtils';
 import { EventLog } from './components/EventLog';
 import { LabelChip } from './components/LabelChip';
 import { sortLabels } from './components/labelModel';
+import { stackedOn } from './components/prTableModel';
+import { StackStrip } from './components/StackStrip';
 
 const REFRESH_INTERVAL_MS = 30_000;
 
@@ -67,6 +70,10 @@ interface WatchedBranchPr {
   // Historical-PR fields (GitHub fallback branch).
   merged?: boolean | null;
   merge_commit_sha?: string | null;
+  // Stack fields — every branch of the API sends these but `display_only` (not on the GitHub fallback).
+  stack_entry?: { position: number } | null;
+  stack?: PrStack | null;
+  display_only?: boolean;
 }
 
 interface BatchStatus {
@@ -898,6 +905,9 @@ function PrPage({ basePath, batchBaseUrl, wbIndex, prNumber }: {
   }
 
   const active = isActivePr(pr);
+  const stacked = pr.display_only === true;
+  const stack = pr.stack ?? null;
+  const below = stackedOn({ stack, stack_entry: pr.stack_entry ?? null });
 
   return (
     <div className="pb-8">
@@ -941,60 +951,84 @@ function PrPage({ basePath, batchBaseUrl, wbIndex, prNumber }: {
         </button>
       </div>
 
-      <div className="mt-4 text-sm">
-        Status:{' '}
-        {active ? (
-          <><Icon name="merge" className="text-green-600" /> open (live)</>
-        ) : pr.merged ? (
-          <><Icon name="merge" className="text-purple-600" /> merged</>
-        ) : pr.merged === null ? (
-          <><Icon name="question_mark" className="text-zinc-400" /> closed</>
-        ) : (
-          <><Icon name="block" className="text-red-600" /> closed without merging</>
+      <div className={stack !== null ? 'mt-4 flex flex-col gap-6 lg:flex-row lg:items-start' : 'mt-4'}>
+        <div className="min-w-0 flex-1">
+          <div className="text-sm">
+            Status:{' '}
+            {active ? (
+              <><Icon name="merge" className="text-green-600" /> open (live)</>
+            ) : stacked ? (
+              <><Icon name="stacks" className="text-amber-600" /> open, stacked{below !== null && <> on #{below}</>}</>
+            ) : pr.merged ? (
+              <><Icon name="merge" className="text-purple-600" /> merged</>
+            ) : pr.merged === null ? (
+              <><Icon name="question_mark" className="text-zinc-400" /> closed</>
+            ) : (
+              <><Icon name="block" className="text-red-600" /> closed without merging</>
+            )}
+          </div>
+          {pr.labels.length > 0 && (
+            <div className="mt-1 text-sm flex flex-wrap items-center gap-1">
+              Labels:
+              {sortLabels(pr.labels).map((label) => <LabelChip key={label} label={label} />)}
+            </div>
+          )}
+
+          {stacked && (
+            <div className="mt-4 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-zinc-700">
+              <span className="font-semibold">Not built{below !== null && <>: stacked on #{below}</>}.</span>{' '}
+              CI builds and merges this PR once it targets {wbBranchName}, which GitHub does when the PRs below it merge.
+            </div>
+          )}
+
+          {active && <MergeEligibility pr={pr} basePath={basePath} batchBaseUrl={batchBaseUrl} wbIndex={wbIndex} />}
+          {active && (
+            <BuildPanel
+              pr={pr}
+              basePath={basePath}
+              batchBaseUrl={batchBaseUrl}
+              wbBranchName={wbBranchName}
+              prNumber={prNumber}
+              batchStatus={batchStatus}
+              jobs={jobs}
+              jobsError={jobsError}
+            />
+          )}
+
+          {!active && pr.merged && (
+            <div className="mt-4">
+              <h2 className="text-lg font-semibold text-zinc-700 mb-2">Deploy Batch History</h2>
+              <BatchHistoryTable batches={deployHistory} batchBaseUrl={batchBaseUrl} />
+            </div>
+          )}
+
+          <div className="mt-4">
+            <h2 className="text-lg font-semibold text-zinc-700 mb-2">Build Batch History</h2>
+            <BatchHistoryTable batches={history} batchBaseUrl={batchBaseUrl} />
+          </div>
+
+          <div className="mt-4">
+            <h2 className="text-lg font-semibold text-zinc-700 mb-2">Events</h2>
+            <EventLog
+              basePath={basePath}
+              batchBaseUrl={batchBaseUrl}
+              targetBranch={wbBranch}
+              pr={Number(prNumber)}
+              refreshKey={countdownKey}
+            />
+          </div>
+        </div>
+        {stack !== null && (
+          <aside className="order-first lg:order-none lg:sticky lg:top-4 lg:w-72 lg:shrink-0">
+            <StackStrip
+              stack={stack}
+              prNumber={Number(prNumber)}
+              position={pr.stack_entry?.position ?? null}
+              basePath={basePath}
+              wbIndex={wbIndex}
+            />
+          </aside>
         )}
-      </div>
-      {pr.labels.length > 0 && (
-        <div className="mt-1 text-sm flex flex-wrap items-center gap-1">
-          Labels:
-          {sortLabels(pr.labels).map((label) => <LabelChip key={label} label={label} />)}
-        </div>
-      )}
-
-      {active && <MergeEligibility pr={pr} basePath={basePath} batchBaseUrl={batchBaseUrl} wbIndex={wbIndex} />}
-      {active && (
-        <BuildPanel
-          pr={pr}
-          basePath={basePath}
-          batchBaseUrl={batchBaseUrl}
-          wbBranchName={wbBranchName}
-          prNumber={prNumber}
-          batchStatus={batchStatus}
-          jobs={jobs}
-          jobsError={jobsError}
-        />
-      )}
-
-      {!active && pr.merged && (
-        <div className="mt-4">
-          <h2 className="text-lg font-semibold text-zinc-700 mb-2">Deploy Batch History</h2>
-          <BatchHistoryTable batches={deployHistory} batchBaseUrl={batchBaseUrl} />
-        </div>
-      )}
-
-      <div className="mt-4">
-        <h2 className="text-lg font-semibold text-zinc-700 mb-2">Build Batch History</h2>
-        <BatchHistoryTable batches={history} batchBaseUrl={batchBaseUrl} />
-      </div>
-
-      <div className="mt-4">
-        <h2 className="text-lg font-semibold text-zinc-700 mb-2">Events</h2>
-        <EventLog
-          basePath={basePath}
-          batchBaseUrl={batchBaseUrl}
-          targetBranch={wbBranch}
-          pr={Number(prNumber)}
-          refreshKey={countdownKey}
-        />
       </div>
     </div>
   );
