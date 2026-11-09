@@ -61,22 +61,38 @@ function codeownerCell(requests: ReviewRequest[]): StageCell {
   return { status: 'pending', text, requestedAt: oldestRequestedAt(requests) };
 }
 
-// Review 1 / Review 2 as two reviewer slots. An open codeowner request always takes slot 2. The
-// other slots are filled in order: outstanding change requests (which fail slot 1, whatever the
-// approvals), then approvals, then everyone still waited on, oldest request first. Hail asks
-// internal reviewers via Assignees, so those count as waited on too. The last slot lists everyone
-// left waiting, so nobody drops off the page.
-export function reviewSlots(pr: PrConfig): [StageCell, StageCell] {
+// Who a PR's review is waiting on: non-codeowner requests (oldest first) and assignees who haven't
+// approved or requested changes yet, excluding the author. Hail asks internal reviewers via
+// Assignees, so those count as waited on too. `codeowner` holds any open codeowner requests.
+export interface ReviewWait {
+  waiting: string[];
+  requests: ReviewRequest[];
+  codeowner: ReviewRequest[];
+}
+
+export function reviewWait(pr: PrConfig): ReviewWait {
   const codeowner = pr.review_requests.filter((r) => r.as_code_owner);
   const requests = pr.review_requests
     .filter((r) => !r.as_code_owner)
     .sort((a, b) => (a.requested_at ?? '\uffff').localeCompare(b.requested_at ?? '\uffff'));
-
-  const blockers = nonAuthorReviewers(pr, 'CHANGES_REQUESTED');
-  const approvers = nonAuthorReviewers(pr, 'APPROVED');
-  const reviewed = new Set([...blockers, ...approvers, pr.author]);
+  const reviewed = new Set([
+    ...nonAuthorReviewers(pr, 'CHANGES_REQUESTED'),
+    ...nonAuthorReviewers(pr, 'APPROVED'),
+    pr.author,
+  ]);
   const requested = requests.map((r) => r.reviewer).filter((n): n is string => n !== null);
   const waiting = [...new Set([...requested, ...pr.assignees])].filter((n) => !reviewed.has(n));
+  return { waiting, requests, codeowner };
+}
+
+// Review 1 / Review 2 as two reviewer slots. An open codeowner request always takes slot 2. The
+// other slots are filled in order: outstanding change requests (which fail slot 1, whatever the
+// approvals), then approvals, then everyone still waited on (`reviewWait`). The last slot lists
+// everyone left waiting, so nobody drops off the page.
+export function reviewSlots(pr: PrConfig): [StageCell, StageCell] {
+  const { waiting, requests, codeowner } = reviewWait(pr);
+  const blockers = nonAuthorReviewers(pr, 'CHANGES_REQUESTED');
+  const approvers = nonAuthorReviewers(pr, 'APPROVED');
 
   const filled: StageCell[] = [];
   if (blockers.length > 0) filled.push({ status: 'fail', text: `changes requested by ${blockers.join(', ')}` });
