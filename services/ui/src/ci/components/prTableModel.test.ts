@@ -1,15 +1,20 @@
 import { describe, expect, it } from 'vitest';
-import type { PrConfig, ReviewRequest } from '../../shared/ciApi';
+import type { DeveloperBranchStatus, MergeQueueEntry, PrConfig, ReviewRequest } from '../../shared/ciApi';
 import {
   buildStateLabel,
   formatAge,
   isBuildOutOfDate,
+  journeyFill,
+  journeyMarks,
+  labelsCell,
   matchesSearch,
+  mergeCell,
   reviewSlots,
   statusColumnNames,
+  upToDateCell,
 } from './prTableModel';
 
-function pr(overrides: Partial<PrConfig> = {}): PrConfig {
+function basePr(overrides: Partial<PrConfig> = {}): PrConfig {
   return {
     number: 15837,
     title: 'Fix the flux capacitor',
@@ -25,12 +30,36 @@ function pr(overrides: Partial<PrConfig> = {}): PrConfig {
     batch_id: 1,
     review_requests: [],
     reviews: [{ author: 'carol', state: 'APPROVED' }],
+    merge_blockers: [],
     stack_entry: null,
     stack: null,
     display_only: false,
     ...overrides,
   };
 }
+
+function branch(overrides: Partial<DeveloperBranchStatus> = {}): DeveloperBranchStatus {
+  return {
+    branch: 'main',
+    sha: 'abc',
+    deploy_state: 'success',
+    deploy_batch_id: null,
+    merge_candidate: null,
+    n_prs: 2,
+    last_update: null,
+    merge_paused_reason: null,
+    pending_merge: null,
+    build_slots: { used: 0, max: 3, running: [], on_deck: null, queued: [] },
+    merge_queue: [],
+    ...overrides,
+  };
+}
+
+function queued(prNumber: number, overrides: Partial<MergeQueueEntry> = {}): MergeQueueEntry {
+  return { pr: prNumber, source_sha: 'def', blockers: [], failures: 0, backoff_until_ms: null, ...overrides };
+}
+
+const pr = basePr;
 
 describe('statusColumnNames', () => {
   it('returns the sorted union of status names', () => {
@@ -48,10 +77,6 @@ describe('buildStateLabel', () => {
     expect(buildStateLabel(pr({ build_state: null, out_of_date: true }))).toBe('pending');
   });
 
-  it('marks out-of-date builds', () => {
-    expect(buildStateLabel(pr({ build_state: 'failure', out_of_date: true }))).toBe('failure *');
-  });
-
   it('shows the build state otherwise', () => {
     expect(buildStateLabel(pr({ build_state: 'unauthorized' }))).toBe('unauthorized');
   });
@@ -65,6 +90,36 @@ describe('isBuildOutOfDate', () => {
     expect(isBuildOutOfDate(pr({ build_state: 'building', out_of_date: true }))).toBe(true);
     for (const build_state of [null, 'unauthorized']) {
       expect(isBuildOutOfDate(pr({ build_state, out_of_date: true }))).toBe(false);
+    }
+  });
+});
+
+describe('labelsCell', () => {
+  it('passes and lists labels when none blocks merging', () => {
+    expect(labelsCell(pr({ labels: ['prio:high', 'bug'] }))).toEqual({ status: 'pass', text: 'prio:high, bug' });
+    expect(labelsCell(pr({ labels: [] }))).toEqual({ status: 'pass', text: '' });
+  });
+
+  it('fails on a label that blocks merging', () => {
+    const cell = labelsCell(pr({ labels: ['WIP', 'bug'], merge_blockers: ['not approved', 'label: WIP'] }));
+    expect(cell).toEqual({ status: 'fail', text: 'WIP, bug', detail: 'not merged while labelled WIP' });
+  });
+});
+
+describe('upToDateCell', () => {
+  it('passes for a build against the current target', () => {
+    expect(upToDateCell(pr())).toEqual({ status: 'pass', text: 'up to date' });
+  });
+
+  it('is pending for a build against an older target', () => {
+    const cell = upToDateCell(pr({ build_state: 'building', out_of_date: true }));
+    expect(cell.status).toBe('pending');
+    expect(cell.text).toBe('out of date');
+  });
+
+  it('does not apply without a build', () => {
+    for (const build_state of [null, 'unauthorized']) {
+      expect(upToDateCell(pr({ build_state, out_of_date: true })).status).toBe('na');
     }
   });
 });
@@ -107,6 +162,9 @@ const user = (reviewer: string, requested_at: string | null = '2026-10-18T12:00:
   request({ reviewer, is_team: false, as_code_owner: false, requested_at });
 
 describe('reviewSlots', () => {
+  // Not yet approved in CI's eyes, so waits show as pending.
+  const pr = (overrides: Partial<PrConfig> = {}): PrConfig => basePr({ review_state: 'pending', ...overrides });
+
   it('fills both slots with distinct non-author approvals', () => {
     expect(reviewSlots(pr({ reviews: [approved('alice'), approved('carol'), approved('dave'), approved('erin')] }))).toEqual([
       { status: 'pass', text: 'approved by carol' },
@@ -194,7 +252,18 @@ describe('reviewSlots', () => {
       { status: 'na', text: '' },
     ]);
   });
+  it('shows remaining waits as optional once CI counts the PR as approved', () => {
+    const approvedPr = basePr({ review_state: 'approved', review_requests: [user('patrick')] });
+    expect(reviewSlots(approvedPr)[1]).toEqual({ status: 'na', text: 'awaiting patrick', requestedAt: '2026-10-18T12:00:00Z' });
+    expect(reviewSlots(basePr({ review_state: 'approved' }))[1]).toEqual({ status: 'na', text: '2nd reviewer optional' });
+  });
+
+  it('keeps an open codeowner request pending even once approved', () => {
+    const codeowner = { ...user('appsec'), as_code_owner: true };
+    expect(reviewSlots(basePr({ review_state: 'approved', review_requests: [codeowner] }))[1].status).toBe('pending');
+  });
 });
+
 
 describe('formatAge', () => {
   const now = Date.parse('2026-10-21T12:00:00Z');
@@ -207,5 +276,111 @@ describe('formatAge', () => {
 
   it('clamps clock skew to zero', () => {
     expect(formatAge('2026-10-21T12:05:00Z', now)).toBe('0m');
+  });
+});
+
+describe('journeyFill', () => {
+  const now = Date.parse('2026-11-04T12:00:00Z');
+
+  it('fills every step for a PR ready to merge', () => {
+    expect(journeyFill(pr(), branch({ merge_queue: [queued(15837)] }), now)).toBe(6);
+  });
+
+  it('stops at the first step that is not done', () => {
+    expect(journeyFill(pr({ merge_blockers: ['checks failing: ci-test'] }), branch(), now)).toBe(0);
+    const unreviewed = pr({ review_state: 'pending', reviews: [], merge_blockers: ['not approved'] });
+    expect(journeyFill(unreviewed, branch(), now)).toBe(1);
+    expect(journeyFill(pr({ labels: ['WIP'], merge_blockers: ['label: WIP'] }), branch(), now)).toBe(3);
+    expect(journeyFill(pr({ out_of_date: true, merge_blockers: ['not built against current main'] }), branch(), now)).toBe(4);
+    expect(journeyFill(pr(), branch({ merge_paused_reason: 'deploying' }), now)).toBe(5);
+  });
+
+  it('counts an optional review slot as done', () => {
+    expect(reviewSlots(pr())[1].status).toBe('na');
+    expect(journeyFill(pr(), undefined, now)).toBe(6);
+  });
+});
+
+describe('journeyMarks', () => {
+  const now = Date.parse('2026-11-04T12:00:00Z');
+  const names = ['Gate', 'ci-test'];
+  const ready = branch({ merge_queue: [queued(15837)] });
+
+  it('is all done for a PR ready to merge, skipping statuses it lacks', () => {
+    expect(journeyMarks(pr(), names, ready, now)).toEqual(Array(8).fill('done'));
+  });
+
+  it('marks the first failed cell as fail and everything after it as todo', () => {
+    const failing = pr({ gh_statuses: { Gate: 'failure', 'ci-test': 'success' }, merge_blockers: ['checks failing: Gate'] });
+    expect(journeyMarks(failing, names, ready, now)).toEqual(['done', 'fail', 'todo', 'todo', 'todo', 'todo', 'todo', 'todo']);
+  });
+
+  it('marks a waiting cell as pending', () => {
+    expect(journeyMarks(pr({ build_state: 'unauthorized' }), names, ready, now)[0]).toBe('pending');
+    const unreviewed = pr({ review_state: 'pending', reviews: [], merge_blockers: ['not approved'] });
+    expect(journeyMarks(unreviewed, names, ready, now).slice(2, 5)).toEqual(['done', 'pending', 'todo']);
+  });
+});
+
+describe('mergeCell', () => {
+  const now = Date.parse('2026-11-04T12:00:00Z');
+
+  it('is n/a when blocked, with the blockers as detail', () => {
+    const cell = mergeCell(pr({ merge_blockers: ['not approved', 'not built'] }), branch(), now);
+    expect(cell).toEqual({ status: 'na', text: '', detail: 'not approved\nnot built' });
+  });
+
+  it('shows queue position alongside blockers', () => {
+    const b = branch({ merge_queue: [queued(1), queued(15837)] });
+    const cell = mergeCell(pr({ merge_blockers: ['checks pending: ci-test'] }), b, now);
+    expect(cell.text).toBe('#2 in queue');
+  });
+
+  it('says an upper-stack PR is stacked rather than blocked', () => {
+    const stacked = pr({ display_only: true, merge_blockers: null, build_state: null, out_of_date: null, batch_id: null });
+    expect(mergeCell(stacked, branch(), now)).toEqual({ status: 'na', text: 'stacked' });
+    expect(buildStateLabel(stacked)).toBe('not built');
+    expect(isBuildOutOfDate(stacked)).toBe(false);
+    expect(upToDateCell(stacked).status).toBe('na');
+    expect(labelsCell({ ...stacked, labels: ['WIP'] }).status).toBe('fail');
+  });
+
+  it('is ready when nothing blocks it', () => {
+    expect(mergeCell(pr(), branch({ merge_queue: [queued(15837)] }), now)).toEqual({ status: 'pass', text: '#1 in queue' });
+  });
+
+  it('falls back to the PR alone without branch status', () => {
+    expect(mergeCell(pr(), undefined, now)).toEqual({ status: 'pass', text: 'ready' });
+    expect(mergeCell(pr({ merge_blockers: ['label: WIP'] }), undefined, now).status).toBe('na');
+  });
+
+  it('shows an in-flight merge with its age', () => {
+    const b = branch({ pending_merge: { pr: 15837, requested_at_ms: now - 5 * 60_000 } });
+    expect(mergeCell(pr(), b, now)).toEqual({
+      status: 'pending',
+      text: 'merging',
+      requestedAt: new Date(now - 5 * 60_000).toISOString(),
+    });
+  });
+
+  it('shows a branch-wide pause only when the PR is otherwise ready', () => {
+    const b = branch({ merge_paused_reason: 'frozen', merge_queue: [queued(15837)] });
+    expect(mergeCell(pr(), b, now)).toEqual({ status: 'pending', text: '#1 in queue · merging paused (frozen)' });
+    expect(mergeCell(pr({ merge_blockers: ['not built'] }), b, now).status).toBe('na');
+  });
+
+  it('shows merge retry backoff', () => {
+    const b = branch({ merge_queue: [queued(15837, { failures: 2, backoff_until_ms: now + 10 * 60_000 })] });
+    expect(mergeCell(pr(), b, now)).toEqual({ status: 'pending', text: '#1 in queue · merge failed ×2, retrying in 10m' });
+  });
+
+  it('ignores a backoff that has expired', () => {
+    const b = branch({ merge_queue: [queued(15837, { failures: 1, backoff_until_ms: now - 1 })] });
+    expect(mergeCell(pr(), b, now).status).toBe('pass');
+  });
+
+  it('is searchable', () => {
+    expect(matchesSearch(pr({ merge_blockers: ['checks failing: ci-test'] }), [], 'checks failing')).toBe(true);
+    expect(matchesSearch(pr(), [], '#1 in queue', branch({ merge_queue: [queued(15837)] }), now)).toBe(true);
   });
 });
