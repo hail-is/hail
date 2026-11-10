@@ -1300,14 +1300,19 @@ def test_cannot_contact_any_worker_api(client: BatchClient):
     # Jobs aren't told their worker's IP, so scan the worker subnet (the /20 holding the internal
     # gateway) for worker APIs. This covers the job's own worker as well as the others.
     script = r"""
-IFS=. read -r A B C _ <<< "$(getent hosts internal.hail | awk '{ print $1 }')"
+IP=$(getent hosts internal.hail | awk '{ print $1 }')
+if ! [[ $IP =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    echo "internal.hail did not resolve to an IPv4 address: '$IP'"
+    exit 1
+fi
+IFS=. read -r A B C _ <<< "$IP"
 BASE=$((C & ~15))
 for c in $(seq $BASE $((BASE + 15))); do
     for d in $(seq 1 254); do echo "$A.$B.$c.$d"; done
 done | xargs -P 256 -I{} curl -q -s -o /dev/null -m 2 'http://{}:5000/healthcheck' \
     -w 'responded: %{url_effective} (HTTP %{http_code})\n' \
-    | grep -v '(HTTP 000)$'
-echo "scanned $A.$B.$BASE.0/20"
+    | tee /tmp/probes | grep -v '(HTTP 000)$'
+echo "scanned $A.$B.$BASE.0/20: $(grep -c "" /tmp/probes) addresses probed"
 """
     b = create_batch(client)
     j = b.create_job(os.environ['HAIL_CURL_IMAGE'], ['/bin/bash', '-c', script], regions=['us-central1'])
@@ -1315,7 +1320,8 @@ echo "scanned $A.$B.$BASE.0/20"
     status = j.wait()
     assert status['state'] == 'Success', str((status, b.debug_info()))
     job_log = j.log()['main']
-    assert 'scanned ' in job_log, str((job_log, b.debug_info()))
+    # 16 x 254 addresses: guards against a scan that silently probed nothing
+    assert ': 4064 addresses probed' in job_log, str((job_log, b.debug_info()))
     assert 'responded: ' not in job_log, str((job_log, b.debug_info()))
 
 
