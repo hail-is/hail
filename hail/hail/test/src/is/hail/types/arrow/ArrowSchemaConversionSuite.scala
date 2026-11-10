@@ -38,6 +38,23 @@ class ArrowSchemaConversionSuite {
   private def node(name: String, nullable: Boolean, t: ArrowType, children: Field*): Field =
     new Field(name, new FieldType(nullable, t, null), children.asJava)
 
+  private val dictionary = new DictionaryEncoding(0, false, new ArrowType.Int(32, true))
+
+  private val extensionMetadata =
+    Map(ArrowType.ExtensionType.EXTENSION_METADATA_KEY_NAME -> "hail.unknown").asJava
+
+  private def withDictionary(name: String, nullable: Boolean, t: ArrowType, children: Field*)
+    : Field =
+    new Field(name, new FieldType(nullable, t, dictionary), children.asJava)
+
+  private def withExtensionMetadata(
+    name: String,
+    nullable: Boolean,
+    t: ArrowType,
+    children: Field*
+  ): Field =
+    new Field(name, new FieldType(nullable, t, null, extensionMetadata), children.asJava)
+
   private def children(f: Field): IndexedSeq[Field] = f.getChildren.asScala.toIndexedSeq
 
   def roundTripTypes() = ArraySeq[PType](
@@ -419,6 +436,102 @@ class ArrowSchemaConversionSuite {
       ArrowType.Struct.INSTANCE,
       leaf("a", true, ArrowType.Utf8.INSTANCE),
       leaf("a", true, ArrowType.Bool.INSTANCE),
+    ),
+    // scalar types must not have child fields
+    node("x", true, ArrowType.Bool.INSTANCE, leaf("child", true, ArrowType.Bool.INSTANCE)),
+    node("x", true, new ArrowType.Int(32, true), leaf("child", true, ArrowType.Bool.INSTANCE)),
+    node("x", true, new ArrowType.Int(64, true), leaf("child", true, ArrowType.Bool.INSTANCE)),
+    node(
+      "x",
+      true,
+      new ArrowType.FloatingPoint(FloatingPointPrecision.DOUBLE),
+      leaf("child", true, ArrowType.Bool.INSTANCE),
+    ),
+    node("x", true, ArrowType.Utf8.INSTANCE, leaf("child", true, ArrowType.Bool.INSTANCE)),
+    node("x", true, ArrowType.Binary.INSTANCE, leaf("child", true, ArrowType.Bool.INSTANCE)),
+    node("x", true, CallExtensionType.Current, leaf("child", true, ArrowType.Bool.INSTANCE)),
+    node(
+      "x",
+      true,
+      new LocusExtensionType(small.name, small.contigs),
+      leaf("child", true, ArrowType.Bool.INSTANCE),
+    ),
+    // structural children must not carry dictionary encoding or extension metadata
+    node(
+      "x",
+      true,
+      new ArrowType.Map(true),
+      withDictionary(
+        "entries",
+        false,
+        ArrowType.Struct.INSTANCE,
+        leaf("key", false, ArrowType.Utf8.INSTANCE),
+        leaf("value", true, ArrowType.Utf8.INSTANCE),
+      ),
+    ),
+    node(
+      "x",
+      true,
+      new ArrowType.Map(true),
+      withExtensionMetadata(
+        "entries",
+        false,
+        ArrowType.Struct.INSTANCE,
+        leaf("key", false, ArrowType.Utf8.INSTANCE),
+        leaf("value", true, ArrowType.Utf8.INSTANCE),
+      ),
+    ),
+    node(
+      "x",
+      true,
+      IntervalExtensionType,
+      leaf("start", false, new ArrowType.Int(32, true)),
+      leaf("end", false, new ArrowType.Int(32, true)),
+      withDictionary("includes_start", false, ArrowType.Bool.INSTANCE),
+      leaf("includes_end", false, ArrowType.Bool.INSTANCE),
+    ),
+    node(
+      "x",
+      true,
+      IntervalExtensionType,
+      leaf("start", false, new ArrowType.Int(32, true)),
+      leaf("end", false, new ArrowType.Int(32, true)),
+      leaf("includes_start", false, ArrowType.Bool.INSTANCE),
+      withExtensionMetadata("includes_end", false, ArrowType.Bool.INSTANCE),
+    ),
+    node(
+      "x",
+      true,
+      VariableShapeTensorExtensionType,
+      withDictionary(
+        "data",
+        false,
+        ArrowType.List.INSTANCE,
+        leaf("element", false, new ArrowType.Int(32, true)),
+      ),
+      node(
+        "shape",
+        false,
+        new ArrowType.FixedSizeList(1),
+        leaf("element", false, new ArrowType.Int(32, true)),
+      ),
+    ),
+    node(
+      "x",
+      true,
+      VariableShapeTensorExtensionType,
+      node(
+        "data",
+        false,
+        ArrowType.List.INSTANCE,
+        leaf("element", false, new ArrowType.Int(32, true)),
+      ),
+      withExtensionMetadata(
+        "shape",
+        false,
+        new ArrowType.FixedSizeList(1),
+        leaf("element", false, new ArrowType.Int(32, true)),
+      ),
     ),
   )
 
