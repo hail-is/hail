@@ -31,6 +31,13 @@ INNER JOIN resources
 WHERE attempt_resources.batch_id = %s AND attempt_resources.job_id = %s;
 """
 
+# Every version of one product, given its escaped LIKE prefix.
+PRODUCT_RATES_SQL = """
+SELECT resource, rate
+FROM resources
+WHERE resource LIKE %s;
+"""
+
 
 def _escape_like(s: str) -> str:
     return s.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')
@@ -58,14 +65,9 @@ async def get_job_preemption_costs(
     if state == 'Success' and counterparts:
         counterpart_resources = [
             (r['resource'], r['rate'])
+            for product in counterparts
             async for r in db.select_and_fetchall(
-                f"""
-SELECT resource, rate
-FROM resources
-WHERE {' OR '.join(['resource LIKE %s'] * len(counterparts))};
-""",
-                [f'{_escape_like(product)}/%' for product in counterparts],
-                query_name='get_nonpreemptible_counterpart_rates',
+                PRODUCT_RATES_SQL, (f'{_escape_like(product)}/%',), query_name='get_product_rates'
             )
         ]
         projected_cost = projected_nonpreemptible_cost(attempt_resources, outcome_attempt_id, counterpart_resources)
