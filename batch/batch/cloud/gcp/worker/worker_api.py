@@ -31,7 +31,8 @@ class GCPWorkerAPI(CloudWorkerAPI):
         http_session = httpx.client_session()
         machine_type = orjson.loads(base64.b64decode(os.environ['INSTANCE_CONFIG']).decode())['machine_type']
         machine_type_parts = gcp_machine_type_to_parts(machine_type)
-        assert machine_type_parts is not None, machine_type
+        if machine_type_parts is None:
+            raise ValueError(f'bad machine_type: {machine_type}')
         disk_type = gcp_external_storage_disk_type(machine_type_parts.machine_family)
         return GCPWorkerAPI(project, zone, worker_credentials, http_session, disk_type)
 
