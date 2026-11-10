@@ -427,6 +427,14 @@ def gcp_data_disk_type(machine_family: str) -> str:
     return 'pd-ssd'
 
 
+def gcp_external_storage_disk_type(machine_family: str) -> str:
+    """The type of the disk a pool worker creates and attaches for a job whose storage request
+    doesn't fit on the instance's data disk."""
+    if machine_family == 'n4':
+        return 'hyperdisk-balanced'
+    return 'pd-ssd'
+
+
 def gcp_data_disk_device_name(machine_family: str, machine_type: str) -> str:
     # Hyperdisk (n4) is NVMe-attached, like g2's local NVMe SSD, rather than the SCSI 'sdb'
     # device used by classic Persistent Disk.
@@ -447,7 +455,8 @@ GCP_HYPERDISK_BALANCED_FREE_THROUGHPUT_MIB_PER_SEC = 140
 
 
 def gcp_hyperdisk_performance_overrides(disk_type: str) -> Dict[str, str]:
-    """Extra `disks[].initializeParams` fields to pin a Hyperdisk-family disk at GCP's free
+    """Extra disk fields (in an instance's `disks[].initializeParams`, or in the body of a
+    standalone disk insert) to pin a Hyperdisk-family disk at GCP's free
     provisioned-IOPS/throughput baseline, to avoid an unintended billing surcharge (see
     GCP_HYPERDISK_BALANCED_FREE_IOPS above). Returns {} for non-Hyperdisk disk types, since
     provisionedIops/provisionedThroughput are rejected by the API for e.g. pd-ssd."""

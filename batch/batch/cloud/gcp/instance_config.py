@@ -6,6 +6,7 @@ from ...instance_config import InstanceConfig
 from .resource_utils import (
     gcp_boot_disk_type,
     gcp_data_disk_type,
+    gcp_external_storage_disk_type,
     gcp_machine_type_to_parts,
     machine_type_to_gpu,
     machine_type_to_gpu_num,
@@ -76,7 +77,9 @@ class GCPSlimInstanceConfig(InstanceConfig):
                 product_versions, gcp_boot_disk_type(instance_family), boot_disk_size_gb, region
             ),
             data_disk_resource,
-            GCPDynamicSizedDiskResource.create(product_versions, 'pd-ssd', region),
+            GCPDynamicSizedDiskResource.create(
+                product_versions, gcp_external_storage_disk_type(instance_family), region
+            ),
             GCPIPFeeResource.create(product_versions, 1024, preemptible),
             GCPServiceFeeResource.create(product_versions),
             GCPSupportLogsSpecsAndFirewallFees.create(product_versions),

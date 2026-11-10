@@ -14,6 +14,7 @@ from hailtop.utils import check_exec_output
 
 from ....worker.worker_api import CloudWorkerAPI, ContainerRegistryCredentials
 from ..instance_config import GCPSlimInstanceConfig
+from ..resource_utils import gcp_external_storage_disk_type, gcp_machine_type_to_parts
 from .disk import GCPDisk
 from .metadata_server import create_app
 
@@ -28,7 +29,12 @@ class GCPWorkerAPI(CloudWorkerAPI):
         zone = os.environ['ZONE'].rsplit('/', 1)[1]
         worker_credentials = aiogoogle.GoogleInstanceMetadataCredentials()
         http_session = httpx.client_session()
-        return GCPWorkerAPI(project, zone, worker_credentials, http_session)
+        machine_type = orjson.loads(base64.b64decode(os.environ['INSTANCE_CONFIG']).decode())['machine_type']
+        machine_type_parts = gcp_machine_type_to_parts(machine_type)
+        if machine_type_parts is None:
+            raise ValueError(f'bad machine_type: {machine_type}')
+        disk_type = gcp_external_storage_disk_type(machine_type_parts.machine_family)
+        return GCPWorkerAPI(project, zone, worker_credentials, http_session, disk_type)
 
     def __init__(
         self,
@@ -36,9 +42,13 @@ class GCPWorkerAPI(CloudWorkerAPI):
         zone: str,
         worker_credentials: aiogoogle.GoogleInstanceMetadataCredentials,
         http_session: httpx.ClientSession,
+        disk_type: str,
     ):
         self.project = project
         self.zone = zone
+        # The type of the disks created for jobs whose storage doesn't fit on the data disk. It must
+        # be one this instance's machine family can attach: n4 can only attach Hyperdisk.
+        self.disk_type = disk_type
 
         self._exit_stack = AsyncExitStack()
         self._http_session = http_session
@@ -67,6 +77,7 @@ class GCPWorkerAPI(CloudWorkerAPI):
             name=disk_name,
             size_in_gb=size_in_gb,
             mount_path=mount_path,
+            disk_type=self.disk_type,
             compute_client=self._compute_client,
         )
 

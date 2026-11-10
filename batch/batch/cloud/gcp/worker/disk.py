@@ -6,6 +6,7 @@ from hailtop.aiocloud import aiogoogle
 from hailtop.utils import CalledProcessError, LoggingTimer, check_shell_output, retry_all_errors_n_times
 
 from ....worker.disk import CloudDisk
+from ..resource_utils import gcp_hyperdisk_performance_overrides
 
 log = logging.getLogger('disk')
 
@@ -19,6 +20,7 @@ class GCPDisk(CloudDisk):
         instance_name: str,
         size_in_gb: int,
         mount_path: str,
+        disk_type: str,
         compute_client: aiogoogle.GoogleComputeClient,  # BORROWED
     ):
         assert size_in_gb >= 10
@@ -33,6 +35,7 @@ class GCPDisk(CloudDisk):
         self.instance_name = instance_name
         self.size_in_gb = size_in_gb
         self.mount_path = mount_path
+        self.disk_type = disk_type
         self.compute_client = compute_client
 
         self._created = False
@@ -94,8 +97,9 @@ class GCPDisk(CloudDisk):
             config = {
                 'name': self.name,
                 'sizeGb': f'{self.size_in_gb}',
-                'type': f'zones/{self.zone}/diskTypes/pd-ssd',
+                'type': f'zones/{self.zone}/diskTypes/{self.disk_type}',
                 'labels': labels,
+                **gcp_hyperdisk_performance_overrides(self.disk_type),
             }
 
             self.last_response = await self.compute_client.create_disk(f'/zones/{self.zone}/disks', json=config)
