@@ -130,16 +130,45 @@ object ArrowSchemaConversion {
 
     def convert(f: Field): PType = fromArrowField(f, references)
 
-    def requiredChild(f: Field): Field =
+    def noChildren(): Unit =
+      if (children.nonEmpty)
+        unsupported(
+          s"expected no child fields, found ${children.map(_.getName).mkString("[", ", ", "]")}"
+        )
+
+    def scalar(t: PType): PType = {
+      noChildren()
+      t
+    }
+
+    // Rejects dictionary encoding and extension metadata on a field whose type is not a
+    // registered extension type. Applies to every field, including structural children that are
+    // not converted through `convert`.
+    def checkPlain(f: Field): Unit = {
+      val where = if (f eq field) "" else s"child field '${f.getName}': "
+      if (f.getDictionary != null)
+        unsupported(s"${where}dictionary encoding is not supported")
+      if (
+        !f.getType.isInstanceOf[ArrowType.ExtensionType] &&
+        f.getMetadata.containsKey(ArrowType.ExtensionType.EXTENSION_METADATA_KEY_NAME)
+      )
+        unsupported(
+          s"${where}unregistered extension type " +
+            s"'${f.getMetadata.get(ArrowType.ExtensionType.EXTENSION_METADATA_KEY_NAME)}'"
+        )
+    }
+
+    def requiredChild(f: Field): Field = {
+      checkPlain(f)
       if (f.isNullable) unsupported(s"child field '${f.getName}' must be non-nullable")
       else f
+    }
 
-    if (field.getDictionary != null)
-      unsupported("dictionary encoding is not supported")
+    checkPlain(field)
 
     field.getType match {
       case _: CallExtensionType if field.getType == CallExtensionType.Current =>
-        PCanonicalCall(required)
+        scalar(PCanonicalCall(required))
       case t: CallExtensionType =>
         unsupported(s"unknown call encoding ${t.encoding}")
       case t: LocusExtensionType =>
@@ -151,7 +180,7 @@ object ArrowSchemaConversion {
             s"field '$name': the stored contigs of reference genome '${t.referenceGenome}' " +
               "differ from the contigs of the defined reference genome"
           )
-        PPackedLocus(rg, required)
+        scalar(PPackedLocus(rg, required))
       case SetExtensionType =>
         PCanonicalSet(convert(onlyChild()), required)
       case IntervalExtensionType =>
@@ -160,9 +189,11 @@ object ArrowSchemaConversion {
         val pointType = convert(start)
         if (convert(end) != pointType)
           unsupported("interval 'start' and 'end' have different types")
-        for (f <- Seq(includesStart, includesEnd))
+        for (f <- Seq(includesStart, includesEnd)) {
+          checkPlain(f)
           if (f.isNullable || f.getType != ArrowType.Bool.INSTANCE || !f.getChildren.isEmpty)
             unsupported(s"interval '${f.getName}' must be a non-nullable bool")
+        }
         PCanonicalInterval(pointType, required)
       case TupleExtensionType =>
         val fields = children.map { c =>
@@ -192,18 +223,13 @@ object ArrowSchemaConversion {
         PCanonicalNDArray(elementType, nDims, required)
       case t: ArrowType.ExtensionType =>
         unsupported(s"unknown extension type '${t.extensionName}'")
-      case _
-          if field.getMetadata.containsKey(ArrowType.ExtensionType.EXTENSION_METADATA_KEY_NAME) =>
-        unsupported(
-          s"unregistered extension type '${field.getMetadata.get(ArrowType.ExtensionType.EXTENSION_METADATA_KEY_NAME)}'"
-        )
-      case ArrowType.Bool.INSTANCE => PBoolean(required)
-      case Int32 => PInt32(required)
-      case Int64 => PInt64(required)
-      case Float32 => PFloat32(required)
-      case Float64 => PFloat64(required)
-      case ArrowType.Utf8.INSTANCE => PCanonicalString(required)
-      case ArrowType.Binary.INSTANCE => PCanonicalBinary(required)
+      case ArrowType.Bool.INSTANCE => scalar(PBoolean(required))
+      case Int32 => scalar(PInt32(required))
+      case Int64 => scalar(PInt64(required))
+      case Float32 => scalar(PFloat32(required))
+      case Float64 => scalar(PFloat64(required))
+      case ArrowType.Utf8.INSTANCE => scalar(PCanonicalString(required))
+      case ArrowType.Binary.INSTANCE => scalar(PCanonicalBinary(required))
       case ArrowType.List.INSTANCE => PCanonicalArray(convert(onlyChild()), required)
       case t: ArrowType.Map =>
         if (!t.getKeysSorted) unsupported("map keys must be sorted")
