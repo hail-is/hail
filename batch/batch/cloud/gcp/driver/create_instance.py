@@ -320,15 +320,15 @@ mkdir -p /batch/jvm-container-logs/
 
 # private job network = 172.20.0.0/16
 # public job network = 172.21.0.0/16
-# [all networks] Rewrite traffic coming from containers to masquerade as the host
-iptables --table nat --append POSTROUTING --source 172.20.0.0/15 --jump MASQUERADE
-
 INTERNET_INTERFACE=$(ip link list | grep ens | awk -F": " '{{ print $2 }}')
 
+# [all networks]
+# Rewrites traffic coming from containers to masquerade as the host
+iptables --table nat --append POSTROUTING --source 172.20.0.0/15 --jump MASQUERADE
 # Disallows any forwarded traffic not allowed by a rule below or by the per-job rules the worker adds
 iptables --policy FORWARD DROP
 
-# [public] Only add allows for a known use
+# [public]
 # Sends jobs' metadata server requests to the job's own metadata server on this worker
 iptables --table nat --append PREROUTING --source 172.21.0.0/16 --destination 169.254.169.254 -p tcp -j REDIRECT --to-ports 5555
 # Allows replies from a job's exposed port (job `port` option) to whoever connected to it
@@ -343,7 +343,7 @@ for NON_INTERNET_RANGE in \
     192.168.0.0/16 198.18.0.0/15 198.51.100.0/24 203.0.113.0/24 224.0.0.0/4 240.0.0.0/4; do
     iptables --append FORWARD --source 172.21.0.0/16 --out-interface $INTERNET_INTERFACE --destination $NON_INTERNET_RANGE --jump DROP
 done
-# Allows the internet
+# Allows jobs' outbound traffic to the internet (replies come back in via the per-job rules the worker adds)
 iptables --append FORWARD --source 172.21.0.0/16 --out-interface $INTERNET_INTERFACE --jump ACCEPT
 # Allows the redirected metadata server requests to reach this worker
 iptables --append INPUT --source 172.21.0.0/16 -p tcp --dport 5555 --jump ACCEPT
