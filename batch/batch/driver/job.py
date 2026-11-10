@@ -68,19 +68,16 @@ WHERE batches.id = %s AND NOT deleted AND callback IS NOT NULL AND
         return
     callback = record['callback']
 
+    # The front end only accepts callbacks from CI. Older batches may still have one stored.
+    if record['user'] != 'ci':
+        log.info(f'skipping callback for batch {batch_id} from non-ci user {record["user"]}')
+        return
+
     log.info(f'making callback for batch {batch_id}: {callback}')
 
-    async def request(session):
-        await session.post(callback, json=batch_record_to_dict(record))
-        log.info(f'callback for batch {batch_id} successful')
-
     try:
-        if record['user'] == 'ci':
-            # only jobs from CI may use batch's TLS identity
-            await request(client_session)
-        else:
-            async with httpx.client_session() as session:
-                await request(session)
+        await client_session.post(callback, json=batch_record_to_dict(record))
+        log.info(f'callback for batch {batch_id} successful')
     except asyncio.CancelledError:
         raise
     except Exception:
@@ -143,19 +140,19 @@ WHERE job_group_self_and_ancestors.batch_id = %s AND
         ancestor_job_group_id = record['ancestor_id']
         callback = record['callback']
 
+        # The front end only accepts callbacks from CI. Older job groups may still have one stored.
+        if record['user'] != 'ci':
+            log.info(
+                f'skipping callback for batch {batch_id} job group {ancestor_job_group_id} '
+                f'from non-ci user {record["user"]}'
+            )
+            continue
+
         log.info(f'making callback for batch {batch_id} job group {ancestor_job_group_id}: {callback}')
 
-        async def request(session, record, callback, batch_id, ancestor_job_group_id):
-            await session.post(callback, json=job_group_record_to_dict(record))
-            log.info(f'callback for batch {batch_id} job group {ancestor_job_group_id} successful')
-
         try:
-            if record['user'] == 'ci':
-                # only jobs from CI may use batch's TLS identity
-                await request(client_session, record, callback, batch_id, ancestor_job_group_id)
-            else:
-                async with httpx.client_session() as session:
-                    await request(session, record, callback, batch_id, ancestor_job_group_id)
+            await client_session.post(callback, json=job_group_record_to_dict(record))
+            log.info(f'callback for batch {batch_id} job group {ancestor_job_group_id} successful')
         except asyncio.CancelledError:
             raise
         except Exception:

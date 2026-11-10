@@ -919,6 +919,12 @@ async def create_job_groups(request: web.Request, userdata: UserData) -> web.Res
     return web.Response()
 
 
+def check_callback_permissions(user: str, callback: Optional[str]):
+    # The driver sends callbacks from inside the cluster, so only CI may use them.
+    if callback is not None and user != 'ci':
+        raise web.HTTPBadRequest(reason='callbacks are not supported')
+
+
 def check_service_account_permissions(user, sa):
     if sa is None:
         return
@@ -1075,6 +1081,9 @@ VALUES (%s, %s, %s, %s);
 
 
 async def _create_job_groups(db: Database, batch_id: int, update_id: int, user: str, job_group_specs: List[dict]):
+    for spec in job_group_specs:
+        check_callback_permissions(user, spec.get('callback'))
+
     assert len(job_group_specs) > 0
 
     @transaction(db)
@@ -1780,6 +1789,8 @@ async def _create_batch(batch_spec: dict, userdata, db: Database) -> int:
         'hail_credentials_secret_name': userdata['hail_credentials_secret_name'],
         'tokens_secret_name': userdata['tokens_secret_name'],
     }
+
+    check_callback_permissions(user, batch_spec.get('callback'))
 
     billing_project = batch_spec['billing_project']
     token = batch_spec['token']

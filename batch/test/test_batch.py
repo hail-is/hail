@@ -170,6 +170,20 @@ def test_invalid_job_group_attributes(client: BatchClient):
         b.submit()
 
 
+def test_batch_callback_rejected(client: BatchClient):
+    b = create_batch(client, callback='https://example.com/callback')
+    b.create_job(DOCKER_ROOT_IMAGE, ['true'])
+    with pytest.raises(httpx.ClientResponseError, match='callbacks are not supported'):
+        b.submit()
+
+
+def test_job_group_callback_rejected(client: BatchClient):
+    b = create_batch(client)
+    b.create_job_group(callback='https://example.com/callback')
+    with pytest.raises(httpx.ClientResponseError, match='callbacks are not supported'):
+        b.submit()
+
+
 def test_out_of_memory(client: BatchClient):
     b = create_batch(client)
     resources = {'cpu': '0.25'}
