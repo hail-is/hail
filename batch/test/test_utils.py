@@ -243,7 +243,7 @@ class _RecordingComputeClient:
     def __init__(self):
         self.create_disk_bodies: List[dict] = []
 
-    async def create_disk(self, path: str, *, json: dict):
+    async def create_disk(self, _path: str, *, json: dict):
         self.create_disk_bodies.append(json)
 
 
