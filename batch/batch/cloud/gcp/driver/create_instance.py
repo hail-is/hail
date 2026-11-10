@@ -325,22 +325,27 @@ iptables --table nat --append POSTROUTING --source 172.20.0.0/15 --jump MASQUERA
 
 INTERNET_INTERFACE=$(ip link list | grep ens | awk -F": " '{{ print $2 }}')
 
+# Forwarded traffic is only allowed by the explicit rules below and the per-job rules the worker adds
+iptables --policy FORWARD DROP
+
 # [public] Jobs get the internet, their own metadata server and the internal gateway's HTTP port.
-# Nothing else on the internal network, and nothing on this worker.
-# Send public jobs' metadata server requests to the job's metadata server on this worker
+# Nothing else on the internal network, and nothing on this worker. Only add allows for a known use.
+# Metadata server requests go to the job's own metadata server on this worker
 iptables --table nat --append PREROUTING --source 172.21.0.0/16 --destination 169.254.169.254 -p tcp -j REDIRECT --to-ports 5555
-# Replies on connections made into the job, e.g. to an exposed port
-iptables --append FORWARD --source 172.21.0.0/16 --match conntrack --ctstate ESTABLISHED,RELATED --jump ACCEPT
+# Replies from a job's exposed port (job `port` option) to whoever connected to it
+iptables --append FORWARD --source 172.21.0.0/16 --match conntrack --ctstate ESTABLISHED --jump ACCEPT
 # Traffic leaving the worker. Traffic between jobs on this worker (e.g. a job reaching its own exposed
 # port via the worker IP) stays on the per-job rules the worker adds.
+# Hail service APIs (hailtop, Query-on-Batch) via the internal gateway
 iptables --append FORWARD --source 172.21.0.0/16 --out-interface $INTERNET_INTERFACE --destination $INTERNAL_GATEWAY_IP -p tcp --dport 80 --jump ACCEPT
 for PRIVATE_RANGE in 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16 100.64.0.0/10 169.254.0.0/16; do
     iptables --append FORWARD --source 172.21.0.0/16 --out-interface $INTERNET_INTERFACE --destination $PRIVATE_RANGE --jump DROP
 done
+# The internet
 iptables --append FORWARD --source 172.21.0.0/16 --out-interface $INTERNET_INTERFACE --jump ACCEPT
-# Traffic addressed to this worker itself (e.g. the worker API on its IP) goes through INPUT, not FORWARD
+# Traffic addressed to this worker itself (e.g. the worker API on its IP) goes through INPUT, not FORWARD.
+# Only the metadata server redirect above.
 iptables --append INPUT --source 172.21.0.0/16 -p tcp --dport 5555 --jump ACCEPT
-iptables --append INPUT --source 172.21.0.0/16 --match conntrack --ctstate ESTABLISHED,RELATED --jump ACCEPT
 iptables --append INPUT --source 172.21.0.0/16 --jump DROP
 
 # [private]
