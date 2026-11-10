@@ -699,6 +699,49 @@ class Tests(unittest.TestCase):
             'new_globals',
         ).write(new_temp_file(extension='ht'))
 
+    def test_multi_way_zip_join_of_repartitioned_matrix_reads(self):
+        n_inputs, n_rows, n_cols = 3, 1000, 5
+        paths = []
+        for k in range(n_inputs):
+            mt = hl.utils.range_matrix_table(n_rows, n_cols, n_partitions=4)
+            mt = mt.filter_rows(hl.rand_bool(0.6, seed=k * 7919 + 1))
+            mt = mt.key_rows_by(locus=hl.locus('chr1', mt.row_idx * 10 + 1, reference_genome='GRCh38'))
+            mt = mt.drop('row_idx')
+            mt = mt.key_cols_by(s=f'b{k}_' + hl.str(mt.col_idx)).drop('col_idx')
+            h = hl.rand_int32(0, 100, seed=k)
+            mt = mt.select_entries(DP=h, GQ=h % 60, LGT=hl.call(0, 0), LEN=hl.int32(1 + h % 9))
+            mt = mt.filter_entries(h % 3 != 0)
+            path = new_temp_file(extension='mt')
+            mt.write(path)
+            paths.append(path)
+
+        def interval(start, end):
+            return hl.Interval(
+                hl.Struct(locus=hl.Locus('chr1', start, reference_genome='GRCh38')),
+                hl.Struct(locus=hl.Locus('chr1', end, reference_genome='GRCh38')),
+                True,
+                True,
+            )
+
+        # The second interval extends past the last row, so the reader's partitioning (requested
+        # intervals intersected with the on-disk partitioning) differs from the requested intervals
+        # and the reader repartitions back to the requested intervals.
+        intervals = [interval(621, 1870), interval(8751, 10000)]
+
+        def read(path):
+            mt = hl.read_matrix_table(path, _intervals=intervals)
+            mt = mt.annotate_entries(f=hl.missing(hl.tset(hl.tstr)))
+            return mt._localize_entries('__entries', '__cols')
+
+        j = hl.Table.multi_way_zip_join([read(p) for p in paths], 'data', 'globals')
+        bad = j.aggregate(
+            hl.agg.filter(
+                hl.any(lambda d: hl.is_defined(d) & (hl.len(d['__entries']) != n_cols), j.data),
+                hl.agg.collect(j.locus),
+            )
+        )
+        assert bad == []
+
     def test_index_maintains_count(self):
         t1 = hl.Table.parallelize(
             [{'a': 'foo', 'b': 1}, {'a': 'bar', 'b': 2}, {'a': 'bar', 'b': 2}],
