@@ -967,6 +967,7 @@ def test_authorized_users_only():
         (session.get, '/api/v1alpha/batches/0/jobs/0', 401),
         (session.get, '/api/v1alpha/batches/0/jobs/0/log', 401),
         (session.get, '/api/v1alpha/batches/0/jobs/0/resource_usage', 401),
+        (session.get, '/api/v1alpha/batches/0/jobs/0/preemption_costs', 401),
         (session.get, '/api/v1alpha/batches/0/jobs/0/jvm_profile', 401),
         (session.get, '/api/v1alpha/batches/0/timing', 401),
         (session.get, '/api/v1alpha/batches/0/job_graph', 401),
@@ -2418,24 +2419,15 @@ async def test_submitting_more_jobs_than_update_allocated_fails(async_client: Ai
         await b.cancel()
 
 
-def test_finished_nonpreemptible_job_has_no_retried_or_projected_cost(client: BatchClient):
-    b = create_batch(client)
+async def test_finished_nonpreemptible_job_has_no_preemption_costs(async_client: AioBatchClient):
+    # Only checks the route is wired up; test_preemption_costs_db.py covers the costs themselves.
+    b = create_batch(async_client)
     j = b.create_job(DOCKER_ROOT_IMAGE, ['true'], resources={'preemptible': False})
-    b.submit()
-    status = j.wait()
-    assert status['state'] == 'Success', str((status, b.debug_info()))
-    assert status['retried_attempts_cost'] is None, str((status, b.debug_info()))
-    assert status['projected_nonpreemptible_cost'] is None, str((status, b.debug_info()))
-
-
-def test_finished_preemptible_job_has_retried_cost(client: BatchClient):
-    b = create_batch(client)
-    j = b.create_job(DOCKER_ROOT_IMAGE, ['true'], resources={'preemptible': True})
-    b.submit()
-    status = j.wait()
-    assert status['state'] == 'Success', str((status, b.debug_info()))
-    retried_attempts_cost = status['retried_attempts_cost']
-    assert isinstance(retried_attempts_cost, float) and retried_attempts_cost >= 0, str((status, b.debug_info()))
+    await b.submit()
+    status = await j.wait()
+    assert status['state'] == 'Success', str((status, await b.debug_info()))
+    resp = await async_client._get(f'/api/v1alpha/batches/{b.id}/jobs/{j.job_id}/preemption_costs')
+    assert await resp.json() == {'retried_attempts_cost': None, 'projected_nonpreemptible_cost': None}
 
 
 def test_billing_propogates_upwards(client: BatchClient):

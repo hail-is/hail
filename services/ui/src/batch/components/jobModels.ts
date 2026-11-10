@@ -64,8 +64,6 @@ export type Job = {
   duration?: string;
   cost?: number;
   cost_breakdown?: { resource: string; cost: number }[] | null;
-  retried_attempts_cost?: number | null;
-  projected_nonpreemptible_cost?: number | null;
   user?: string;
   billing_project?: string;
   always_run?: boolean;
@@ -73,6 +71,11 @@ export type Job = {
   inst_coll?: string;
   spec?: JobSpec | null;
   status?: JobStatus | null;
+};
+
+export type PreemptionCosts = {
+  retried_attempts_cost: number | null;
+  projected_nonpreemptible_cost: number | null;
 };
 
 export type Attempt = {

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Job, Attempt, TERMINAL_STATES } from '../components/jobModels';
+import { Job, Attempt, PreemptionCosts, TERMINAL_STATES } from '../components/jobModels';
 import { ResourceUsageData } from '../components/ResourceCharts';
 
 export type LogMap = Map<string, string | null>;
@@ -17,6 +17,7 @@ export type AttemptCache = {
 export interface UseJobDetailsResult {
   job: Job | null;
   attempts: Attempt[] | null;
+  preemptionCosts: PreemptionCosts | null;
   error: string | null;
   loading: boolean;
   autoRefresh: boolean;
@@ -56,6 +57,7 @@ async function fetchJson<T>(url: string): Promise<T> {
 export function useJobDetails(basePath: string, batchId: string, jobId: string): UseJobDetailsResult {
   const [job, setJob] = useState<Job | null>(null);
   const [attempts, setAttempts] = useState<Attempt[] | null>(null);
+  const [preemptionCosts, setPreemptionCosts] = useState<PreemptionCosts | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [jobRefreshing, setJobRefreshing] = useState(false);
@@ -188,6 +190,15 @@ export function useJobDetails(basePath: string, batchId: string, jobId: string):
     void fetchData(false);
   }, [fetchData]);
 
+  // Preemption costs are only computed for finished jobs, so fetch them once the job is terminal
+  const isTerminal = job !== null && TERMINAL_STATES.has(job.state);
+  useEffect(() => {
+    if (!isTerminal) return;
+    fetchJson<PreemptionCosts>(`${basePath}/api/v1alpha/batches/${batchId}/jobs/${jobId}/preemption_costs`)
+      .then(setPreemptionCosts)
+      .catch(() => { setPreemptionCosts(null); });
+  }, [isTerminal, basePath, batchId, jobId]);
+
   // Auto-refresh for non-terminal jobs
   useEffect(() => {
     if (!job || TERMINAL_STATES.has(job.state) || !autoRefresh) return;
@@ -216,6 +227,7 @@ export function useJobDetails(basePath: string, batchId: string, jobId: string):
   return {
     job,
     attempts,
+    preemptionCosts,
     error,
     loading,
     autoRefresh,

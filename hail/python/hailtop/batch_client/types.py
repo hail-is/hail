@@ -29,8 +29,11 @@ class GetJobResponseV1Alpha(TypedDict):
     n_max_attempts: int
     display_state: Optional[str]
     inst_coll: NotRequired[str]
-    retried_attempts_cost: NotRequired[Optional[float]]
-    projected_nonpreemptible_cost: NotRequired[Optional[float]]
+
+
+class GetJobPreemptionCostsResponseV1Alpha(TypedDict):
+    retried_attempts_cost: Optional[float]
+    projected_nonpreemptible_cost: Optional[float]
 
 
 class JobListEntryV1Alpha(TypedDict):

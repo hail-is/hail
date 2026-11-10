@@ -62,6 +62,7 @@ from hailtop.batch_client.types import (
     GetBatchTimingResponseV1Alpha,
     GetJobGraphResponseV1Alpha,
     GetJobGroupResponseV1Alpha,
+    GetJobPreemptionCostsResponseV1Alpha,
     GetJobResponseV1Alpha,
     GetJobsResponseV1Alpha,
     JobListEntryV1Alpha,
@@ -121,12 +122,6 @@ from ..globals import (
     complete_states,
 )
 from ..inst_coll_config import InstanceCollectionConfigs
-from ..preemption_costs import (
-    AttemptResource,
-    nonpreemptible_counterparts,
-    projected_nonpreemptible_cost,
-    retried_attempts_cost,
-)
 from ..resource_usage import ResourceUsageMonitor
 from ..spec_writer import SpecWriter
 from ..utils import (
@@ -136,6 +131,7 @@ from ..utils import (
     rewrite_dockerhub_image,
     unavailable_if_frozen,
 )
+from .job_preemption_costs import get_job_preemption_costs
 from .query import (
     CURRENT_QUERY_VERSION,
     parse_job_group_jobs_query_v1,
@@ -2478,60 +2474,6 @@ async def ui_batches(request: web.Request, userdata: UserData) -> web.Response:
     return await render_template('batch', request, userdata, 'batches.html', page_context)
 
 
-def _escape_like(s: str) -> str:
-    return s.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')
-
-
-async def _get_job_preemption_costs(db: Database, record: Dict[str, Any]) -> Tuple[Optional[float], Optional[float]]:
-    """A job's retried cost and projected non-preemptible cost, each None where it doesn't apply.
-
-    Only finished jobs are queried, so polling a running job costs nothing extra.
-    """
-    state = record['state']
-    if state not in complete_states:
-        return None, None
-
-    attempt_resources = [
-        AttemptResource(**r)
-        async for r in db.select_and_fetchall(
-            """
-SELECT attempts.attempt_id, attempts.reason, attempts.start_time, attempts.rollup_time,
-  resources.resource, resources.rate, attempt_resources.quantity
-FROM attempt_resources
-INNER JOIN attempts
-  ON attempts.batch_id = attempt_resources.batch_id AND
-     attempts.job_id = attempt_resources.job_id AND
-     attempts.attempt_id = attempt_resources.attempt_id
-INNER JOIN resources
-  ON resources.resource_id = COALESCE(attempt_resources.deduped_resource_id, attempt_resources.resource_id)
-WHERE attempt_resources.batch_id = %s AND attempt_resources.job_id = %s;
-""",
-            (record['batch_id'], record['job_id']),
-        )
-    ]
-    outcome_attempt_id = record['attempt_id']
-
-    retried_cost = retried_attempts_cost(attempt_resources, outcome_attempt_id)
-
-    projected_cost = None
-    counterparts = sorted(nonpreemptible_counterparts(attempt_resources, outcome_attempt_id))
-    if state == 'Success' and counterparts:
-        counterpart_resources = [
-            (r['resource'], r['rate'])
-            async for r in db.select_and_fetchall(
-                f"""
-SELECT resource, rate
-FROM resources
-WHERE {' OR '.join(['resource LIKE %s'] * len(counterparts))};
-""",
-                [f'{_escape_like(product)}/%' for product in counterparts],
-            )
-        ]
-        projected_cost = projected_nonpreemptible_cost(attempt_resources, outcome_attempt_id, counterpart_resources)
-
-    return retried_cost, projected_cost
-
-
 async def _get_job(app, batch_id, job_id) -> GetJobResponseV1Alpha:
     db: Database = app['db']
 
@@ -2603,15 +2545,11 @@ LEFT JOIN resources ON usage_t.resource_id = resources.resource_id
             else:
                 full_spec['regions'] = sorted(app['regions'].keys())
 
-    retried_cost, projected_cost = await _get_job_preemption_costs(db, record)
-
     job: GetJobResponseV1Alpha = {
         **job_record_to_dict(record, attributes.get('name')),
         'status': full_status,
         'spec': full_spec,
         'inst_coll': record['inst_coll'],
-        'retried_attempts_cost': retried_cost,
-        'projected_nonpreemptible_cost': projected_cost,
     }
     if attributes:
         job['attributes'] = attributes
@@ -2801,6 +2739,18 @@ async def get_job(request: web.Request, _, batch_id: int) -> web.Response:
     job_id = int(request.match_info['job_id'])
     status = await _get_job(request.app, batch_id, job_id)
     return json_response(status)
+
+
+async def _get_job_preemption_costs(app, batch_id: int, job_id: int) -> GetJobPreemptionCostsResponseV1Alpha:
+    record = await _get_job_record(app, batch_id, job_id)
+    return await get_job_preemption_costs(app['db'], batch_id, job_id, record['state'], record['attempt_id'])
+
+
+@routes.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/preemption_costs')
+@billing_project_users_only()
+async def api_get_job_preemption_costs(request: web.Request, _, batch_id: int) -> web.Response:
+    job_id = int(request.match_info['job_id'])
+    return json_response(await _get_job_preemption_costs(request.app, batch_id, job_id))
 
 
 @routes.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/resource_usage')
@@ -3096,20 +3046,18 @@ async def ui_get_job(request, userdata, batch_id):
         return await render_template('batch', request, userdata, 'job_react.html', page_context)
 
     # Otherwise: old server-side style rendering:
-    job, attempts, job_log_bytes, resource_usage = await asyncio.gather(
+    job, attempts, job_log_bytes, resource_usage, preemption_costs = await asyncio.gather(
         _get_job(app, batch_id, job_id),
         _get_attempts(app, batch_id, job_id),
         _get_job_log(app, batch_id, job_id),
         _get_job_resource_usage(app, batch_id, job_id),
+        _get_job_preemption_costs(app, batch_id, job_id),
     )
 
     job = cast(Dict[str, Any], job)
 
     job['duration'] = humanize_timedelta_msecs(job['duration'])
     job['cost'] = cost_str(job['cost'])
-    # the retried row is shown only when there was retried cost
-    job['retried_attempts_cost'] = cost_str(job['retried_attempts_cost']) if job['retried_attempts_cost'] else None
-    job['projected_nonpreemptible_cost'] = cost_str(job['projected_nonpreemptible_cost'])
 
     if job['cost_breakdown'] is not None:
         for record in job['cost_breakdown']:
@@ -3217,6 +3165,11 @@ async def ui_get_job(request, userdata, batch_id):
             resource_usage, memory_limit_bytes, io_storage_limit_bytes, non_io_storage_limit_bytes
         ),
         'has_jvm_profile': has_jvm_profile,
+        # the retried row is shown only when there was retried cost
+        'retried_attempts_cost': (
+            cost_str(preemption_costs['retried_attempts_cost']) if preemption_costs['retried_attempts_cost'] else None
+        ),
+        'projected_nonpreemptible_cost': cost_str(preemption_costs['projected_nonpreemptible_cost']),
     }
 
     return await render_template('batch', request, userdata, 'job.html', page_context)

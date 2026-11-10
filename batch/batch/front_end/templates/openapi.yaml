@@ -615,6 +615,33 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/JobAttemptsResponse'
+  '/api/v1alpha/batches/{batch_id}/jobs/{job_id}/preemption_costs':
+    get:
+      summary: "Get a job's preemption costs"
+      description: "Get what a finished job's retried attempts cost, and what its outcome attempt would have cost on non-preemptible resources."
+      operationId: getJobPreemptionCostsv1alpha
+      tags:
+        - Batches API v1Alpha
+      parameters:
+        - name: batch_id
+          in: path
+          description: "The ID of the batch."
+          required: true
+          schema:
+            type: number
+        - name: job_id
+          in: path
+          description: "The ID of the job."
+          required: true
+          schema:
+            type: number
+      responses:
+        '200':
+          description: "Successfully retrieved the job's preemption costs."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobPreemptionCostsResponse'
   '/api/v1alpha/batches/{batch_id}/timing':
     get:
       summary: "Get job timing for a batch"
@@ -2347,14 +2374,6 @@ components:
           description: "Per-resource cost breakdown"
           items:
             $ref: '#/components/schemas/CostBreakdownEntry'
-        retried_attempts_cost:
-          type: number
-          description: "Summed cost in USD of the job's retried attempts: every attempt except its outcome attempt and cancelled attempts. Null unless the job is finished and at least one of its attempts was billed for preemptible resources. Only returned by the get-job endpoint."
-          nullable: true
-        projected_nonpreemptible_cost:
-          type: number
-          description: "What the job's outcome attempt would have cost in USD at the non-preemptible rates in effect when it started. Null unless the job succeeded on preemptible resources and every non-preemptible rate was found. Only returned by the get-job endpoint."
-          nullable: true
         always_run:
           type: boolean
           description: "Whether the job runs regardless of the batch's success state"
@@ -2521,6 +2540,18 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/JobAttemptResponse'
+
+    JobPreemptionCostsResponse:
+      type: object
+      properties:
+        retried_attempts_cost:
+          type: number
+          description: "Summed cost in USD of the job's retried attempts: every attempt except its outcome attempt and cancelled attempts. Null unless the job is finished and at least one of its attempts was billed for preemptible resources."
+          nullable: true
+        projected_nonpreemptible_cost:
+          type: number
+          description: "What the job's outcome attempt would have cost in USD at the non-preemptible rates in effect when it started. Null unless the job succeeded on preemptible resources and every non-preemptible rate was found."
+          nullable: true
 
     JobOffsetPagination:
       type: object
