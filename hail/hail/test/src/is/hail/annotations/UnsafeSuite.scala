@@ -17,6 +17,7 @@ import scala.util.Random
 import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
 
 import org.apache.spark.sql.Row
+import org.json4s.Formats
 import org.json4s.jackson.Serialization
 import org.junit.jupiter.api.Test
 import org.scalacheck._
@@ -58,8 +59,6 @@ class UnsafeSuite {
     }
   }
 
-  def sm(implicit ctx: ExecuteContext) = ctx.stateManager
-
   def testCodecSerialization(ctx: ExecuteContext) =
     (BufferSpec.specs.toFastSeq ++ ArraySeq(TypedCodecSpec(
       ctx,
@@ -69,7 +68,7 @@ class UnsafeSuite {
 
   @ParameterizedTest
   def testCodecSerialization(codec: Spec)(implicit ctx: ExecuteContext): Unit = {
-    implicit val formats = AbstractRVDSpec.formats
+    implicit val formats: Formats = AbstractRVDSpec.formats(ctx.references)
     assert(Serialization.read[Spec](codec.toString) == codec)
   }
 
@@ -98,7 +97,7 @@ class UnsafeSuite {
       BufferSpec.specs.foreach { bufferSpec =>
         val codec = TypedCodecSpec(ctx, pt, bufferSpec)
         region.clear()
-        val offset = pt.unstagedStoreJavaObject(sm, a, region)
+        val offset = pt.unstagedStoreJavaObject(a, region)
 
         val aos = new ByteArrayOutputStream()
         val en = codec.buildEncoder(ctx, pt)(aos, ctx.theHailClassLoader)
@@ -158,7 +157,7 @@ class UnsafeSuite {
 
     valuesAndTypes.foreach { case (v, t) =>
       pool.scopedRegion { region =>
-        val off = ScalaToRegionValue(sm, region, t, v)
+        val off = ScalaToRegionValue(region, t, v)
         BufferSpec.specs.foreach { spec =>
           val cs2 = TypedCodecSpec(ctx, t, spec)
           val baos = new ByteArrayOutputStream()
@@ -174,7 +173,7 @@ class UnsafeSuite {
               region
             )
 
-          assert(t.unsafeOrdering(sm).equiv(res, off))
+          assert(t.unsafeOrdering.equiv(res, off))
         }
       }
     }
@@ -202,8 +201,8 @@ class UnsafeSuite {
     val pool = ctx.r.pool
     val region = Region(pool = pool)
     val region2 = Region(pool = pool)
-    val rvb = new RegionValueBuilder(sm, region)
-    val rvb2 = new RegionValueBuilder(sm, region2)
+    val rvb = new RegionValueBuilder(region)
+    val rvb2 = new RegionValueBuilder(region2)
 
     val g: Gen[(Type, Annotation, Int, Int)] =
       for {
@@ -220,7 +219,7 @@ class UnsafeSuite {
       region.clear()
       region.allocate(1, n.toLong): Unit // preallocate
 
-      val offset = pt.unstagedStoreJavaObject(sm, a, region)
+      val offset = pt.unstagedStoreJavaObject(a, region)
 
       val ur = UnsafeRow.read(pt, region, offset)
       assert(t.valuesSimilar(a, ur), s"$a vs $ur")
@@ -232,7 +231,7 @@ class UnsafeSuite {
       // test addAnnotation from ur
       region2.clear()
       region2.allocate(1, n2.toLong): Unit // preallocate
-      val offset2 = pt.unstagedStoreJavaObject(sm, ur, region2)
+      val offset2 = pt.unstagedStoreJavaObject(ur, region2)
 
       val ur2 = UnsafeRow.read(pt, region2, offset2)
       assert(t.valuesSimilar(a, ur2), s"$a vs $ur2")
@@ -253,7 +252,7 @@ class UnsafeSuite {
           region2.clear()
           region2.allocate(1, n.toLong): Unit // preallocate
           val offset4 =
-            ps.unstagedStoreJavaObject(sm, RowSeq.fromSeq(a.asInstanceOf[Row].toSeq), region2)
+            ps.unstagedStoreJavaObject(RowSeq.fromSeq(a.asInstanceOf[Row].toSeq), region2)
           val ur4 = new UnsafeRow(ps, region2, offset4)
           assert(t.valuesSimilar(a, ur4))
           ()
@@ -272,7 +271,7 @@ class UnsafeSuite {
         case t: TStruct =>
           val ps = pt.asInstanceOf[PStruct]
           val offset6 =
-            ps.unstagedStoreJavaObject(sm, RowSeq.fromSeq(a.asInstanceOf[Row].toSeq), region)
+            ps.unstagedStoreJavaObject(RowSeq.fromSeq(a.asInstanceOf[Row].toSeq), region)
           val ur6 = new UnsafeRow(ps, region, offset6)
           assert(t.valuesSimilar(a, ur6)): Unit
         case _ =>
@@ -343,19 +342,19 @@ class UnsafeSuite {
       assert(tv.typeCheck(a2))
 
       region.clear()
-      val offset = t.unstagedStoreJavaObject(sm, a1, region)
+      val offset = t.unstagedStoreJavaObject(a1, region)
 
       val ur1 = new UnsafeRow(t, region, offset)
       assert(tv.valuesSimilar(a1, ur1))
 
       region2.clear()
-      val offset2 = t.unstagedStoreJavaObject(sm, a2, region2)
+      val offset2 = t.unstagedStoreJavaObject(a2, region2)
 
       val ur2 = new UnsafeRow(t, region2, offset2)
       assert(tv.valuesSimilar(a2, ur2))
 
-      val ord = tv.ordering(sm)
-      val uord = t.unsafeOrdering(sm)
+      val ord = tv.ordering
+      val uord = t.unsafeOrdering
 
       val c1 = ord.compare(a1, a2)
       val c2 = ord.compare(ur1, ur2)

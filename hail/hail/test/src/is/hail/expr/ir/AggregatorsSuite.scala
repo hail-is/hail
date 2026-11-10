@@ -7,9 +7,9 @@ import is.hail.annotations.RowSeq
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
 import is.hail.expr.ir.defs.{
-  AggFilter, AggGroupBy, ApplyAggOp, ApplyBinaryPrimOp, ArrayRef, GetField, I32, InsertFields,
-  MakeStruct, MakeTuple, Ref, Str, StreamAgg, StreamAggScan, StreamRange, TableAggregate, ToArray,
-  ToStream,
+  AggFilter, AggGroupBy, ApplyAggOp, ApplyBinaryPrimOp, ApplyScanOp, ArrayRef, GetField, I32,
+  InsertFields, MakeStruct, MakeTuple, Ref, Str, StreamAgg, StreamAggScan, StreamRange,
+  TableAggregate, ToArray, ToStream,
 }
 import is.hail.expr.ir.lowering.{DArrayLowering, LowerTableIR, LoweringAnalyses}
 import is.hail.types.virtual._
@@ -1394,6 +1394,26 @@ class AggregatorsSuite {
       )
     )
     assertEvalsTo(myIR, IndexedSeq(0, 0, 1, 3, 6, 10, 15, 21, 28, 36))
+  }
+
+  @Test def testStreamAggStreamReadsParentAgg(implicit ctx: ExecuteContext): Unit = {
+    val ir =
+      rangeIR(4).streamAgg { x =>
+        ApplyAggOp(Collect())(x)
+          .stream
+          .streamAgg(y => ApplyAggOp(Sum())(y.toL))
+      }
+
+    assertEvalsTo(ir, 6L)
+  }
+
+  @Test def testStreamAggScanStreamReadsParentScan(implicit ctx: ExecuteContext): Unit = {
+    val ir =
+      rangeIR(3)
+        .streamAggScan(x => ApplyScanOp(Collect())(x).stream.streamAggScan(y => y).toArray)
+        .toArray
+
+    assertEvalsTo(ir, IndexedSeq(IndexedSeq(), IndexedSeq(0), IndexedSeq(0, 1)))
   }
 
   // fails because there is no "lowest binding referenced in an init op"

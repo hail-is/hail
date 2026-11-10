@@ -105,8 +105,11 @@ object UnsafeRow {
   }
 }
 
-class UnsafeRow(val t: PBaseStruct, var region: Region, var offset: Long)
-    extends Row with UnKryoSerializable {
+class UnsafeRow(
+  val t: PBaseStruct,
+  var region: Region,
+  var offset: Long,
+) extends Row with UnKryoSerializable {
 
   override def toString: String = {
     if (t.isInstanceOf[PStruct]) {
@@ -144,11 +147,10 @@ class UnsafeRow(val t: PBaseStruct, var region: Region, var offset: Long)
     }
   }
 
-  def this(t: PBaseStruct, rv: RegionValue) = this(t, rv.region, rv.offset)
+  def this(t: PBaseStruct, rv: RegionValue) =
+    this(t, rv.region, rv.offset)
 
   def this(t: PBaseStruct) = this(t, null, 0)
-
-  def this() = this(null, null, 0)
 
   def set(newRegion: Region, newOffset: Long): Unit = {
     region = newRegion
@@ -220,14 +222,26 @@ object SafeRow {
   def apply(t: PBaseStruct, off: Long): Row =
     Annotation.copy(t.virtualType, new UnsafeRow(t, null, off)).asInstanceOf[Row]
 
-  def apply(t: PBaseStruct, rv: RegionValue): Row = SafeRow(t, rv.offset)
+  def apply(t: PBaseStruct, rv: RegionValue): Row =
+    SafeRow(t, rv.offset)
 
-  def selectFields(t: PBaseStruct, region: Region, off: Long)(selectIdx: IndexedSeq[Int]): Row = {
+  def selectFields(
+    t: PBaseStruct,
+    region: Region,
+    off: Long,
+  )(
+    selectIdx: IndexedSeq[Int]
+  ): Row = {
     val fullRow = new UnsafeRow(t, region, off)
     RowSeq.fromSeq(selectIdx.map(i => Annotation.copy(t.types(i).virtualType, fullRow.get(i))))
   }
 
-  def selectFields(t: PBaseStruct, rv: RegionValue)(selectIdx: IndexedSeq[Int]): Row =
+  def selectFields(
+    t: PBaseStruct,
+    rv: RegionValue,
+  )(
+    selectIdx: IndexedSeq[Int]
+  ): Row =
     SafeRow.selectFields(t, rv.region, rv.offset)(selectIdx)
 
   def read(t: PType, off: Long): Annotation =
@@ -324,13 +338,21 @@ trait NDArray {
   }
 }
 
-class UnsafeNDArray(val pnd: PNDArray, val region: Region, val ndAddr: Long) extends NDArray {
+class UnsafeNDArray(
+  val pnd: PNDArray,
+  val region: Region,
+  val ndAddr: Long,
+) extends NDArray {
   val shape: IndexedSeq[Long] = (0 until pnd.nDims).map(i => pnd.loadShape(ndAddr, i))
   val elementType = pnd.elementType.virtualType
 
   override def lookupElement(indices: IndexedSeq[Long]): Annotation = {
     val elementAddress = pnd.getElementAddress(indices, ndAddr)
-    UnsafeRow.read(pnd.elementType, region, pnd.elementType.unstagedLoadFromNested(elementAddress))
+    UnsafeRow.read(
+      pnd.elementType,
+      region,
+      pnd.elementType.unstagedLoadFromNested(elementAddress),
+    )
   }
 
   override def getRowMajorElements(): IndexedSeq[Annotation] = {

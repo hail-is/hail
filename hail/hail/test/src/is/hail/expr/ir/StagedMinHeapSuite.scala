@@ -13,7 +13,7 @@ import is.hail.types.physical.stypes.{SType, SValue}
 import is.hail.types.physical.stypes.concrete.SIndexablePointerValue
 import is.hail.types.physical.stypes.primitives.{SInt32, SInt32Value}
 import is.hail.utils.using
-import is.hail.variant.{Locus, ReferenceGenome}
+import is.hail.variant.{Locus, ReferenceGenome, ReferenceGenomeEnv}
 
 import org.junit.jupiter.api.Test
 import org.scalacheck.Arbitrary.arbitrary
@@ -65,7 +65,7 @@ class StagedMinHeapSuite {
 
   @Test def testLocus(implicit ctx: ExecuteContext): Unit =
     check(forAll(loci) { case (rg: ReferenceGenome, loci: IndexedSeq[Locus]) =>
-      ctx.local(references = Map(rg.name -> rg)) { ctx =>
+      ctx.local(references = ReferenceGenomeEnv(Seq(rg))) { ctx =>
         implicit val coercions: StagedCoercions[Locus] =
           stagedLocusCoercions(rg)
 
@@ -90,7 +90,9 @@ class StagedMinHeapSuite {
       ctx.r.pool.scopedRegion { r =>
         xs.foreach(heap.push)
         val ptr = heap.toArray(r)
-        SafeIndexedSeq(PCanonicalArray(PInt32Required), ptr).asInstanceOf[IndexedSeq[Int]]
+        SafeIndexedSeq(PCanonicalArray(PInt32Required), ptr).asInstanceOf[
+          IndexedSeq[Int]
+        ]
       }
     }
 
@@ -186,7 +188,7 @@ class StagedMinHeapSuite {
   def stagedLocusCoercions(rg: ReferenceGenome): StagedCoercions[Locus] =
     new StagedCoercions[Locus] {
       override def ti: TypeInfo[Locus] = implicitly
-      override def sType: SType = PCanonicalLocus(rg.name, required = true).sType
+      override def sType: SType = PCanonicalLocus(rg, required = true).sType
 
       override def fromValue(cb: EmitCodeBuilder, region: Value[Region], a: Value[Locus]): SValue =
         LocusFunctions.emitLocus(cb, region, a, sType.storageType().asInstanceOf[PCanonicalLocus])

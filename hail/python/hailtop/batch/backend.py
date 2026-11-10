@@ -28,7 +28,8 @@ from hailtop.batch_client.aioclient import BatchClient as AioBatchClient
 from hailtop.batch_client.aioclient import BatchNotAuthenticatedError
 from hailtop.batch_client.parse import parse_cpu_in_mcpu
 from hailtop.config import ConfigVariable, configuration_of, get_deploy_config, get_remote_tmpdir
-from hailtop.utils import async_to_blocking, bounded_gather, parse_docker_image_reference, url_scheme
+from hailtop.hail_event_loop import _spawn_on_hail_loop
+from hailtop.utils import async_to_blocking, bounded_gather, on_hail_loop, parse_docker_image_reference, url_scheme
 from hailtop.utils.gcs_requester_pays import GCSRequesterPaysFSCache
 from hailtop.utils.rich_progress_bar import SimpleCopyToolProgressBar
 
@@ -111,15 +112,24 @@ class Backend(abc.ABC, Generic[RunningBatchType]):
         This method should be called after executing your batches at the
         end of your script.
         """
-        async_to_blocking(self.async_close())
+        if not self._closed:
+            async_to_blocking(self.async_close())
 
     async def async_close(self):
         if not self._closed:
             await self._async_close()
             self._closed = True
 
-    def __del__(self):
-        self.close()
+    def __del__(self, _is_finalizing=sys.is_finalizing):
+        # Once the interpreter is shutting down the Hail event loop has stopped, and exiting releases
+        # these resources anyway. `sys` is bound early because module globals may already be cleared.
+        if self._closed or _is_finalizing():
+            return
+        if on_hail_loop():
+            # e.g. the cycle collector ran on the loop's thread. Blocking on the loop would deadlock.
+            _spawn_on_hail_loop(self.async_close())
+        else:
+            self.close()
 
     def __enter__(self: SelfType) -> SelfType:
         return self
@@ -640,13 +650,16 @@ class ServiceBackend(Backend[bc.Batch]):
 
         async_to_blocking(self.validate_file(self.remote_tmpdir))
 
+        # Fetched now, on the caller's thread, so a Batch created on the Hail event loop can use it without blocking.
+        self._default_region: str = self.default_region()
+
         if regions is None:
             regions_from_conf = configuration_of(ConfigVariable.BATCH_REGIONS, None, None)
             if regions_from_conf is not None:
                 assert isinstance(regions_from_conf, str)
                 regions = regions_from_conf.split(',')
             else:
-                regions = [self.default_region()]
+                regions = [self._default_region]
         elif regions == ServiceBackend.ANY_REGION:
             regions = None
 

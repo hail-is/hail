@@ -1,6 +1,6 @@
 package is.hail.io.avro
 
-import is.hail.backend.{ExecuteContext, HailStateManager}
+import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
 import is.hail.expr.ir._
 import is.hail.expr.ir.defs.{
@@ -13,6 +13,7 @@ import is.hail.types.VirtualTypeWithReq
 import is.hail.types.physical.{PCanonicalStruct, PCanonicalTuple, PInt64Required}
 import is.hail.types.virtual._
 import is.hail.utils.plural
+import is.hail.variant.ReferenceGenomeEnv
 
 import scala.collection.immutable.ArraySeq
 
@@ -24,7 +25,7 @@ class AvroTableReader(
   unsafeOptions: Option[UnsafeAvroTableReaderOptions] = None,
 ) extends TableReaderWithExtraUID {
 
-  private def partitioner(stateManager: HailStateManager): RVDPartitioner =
+  private lazy val partitioner: RVDPartitioner =
     unsafeOptions.map { case UnsafeAvroTableReaderOptions(key, intervals, _) =>
       require(
         intervals.length == paths.length,
@@ -34,12 +35,11 @@ class AvroTableReader(
           )} and ${intervals.length} ${plural(intervals.length, "interval")}",
       )
       RVDPartitioner.generate(
-        stateManager,
         partitionReader.fullRowType.typeAfterSelectNames(key),
         intervals,
       )
     }.getOrElse {
-      RVDPartitioner.unkeyed(stateManager, paths.length)
+      RVDPartitioner.unkeyed(paths.length)
     }
 
   override def pathsUsed: Seq[String] = paths
@@ -82,7 +82,7 @@ class AvroTableReader(
     }
     TableStage(
       globals,
-      partitioner(ctx.stateManager),
+      partitioner,
       TableStageDependency.none,
       contexts,
       ctx => ReadPartition(ctx, requestedType.rowType, partitionReader),
@@ -94,9 +94,9 @@ class AvroTableReader(
 }
 
 object AvroTableReader {
-  def fromJValue(jv: JValue): AvroTableReader = {
+  def fromJValue(jv: JValue, rgs: ReferenceGenomeEnv): AvroTableReader = {
     implicit val formats: Formats =
-      PartitionReader.formats + new UnsafeAvroTableReaderOptionsSerializer
+      PartitionReader.formats(rgs) + new UnsafeAvroTableReaderOptionsSerializer(rgs)
     val paths = (jv \ "paths").extract[IndexedSeq[String]]
     val partitionReader = (jv \ "partitionReader").extract[AvroPartitionReader]
     val unsafeOptions = (jv \ "unsafeOptions").extract[Option[UnsafeAvroTableReaderOptions]]

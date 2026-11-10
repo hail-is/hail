@@ -2,7 +2,6 @@ package is.hail.expr.ir
 
 import is.hail.expr.ir.defs.{
   AggArrayPerElement, AggExplode, AggFilter, AggFold, AggGroupBy, ApplyAggOp, ApplyScanOp, Block,
-  MatrixAggregate, RelationalLet, TableAggregate,
 }
 
 object UsesAggEnv {
@@ -14,7 +13,7 @@ object UsesAggEnv {
     case AggExplode(_, _, _, false) => i == 0
     case AggArrayPerElement(_, _, _, _, _, false) => i == 0
     case ApplyAggOp(initOp, _, _) => i >= initOp.length
-    case AggFold(_, _, _, _, _, false) => i > 0
+    case AggFold(_, _, _, _, _, false) => i == 1
     case _ => false
   }
 }
@@ -28,12 +27,16 @@ object UsesScanEnv {
     case AggExplode(_, _, _, true) => i == 0
     case AggArrayPerElement(_, _, _, _, _, true) => i == 0
     case ApplyScanOp(initOp, _, _) => i >= initOp.length
-    case AggFold(_, _, _, _, _, true) => i > 0
+    case AggFold(_, _, _, _, _, true) => i == 1
     case _ => false
   }
 }
 
-sealed trait Scope {
+// a scope an env binds names in: a Scope, or Scope.REL, the relational names. REL isn't a
+// Scope, so it can't be a Block binding's scope
+sealed trait EnvScope
+
+sealed trait Scope extends EnvScope {
   import Scope.{AGG, EVAL, SCAN}
 
   def toInt: Int =
@@ -48,43 +51,23 @@ object Scope {
   case object EVAL extends Scope
   case object AGG extends Scope
   case object SCAN extends Scope
+  case object REL extends EnvScope
+}
 
-  def apply(ir0: BaseIR): Memo[Scope] = {
-    val memo = Memo.empty[Scope]
+trait Scopes[E[_]] {
+  def fresh[A](e: E[A]): E[A]
+  def create[A](e: E[A], s: Scope): E[A]
+  def drop[A](e: E[A], s: Scope): E[A]
+  def promote[A](e: E[A], s: Scope): E[A]
+  def bind[A](e: E[A], s: EnvScope, bs: Seq[(Name, A)]): E[A]
+}
 
-    def compute(ir: BaseIR, scope: Scope): Unit = {
-      if (ir.isInstanceOf[IR])
-        memo.bind(ir, scope)
-
-      ir match {
-        case TableAggregate(child, query) =>
-          compute(child, EVAL)
-          compute(query, EVAL)
-        case MatrixAggregate(child, query) =>
-          compute(child, EVAL)
-          compute(query, EVAL)
-        case RelationalLet(_, value, body) =>
-          compute(value, EVAL)
-          compute(body, scope)
-        case _ => ir.children.zipWithIndex.foreach {
-            case (child: IR, i) =>
-              val usesAgg = UsesAggEnv(ir, i)
-              val usesScan = UsesScanEnv(ir, i)
-              if (usesAgg) {
-                assert(!usesScan)
-                assert(scope == EVAL)
-                compute(child, AGG)
-              } else if (usesScan) {
-                assert(scope == EVAL)
-                compute(child, SCAN)
-              } else
-                compute(child, scope)
-            case (child, _) => compute(child, EVAL)
-          }
-      }
-    }
-
-    compute(ir0, EVAL)
-    memo
+object Scopes {
+  implicit class ScopesSyntax[E[_], A](private val e: E[A]) extends AnyVal {
+    def create(s: Scope)(implicit S: Scopes[E]): E[A] = S.create(e, s)
+    def drop(s: Scope)(implicit S: Scopes[E]): E[A] = S.drop(e, s)
+    def promote(s: Scope)(implicit S: Scopes[E]): E[A] = S.promote(e, s)
+    def fresh(implicit S: Scopes[E]): E[A] = S.fresh(e)
+    def bind(s: EnvScope, bs: Seq[(Name, A)])(implicit S: Scopes[E]): E[A] = S.bind(e, s, bs)
   }
 }

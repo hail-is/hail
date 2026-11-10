@@ -7,7 +7,7 @@ SERVICES_PLUS_ADMIN_POD := $(SERVICES) admin-pod
 SERVICES_IMAGES := $(patsubst %, %-image, $(SERVICES_PLUS_ADMIN_POD))
 SERVICES_DATABASES := $(patsubst %, %-db, $(SERVICES))
 SERVICES_MODULES := $(SERVICES) gear web_common
-CHECK_SERVICES_MODULES := $(patsubst %, check-%, $(SERVICES_MODULES))
+CHECK_SERVICES_MODULES := $(patsubst %, check-%, $(SERVICES_MODULES) devbin)
 SPECIAL_IMAGES := hail-ubuntu batch-worker letsencrypt
 
 HAILGENETICS_IMAGES = $(foreach img,hail vep-grch37-85 vep-grch38-95,hailgenetics-$(img))
@@ -100,7 +100,9 @@ check-pip-requirements:
 		gear \
 		web_common \
 		batch \
-		ci
+		ci \
+		ci/ci-utils \
+		docker/hailgenetics/hail
 
 .PHONY: install-dev-requirements
 install-dev-requirements:
@@ -115,12 +117,13 @@ install-dev-requirements:
 .PHONY: update-hail-ubuntu
 update-hail-ubuntu:
 	@command -v skopeo >/dev/null 2>&1 || { echo 'ERROR: skopeo is required. Install with: brew install skopeo'; exit 1; }
-	python3 update-hail-ubuntu.py
+	python3 devbin/update-hail-ubuntu.py
 	NAMESPACE=default $(MAKE) -C docker/third-party copy
 
 .PHONY: update-gateways-envoy
 update-gateways-envoy:
-	python3 update-envoy.py
+	python3 devbin/update-envoy.py
+	NAMESPACE=default $(MAKE) -C docker/third-party copy
 	$(MAKE) -C gateway deploy
 	$(MAKE) -C internal-gateway deploy
 	kubectl rollout status deployment gateway-deployment
@@ -131,15 +134,21 @@ update-gateways-envoy:
 	@echo 'If traffic to hail.is services seems degraded, roll back with:'
 	@echo '  kubectl rollout undo deployment gateway-deployment && kubectl rollout undo deployment internal-gateway'
 
+# Packages to exempt from the 7-day release cooldown, e.g. COOLDOWN_EXEMPT="uv aiohttp"
+COOLDOWN_EXEMPT ?=
+COOLDOWN_EXEMPT_ARGS := $(foreach p,$(COOLDOWN_EXEMPT),--exclude-newer-package $(p)=false)
+
 .PHONY: generate-pip-lockfiles
 generate-pip-lockfiles:
-	./generate-pip-lockfile.sh hail/python/hailtop
-	./generate-pip-lockfile.sh hail/python
-	./generate-pip-lockfile.sh hail/python/dev
-	./generate-pip-lockfile.sh gear
-	./generate-pip-lockfile.sh web_common
-	./generate-pip-lockfile.sh batch
-	./generate-pip-lockfile.sh ci
+	./generate-pip-lockfile.sh hail/python/hailtop $(COOLDOWN_EXEMPT_ARGS)
+	./generate-pip-lockfile.sh hail/python $(COOLDOWN_EXEMPT_ARGS)
+	./generate-pip-lockfile.sh hail/python/dev $(COOLDOWN_EXEMPT_ARGS)
+	./generate-pip-lockfile.sh gear $(COOLDOWN_EXEMPT_ARGS)
+	./generate-pip-lockfile.sh web_common $(COOLDOWN_EXEMPT_ARGS)
+	./generate-pip-lockfile.sh batch $(COOLDOWN_EXEMPT_ARGS)
+	./generate-pip-lockfile.sh ci $(COOLDOWN_EXEMPT_ARGS)
+	./generate-pip-lockfile.sh ci/ci-utils $(COOLDOWN_EXEMPT_ARGS)
+	./generate-pip-lockfile.sh docker/hailgenetics/hail $(COOLDOWN_EXEMPT_ARGS)
 
 $(HAILTOP_VERSION):
 	$(MAKE) -C hail python-version-info
@@ -161,7 +170,7 @@ hail-run-image: base-image hail/Dockerfile.hail-run hail/python/pinned-requireme
 	./docker-build.sh . hail/Dockerfile.hail-run $(IMAGE_NAME) --build-arg BASE_IMAGE=$(shell cat base-image)
 	echo $(IMAGE_NAME) > $@
 
-hailgenetics-hail-image: hail-ubuntu-image docker/hailgenetics/hail/Dockerfile $(shell git ls-files hail/src/main hail/python)
+hailgenetics-hail-image: hail-ubuntu-image docker/hailgenetics/hail/Dockerfile docker/hailgenetics/hail/pinned-requirements.txt $(shell git ls-files hail/src/main hail/python)
 	$(MAKE) HAIL_BUILD_MODE=Release -C hail wheel
 	./docker-build.sh . docker/hailgenetics/hail/Dockerfile $(IMAGE_NAME) \
 		--build-arg BASE_IMAGE=$(shell cat hail-ubuntu-image)
@@ -197,7 +206,8 @@ $(SERVICES_IMAGES): %-image: $(SERVICES_IMAGE_DEPS) $$(shell git ls-files $$* ':
 	echo $(IMAGE_NAME) > $@
 
 ci-utils-image: base-image $(SERVICES_IMAGE_DEPS) $(shell git ls-files ci)
-	./docker-build.sh . ci/Dockerfile.ci-utils $(IMAGE_NAME) --build-arg BASE_IMAGE=$(shell cat base-image)
+	python3 ci/jinja2_render.py '{"base_image":{"image":"'$$(cat base-image)'"},"global":{"dockerhub_prefix":""}}' ci/Dockerfile.ci-utils ci/Dockerfile.ci-utils.out
+	./docker-build.sh . ci/Dockerfile.ci-utils.out $(IMAGE_NAME) --build-arg BASE_IMAGE=$(shell cat base-image)
 	echo $(IMAGE_NAME) > $@
 
 hail-buildkit-image: ci/buildkit/Dockerfile

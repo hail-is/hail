@@ -1154,7 +1154,6 @@ class Container:
             'CAP_FSETID',
             'CAP_FOWNER',
             'CAP_MKNOD',
-            'CAP_NET_RAW',
             'CAP_SETGID',
             'CAP_SETUID',
             'CAP_SETFCAP',
@@ -2621,6 +2620,10 @@ class JVMContainer:
             # java 24+ (JEP 472) requires this grant for JNI, e.g. junixsocket, hail natives
             '--enable-native-access=ALL-UNNAMED',
             f'-Xmx{heap_memory_mib}M',
+            # query runs single-threaded; G1's own structures cost ~120 MiB outside the heap
+            '-XX:+UseSerialGC',
+            # size the JVM's thread pools for the job's cores
+            f'-XX:ActiveProcessorCount={n_cores}',
             '-cp',
             '/jvm-entryway/jvm-entryway.jar',
             'is.hail.JVMEntryway',

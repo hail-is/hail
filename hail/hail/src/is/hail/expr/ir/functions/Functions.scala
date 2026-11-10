@@ -3,7 +3,7 @@ package is.hail.expr.ir.functions
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.asm4s.implicits.valueToRichCodeRegion
-import is.hail.backend.{ExecuteContext, HailStateManager}
+import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
 import is.hail.collection.implicits.toRichIterable
 import is.hail.experimental.ExperimentalFunctions
@@ -17,7 +17,7 @@ import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives._
 import is.hail.types.virtual._
 import is.hail.utils._
-import is.hail.variant.{Locus, ReferenceGenome}
+import is.hail.variant.Locus
 
 import scala.collection.immutable.ArraySeq
 import scala.collection.mutable
@@ -81,12 +81,12 @@ object IRFunctionRegistry {
   ): UserDefinedFnKey = {
     requireJavaIdentifier(name)
     val argNames = argNameStrs.map(Name)
-    val typeParameters = typeParamStrs.map(IRParser.parseType)
-    val valueParameterTypes = argTypeStrs.map(IRParser.parseType)
+    val typeParameters = typeParamStrs.map(IRParser.parseType(_, ctx.references))
+    val valueParameterTypes = argTypeStrs.map(IRParser.parseType(_, ctx.references))
     val refMap = BindingEnv.eval(argNames.zip(valueParameterTypes): _*)
     val body = IRParser.parse_value_ir(ctx, bodyStr, refMap)
 
-    val returnType = IRParser.parseType(returnTypeStr)
+    val returnType = IRParser.parseType(returnTypeStr, ctx.references)
     assert(body.typ == returnType)
 
     val key: UserDefinedFnKey = (name, (returnType, typeParameters, valueParameterTypes))
@@ -293,21 +293,16 @@ object IRFunctionRegistry {
 }
 
 object RegistryHelpers {
-  def stupidUnwrapStruct(rgs: Map[String, ReferenceGenome], r: Region, value: Row, ptype: PType)
-    : Long = {
+  def stupidUnwrapJavaObject(r: Region, value: Annotation, ptype: PType): Long = {
     assert(value != null)
-    ptype.unstagedStoreJavaObject(HailStateManager(rgs), value, r)
+    ptype.unstagedStoreJavaObject(value, r)
   }
 
-  def stupidUnwrapArray(
-    rgs: Map[String, ReferenceGenome],
-    r: Region,
-    value: IndexedSeq[Annotation],
-    ptype: PType,
-  ): Long = {
-    assert(value != null)
-    ptype.unstagedStoreJavaObject(HailStateManager(rgs), value, r)
-  }
+  def unsafeReadAnyRef(t: PType, region: Region, offset: Long): AnyRef =
+    UnsafeRow.readAnyRef(t, region, offset)
+
+  def safeReadAnyRef(t: PType, region: Region, offset: Long): AnyRef =
+    SafeRow.readAnyRef(t, region, offset)
 }
 
 abstract class RegistryFunctions {
@@ -424,13 +419,9 @@ abstract class RegistryFunctions {
       case _: TBaseStruct =>
         val sst = st.asInstanceOf[SBaseStructPointer]
         val pt = sst.pType.asInstanceOf[PCanonicalBaseStruct]
-        val addr = cb.memoize(Code.invokeScalaObject4[Map[
-          String,
-          ReferenceGenome,
-        ], Region, Row, PType, Long](
+        val addr = cb.memoize(Code.invokeScalaObject3[Region, Annotation, PType, Long](
           RegistryHelpers.getClass,
-          "stupidUnwrapStruct",
-          cb.emb.ecb.emodb.referenceGenomeMap,
+          "stupidUnwrapJavaObject",
           r.region,
           coerce[Row](value),
           cb.emb.ecb.getPType(pt),
@@ -442,13 +433,9 @@ abstract class RegistryFunctions {
       case TArray(_: TBaseStruct) =>
         val ast = st.asInstanceOf[SIndexablePointer]
         val pca = ast.pType.asInstanceOf[PCanonicalArray]
-        val array = cb.memoize(Code.invokeScalaObject4[Map[
-          String,
-          ReferenceGenome,
-        ], Region, IndexedSeq[Annotation], PType, Long](
+        val array = cb.memoize(Code.invokeScalaObject3[Region, Annotation, PType, Long](
           RegistryHelpers.getClass,
-          "stupidUnwrapArray",
-          cb.emb.ecb.emodb.referenceGenomeMap,
+          "stupidUnwrapJavaObject",
           r.region,
           coerce[IndexedSeq[Annotation]](value),
           cb.emb.ecb.getPType(pca),

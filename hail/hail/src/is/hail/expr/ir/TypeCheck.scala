@@ -30,21 +30,16 @@ object TypeCheck extends Logging {
       }
     }
 
-  def check(ctx: ExecuteContext, ir: BaseIR, env: BindingEnv[Type]): StackFrame[Unit] = {
+  def check(ctx: ExecuteContext, ir: BaseIR, env: BindingEnv[Type]): StackFrame[Unit] =
     for {
-      _ <- ir.forEachChildWithEnvStackSafe(env) { (child, i, childEnv) =>
-        for {
-          _ <- call(check(ctx, child, childEnv))
-        } yield
-          if (child.typ == TVoid) {
-            checkVoidTypedChild(ctx, ir, i, env)
-          } else ()
+      _ <- ir.forEachChildWithEnvStackSafe(env)((_, t) => t) { (child, i, childEnv) =>
+        check(ctx, child, childEnv).map { _ =>
+          if (child.typ == TVoid) checkVoidTypedChild(ctx, ir, i)
+        }
       }
     } yield checkSingleNode(ctx, ir, env)
-  }
 
-  private def checkVoidTypedChild(ctx: ExecuteContext, ir: BaseIR, i: Int, env: BindingEnv[Type])
-    : Unit = ir match {
+  private def checkVoidTypedChild(ctx: ExecuteContext, ir: BaseIR, i: Int): Unit = ir match {
     case l: Block if i == l.bindings.length || l.body.typ == TVoid =>
     case _: StreamFor if i == 1 =>
     case _: RunAggScan if (i == 1 || i == 2) =>
@@ -502,8 +497,10 @@ object TypeCheck extends Logging {
       case _: SerializeAggs =>
       case _: DeserializeAggs =>
       case x @ ApplyAggOp(_, seqOpArgs, op) =>
+        assert(env.agg.isDefined, "ApplyAggOp outside an agg scope")
         assert(x.typ == AggOp.getReturnType(op, seqOpArgs.map(_.typ)))
       case x @ ApplyScanOp(_, seqOpArgs, op) =>
+        assert(env.scan.isDefined, "ApplyScanOp outside a scan scope")
         assert(x.typ == AggOp.getReturnType(op, seqOpArgs.map(_.typ)))
       case AggFold(zero, seqOp, combOp, _, _, _) =>
         assert(zero.typ == seqOp.typ)

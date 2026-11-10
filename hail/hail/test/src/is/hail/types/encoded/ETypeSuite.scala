@@ -3,19 +3,27 @@ package is.hail.types.encoded
 import is.hail.ParameterizedTest
 import is.hail.TestUtils._
 import is.hail.annotations.{Annotation, Region, RowSeq, SafeNDArray, SafeRow}
-import is.hail.asm4s.Code
+import is.hail.asm4s._
+import is.hail.asm4s.implicits.valueToRichCodeRegion
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
 import is.hail.expr.ir.EmitFunctionBuilder
 import is.hail.io._
 import is.hail.rvd.AbstractRVDSpec
+import is.hail.scalacheck._
 import is.hail.types.physical._
+import is.hail.types.physical.LocusRepresentations._
+import is.hail.types.physical.stypes.concrete.{SCanonicalLocusPointer, SPackedLocus}
 import is.hail.types.virtual._
+import is.hail.variant.{Locus, ReferenceGenome, ReferenceGenomeEnv}
+import is.hail.variant.BuiltinLoci.{pcanonicalLocus, tlocus}
 
 import scala.collection.immutable.ArraySeq
 
+import org.json4s.Formats
 import org.json4s.jackson.Serialization
 import org.junit.jupiter.api.Test
+import org.scalacheck.Prop.forAll
 
 class ETypeSuite {
 
@@ -57,19 +65,11 @@ class ETypeSuite {
       required = true,
     ),
     ENDArrayColumnMajor(EFloat64Required, 3),
-    EStructOfArrays(
-      FastSeq(
-        EField("a", EArray(EInt32Required, true), 0),
-        EField("b", EArray(EInt32Optional, true), 1),
-      ),
-      required = true,
-      structRequired = false,
-    ),
   )
 
   @ParameterizedTest
   def testSerialization(etype: EType): Unit = {
-    implicit val formats = AbstractRVDSpec.formats
+    implicit val formats: Formats = AbstractRVDSpec.formats(ReferenceGenomeEnv.empty)
     val s = Serialization.write(etype)
     assertEq(Serialization.read[EType](s), etype)
   }
@@ -90,7 +90,7 @@ class ETypeSuite {
       Code._empty
     }
 
-    val x = inPType.unstagedStoreJavaObject(ctx.stateManager, data, ctx.r)
+    val x = inPType.unstagedStoreJavaObject(data, ctx.r)
 
     val buffer = new MemoryBuffer
     val ob = new MemoryOutputBuffer(buffer)
@@ -299,7 +299,7 @@ class ETypeSuite {
       TArray(TInt64),
       TArray(TCall),
       TStruct("a" -> TInt32, "b" -> TInt64, "c" -> TCall),
-      TLocus("GRCh37"),
+      tlocus("GRCh37"),
       TInterval(TInt32),
       TDict(TInt32, TInt64),
       TSet(TInt32),
@@ -318,34 +318,167 @@ class ETypeSuite {
       assertNoVarint(EType.fromPythonTypeEncoding(t), t)
   }
 
-  @Test def testStructOfArrays(implicit ctx: ExecuteContext): Unit = {
-    val etype =
-      EStructOfArrays(
-        FastSeq(
-          EField("a", EArray(EInt32Required, true), 0),
-          EField("b", EArray(EFloat32Optional, true), 1),
-          EField("c", EArray(EBooleanRequired, true), 2),
-        )
-      )
-    val toEncode =
-      PCanonicalArray(PCanonicalStruct(
-        false,
-        "a" -> PInt32Required,
-        "b" -> PFloat32Optional,
-        "c" -> PBooleanRequired,
-      ))
-    val toDecode = toEncode
-    val data = FastSeq(
-      RowSeq(1, 2f, true),
-      null,
-      RowSeq(3, null, false),
-      RowSeq(4, 5f, true),
-      null,
-      RowSeq(6, 7f, false),
-      RowSeq(8, null, true),
-      RowSeq(9, 10f, false),
+  // Loci of either representation, nested anywhere, decode and store into either representation,
+  // on the same reference genome or an equal copy of it. The session does not hold the custom
+  // reference genome: locus types carry their own.
+  private def checkLocusRepresentationsEncodeDecode(implicit ctx: ExecuteContext): Unit =
+    for (rg <- references)
+      check(forAll(genPTypeValOn(ctx, rg)) { case (pt, a) =>
+        for ((in, out) <- representationPairs(pt, rg)) {
+          val et = EType.defaultFromPType(ctx, in)
+          assert(pt.virtualType.valuesSimilar(encodeDecode(in, et, out, a), a), s"$in -> $out")
+        }
+        true
+      })
+
+  @Test def testLocusRepresentationsEncodeDecode(implicit ctx: ExecuteContext): Unit =
+    withStableEncodings(checkLocusRepresentationsEncodeDecode(_))
+
+  @Test def testLocusRepresentationsEncodeDecodeWithUnstableEncodings(implicit ctx: ExecuteContext)
+    : Unit =
+    withUnstableEncodings(checkLocusRepresentationsEncodeDecode(_))
+
+  private def structEncodedLocus(required: Boolean): EType =
+    EBaseStruct(
+      FastSeq(EField("contig", EBinaryRequired, 0), EField("position", EVarintRequired, 1)),
+      required,
     )
 
-    assertEqualEncodeDecode(toEncode, etype, toDecode, data)
+  @Test def testVarintDecodesLocusToPackedLocus(): Unit = {
+    val t = tlocus(ReferenceGenome.GRCh38)
+    for (et <- ArraySeq[EType](EVarintOptional, EVarintRequired))
+      assertEq(et.decodedSType(t), SPackedLocus(t.rg))
+
+    assertEq(
+      structEncodedLocus(required = true).decodedSType(t),
+      SCanonicalLocusPointer(PCanonicalLocus(t.rg, false)),
+    )
   }
+
+  private def unstagedEncodeDecode(ctx: ExecuteContext, pt: PType, et: EType, a: Annotation)
+    : Annotation = {
+    val codec = TypedCodecSpec(et, pt.virtualType, BufferSpec.wireSpec)
+    val bytes =
+      codec.encodeValue(ctx, pt, pt.unstagedStoreJavaObject(a, ctx.r))
+    val (decodedPType, addr) = codec.decode(ctx, pt.virtualType, bytes, ctx.r)
+    SafeRow.read(decodedPType, addr)
+  }
+
+  // Unstaged codecs convert between locus representations, which needs reference genomes.
+  @Test def testUnstagedCodecsConvertLocusRepresentations(implicit ctx: ExecuteContext): Unit =
+    for {
+      rg <- references
+      locus <- ArraySeq[PType](PCanonicalLocus(rg, true), PPackedLocus(rg, true))
+      pt <- ArraySeq(locus, PCanonicalStruct(true, "l" -> locus), PCanonicalArray(locus, true))
+      et <- ArraySeq(
+        withUnstableEncodings(EType.defaultFromPType(_, pt)),
+        EType.fromPythonTypeEncoding(pt.virtualType),
+      )
+    } check(forAll(genVal(ctx, pt))(a => unstagedEncodeDecode(ctx, pt, et, a) == a))
+
+  // Unstaged codecs are cached across sessions, and two sessions may define different reference
+  // genomes with one name. The codecs use the reference genome of the type they are built for.
+  @Test def testUnstagedCodecsUseTheTypesReferenceGenome(implicit ctx: ExecuteContext): Unit = {
+    val reordered = ReferenceGenome(
+      customReference.name,
+      ArraySeq("a", "b", "c"),
+      Map("a" -> 100, "b" -> 2000, "c" -> 30000),
+    )
+    val l = Locus("a", 5)
+    for (rg <- ArraySeq(customReference, reordered))
+      assertEq(unstagedEncodeDecode(ctx, PCanonicalLocus(rg, true), EVarintRequired, l), l)
+  }
+
+  @Test def testVarintEncodedLocusRoundTrip(implicit ctx: ExecuteContext): Unit =
+    for {
+      rg <- references
+      (in, out) <- representationPairs(PCanonicalLocus(rg, true), rg)
+    } check(forAll(genLocus(rg))(l => encodeDecode(in, EVarintRequired, out, l) == l))
+
+  // The ETypes chosen for the loci in `t`, wherever they are nested.
+  private def locusETypes(t: Type, et: EType): Seq[EType] = (t, et) match {
+    case (_: TLocus, _) => Seq(et)
+    case (t: TInterval, et: EBaseStruct) =>
+      locusETypes(t.pointType, et.fields(0).typ) ++ locusETypes(t.pointType, et.fields(1).typ)
+    case (t: TIterable, et: EContainer) => locusETypes(t.elementType, et.elementType)
+    case (t: TBaseStruct, et: EBaseStruct) =>
+      t.types.toSeq.lazyZip(et.fields).flatMap((ft, f) => locusETypes(ft, f.typ))
+    case _ => Seq()
+  }
+
+  @Test def testUnstableEncodingsEncodeLociAsVarint(implicit ctx: ExecuteContext): Unit = {
+    val locus = pcanonicalLocus(ReferenceGenome.GRCh38, true)
+    val types = ArraySeq[PType](
+      locus,
+      pcanonicalLocus(ReferenceGenome.GRCh38, false),
+      PCanonicalInterval(locus, true),
+      PCanonicalArray(locus, true),
+      PCanonicalSet(locus, true),
+      PCanonicalDict(locus, locus, true),
+      PCanonicalStruct(
+        true,
+        "l" -> locus,
+        "rows" -> PCanonicalArray(PCanonicalStruct(true, "l" -> locus, "i" -> PInt32Required)),
+      ),
+      PCanonicalTuple(true, PCanonicalArray(PCanonicalInterval(locus))),
+    )
+
+    for {
+      pt <- types
+      in <- ArraySeq(pt, toPacked(pt))
+    } {
+      val stable = withStableEncodings(EType.defaultFromPType(_, in))
+      val unstable = withUnstableEncodings(EType.defaultFromPType(_, in))
+      val stableLoci = locusETypes(pt.virtualType, stable)
+      val unstableLoci = locusETypes(pt.virtualType, unstable)
+      assert(stableLoci.nonEmpty && stableLoci.size == unstableLoci.size, s"$in")
+      for ((s, u) <- stableLoci.lazyZip(unstableLoci)) {
+        assertEq(s, structEncodedLocus(s.required), s"$in")
+        assertEq(u, EVarint(s.required), s"$in")
+      }
+    }
+  }
+
+  @Test def testPythonEncodingOfPackedLoci(implicit ctx: ExecuteContext): Unit =
+    for (rg <- references) {
+      val packed = PPackedLocus(rg, true)
+      val types = ArraySeq[PType](
+        packed,
+        PCanonicalStruct(true, "l" -> packed),
+        PCanonicalArray(packed, true),
+        PCanonicalInterval(packed, true),
+      )
+      for (pt <- types) {
+        val et = EType.fromPythonTypeEncoding(pt.virtualType)
+        check(forAll(genVal(ctx, pt))(a => encodeDecode(pt, et, toCanonical(pt), a) == a))
+      }
+    }
+
+  @Test def testStructEncodedLocusDecodesInPlaceToPackedLocus(implicit ctx: ExecuteContext): Unit =
+    for (rg <- references) {
+      val canonical = PCanonicalLocus(rg, true)
+      val packed = PPackedLocus(rg, true)
+      val et = EType.defaultFromPType(ctx, canonical)
+
+      val fb = EmitFunctionBuilder[Region, InputBuffer, Long](ctx, "inplace")
+      fb.emitWithBuilder[Long] { cb =>
+        val region = fb.apply_method.getCodeParam[Region](1)
+        val in = fb.apply_method.getCodeParam[InputBuffer](2)
+        val addr = cb.memoize(region.allocate(packed.alignment, packed.byteSize))
+        et.buildInplaceDecoder(packed, fb.ecb)(cb, region, addr, in)
+        addr
+      }
+      val decode = fb.resultWithIndex()(ctx.theHailClassLoader, ctx.fs, ctx.taskContext, ctx.r)
+
+      check(forAll(genLocus(rg)) { l =>
+        val buffer = new MemoryBuffer
+        val ob = new MemoryOutputBuffer(buffer)
+        val enc = et.buildEncoder(ctx, canonical)(ob, ctx.theHailClassLoader)
+        enc.writeRegionValue(ctx.r, canonical.unstagedStoreJavaObject(l, ctx.r))
+        enc.flush()
+        buffer.clearPos()
+        val addr = decode(ctx.r, new MemoryInputBuffer(buffer))
+        SafeRow.read(packed, addr) == l
+      })
+    }
 }

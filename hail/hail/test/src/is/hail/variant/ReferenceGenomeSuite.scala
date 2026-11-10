@@ -1,16 +1,34 @@
 package is.hail.variant
 
 import is.hail.TestUtils._
-import is.hail.backend.{ExecuteContext, HailStateManager}
-import is.hail.expr.ir.EmitFunctionBuilder
-import is.hail.io.reference.{FASTAReader, FASTAReaderConfig, LiftOver}
+import is.hail.annotations.{Region, SafeRow, UnsafeRow}
+import is.hail.asm4s.{classInfo, AsmFunction2RegionLongLong, Code, LongInfo}
+import is.hail.backend.ExecuteContext
+import is.hail.collection.FastSeq
+import is.hail.expr.ir.{
+  freshName, invoke, Compile, CompileCache, EmitFunctionBuilder, FunctionWithRgAttachments,
+  SingleCodeEmitParamType,
+}
+import is.hail.expr.ir.defs.{F64, GetTupleElement, I32, MakeTuple, Ref}
+import is.hail.io.reference.{
+  FASTAReader, FASTAReaderConfig, Liftover, ReferenceSequence, RgAttachments,
+}
 import is.hail.scalacheck.{genLocus, genNonMissing}
-import is.hail.types.virtual.{TInterval, TLocus}
+import is.hail.types.physical.{
+  PBaseStruct, PCanonicalLocus, PCanonicalString, PCanonicalStruct, PCanonicalTuple, PPackedLocus,
+}
+import is.hail.types.physical.stypes.PTypeReferenceSingleCodeType
+import is.hail.types.virtual.{TBoolean, TInterval, TLocus, TString, TStruct}
 import is.hail.utils._
+import is.hail.variant.BuiltinLoci.{builtin, pcanonicalLocus, tlocus}
 
 import scala.collection.immutable.ArraySeq
+import scala.collection.mutable
+
+import java.io.{ByteArrayInputStream, ByteArrayOutputStream, ObjectInputStream, ObjectOutputStream}
 
 import htsjdk.samtools.reference.ReferenceSequenceFileFactory
+import org.apache.spark.sql.Row
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.scalacheck.Prop.forAll
@@ -18,7 +36,6 @@ import org.scalacheck.Prop.forAll
 class ReferenceGenomeSuite {
 
   @Test def testGRCh37(implicit ctx: ExecuteContext): Unit = {
-    assertTrue(ctx.references.contains(ReferenceGenome.GRCh37))
     val grch37 = ctx.references(ReferenceGenome.GRCh37)
 
     assertTrue(grch37.inX("X"))
@@ -38,7 +55,6 @@ class ReferenceGenomeSuite {
   }
 
   @Test def testGRCh38(implicit ctx: ExecuteContext): Unit = {
-    assertTrue(ctx.references.contains(ReferenceGenome.GRCh38))
     val grch38 = ctx.references(ReferenceGenome.GRCh38)
 
     assertTrue(grch38.inX("chrX"))
@@ -55,6 +71,12 @@ class ReferenceGenomeSuite {
     assertTrue(parYLocus38.forall(grch38.inYPar))
     assertTrue(!nonParXLocus38.forall(grch38.inXPar))
     assertTrue(!nonParYLocus38.forall(grch38.inYPar))
+  }
+
+  @Test def testContigIndex(): Unit = {
+    val rg = ReferenceGenome("test", ArraySeq("a", "b", "c"), Map("a" -> 25, "b" -> 15, "c" -> 10))
+    assertEq(rg.contigs.map(rg.getContigIndex), ArraySeq(0, 1, 2))
+    interceptFatal("Contig 'd' is not in the reference genome 'test'")(rg.getContigIndex("d"))
   }
 
   @Test def testAssertions(): Unit = {
@@ -159,7 +181,7 @@ class ReferenceGenomeSuite {
     val indexFile = ctx.fs.makeQualified(getTestResource("fake_reference.fasta.fai"))
 
     val rg = ReferenceGenome("test", ArraySeq("a", "b", "c"), Map("a" -> 25, "b" -> 15, "c" -> 10))
-    ctx.local(references = ctx.references + (rg.name -> rg)) { ctx =>
+    ctx.local(references = ctx.references.withReferences(Seq(rg))) { ctx =>
       val fr = FASTAReaderConfig(ctx.localTmpdir, ctx.fs, rg, fastaFile, indexFile, 3, 5).reader
       val refReaderPath =
         FASTAReader.getLocalFastaFile(ctx.localTmpdir, ctx.fs, fastaFile, indexFile)
@@ -174,12 +196,12 @@ class ReferenceGenomeSuite {
         assertEq(fr.lookup(contig, pos, 0, 0), expected)
       })
 
-      check(forAll(genNonMissing(ctx, TInterval(TLocus(rg.name)))) {
+      check(forAll(genNonMissing(ctx, TInterval(TLocus(rg)))) {
         case i: Interval =>
           val start = i.start.asInstanceOf[Locus]
           val end = i.end.asInstanceOf[Locus]
 
-          val ordering = TLocus(rg.name).ordering(HailStateManager(Map(rg.name -> rg)))
+          val ordering = TLocus(rg).ordering
 
           def getHtsjdkIntervalSequence: String = {
             val sb = new StringBuilder
@@ -193,10 +215,10 @@ class ReferenceGenomeSuite {
                 endPos.toLong,
               ).getBaseString
               pos =
-                if (rg.contigsIndex.get(pos.contig) == rg.contigs.length - 1)
+                if (rg.getContigIndex(pos.contig) == rg.contigs.length - 1)
                   null
                 else
-                  Locus(rg.contigs(rg.contigsIndex.get(pos.contig) + 1), 1)
+                  Locus(rg.contigs(rg.getContigIndex(pos.contig) + 1), 1)
             }
             sb.result()
           }
@@ -245,7 +267,7 @@ class ReferenceGenomeSuite {
   @Test def testSerializeOnFB(implicit ctx: ExecuteContext): Unit = {
     val grch38 = ctx.references(ReferenceGenome.GRCh38)
     val fb = EmitFunctionBuilder[String, Boolean](ctx, "serialize_rg")
-    val rgfield = fb.getReferenceGenome(grch38.name)
+    val rgfield = fb.getReferenceGenome(grch38)
     fb.emit(rgfield.invoke[String, Boolean]("isValidContig", fb.getCodeParam[String](1)))
     ctx.scopedExecution { (cl, fs, tc, r) =>
       val f = fb.resultWithIndex()(cl, fs, tc, r)
@@ -253,33 +275,436 @@ class ReferenceGenomeSuite {
     }
   }
 
-  @Test def testSerializeWithLiftoverOnFB(implicit ctx: ExecuteContext): Unit =
-    ctx.local(references = ReferenceGenome.builtinReferences()) { ctx =>
-      val grch37 = ctx.references(ReferenceGenome.GRCh37)
-      val liftoverFile = getTestResource("grch37_to_grch38_chr20.over.chain.gz")
+  private def liftoverGRCh37ToGRCh38(implicit ctx: ExecuteContext): Liftover =
+    Liftover(
+      ctx.fs,
+      ctx.references(ReferenceGenome.GRCh37),
+      ctx.references(ReferenceGenome.GRCh38),
+      getTestResource("grch37_to_grch38_chr20.over.chain.gz"),
+    )
 
-      grch37.addLiftover(ctx.references("GRCh38"), LiftOver(ctx.fs, liftoverFile))
-
-      val fb =
-        EmitFunctionBuilder[String, Locus, Double, (Locus, Boolean)](ctx, "serialize_with_liftover")
-      val rgfield = fb.getReferenceGenome(grch37.name)
-      fb.emit(rgfield.invoke[String, Locus, Double, (Locus, Boolean)](
-        "liftoverLocus",
-        fb.getCodeParam[String](1),
-        fb.getCodeParam[Locus](2),
-        fb.getCodeParam[Double](3),
+  @Test def testSerializeWithLiftoverOnFB(implicit ctx: ExecuteContext): Unit = {
+    val liftover = liftoverGRCh37ToGRCh38
+    ctx.local(attachments = RgAttachments.empty.withLiftover(liftover)) { ctx =>
+      val fb = EmitFunctionBuilder[Locus, Double, (Locus, Boolean)](ctx, "serialize_with_liftover")
+      fb.emit(fb.getLiftover(liftover.source, liftover.dest).invoke[
+        Locus,
+        Double,
+        (Locus, Boolean),
+      ](
+        "queryLocus",
+        fb.getCodeParam[Locus](1),
+        fb.getCodeParam[Double](2),
       ))
 
       ctx.scopedExecution { (cl, fs, tc, r) =>
         val f = fb.resultWithIndex()(cl, fs, tc, r)
-        assertEq(
-          f("GRCh38", Locus("20", 60001), 0.95),
-          grch37.liftoverLocus(
-            "GRCh38",
-            Locus("20", 60001),
-            0.95,
+        assertEq(f(Locus("20", 60001), 0.95), (Locus("chr20", 79360), false))
+      }
+    }
+  }
+
+  private def serialize(o: AnyRef): Array[Byte] = {
+    val bytes = new ByteArrayOutputStream()
+    using(new ObjectOutputStream(bytes))(_.writeObject(o))
+    bytes.toByteArray
+  }
+
+  private def roundTrip[A <: AnyRef](a: A): A =
+    using(new ObjectInputStream(new ByteArrayInputStream(serialize(a))))(_.readObject())
+      .asInstanceOf[A]
+
+  // Batch deserializes every closure in every task, so this bounds the per-task cost of shipping
+  // the builtin genomes held by locus types there.
+  @Test def testBuiltinReferencesSerializeSmall(): Unit = {
+    val size =
+      serialize(ReferenceGenome.builtinReferences().values.map(TLocus(_)).toIndexedSeq).length
+    assertTrue(size < 2048, s"serialized size $size")
+  }
+
+  @Test def testBuiltinResolvesToTheCache(): Unit = {
+    val grch38 = ReferenceGenome.builtinReferences()(ReferenceGenome.GRCh38)
+    assertTrue(roundTrip(grch38) eq grch38)
+  }
+
+  @Test def testBuiltinsResolveToOneCachedGenome(): Unit =
+    for (name <- ReferenceGenome.hailReferences) {
+      val cached = ReferenceGenome.builtinReferences()(name)
+      assertTrue(ReferenceGenomeEnv.empty.resolve(name) eq cached)
+      assertTrue(ReferenceGenomeEnv(Seq.empty).resolve(name) eq cached)
+      assertTrue(ReferenceGenome.builtinReferences()(name) eq cached)
+    }
+
+  @Test def testEqualityIsStructural(): Unit = {
+    def mk(lengths: Map[String, Int]): ReferenceGenome =
+      ReferenceGenome(
+        "test",
+        ArraySeq("1", "2", "X"),
+        lengths,
+        xContigs = Set("X"),
+        parInput = ArraySeq((Locus("X", 2), Locus("X", 5))),
+      )
+
+    val a = mk(Map("1" -> 10, "2" -> 20, "X" -> 30))
+    val b = mk(Map("1" -> 10, "2" -> 20, "X" -> 30))
+    val different = mk(Map("1" -> 10, "2" -> 21, "X" -> 30))
+
+    assertTrue(a ne b)
+    assertEq(a, b)
+    assertEq(a.hashCode, b.hashCode)
+    assertTrue(a != different)
+    assertTrue(different != a)
+  }
+
+  // A builtin is identified by identity with the cache, never by name.
+  @Test def testUserGenomeWithBuiltinNameSerializesInline(): Unit = {
+    val impostor = ReferenceGenome(
+      ReferenceGenome.GRCh38,
+      ArraySeq("chr2", "chr1", "chrX"),
+      Map("chr1" -> 10, "chr2" -> 20, "chrX" -> 30),
+      xContigs = Set("chrX"),
+      parInput = ArraySeq((Locus("chrX", 2), Locus("chrX", 5))),
+    )
+    val result = roundTrip(impostor)
+    assertTrue(result ne impostor)
+    assertTrue(result ne ReferenceGenome.builtinReferences()(ReferenceGenome.GRCh38))
+    assertEq(result, impostor)
+    assertEq(result.contigs, ArraySeq("chr2", "chr1", "chrX"))
+    assertEq(result.getContigIndex("chr1"), 1)
+    assertEq(result.contigLength("chrX"), 30)
+    assertTrue(result.inXPar(Locus("chrX", 3)))
+    assertTrue(!result.inXPar(Locus("chrX", 6)))
+  }
+
+  // Compiled reaches Spark and Batch tasks by Java serialization, and each task instantiates it
+  // with its own FS. The session also holds a liftover from the same source genome whose chain file
+  // is gone: code that does not use it must neither ship nor restore it.
+  @Test def testLiftoverSurvivesCompiledRoundTrip(implicit ctx: ExecuteContext): Unit = {
+    val used = liftoverGRCh37ToGRCh38
+    val test38 = ctx.references(ReferenceGenome.GRCh38).copy(name = "test38")
+    val goneChain = ctx.createTmpPath("liftover", "over.chain.gz")
+    ctx.fs.copy(getTestResource("grch37_to_grch38_chr20.over.chain.gz"), goneChain)
+    val unused = Liftover(ctx.fs, ctx.references(ReferenceGenome.GRCh37), test38, goneChain)
+    ctx.fs.delete(goneChain, recursive = false)
+
+    ctx.local(
+      references = ctx.references.withReferences(Seq(test38)),
+      attachments = RgAttachments.empty.withLiftover(used).withLiftover(unused),
+    ) { ctx =>
+      val argsPType = PCanonicalTuple(true, pcanonicalLocus(ReferenceGenome.GRCh37, true))
+      val args = Ref(freshName(), argsPType.virtualType)
+      val lifted = invoke(
+        "liftoverLocus",
+        TStruct("result" -> tlocus(ReferenceGenome.GRCh38), "is_negative_strand" -> TBoolean),
+        GetTupleElement(args, 0),
+        F64(0.95),
+      )
+      val (Some(PTypeReferenceSingleCodeType(rt: PBaseStruct)), compiled) =
+        Compile[AsmFunction2RegionLongLong](
+          ctx,
+          FastSeq(
+            args.name -> SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(argsPType))
           ),
+          FastSeq(classInfo[Region], LongInfo),
+          LongInfo,
+          MakeTuple.ordered(FastSeq(lifted)),
+        ): @unchecked
+
+      val shipped = roundTrip(compiled)
+      ctx.scopedExecution { (hcl, fs, tc, r) =>
+        val argsOff =
+          argsPType.unstagedStoreJavaObject(Row(Locus("20", 60001)), r)
+        val off = shipped(hcl, fs, tc, r)(r, argsOff)
+        assertEq(
+          SafeRow(rt, off).get(0),
+          Row(Locus("chr20", 79360), false),
         )
       }
     }
+  }
+
+  // A module ships its attachments and the genomes they hold in one closure, so after a round trip
+  // an attachment holds the very genomes the module's types do. User-defined genomes are used here
+  // because a builtin resolves to the cached copy whatever the stream holds.
+  @Test def testShippedLiftoverHoldsTheShippedGenomes(implicit ctx: ExecuteContext): Unit = {
+    val src = ctx.references(ReferenceGenome.GRCh37).copy(name = "src")
+    val dest = ctx.references(ReferenceGenome.GRCh38).copy(name = "dest")
+    val liftover =
+      Liftover(ctx.fs, src, dest, getTestResource("grch37_to_grch38_chr20.over.chain.gz"))
+
+    ctx.local(
+      references = ctx.references.withReferences(Seq(src, dest)),
+      attachments = RgAttachments.empty.withLiftover(liftover),
+    ) { ctx =>
+      val fb = EmitFunctionBuilder[(AnyRef, AnyRef, AnyRef)](ctx, "ship_liftover")
+      fb.emit(Code.newInstance[(AnyRef, AnyRef, AnyRef), AnyRef, AnyRef, AnyRef](
+        fb.getLiftover(src, dest).get,
+        fb.getReferenceGenome(src).get,
+        fb.getReferenceGenome(dest).get,
+      ))
+
+      val shipped = roundTrip(fb.resultWithIndex())
+      ctx.scopedExecution { (hcl, fs, tc, r) =>
+        val (lo: Liftover, shippedSrc, shippedDest) = shipped(hcl, fs, tc, r)(): @unchecked
+        assertTrue(lo ne liftover)
+        assertTrue(shippedSrc ne src)
+        assertTrue(lo.source eq shippedSrc)
+        assertTrue(lo.dest eq shippedDest)
+        assertEq(lo.queryLocus(Locus("20", 60001)), (Locus("chr20", 79360), false))
+      }
+    }
+  }
+
+  @Test def testShippedSequenceHoldsTheShippedGenome(implicit ctx: ExecuteContext): Unit = {
+    val seq = fakeReferenceSequence(fakeGenome)
+
+    ctx.local(
+      references = ctx.references.withReferences(Seq(fakeGenome)),
+      attachments = RgAttachments.empty.withSequence(seq),
+    ) { ctx =>
+      val fb = EmitFunctionBuilder[(AnyRef, AnyRef)](ctx, "ship_sequence")
+      fb.emit(Code.newInstance[(AnyRef, AnyRef), AnyRef, AnyRef](
+        fb.getReferenceSequence(fakeGenome).get,
+        fb.getReferenceGenome(fakeGenome).get,
+      ))
+
+      val shipped = roundTrip(fb.resultWithIndex())
+      ctx.scopedExecution { (hcl, fs, tc, r) =>
+        val (shippedSeq: ReferenceSequence, shippedRg) = shipped(hcl, fs, tc, r)(): @unchecked
+        assertTrue(shippedSeq ne seq)
+        assertTrue(shippedRg ne fakeGenome)
+        assertTrue(shippedSeq.rg eq shippedRg)
+        assertEq(shippedSeq.lookup("c", 5, 10, 10), "GGATCCGTGC")
+      }
+    }
+  }
+
+  // A module ships each reference genome attachment it uses once, whatever its kind, and restores
+  // each before use.
+  @Test def testModuleShipsEachRgAttachmentOnce(implicit ctx: ExecuteContext): Unit = {
+    val liftover = liftoverGRCh37ToGRCh38
+    val seq = fakeReferenceSequence(fakeGenome)
+
+    ctx.local(
+      references = ctx.references.withReferences(Seq(fakeGenome)),
+      attachments = RgAttachments.empty.withLiftover(liftover).withSequence(seq),
+    ) { ctx =>
+      val fb = EmitFunctionBuilder[(AnyRef, AnyRef, AnyRef)](ctx, "ship_attachments")
+      fb.emit(Code.newInstance[(AnyRef, AnyRef, AnyRef), AnyRef, AnyRef, AnyRef](
+        fb.getLiftover(liftover.source, liftover.dest).get,
+        fb.getReferenceSequence(fakeGenome).get,
+        fb.getLiftover(liftover.source, liftover.dest).get,
+      ))
+      assertEq(fb.emodb.rgAttachments(), ArraySeq(liftover, seq))
+
+      val shipped = roundTrip(fb.resultWithIndex())
+      ctx.scopedExecution { (hcl, fs, tc, r) =>
+        val (lo: Liftover, shippedSeq: ReferenceSequence, _) = shipped(hcl, fs, tc, r)(): @unchecked
+        assertTrue(lo ne liftover)
+        assertTrue(shippedSeq ne seq)
+        assertEq(lo.queryLocus(Locus("20", 60001)), (Locus("chr20", 79360), false))
+        assertEq(shippedSeq.lookup("c", 5, 10, 10), "GGATCCGTGC")
+      }
+    }
+  }
+
+  @Test def testAddRgAttachmentsChecksLength(implicit ctx: ExecuteContext): Unit = {
+    val liftover = liftoverGRCh37ToGRCh38
+    ctx.local(attachments = RgAttachments.empty.withLiftover(liftover)) { ctx =>
+      val fb = EmitFunctionBuilder[Liftover](ctx, "add_attachments")
+      fb.emit(fb.getLiftover(liftover.source, liftover.dest).get)
+      ctx.scopedExecution { (hcl, fs, tc, r) =>
+        val f = fb.resultWithIndex()(hcl, fs, tc, r).asInstanceOf[FunctionWithRgAttachments]
+        interceptFatal("Invalid number of reference genome attachments, expected 1 got 2") {
+          f.addRgAttachments(Array(liftover, liftover))
+        }
+      }
+    }
+  }
+
+  // Compiled code holds the attachments it uses, so the compile cache must miss when the session's
+  // attachments differ, even if the IR does not.
+  @Test def testCompileCacheKeysOnAttachments(implicit ctx: ExecuteContext): Unit = {
+    val argsPType = PCanonicalTuple(true, pcanonicalLocus(ReferenceGenome.GRCh37, true))
+    val args = Ref(freshName(), argsPType.virtualType)
+    val body = MakeTuple.ordered(FastSeq(invoke(
+      "liftoverLocus",
+      TStruct("result" -> tlocus(ReferenceGenome.GRCh38), "is_negative_strand" -> TBoolean),
+      GetTupleElement(args, 0),
+      F64(0.95),
+    )))
+
+    val cache: CompileCache = mutable.HashMap.empty
+    def compileWith(attachments: RgAttachments): AnyRef =
+      ctx.local(attachments = attachments, codeCache = cache) { ctx =>
+        Compile[AsmFunction2RegionLongLong](
+          ctx,
+          FastSeq(
+            args.name -> SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(argsPType))
+          ),
+          FastSeq(classInfo[Region], LongInfo),
+          LongInfo,
+          body,
+        )._2
+      }
+
+    val liftover = liftoverGRCh37ToGRCh38
+    val compiled = compileWith(RgAttachments.empty.withLiftover(liftover))
+    assertTrue(compileWith(RgAttachments.empty.withLiftover(liftover)) eq compiled)
+    assertTrue(compileWith(RgAttachments.empty.withLiftover(liftoverGRCh37ToGRCh38)) ne compiled)
+  }
+
+  // Qualified for the same reason as in testFasta.
+  private def fakeReferenceSequence(rg: ReferenceGenome)(implicit ctx: ExecuteContext)
+    : ReferenceSequence =
+    ReferenceSequence(
+      ctx.fs,
+      rg,
+      ctx.fs.makeQualified(getTestResource("fake_reference.fasta")),
+      ctx.fs.makeQualified(getTestResource("fake_reference.fasta.fai")),
+    )
+
+  private val fakeGenome: ReferenceGenome =
+    ReferenceGenome("test", ArraySeq("a", "b", "c"), Map("a" -> 25, "b" -> 15, "c" -> 10))
+
+  @Test def testSequenceSurvivesRoundTrip(implicit ctx: ExecuteContext): Unit = {
+    val seq = roundTrip(fakeReferenceSequence(fakeGenome))
+    seq.restore(ctx.fs, ctx.localTmpdir)
+    assertEq(seq.lookup("c", 5, 10, 10), "GGATCCGTGC")
+  }
+
+  @Test def testSequenceMustMatchItsGenome(implicit ctx: ExecuteContext): Unit = {
+    val shorter = fakeGenome.copy(lengths = fakeGenome.lengths + ("c" -> 9))
+    interceptFatal("Contig sizes in FASTA")(fakeReferenceSequence(shorter))
+  }
+
+  // Compiled ships only the reference sequences it uses, and restores them with the task's FS. The
+  // session also holds a sequence for another genome, whose FASTA path must not be shipped.
+  @Test def testSequenceSurvivesCompiledRoundTrip(implicit ctx: ExecuteContext): Unit = {
+    val used = fakeReferenceSequence(fakeGenome)
+    val otherGenome = fakeGenome.copy(name = "other")
+    val otherFasta = ctx.createTmpPath("unused-sequence", "fasta")
+    ctx.fs.copy(getTestResource("fake_reference.fasta"), otherFasta)
+    val unused = ReferenceSequence(
+      ctx.fs,
+      otherGenome,
+      otherFasta,
+      getTestResource("fake_reference.fasta.fai"),
+    )
+
+    ctx.local(
+      references = ctx.references.withReferences(Seq(fakeGenome, otherGenome)),
+      attachments = RgAttachments.empty.withSequence(used).withSequence(unused),
+    ) { ctx =>
+      val argsPType = PCanonicalTuple(true, PCanonicalString(true))
+      val args = Ref(freshName(), argsPType.virtualType)
+      val seq = invoke(
+        "getReferenceSequence",
+        TString,
+        FastSeq(TLocus(fakeGenome)),
+        GetTupleElement(args, 0),
+        I32(5),
+        I32(10),
+        I32(10),
+      )
+      val (Some(PTypeReferenceSingleCodeType(rt: PBaseStruct)), compiled) =
+        Compile[AsmFunction2RegionLongLong](
+          ctx,
+          FastSeq(
+            args.name -> SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(argsPType))
+          ),
+          FastSeq(classInfo[Region], LongInfo),
+          LongInfo,
+          MakeTuple.ordered(FastSeq(seq)),
+        ): @unchecked
+
+      val bytes = serialize(compiled)
+      assertTrue(!bytes.containsSlice(otherFasta.getBytes("UTF-8")))
+
+      val shipped = roundTrip(compiled)
+      ctx.scopedExecution { (hcl, fs, tc, r) =>
+        val argsOff = argsPType.unstagedStoreJavaObject(Row("c"), r)
+        val off = shipped(hcl, fs, tc, r)(r, argsOff)
+        assertEq(SafeRow(rt, off).get(0), "GGATCCGTGC")
+      }
+    }
+  }
+
+  // Unstaged reads of packed loci name the contig through the reference genome the type carries.
+  @Test def testPackedLocusNamesContigAfterRoundTrip(implicit ctx: ExecuteContext): Unit =
+    for (rg <- ArraySeq(builtin(ReferenceGenome.GRCh38), fakeGenome)) {
+      val l = Locus(rg.contigs.last, 5)
+      val t = PCanonicalStruct(true, "l" -> PPackedLocus(rg, true))
+      val off = t.unstagedStoreJavaObject(Row(l), ctx.r)
+      assertEq(new UnsafeRow(roundTrip(t), ctx.r, off).get(0), l)
+    }
+
+  // Types reach tasks inside closures, so a type on a builtin reference genome must ship it as a
+  // tag: more cheaply than even the smallest user-defined genome, and within the bound on a state
+  // manager holding all the builtins.
+  @Test def testTypesOnBuiltinsSerializeSmall(): Unit = {
+    val smallest = ReferenceGenome("smallest", ArraySeq("1"), Map("1" -> 1))
+    for {
+      n <- ReferenceGenome.hailReferences
+      mk <- ArraySeq[ReferenceGenome => AnyRef](
+        TLocus(_),
+        PCanonicalLocus(_),
+        PPackedLocus(_),
+        PPackedLocus(_).sType,
+      )
+    } {
+      val size = serialize(mk(builtin(n))).length
+      val inlineSize = serialize(mk(smallest)).length
+      assertTrue(size < inlineSize, s"${mk(builtin(n))}: $size, inline: $inlineSize")
+    }
+
+    val all = TStruct(ReferenceGenome.hailReferences.toSeq.sorted.map(n => n -> tlocus(n)): _*)
+    val size = serialize(all).length
+    assertTrue(size < 2048, s"serialized size $size")
+  }
+
+  // Every locus type in a session points at the one reference genome, so a type ships it once, and
+  // its loci still share one reference genome after the round trip.
+  @Test def testTypeShipsItsReferenceGenomeOnce(): Unit = {
+    val rg = builtin(ReferenceGenome.GRCh38).copy(name = "user_defined")
+    val one = TStruct("l" -> TLocus(rg))
+    val many = TStruct((0 until 20).map(i => s"l$i" -> TLocus(rg)): _*)
+    val genomeSize = serialize(rg).length
+    assertTrue(
+      serialize(many).length < serialize(one).length + genomeSize / 2,
+      s"one: ${serialize(one).length}, many: ${serialize(many).length}, genome: $genomeSize",
+    )
+
+    val result = roundTrip(many)
+    assertEq(result, many)
+    val rgs = result.types.map(_.asInstanceOf[TLocus].rg)
+    assertTrue(rgs.forall(_ eq rgs.head))
+  }
+
+  // Locus types compare their reference genomes as reference genomes do: two copies of one layout
+  // that are distinct objects are equal, and a genome of the same name with another layout is not.
+  @Test def testLocusTypesCompareReferenceGenomes(): Unit = {
+    val a = fakeGenome
+    val b = fakeGenome.copy()
+    val other = fakeGenome.copy(lengths = fakeGenome.lengths + ("c" -> 11))
+    assertTrue(a ne b)
+
+    val types = ArraySeq[ReferenceGenome => AnyRef](
+      TLocus(_),
+      PCanonicalLocus(_, true),
+      PPackedLocus(_),
+      PPackedLocus(_).sType,
+      rg => PCanonicalLocus(rg).sType,
+    )
+    for (mk <- types) {
+      assertEq(mk(a), mk(b))
+      assertEq(mk(a).hashCode, mk(b).hashCode)
+      assertTrue(mk(a) != mk(other), s"${mk(a)}")
+    }
+
+    assertTrue(TLocus(a).unify(TLocus(b)))
+    assertTrue(TLocus(a).isIsomorphicTo(TLocus(b)))
+    assertTrue(!TLocus(a).unify(TLocus(other)))
+    assertTrue(!TLocus(a).isIsomorphicTo(TLocus(other)))
+  }
 }

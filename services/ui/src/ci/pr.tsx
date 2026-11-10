@@ -7,6 +7,7 @@ import { StateIcon } from '../batch/components/StateIcon';
 import { BatchStateIcon } from '../shared/BatchStateIcon';
 import { useTip, FloatingTip } from '../shared/useTip';
 import { AutoRefreshBar } from '../shared/AutoRefreshBar';
+import { formatTimestamp } from '../shared/timeUtils';
 
 const REFRESH_INTERVAL_MS = 30_000;
 
@@ -44,6 +45,11 @@ interface WatchedBranchPr {
   is_mergeable?: boolean;
   prs_ahead_in_queue?: PrsAheadEntry[];
   is_merge_candidate?: boolean;
+  merge_pending?: boolean;
+  merge_pending_uuid?: string | null;
+  merge_requested_at_ms?: number | null;
+  merge_failures?: number;
+  merge_retry_after_ms?: number | null;
   blocking_deploy_batch_id?: number | null;
   batch?: BatchSummary | null;
   review_state?: string | null;
@@ -152,6 +158,7 @@ async function fetchAllJobs(batchBaseUrl: string, batchId: number): Promise<JobL
   let lastJobId: number | undefined;
   for (;;) {
     const url = new URL(`${batchBaseUrl}/api/v1alpha/batches/${batchId}/jobs`, window.location.origin);
+    url.searchParams.set('recursive', 'true');
     if (lastJobId !== undefined) url.searchParams.set('last_job_id', String(lastJobId));
     const page = await apiFetch<{ jobs: JobListEntry[]; last_job_id?: number }>(url.toString());
     all.push(...page.jobs);
@@ -171,6 +178,7 @@ async function fetchFirstBadJobs(batchBaseUrl: string, batchId: number): Promise
   let lastJobId: number | undefined;
   while (found.length <= FAILED_JOBS_DISPLAY_LIMIT) {
     const url = new URL(`${batchBaseUrl}/api/v1alpha/batches/${batchId}/jobs`, window.location.origin);
+    url.searchParams.set('recursive', 'true');
     url.searchParams.set('q', 'bad');
     if (lastJobId !== undefined) url.searchParams.set('last_job_id', String(lastJobId));
     const page = await apiFetch<{ jobs: JobListEntry[]; last_job_id?: number }>(url.toString());
@@ -237,6 +245,19 @@ function MergeEligibility({ pr, basePath, batchBaseUrl, wbIndex }: {
         {pr.blocking_labels && pr.blocking_labels.length > 0 && (
           <li>
             <Icon name="cancel" className="text-red-600" /> Blocked by label: {pr.blocking_labels.join(', ')}
+          </li>
+        )}
+        {pr.merge_pending && (
+          <li>
+            <Icon name="hourglass_top" className="text-zinc-400" /> Merge requested{' '}
+            {formatTimestamp(pr.merge_requested_at_ms)} - waiting for GitHub (merge id:{' '}
+            <span className="font-mono">{pr.merge_pending_uuid ?? 'unknown'}</span>)
+          </li>
+        )}
+        {!pr.merge_pending && pr.merge_retry_after_ms != null && (
+          <li>
+            <Icon name="warning" className="text-orange-500" /> Merge failed {pr.merge_failures} time(s) - next attempt
+            after {formatTimestamp(pr.merge_retry_after_ms)} (see CI logs for details)
           </li>
         )}
       </ul>

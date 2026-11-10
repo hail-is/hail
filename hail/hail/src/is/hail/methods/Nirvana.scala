@@ -410,7 +410,7 @@ object Nirvana extends Logging {
     val localRowType = tv.rvd.rowPType
     val localBlockSize = blockSize
 
-    val rowKeyOrd = tv.typ.keyType.ordering(ctx.stateManager)
+    val rowKeyOrd = tv.typ.keyType.ordering
 
     logger.info("Running Nirvana")
 
@@ -471,7 +471,7 @@ object Nirvana extends Logging {
       nirvanaRVDType,
       prev.partitioner,
       ContextRDD.weaken(annotations).cmapPartitions { (_, rvdContext, it) =>
-        val rvb = new RegionValueBuilder(ctx.stateManager, rvdContext.region)
+        val rvb = new RegionValueBuilder(rvdContext.region)
 
         it.map { case (v, nirvana) =>
           rvb.start(nirvanaRowType)

@@ -29,6 +29,8 @@ spec:
     metadata:
       labels:
         app: db
+      annotations:
+        "cluster-autoscaler.kubernetes.io/safe-to-evict": "false"
     spec:
       nodeSelector:
         preemptible: "false"
@@ -42,9 +44,9 @@ spec:
             periodSeconds: 5
           resources:
             requests:
-              # How we got to 1250m: "it would have been nice to have 2cpus, but all the other cruft on 2 cpu node pool VMs means only 1.47 cpus are guaranteed to be free"
-              # If this is too small, we can consider increasing the node pool VM size to 4cpu and raising this back to 1.5 or 2,
-              cpu: "1250m"
+              # Only ~1.45 cpus are free on a 2 cpu node pool VM. A larger request leaves no room for kube-system pods
+              # (e.g. calico-typha), which then preempt this pod. Test DBs peak around 0.6 cpus and can burst to the limit.
+              cpu: "500m"
               memory: "1G"
             limits:
               cpu: "2"

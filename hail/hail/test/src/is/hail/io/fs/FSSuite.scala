@@ -210,12 +210,7 @@ trait FSSuite {
     val statuses = fs.listDirectory(f)
     assertEq(statuses.length, 1)
     val status = statuses(0)
-    if (this.isInstanceOf[AzureStorageFSSuite]) {
-      // https://github.com/Azure/azure-sdk-for-java/issues/36674
-      assertEq(status.getPath, f + "/foo")
-    } else {
-      assertEq(status.getPath, f + "/foo.")
-    }
+    assertEq(status.getPath, f + "/foo.")
   }
 
   @Test def testGlobRootWithSlash(): Unit = {
@@ -347,6 +342,39 @@ trait FSSuite {
     assert(!fs.exists(f))
   }
 
+  @Test def testWritePosition(): Unit = {
+    val f = t()
+
+    using(fs.createNoCompression(f)) { os =>
+      assertEq(os.getPosition, 0L)
+      os.write(1)
+      assertEq(os.getPosition, 1L)
+      os.write(Array[Byte](2, 3, 4, 5))
+      assertEq(os.getPosition, 5L)
+      os.write(Array[Byte](6, 7, 8, 9), 1, 2)
+      assertEq(os.getPosition, 7L)
+      os.flush()
+      assertEq(os.getPosition, 7L)
+    }
+
+    using(fs.openNoCompression(f)) { is =>
+      assertEq(IOUtils.toByteArray(is).toSeq, Seq[Byte](1, 2, 3, 4, 5, 7, 8))
+    }
+
+    fs.delete(f, false)
+  }
+
+  @Test def testWriteEmpty(): Unit = {
+    val f = t()
+
+    using(fs.createNoCompression(f))(_ => ())
+
+    assert(fs.exists(f))
+    assertEq(fs.getFileSize(f), 0L)
+
+    fs.delete(f, false)
+  }
+
   @Test def testDropTrailingSlash(): Unit = {
     assertEq(dropTrailingSlash(""), "")
     assertEq(dropTrailingSlash("/foo/bar"), "/foo/bar")
@@ -411,6 +439,44 @@ trait FSSuite {
 
       toRead.indices.foreach(i => assertEq(toRead(i), ((seekPos + i) % 251).toByte))
     }
+  }
+
+  @Test def testOpenWithBufferSize(): Unit = {
+    val data = Array.tabulate(251)(_.toByte)
+    val f = t()
+    using(fs.createNoCompression(f)) { os =>
+      var i = 0
+      while (i < 100) {
+        os.write(data)
+        i += 1
+      }
+    }
+    val size = 251L * 100
+
+    for (bufferSize <- Seq(0, 1000)) {
+      using(fs.openNoCompression(f, bufferSize)) { is =>
+        assertEq(is.read(), 0)
+        assertEq(is.readInt(), 0x01020304)
+
+        is.seek(12345)
+        assertEq(is.getPosition, 12345L)
+        assertEq(is.read(), 12345 % 251)
+
+        is.seek(7)
+        assertEq(is.read(), 7)
+
+        val bytes = new Array[Byte](5000)
+        is.readFully(bytes)
+        bytes.indices.foreach(i => assertEq(bytes(i), ((8 + i) % 251).toByte))
+        assertEq(is.getPosition, 5008L)
+
+        is.seek(size - 1)
+        assertEq(is.read(), ((size - 1) % 251).toInt)
+        assertEq(is.read(), -1)
+      }
+    }
+
+    fs.delete(f, false)
   }
 
   @Test def largeDirectoryOperations(): Unit = {
@@ -485,24 +551,7 @@ trait FSSuite {
     fs.touch(s"$d/x${'"'}")
     fs.touch(s"$d/x#")
     fs.touch(s"$d/x$$")
-    // fs.touch(s"$d/x%") // Azure dislikes %'s
-    // java.lang.IllegalArgumentException: URLDecoder: Incomplete trailing escape (%) pattern
-    //     at java.net.URLDecoder.decode(URLDecoder.java:187)
-    //     at is.hail.shadedazure.com.azure.storage.common.Utility.decode(Utility.java:88)
-    //     at is.hail.shadedazure.com.azure.storage.common.Utility.urlDecode(Utility.java:55)
-    /* at
-     * is.hail.shadedazure.com.azure.storage.blob.specialized.BlobAsyncClientBase.<init>(BlobAsyncClientBase.java:238) */
-    /* at
-     * is.hail.shadedazure.com.azure.storage.blob.specialized.BlobAsyncClientBase.<init>(BlobAsyncClientBase.java:202) */
-    /* at
-     * is.hail.shadedazure.com.azure.storage.blob.BlobAsyncClient.<init>(BlobAsyncClient.java:154) */
-    /* at
-     * is.hail.shadedazure.com.azure.storage.blob.BlobContainerAsyncClient.getBlobAsyncClient(BlobContainerAsyncClient.java:194) */
-    /* at
-     * is.hail.shadedazure.com.azure.storage.blob.BlobContainerAsyncClient.getBlobAsyncClient(BlobContainerAsyncClient.java:172) */
-    /* at
-     * is.hail.shadedazure.com.azure.storage.blob.BlobContainerClient.getBlobClient(BlobContainerClient.java:98) */
-    //     at is.hail.io.fs.AzureStorageFS.$anonfun$getBlobClient$1(AzureStorageFS.scala:255)
+    fs.touch(s"$d/x%")
     fs.touch(s"$d/x&")
     fs.touch(s"$d/x'")
     fs.touch(s"$d/x)")
@@ -511,7 +560,7 @@ trait FSSuite {
     fs.touch(s"$d/x+")
     fs.touch(s"$d/x,")
     fs.touch(s"$d/x-")
-    // fs.touch(s"$d/x.") // https://github.com/Azure/azure-sdk-for-java/issues/36674
+    fs.touch(s"$d/x.")
     intercept[Exception] {
       fs.touch(s"$d/x/file")
       fs.fileListEntry(s"$d/x")
@@ -535,24 +584,7 @@ trait FSSuite {
     fs.touch(s"$d/x${'"'}")
     fs.touch(s"$d/x#")
     fs.touch(s"$d/x$$")
-    // fs.touch(s"$d/x%") // Azure dislikes %'s
-    // java.lang.IllegalArgumentException: URLDecoder: Incomplete trailing escape (%) pattern
-    //     at java.net.URLDecoder.decode(URLDecoder.java:187)
-    //     at is.hail.shadedazure.com.azure.storage.common.Utility.decode(Utility.java:88)
-    //     at is.hail.shadedazure.com.azure.storage.common.Utility.urlDecode(Utility.java:55)
-    /* at
-     * is.hail.shadedazure.com.azure.storage.blob.specialized.BlobAsyncClientBase.<init>(BlobAsyncClientBase.java:238) */
-    /* at
-     * is.hail.shadedazure.com.azure.storage.blob.specialized.BlobAsyncClientBase.<init>(BlobAsyncClientBase.java:202) */
-    /* at
-     * is.hail.shadedazure.com.azure.storage.blob.BlobAsyncClient.<init>(BlobAsyncClient.java:154) */
-    /* at
-     * is.hail.shadedazure.com.azure.storage.blob.BlobContainerAsyncClient.getBlobAsyncClient(BlobContainerAsyncClient.java:194) */
-    /* at
-     * is.hail.shadedazure.com.azure.storage.blob.BlobContainerAsyncClient.getBlobAsyncClient(BlobContainerAsyncClient.java:172) */
-    /* at
-     * is.hail.shadedazure.com.azure.storage.blob.BlobContainerClient.getBlobClient(BlobContainerClient.java:98) */
-    //     at is.hail.io.fs.AzureStorageFS.$anonfun$getBlobClient$1(AzureStorageFS.scala:255)
+    fs.touch(s"$d/x%")
     fs.touch(s"$d/x&")
     fs.touch(s"$d/x'")
     fs.touch(s"$d/x)")
@@ -561,7 +593,7 @@ trait FSSuite {
     fs.touch(s"$d/x+")
     fs.touch(s"$d/x,")
     fs.touch(s"$d/x-")
-    // fs.touch(s"$d/x.") // https://github.com/Azure/azure-sdk-for-java/issues/36674
+    fs.touch(s"$d/x.")
     fs.touch(s"$d/x/file")
 
     val fle = fs.fileListEntry(s"$d/x")
@@ -579,24 +611,7 @@ trait FSSuite {
     fs.touch(s"$d/x${'"'}")
     fs.touch(s"$d/x#")
     fs.touch(s"$d/x$$")
-    // fs.touch(s"$d/x%") // Azure dislikes %'s
-    // java.lang.IllegalArgumentException: URLDecoder: Incomplete trailing escape (%) pattern
-    //     at java.net.URLDecoder.decode(URLDecoder.java:187)
-    //     at is.hail.shadedazure.com.azure.storage.common.Utility.decode(Utility.java:88)
-    //     at is.hail.shadedazure.com.azure.storage.common.Utility.urlDecode(Utility.java:55)
-    /* at
-     * is.hail.shadedazure.com.azure.storage.blob.specialized.BlobAsyncClientBase.<init>(BlobAsyncClientBase.java:238) */
-    /* at
-     * is.hail.shadedazure.com.azure.storage.blob.specialized.BlobAsyncClientBase.<init>(BlobAsyncClientBase.java:202) */
-    /* at
-     * is.hail.shadedazure.com.azure.storage.blob.BlobAsyncClient.<init>(BlobAsyncClient.java:154) */
-    /* at
-     * is.hail.shadedazure.com.azure.storage.blob.BlobContainerAsyncClient.getBlobAsyncClient(BlobContainerAsyncClient.java:194) */
-    /* at
-     * is.hail.shadedazure.com.azure.storage.blob.BlobContainerAsyncClient.getBlobAsyncClient(BlobContainerAsyncClient.java:172) */
-    /* at
-     * is.hail.shadedazure.com.azure.storage.blob.BlobContainerClient.getBlobClient(BlobContainerClient.java:98) */
-    //     at is.hail.io.fs.AzureStorageFS.$anonfun$getBlobClient$1(AzureStorageFS.scala:255)
+    fs.touch(s"$d/x%") // Azure dislikes %'s
     fs.touch(s"$d/x&")
     fs.touch(s"$d/x'")
     fs.touch(s"$d/x)")
@@ -605,7 +620,7 @@ trait FSSuite {
     fs.touch(s"$d/x+")
     fs.touch(s"$d/x,")
     fs.touch(s"$d/x-")
-    // fs.touch(s"$d/x.") // https://github.com/Azure/azure-sdk-for-java/issues/36674
+    fs.touch(s"$d/x.")
 
     val fle = fs.fileListEntry(s"$d/x")
     assert(!fle.isDirectory)

@@ -82,7 +82,7 @@ class TableGenSuite {
       TypeCheck(
         ctx,
         mkTableGen(partitioner =
-          Some(RVDPartitioner.empty(ctx.stateManager, TStruct("does-not-exist" -> TInt32)))
+          Some(RVDPartitioner.empty(TStruct("does-not-exist" -> TInt32)))
         ),
       )
     }.getMessage should include("partitioner")
@@ -93,7 +93,7 @@ class TableGenSuite {
       TypeCheck(
         ctx,
         mkTableGen(partitioner =
-          Some(RVDPartitioner.empty(ctx.stateManager, TStruct("does-not-exist" -> TInt32)))
+          Some(RVDPartitioner.empty(TStruct("does-not-exist" -> TInt32)))
         ),
       )
     }.getMessage should include("partitioner")
@@ -116,7 +116,7 @@ class TableGenSuite {
   def testNumberOfContextsMatchesPartitions(implicit ctx: ExecuteContext): Unit = {
     val errorId = 42
     val rows = collect(mkTableGen(
-      partitioner = Some(RVDPartitioner.unkeyed(ctx.stateManager, 0)),
+      partitioner = Some(RVDPartitioner.unkeyed(0)),
       errorId = Some(errorId),
     ))
     val ex = intercept[HailException] {
@@ -131,7 +131,6 @@ class TableGenSuite {
     val errorId = 56
     val rows = collect(mkTableGen(
       partitioner = Some(new RVDPartitioner(
-        ctx.stateManager,
         TStruct("a" -> TInt32),
         FastSeq(
           Interval(RowSeq(0), RowSeq(0), true, false),
@@ -189,12 +188,11 @@ class TableGenSuite {
     body: Option[(Atom, Atom) => IR] = None,
     partitioner: Option[RVDPartitioner] = None,
     errorId: Option[Int] = None,
-  )(implicit ctx: ExecuteContext
   ): TableGen =
     tableGen(
       contexts.getOrElse(StreamRange(0, 2, 1)),
       globals.getOrElse(makestruct("g" -> 0)),
-      partitioner.getOrElse(RVDPartitioner.unkeyed(ctx.stateManager, 2)),
+      partitioner.getOrElse(RVDPartitioner.unkeyed(2)),
       errorId.getOrElse(ErrorIDs.NO_ERROR),
     )(
       body.getOrElse((c, g) => MakeStream(makestruct("a" -> c * GetField(g, "g"))))

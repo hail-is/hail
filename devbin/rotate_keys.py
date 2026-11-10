@@ -4,6 +4,7 @@ import itertools
 import json
 import sys
 import warnings
+from collections import defaultdict
 from datetime import datetime, timedelta
 from enum import Enum
 from typing import Generator, List, Optional, TextIO, Tuple, Any, TypedDict, Set, Dict
@@ -325,7 +326,7 @@ async def add_new_keys(
         sa.list_keys(sys.stdout)
 
         if interactive and input('Create new key?\nOnly yes will be accepted: ') != 'yes':
-            print(f'Doing nothing for this key.')
+            print('Doing nothing for this key.')
             continue
 
         new_key, key_data = await iam_manager.create_new_key(sa)
@@ -349,7 +350,7 @@ async def delete_old_keys(
     async def delete_old_and_refresh(sa: ServiceAccount):
         to_delete = sa.redundant_user_keys()
         await asyncio.gather(*[iam_manager.delete_key(sa.email, k) for k in to_delete])
-        print(f'Deleted keys:')
+        print('Deleted keys:')
         for k in to_delete:
             print(f'\t{k.id}')
         sa.keys = await iam_manager.get_sa_keys(sa.email)
@@ -362,7 +363,7 @@ async def delete_old_keys(
         sa.list_keys(sys.stdout)
 
         if interactive and input('Delete all but the newest key?\nOnly yes will be accepted: ') != 'yes':
-            print(f'Doing nothing for this key.')
+            print('Doing nothing for this key.')
             continue
 
         if rotation_state == RotationState.READY_FOR_DELETE:
@@ -397,7 +398,7 @@ async def main():
     k8s_manager = KubeSecretManager(k8s_client)
 
     try:
-        service_accounts = [x for x in await iam_manager.get_all_service_accounts()]
+        service_accounts = list(await iam_manager.get_all_service_accounts())
         other_secrets, gsa_key_secrets = await k8s_manager.get_secrets()
         seen_secrets = set()
         for sa in service_accounts:

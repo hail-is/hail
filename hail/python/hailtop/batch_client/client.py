@@ -1,5 +1,7 @@
 from typing import Any, Dict, Iterator, List, Optional, Tuple
 
+import orjson
+
 from hailtop.batch_client.types import GetJobGroupResponseV1Alpha
 from hailtop.utils import ait_to_blocking, async_to_blocking
 
@@ -225,7 +227,7 @@ class JobGroup:
         return async_to_blocking(self._async_job_group.debug_info())
 
     def __str__(self):
-        return str(self._async_job_group)
+        return orjson.dumps(self.debug_info()).decode('utf-8')
 
 
 class Batch:

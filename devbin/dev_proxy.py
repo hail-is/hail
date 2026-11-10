@@ -31,10 +31,7 @@ ALL_SERVICES: frozenset[str] = frozenset(['batch', 'batch-driver', 'ci', 'monito
 MODULES: dict[str, str] = {'batch': 'batch.front_end', 'batch-driver': 'batch.driver'}
 
 # Per-service jinja2 app keys — needed to avoid template-name conflicts between services
-_SERVICE_APP_KEYS: dict[str, web.AppKey] = {
-    svc: web.AppKey(f'jinja_{svc}', jinja2.Environment)
-    for svc in ALL_SERVICES
-}
+_SERVICE_APP_KEYS: dict[str, web.AppKey] = {svc: web.AppKey(f'jinja_{svc}', jinja2.Environment) for svc in ALL_SERVICES}
 
 routes = web.RouteTableDef()
 setup_common_static_routes(routes)
@@ -67,11 +64,11 @@ _SWAGGER_SVCPATHS = [
 ]
 for _svc, _svc_path in _SWAGGER_SVCPATHS:
 
-    async def _swagger_js_handler(req: web.Request, _f: str = _SWAGGER_JS) -> web.Response:
-        return web.FileResponse(_f)
+    async def _swagger_js_handler(_req: web.Request, f: str = _SWAGGER_JS) -> web.Response:
+        return web.FileResponse(f)
 
-    async def _swagger_css_handler(req: web.Request, _f: str = _SWAGGER_CSS) -> web.Response:
-        return web.FileResponse(_f)
+    async def _swagger_css_handler(_req: web.Request, f: str = _SWAGGER_CSS) -> web.Response:
+        return web.FileResponse(f)
 
     routes.get(f'/{_svc}/{_svc_path}/static/compiled-js/swagger.js')(_swagger_js_handler)
     routes.get(f'/{_svc}/{_svc_path}/static/compiled-js/swagger.css')(_swagger_css_handler)
@@ -83,7 +80,9 @@ for _svc in ALL_SERVICES:
     routes.static(f'/{_svc}/common_static', _WEB_COMMON_STATIC)
 
 _IS_DEVELOPER_ENV = os.getenv('IS_DEVELOPER')
-IS_DEVELOPER: bool | None = None if _IS_DEVELOPER_ENV is None else _IS_DEVELOPER_ENV.lower() not in ('0', 'false', 'no', '')
+IS_DEVELOPER: bool | None = (
+    None if _IS_DEVELOPER_ENV is None else _IS_DEVELOPER_ENV.lower() not in ('0', 'false', 'no', '')
+)
 
 _FAKE_DEV_USERDATA = {'username': 'dev', 'system_permissions': {p.value: True for p in SystemPermission}}
 
@@ -106,7 +105,7 @@ def _service_from_path(path: str) -> str | None:
 def _backend_url(service: str, raw_path: str) -> str:
     """Strip the /<service> prefix from the devserver path before forwarding."""
     prefix = f'/{service}'
-    stripped = raw_path[len(prefix):] if raw_path.startswith(prefix) else raw_path
+    stripped = raw_path[len(prefix) :] if raw_path.startswith(prefix) else raw_path
     if stripped and not stripped.startswith('/'):
         stripped = '/' + stripped
     return deploy_config.external_url(service, stripped or '/')
@@ -117,25 +116,26 @@ def _backend_url(service: str, raw_path: str) -> str:
 # in the path is pulled from the URL via match_info and merged into extra_page_context.
 # Tuple: (service, verb, path, template, extra_page_context)
 _LOCAL_REACT_ROUTES: list[tuple[str, str, str, str, dict]] = [
-    ('monitoring',   'GET', '/monitoring/cost-analysis', 'cost_analysis.html', {}),
-    ('auth',         'GET', '/auth/helloreact', 'hello_react.html', {}),
+    ('monitoring', 'GET', '/monitoring/cost-analysis', 'cost_analysis.html', {}),
+    ('auth', 'GET', '/auth/helloreact', 'hello_react.html', {}),
     # classic page_context holds `jpim`/`pools`/`instances` (manager/model objects, not dicts) — not JSON-serializable
     ('batch-driver', 'GET', '/batch-driver/', 'index_react.html', {}),
     ('batch-driver', 'GET', '/batch-driver', 'index_react.html', {}),
     ('batch-driver', 'GET', '/batch-driver/swagger', 'swagger/index.html', {}),
-    ('ci',           'GET', '/ci/flaky_tests', 'flaky_tests.html', {}),
+    ('ci', 'GET', '/ci/flaky_tests', 'flaky_tests.html', {}),
     # classic page_context holds `pr`/`wb` directly (a PR/WatchedBranch instance, not a dict) — not JSON-serializable
-    ('ci',           'GET', '/ci/watched_branches/{watched_branch_index}/pr/{pr_number}', 'pr_react.html', {}),
-    ('batch',        'GET', '/batch/swagger', 'swagger/index.html', {}),
-    ('ci',           'GET', '/ci/swagger', 'swagger/index.html', {}),
-    ('monitoring',   'GET', '/monitoring/swagger', 'swagger/index.html', {}),
-    ('auth',         'GET', '/auth/swagger', 'swagger/index.html', {}),
-    ('batch',        'GET', '/batch/batches/{batch_id}', 'batch_react.html', {}),
-    ('batch',        'GET', '/batch/batches/{batch_id}/jobs/{job_id}', 'job_react.html', {}),
+    ('ci', 'GET', '/ci/watched_branches/{watched_branch_index}/pr/{pr_number}', 'pr_react.html', {}),
+    ('batch', 'GET', '/batch/swagger', 'swagger/index.html', {}),
+    ('ci', 'GET', '/ci/swagger', 'swagger/index.html', {}),
+    ('monitoring', 'GET', '/monitoring/swagger', 'swagger/index.html', {}),
+    ('auth', 'GET', '/auth/swagger', 'swagger/index.html', {}),
+    ('batch', 'GET', '/batch/batches/{batch_id}', 'batch_react.html', {}),
+    ('batch', 'GET', '/batch/batches/{batch_id}/jobs/{job_id}', 'job_react.html', {}),
 ]
 
 for _service, _verb, _path, _template, _extra_ctx in _LOCAL_REACT_ROUTES:
-    async def _local_handler(
+
+    async def _local_handler(  # pylint: disable=dangerous-default-value
         request: web.Request,
         _s: str = _service,
         _t: str = _template,
@@ -143,6 +143,7 @@ for _service, _verb, _path, _template, _extra_ctx in _LOCAL_REACT_ROUTES:
     ) -> web.Response:
         page_context = {'use_tailwind': True, **_ctx, **request.match_info}
         return await _render_html(request, _s, _FAKE_DEV_USERDATA, _t, page_context)
+
     if _template.startswith('swagger/'):
         _decorator = web_security_headers_swagger
     elif _template in ('index_react.html', 'cost_analysis.html', 'pr_react.html', 'job_react.html'):

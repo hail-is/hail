@@ -3,7 +3,7 @@ package is.hail.expr.ir
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.asm4s.implicits.valueToRichCodeInputBuffer
-import is.hail.backend.{ExecuteContext, HailStateManager, HailTaskContext, TaskFinalizer}
+import is.hail.backend.{ExecuteContext, HailTaskContext, TaskFinalizer}
 import is.hail.collection.FastSeq
 import is.hail.collection.implicits.toRichIterable
 import is.hail.expr.ir.{Memoized => M}
@@ -29,6 +29,7 @@ import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives.{SInt64, SInt64Value}
 import is.hail.types.virtual._
 import is.hail.utils._
+import is.hail.variant.ReferenceGenomeEnv
 
 import scala.collection.immutable.ArraySeq
 
@@ -40,13 +41,18 @@ import org.json4s.JsonAST.JString
 import org.json4s.jackson.JsonMethods
 
 object TableIR {
-  def read(fs: FS, path: String, dropRows: Boolean = false, requestedType: Option[TableType] = None)
-    : TableRead = {
+  def read(
+    fs: FS,
+    rgs: ReferenceGenomeEnv,
+    path: String,
+    dropRows: Boolean = false,
+    requestedType: Option[TableType] = None,
+  ): TableRead = {
     val successFile = path + "/_SUCCESS"
     if (!fs.isFile(path + "/_SUCCESS"))
       fatal(s"write failed: file not found: $successFile")
 
-    val tr = TableNativeReader.read(fs, path, None)
+    val tr = TableNativeReader.read(fs, rgs, path, None)
     TableRead(requestedType.getOrElse(tr.fullType), dropRows = dropRows, tr)
   }
 
@@ -146,16 +152,28 @@ case class TableLiteral(
 }
 
 object TableReader {
-  implicit val formats: Formats = RelationalSpec.formats + ShortTypeHints(
-    List(classOf[TableNativeZippedReader])
-  ) + new NativeReaderOptionsSerializer()
 
-  def fromJValue(fs: FS, jv: JValue): TableReader = {
+  /** Formats that read types, parsing them against `rgs`. */
+  def formats(rgs: ReferenceGenomeEnv): Formats = typeFormats(Some(rgs))
+
+  /** Formats that write types but cannot read them. */
+  def formats: Formats = writeOnlyFormats
+
+  private[this] lazy val writeOnlyFormats: Formats = typeFormats(None)
+
+  private def typeFormats(rgs: Option[ReferenceGenomeEnv]): Formats =
+    RelationalSpec.typeFormats(rgs) + ShortTypeHints(
+      List(classOf[TableNativeZippedReader])
+    ) + new NativeReaderOptionsSerializer(rgs)
+
+  def fromJValue(fs: FS, rgs: ReferenceGenomeEnv, jv: JValue): TableReader = {
+    implicit val formats: Formats = TableReader.formats(rgs)
     (jv \ "name").extract[String] match {
-      case "TableNativeReader" => TableNativeReader.fromJValue(fs, jv)
-      case "TableFromBlockMatrixNativeReader" => TableFromBlockMatrixNativeReader.fromJValue(fs, jv)
-      case "StringTableReader" => StringTableReader.fromJValue(fs, jv)
-      case "AvroTableReader" => AvroTableReader.fromJValue(jv)
+      case "TableNativeReader" => TableNativeReader.fromJValue(fs, rgs, jv)
+      case "TableFromBlockMatrixNativeReader" =>
+        TableFromBlockMatrixNativeReader.fromJValue(fs, rgs, jv)
+      case "StringTableReader" => StringTableReader.fromJValue(fs, rgs, jv)
+      case "AvroTableReader" => AvroTableReader.fromJValue(jv, rgs)
       case _ => jv.extract[TableReader]
     }
   }
@@ -320,7 +338,6 @@ object LoweredTableReader extends Logging {
         val partOrigIndex = sortedPartData.map(_.getInt(6))
 
         val partitioner = new RVDPartitioner(
-          ctx.stateManager,
           keyType,
           sortedPartData.map { partData =>
             Interval(
@@ -359,7 +376,6 @@ object LoweredTableReader extends Logging {
         val partOrigIndex = sortedPartData.map(_.getInt(6))
 
         val partitioner = new RVDPartitioner(
-          ctx.stateManager,
           pkType,
           sortedPartData.map { partData =>
             Interval(
@@ -403,7 +419,7 @@ object LoweredTableReader extends Logging {
       ) => {
         val partOrigIndex = sortedPartData.map(_.getInt(6))
 
-        val partitioner = RVDPartitioner.unkeyed(ctx.stateManager, sortedPartData.length)
+        val partitioner = RVDPartitioner.unkeyed(sortedPartData.length)
 
         val tableStage = TableStage(
           globals,
@@ -481,7 +497,7 @@ abstract class TableReader {
     if (dropRows)
       TableStage(
         lowerGlobals(ctx, requestedType.globalType),
-        RVDPartitioner.empty(ctx, requestedType.keyType),
+        RVDPartitioner.empty(requestedType.keyType),
         TableStageDependency.none,
         MakeStream.empty(TStruct.empty),
         _ => MakeStream.empty(requestedType.rowType),
@@ -503,8 +519,7 @@ abstract class TableReader {
 
   def globalRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq
 
-  def toJValue: JValue =
-    Extraction.decompose(this)(TableReader.formats)
+  def toJValue: JValue = Extraction.decompose(this)(TableReader.formats)
 
   def renderShort(): String
 
@@ -517,11 +532,13 @@ abstract class TableReader {
 }
 
 object TableNativeReader {
-  def read(fs: FS, path: String, options: Option[NativeReaderOptions]): TableNativeReader =
-    TableNativeReader(fs, TableNativeReaderParameters(path, options))
+  def read(fs: FS, rgs: ReferenceGenomeEnv, path: String, options: Option[NativeReaderOptions])
+    : TableNativeReader =
+    TableNativeReader(fs, rgs, TableNativeReaderParameters(path, options))
 
-  def apply(fs: FS, params: TableNativeReaderParameters): TableNativeReader = {
-    val spec = (RelationalSpec.read(fs, params.path): @unchecked) match {
+  def apply(fs: FS, rgs: ReferenceGenomeEnv, params: TableNativeReaderParameters)
+    : TableNativeReader = {
+    val spec = (RelationalSpec.read(fs, rgs, params.path): @unchecked) match {
       case ts: AbstractTableSpec => ts
       case _: AbstractMatrixTableSpec =>
         fatal(s"file is a MatrixTable, not a Table: '${params.path}'")
@@ -539,10 +556,10 @@ object TableNativeReader {
     new TableNativeReader(params, spec)
   }
 
-  def fromJValue(fs: FS, jv: JValue): TableNativeReader = {
-    implicit val formats: Formats = DefaultFormats + new NativeReaderOptionsSerializer()
+  def fromJValue(fs: FS, rgs: ReferenceGenomeEnv, jv: JValue): TableNativeReader = {
+    implicit val formats: Formats = DefaultFormats + new NativeReaderOptionsSerializer(rgs)
     val params = jv.extract[TableNativeReaderParameters]
-    TableNativeReader(fs, params)
+    TableNativeReader(fs, rgs, params)
   }
 }
 
@@ -808,7 +825,6 @@ case class PartitionNativeReader(spec: AbstractTypedCodecSpec, uidFieldName: Str
 }
 
 case class PartitionNativeIntervalReader(
-  sm: HailStateManager,
   tablePath: String,
   tableSpec: AbstractTableSpec,
   uidFieldName: String,
@@ -818,7 +834,7 @@ case class PartitionNativeIntervalReader(
   lazy val rowsSpec = tableSpec.rowsSpec
   lazy val spec = rowsSpec.typedCodecSpec
   lazy val indexSpec = tableSpec.rowsSpec.asInstanceOf[Indexed].indexSpec
-  lazy val partitioner = rowsSpec.partitioner(sm)
+  lazy val partitioner = rowsSpec.partitioner
 
   lazy val contextType: Type = RVDPartitioner.intervalIRRepresentation(partitioner.kType)
   require(partitioner.kType.size > 0)
@@ -1374,7 +1390,6 @@ case class PartitionZippedNativeReader(left: PartitionReader, right: PartitionRe
 }
 
 case class PartitionZippedNativeIntervalReader(
-  sm: HailStateManager,
   mtPath: String,
   mtSpec: AbstractMatrixTableSpec,
   uidFieldName: String,
@@ -1382,22 +1397,20 @@ case class PartitionZippedNativeIntervalReader(
   require(mtSpec.indexed)
 
   private[this] class PartitionEntriesNativeIntervalReader(
-    sm: HailStateManager,
     entriesPath: String,
     entriesSpec: AbstractTableSpec,
     uidFieldName: String,
     rowsTableSpec: AbstractTableSpec,
-  ) extends PartitionNativeIntervalReader(sm, entriesPath, entriesSpec, uidFieldName) {
-    override lazy val partitioner = rowsTableSpec.rowsSpec.partitioner(sm)
+  ) extends PartitionNativeIntervalReader(entriesPath, entriesSpec, uidFieldName) {
+    override lazy val partitioner = rowsTableSpec.rowsSpec.partitioner
   }
 
   // XXX: rows and entries paths are hardcoded, see MatrixTableSpec
   private lazy val rowsReader =
-    PartitionNativeIntervalReader(sm, mtPath + "/rows", mtSpec.rowsSpec, "__dummy")
+    PartitionNativeIntervalReader(mtPath + "/rows", mtSpec.rowsSpec, "__dummy")
 
   private lazy val entriesReader =
     new PartitionEntriesNativeIntervalReader(
-      sm,
       mtPath + "/entries",
       mtSpec.entriesSpec,
       uidFieldName,
@@ -1673,7 +1686,11 @@ class TableNativeReader(
 
   override def concreteRowRequiredness(ctx: ExecuteContext, requestedType: TableType)
     : VirtualTypeWithReq =
-    VirtualTypeWithReq(tcoerce[PStruct](spec.rowsComponent.rvdSpec(ctx.fs, params.path)
+    VirtualTypeWithReq(tcoerce[PStruct](spec.rowsComponent.rvdSpec(
+      ctx.fs,
+      ctx.references,
+      params.path,
+    )
       .typedCodecSpec.encodedType.decodedPType(requestedType.rowType)))
 
   override protected def uidRequiredness: VirtualTypeWithReq =
@@ -1681,7 +1698,11 @@ class TableNativeReader(
 
   override def globalRequiredness(ctx: ExecuteContext, requestedType: TableType)
     : VirtualTypeWithReq =
-    VirtualTypeWithReq(tcoerce[PStruct](spec.globalsComponent.rvdSpec(ctx.fs, params.path)
+    VirtualTypeWithReq(tcoerce[PStruct](spec.globalsComponent.rvdSpec(
+      ctx.fs,
+      ctx.references,
+      params.path,
+    )
       .typedCodecSpec.encodedType.decodedPType(requestedType.globalType)))
 
   override def toJValue: JValue = {
@@ -1720,11 +1741,10 @@ class TableNativeReader(
   override def lower(ctx: ExecuteContext, requestedType: TableType): TableStage = {
     val globals = lowerGlobals(ctx, requestedType.globalType)
     val rowsSpec = spec.rowsSpec
-    val specPart = rowsSpec.partitioner(ctx.stateManager)
+    val specPart = rowsSpec.partitioner
     val partitioner = if (filterIntervals)
       params.options.map(opts =>
         RVDPartitioner.union(
-          ctx.stateManager,
           specPart.kType,
           opts.intervals,
           specPart.kType.size - 1,
@@ -1732,7 +1752,7 @@ class TableNativeReader(
       )
     else
       params.options.map(opts =>
-        new RVDPartitioner(ctx.stateManager, specPart.kType, opts.intervals)
+        new RVDPartitioner(specPart.kType, opts.intervals)
       )
 
     // If the data on disk already has a uidFieldName field, we should read it
@@ -1797,11 +1817,11 @@ case class TableNativeZippedReader(
     requestedType.filter(f => rightFieldSet.contains(f.name))._1
 
   def leftPType(ctx: ExecuteContext, leftRType: TStruct): PStruct =
-    tcoerce[PStruct](specLeft.rowsComponent.rvdSpec(ctx.fs, pathLeft)
+    tcoerce[PStruct](specLeft.rowsComponent.rvdSpec(ctx.fs, ctx.references, pathLeft)
       .typedCodecSpec.encodedType.decodedPType(leftRType))
 
   def rightPType(ctx: ExecuteContext, rightRType: TStruct): PStruct =
-    tcoerce[PStruct](specRight.rowsComponent.rvdSpec(ctx.fs, pathRight)
+    tcoerce[PStruct](specRight.rowsComponent.rvdSpec(ctx.fs, ctx.references, pathRight)
       .typedCodecSpec.encodedType.decodedPType(rightRType))
 
   override def concreteRowRequiredness(ctx: ExecuteContext, requestedType: TableType)
@@ -1817,7 +1837,7 @@ case class TableNativeZippedReader(
 
   override def globalRequiredness(ctx: ExecuteContext, requestedType: TableType)
     : VirtualTypeWithReq =
-    VirtualTypeWithReq(specLeft.globalsComponent.rvdSpec(ctx.fs, pathLeft)
+    VirtualTypeWithReq(specLeft.globalsComponent.rvdSpec(ctx.fs, ctx.references, pathLeft)
       .typedCodecSpec.encodedType.decodedPType(requestedType.globalType))
 
   def fieldInserter(ctx: ExecuteContext, pLeft: PStruct, pRight: PStruct)
@@ -1857,18 +1877,17 @@ case class TableNativeZippedReader(
   override def lower(ctx: ExecuteContext, requestedType: TableType): TableStage = {
     val globals = lowerGlobals(ctx, requestedType.globalType)
     val rowsSpec = specLeft.rowsSpec
-    val specPart = rowsSpec.partitioner(ctx.stateManager)
+    val specPart = rowsSpec.partitioner
     val partitioner = if (filterIntervals)
       options.map(opts =>
         RVDPartitioner.union(
-          ctx.stateManager,
           specPart.kType,
           opts.intervals,
           specPart.kType.size - 1,
         )
       )
     else
-      options.map(opts => new RVDPartitioner(ctx.stateManager, specPart.kType, opts.intervals))
+      options.map(opts => new RVDPartitioner(specPart.kType, opts.intervals))
 
     AbstractRVDSpec.readZippedLowered(
       ctx,
@@ -1905,8 +1924,8 @@ object TableFromBlockMatrixNativeReader {
       TableFromBlockMatrixNativeReaderParameters(path, nPartitions, maximumCacheMemoryInBytes),
     )
 
-  def fromJValue(fs: FS, jv: JValue): TableFromBlockMatrixNativeReader = {
-    implicit val formats: Formats = TableReader.formats
+  def fromJValue(fs: FS, rgs: ReferenceGenomeEnv, jv: JValue): TableFromBlockMatrixNativeReader = {
+    implicit val formats: Formats = TableReader.formats(rgs)
     val params = jv.extract[TableFromBlockMatrixNativeReaderParameters]
     TableFromBlockMatrixNativeReader(fs, params)
   }
@@ -1971,7 +1990,7 @@ case class TableFromBlockMatrixNativeReader(
     val partitionBounds = partitionRanges.map { r =>
       Interval(RowSeq(r.start), RowSeq(r.end), true, false)
     }
-    val partitioner = new RVDPartitioner(ctx.stateManager, fullType.keyType, partitionBounds)
+    val partitioner = new RVDPartitioner(fullType.keyType, partitionBounds)
 
     val rowTyp = PType.canonical(requestedType.rowType, required = true).asInstanceOf[PStruct]
     val rvd =
@@ -1992,8 +2011,9 @@ case class TableFromBlockMatrixNativeReader(
 }
 
 object TableRead {
-  def native(fs: FS, path: String, uidField: Boolean = false): TableRead = {
-    val tr = TableNativeReader(fs, TableNativeReaderParameters(path, None))
+  def native(fs: FS, rgs: ReferenceGenomeEnv, path: String, uidField: Boolean = false)
+    : TableRead = {
+    val tr = TableNativeReader(fs, rgs, TableNativeReaderParameters(path, None))
     val requestedType = if (uidField)
       tr.fullType
     else

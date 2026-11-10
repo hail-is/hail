@@ -25,15 +25,11 @@ abstract class PhysicalTestUtils extends Logging {
     val srcRegion = Region(pool = pool)
     val region = Region(pool = pool)
 
-    val srcAddress = sourceType match {
-      case x: PSubsetStruct => ScalaToRegionValue(ctx.stateManager, srcRegion, x.ps, sourceValue)
-      case _ => ScalaToRegionValue(ctx.stateManager, srcRegion, sourceType, sourceValue)
-    }
+    val srcAddress = ScalaToRegionValue(srcRegion, sourceType, sourceValue)
 
     if (interpret) {
       try {
         val copyOff = destType.copyFromAddress(
-          ctx.stateManager,
           region,
           sourceType,
           srcAddress,

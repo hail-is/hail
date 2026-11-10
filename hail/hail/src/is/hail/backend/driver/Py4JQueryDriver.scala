@@ -14,14 +14,14 @@ import is.hail.expr.ir.defs.{EncodedLiteral, GetFieldByIdx}
 import is.hail.expr.ir.functions.IRFunctionRegistry
 import is.hail.expr.ir.lowering.IrMetadata
 import is.hail.io.fs._
-import is.hail.io.reference.{IndexedFastaSequenceFile, LiftOver}
+import is.hail.io.reference.{Liftover, ReferenceSequence, RgAttachments}
 import is.hail.sparkextras.implicits._
 import is.hail.types.physical.PStruct
 import is.hail.types.virtual.{TArray, TInterval}
 import is.hail.types.virtual.Kinds.{BlockMatrix, Matrix, Table, Value}
 import is.hail.utils._
 import is.hail.utils.implicits.toRichString
-import is.hail.variant.ReferenceGenome
+import is.hail.variant.{ReferenceGenome, ReferenceGenomeEnv}
 
 import scala.annotation.nowarn
 import scala.collection.immutable.ArraySeq
@@ -44,7 +44,8 @@ final class Py4JQueryDriver(backend: Backend) extends Closeable with Logging {
 
   private[this] val flags: HailFeatureFlags = HailFeatureFlags.fromEnv()
   private[this] val hcl = new HailClassLoader(getClass.getClassLoader)
-  private[this] val references = mutable.Map(ReferenceGenome.builtinReferences().toSeq: _*)
+  private[this] var references = ReferenceGenomeEnv.empty
+  private[this] var attachments = RgAttachments.empty
   private[this] val blockMatrixCache = mutable.Map[String, linalg.BlockMatrix]()
   private[this] val compiledCodeCache = new Cache[CompileCacheKey, CompiledFunction[_]](50)
   private[this] val irCache = mutable.Map[Int, BaseIR]()
@@ -137,12 +138,15 @@ final class Py4JQueryDriver(backend: Backend) extends Closeable with Logging {
 
   def pyAddSequence(name: String, fastaFile: String, indexFile: String): Unit =
     executor.run {
-      val seq = IndexedFastaSequenceFile(tmpFileManager.fs, fastaFile, indexFile)
-      references(name).addSequence(seq)
+      attachments = attachments.withSequence(
+        ReferenceSequence(tmpFileManager.fs, references(name), fastaFile, indexFile)
+      )
     }
 
   def pyRemoveSequence(name: String): Unit =
-    executor.run(references(name).removeSequence())
+    executor.run {
+      attachments = attachments.withoutSequence(references(name))
+    }
 
   def pyExportBlockMatrix(
     pathIn: String,
@@ -250,7 +254,8 @@ final class Py4JQueryDriver(backend: Backend) extends Closeable with Logging {
 
       val kvs = JsonMethods.parse(jsonQuery).extract[Map[String, JValue]]
       val paths = kvs("paths").extract[IndexedSeq[String]]
-      val intervalPointType = parseType(kvs("intervalPointType").extract[String])
+      val intervalPointType =
+        parseType(kvs("intervalPointType").extract[String], ctx.references)
       val intervalObjects =
         JSONAnnotationImpex.importAnnotation(kvs("intervals"), TArray(TInterval(intervalPointType)))
           .asInstanceOf[IndexedSeq[Interval]]
@@ -259,7 +264,7 @@ final class Py4JQueryDriver(backend: Backend) extends Closeable with Logging {
       val matrixReaders: util.List[MatrixIR] =
         paths.map { p =>
           logger.info(s"creating MatrixRead node for $p")
-          val mnr = MatrixNativeReader(ctx.fs, p, Some(opts))
+          val mnr = MatrixNativeReader(ctx.fs, ctx.references, p, Some(opts))
           MatrixRead(mnr.fullMatrixTypeWithoutUIDs, false, false, mnr): MatrixIR
         }.asJava
 
@@ -275,14 +280,15 @@ final class Py4JQueryDriver(backend: Backend) extends Closeable with Logging {
 
   def pyAddLiftover(name: String, chainFile: String, destRGName: String): Unit =
     executor.run {
-      references(name).addLiftover(
-        references(destRGName),
-        LiftOver(tmpFileManager.fs, chainFile),
+      attachments = attachments.withLiftover(
+        Liftover(tmpFileManager.fs, references(name), references(destRGName), chainFile)
       )
     }
 
   def pyRemoveLiftover(name: String, destRGName: String): Unit =
-    executor.run(references(name).removeLiftover(destRGName))
+    executor.run {
+      attachments = RgAttachments.removeLiftover(references, attachments, name, destRGName)
+    }
 
   def parse_blockmatrix_ir(s: String): BlockMatrixIR =
     withExecuteContext(selfContainedExecution = false) { ctx =>
@@ -318,7 +324,7 @@ final class Py4JQueryDriver(backend: Backend) extends Closeable with Logging {
     fileAndLineCounts(regex, files, maxLines).view.mapValues(_.map(_.value)).toArray
 
   private[this] def addReference(rg: ReferenceGenome): Unit =
-    ReferenceGenome.addFatalOnCollision(references, FastSeq(rg))
+    references = references.withReferences(FastSeq(rg))
 
   override def close(): Unit = {
     try executor.close()
@@ -333,8 +339,12 @@ final class Py4JQueryDriver(backend: Backend) extends Closeable with Logging {
     IRFunctionRegistry.clearUserFunctions()
   }
 
-  private[this] def removeReference(name: String): Unit =
-    references -= name
+  private[this] def removeReference(name: String): Unit = {
+    val (remainingReferences, remainingAttachments) =
+      RgAttachments.removeReference(references, attachments, name)
+    references = remainingReferences
+    attachments = remainingAttachments
+  }
 
   private[this] def withExecuteContext[T](
     selfContainedExecution: Boolean = true
@@ -348,7 +358,8 @@ final class Py4JQueryDriver(backend: Backend) extends Closeable with Logging {
           tmpdir = tmpdir,
           localTmpdir = localTmpdir,
           backend = backend,
-          references = references.toMap,
+          references = references,
+          attachments = attachments,
           fs = tmpFileManager.fs,
           tempFileManager =
             if (!selfContainedExecution) NonOwningTempFileManager(tmpFileManager)
@@ -447,8 +458,9 @@ final class Py4JQueryDriver(backend: Backend) extends Closeable with Logging {
         override def scoped[A](req: HttpExchange)(f: ExecuteContext => A): A =
           withExecuteContext()(f)
 
+        // Only checks that `refs` could be added: Python adds each one with pyAddReference.
         override def putReferences(req: HttpExchange)(refs: Iterable[ReferenceGenome]): Unit =
-          refs.foreach(addReference)
+          references.withReferences(refs): Unit
       }
 
       // 0 => let the OS pick an available port

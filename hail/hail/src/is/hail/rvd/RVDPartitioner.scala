@@ -1,7 +1,6 @@
 package is.hail.rvd
 
 import is.hail.annotations._
-import is.hail.backend.{ExecuteContext, HailStateManager}
 import is.hail.collection.FastSeq
 import is.hail.collection.implicits._
 import is.hail.expr.ir.defs.Literal
@@ -17,7 +16,6 @@ import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.sql.Row
 
 class RVDPartitioner(
-  val sm: HailStateManager,
   val kType: TStruct,
   // rangeBounds: Array[Interval[kType]]
   // rangeBounds is interval containing all keys within a partition
@@ -31,33 +29,30 @@ class RVDPartitioner(
     s"RVDPartitioner($kType),\n  partitions:\n    ${rangeBounds.mkString(",\n    ")}"
 
   def this(
-    sm: HailStateManager,
     kType: TStruct,
     rangeBounds: IndexedSeq[Interval],
-  ) = this(sm, kType, rangeBounds, kType.size)
+  ) = this(kType, rangeBounds, kType.size)
 
   def this(
-    sm: HailStateManager,
     partitionKey: Array[String],
     kType: TStruct,
     rangeBounds: IndexedSeq[Interval],
-  ) = this(sm, kType, rangeBounds, math.max(partitionKey.length - 1, 0))
+  ) = this(kType, rangeBounds, math.max(partitionKey.length - 1, 0))
 
   def this(
-    sm: HailStateManager,
     partitionKey: Option[Int],
     kType: TStruct,
     rangeBounds: IndexedSeq[Interval],
-  ) = this(sm, kType, rangeBounds, partitionKey.map(_ - 1).getOrElse(kType.size))
+  ) = this(kType, rangeBounds, partitionKey.map(_ - 1).getOrElse(kType.size))
 
   require(rangeBounds.forall { case Interval(l, r, _, _) =>
     kType.relaxedTypeCheck(l) && kType.relaxedTypeCheck(r)
   })
 
   require(allowedOverlap >= 0 && allowedOverlap <= kType.size)
-  require(RVDPartitioner.isValid(sm, kType, rangeBounds, allowedOverlap))
+  require(RVDPartitioner.isValid(kType, rangeBounds, allowedOverlap))
 
-  val kord: ExtendedOrdering = PartitionBoundOrdering(sm, kType)
+  val kord: ExtendedOrdering = PartitionBoundOrdering(kType)
   val intervalKeyLT: (Interval, Any) => Boolean = (i, k) => i.isBelowPosition(kord, k)
   val keyIntervalLT: (Any, Interval) => Boolean = (k, i) => i.isAbovePosition(kord, k)
   val intervalLT: (Interval, Interval) => Boolean = (i1, i2) => i1.isBelow(kord, i2)
@@ -70,7 +65,6 @@ class RVDPartitioner(
 
   def satisfiesAllowedOverlap(testAllowedOverlap: Int): Boolean =
     (testAllowedOverlap >= kType.size) || RVDPartitioner.isValid(
-      sm,
       kType,
       rangeBounds,
       testAllowedOverlap,
@@ -128,7 +122,6 @@ class RVDPartitioner(
     else {
       assert(newKeyLen < kType.size)
       new RVDPartitioner(
-        sm,
         kType.truncate(newKeyLen),
         coarsenedRangeBounds(newKeyLen),
         math.min(allowedOverlap, newKeyLen),
@@ -148,13 +141,12 @@ class RVDPartitioner(
   // adjusts 'rangeBounds'.
   def extendKey(newKType: TStruct): RVDPartitioner = {
     require(kType isPrefixOf newKType)
-    RVDPartitioner.generate(sm, newKType, rangeBounds)
+    RVDPartitioner.generate(newKType, rangeBounds)
   }
 
   def extendKeySamePartitions(newKType: TStruct): RVDPartitioner = {
     require(kType isPrefixOf newKType)
     new RVDPartitioner(
-      sm,
       newKType,
       rangeBounds,
       allowedOverlap,
@@ -194,7 +186,7 @@ class RVDPartitioner(
       } yield interval
     }
 
-    new RVDPartitioner(sm, kType, newBounds, allowedOverlap)
+    new RVDPartitioner(kType, newBounds, allowedOverlap)
   }
 
   def intersect(other: RVDPartitioner): RVDPartitioner = {
@@ -202,14 +194,12 @@ class RVDPartitioner(
       throw new AssertionError(s"key types not isomorphic: $kType, ${other.kType}")
 
     new RVDPartitioner(
-      sm,
       kType,
       Interval.intersection(this.rangeBounds, other.rangeBounds, kord.intervalEndpointOrdering),
     )
   }
 
   def rename(nameMap: Map[String, String]): RVDPartitioner = new RVDPartitioner(
-    sm,
     kType.rename(nameMap),
     rangeBounds,
     allowedOverlap,
@@ -220,7 +210,7 @@ class RVDPartitioner(
     rangeBounds: IndexedSeq[Interval] = rangeBounds,
     allowedOverlap: Int = allowedOverlap,
   ): RVDPartitioner =
-    new RVDPartitioner(sm, kType, rangeBounds, allowedOverlap)
+    new RVDPartitioner(kType, rangeBounds, allowedOverlap)
 
   def coalesceRangeBounds(newPartEnd: IndexedSeq[Int]): RVDPartitioner = {
     val newRangeBounds = (-1 +: newPartEnd.init).zip(newPartEnd).map { case (s, e) =>
@@ -310,28 +300,22 @@ class RVDPartitioner(
 }
 
 object RVDPartitioner extends Logging {
-  def empty(ctx: ExecuteContext, typ: TStruct): RVDPartitioner =
-    RVDPartitioner.empty(ctx.stateManager, typ)
+  def empty(typ: TStruct): RVDPartitioner =
+    new RVDPartitioner(typ, ArraySeq.empty)
 
-  def empty(sm: HailStateManager, typ: TStruct): RVDPartitioner =
-    new RVDPartitioner(sm, typ, ArraySeq.empty)
-
-  def unkeyed(sm: HailStateManager, numPartitions: Int): RVDPartitioner = {
+  def unkeyed(numPartitions: Int): RVDPartitioner = {
     val unkeyedInterval = Interval(RowSeq(), RowSeq(), true, true)
     new RVDPartitioner(
-      sm,
       TStruct.empty,
       ArraySeq.fill(numPartitions)(unkeyedInterval),
       0,
     )
   }
 
-  def generate(sm: HailStateManager, kType: TStruct, intervals: IndexedSeq[Interval])
-    : RVDPartitioner =
-    generate(sm, kType.fieldNames, kType, intervals)
+  def generate(kType: TStruct, intervals: IndexedSeq[Interval]): RVDPartitioner =
+    generate(kType.fieldNames, kType, intervals)
 
   def generate(
-    sm: HailStateManager,
     partitionKey: IndexedSeq[String],
     kType: TStruct,
     intervals: IndexedSeq[Interval],
@@ -341,16 +325,15 @@ object RVDPartitioner extends Logging {
     })
 
     val allowedOverlap = math.max(partitionKey.length - 1, 0)
-    union(sm, kType, intervals, allowedOverlap).subdivide(intervals.map(_.right), allowedOverlap)
+    union(kType, intervals, allowedOverlap).subdivide(intervals.map(_.right), allowedOverlap)
   }
 
   def union(
-    sm: HailStateManager,
     kType: TStruct,
     intervals: IndexedSeq[Interval],
     allowedOverlap: Int,
   ): RVDPartitioner = {
-    val kord = PartitionBoundOrdering(sm, kType)
+    val kord = PartitionBoundOrdering(kType)
     val eord = kord.intervalEndpointOrdering
     val iord = Interval.ordering(kord, startPrimary = true)
     val pk = allowedOverlap + 1
@@ -375,11 +358,10 @@ object RVDPartitioner extends Logging {
         ab.result()
       }
 
-    new RVDPartitioner(sm, kType, rangeBounds, allowedOverlap)
+    new RVDPartitioner(kType, rangeBounds, allowedOverlap)
   }
 
   def fromKeySamples(
-    ctx: ExecuteContext,
     typ: RVDType,
     min: Any,
     max: Any,
@@ -392,7 +374,7 @@ object RVDPartitioner extends Logging {
     require(typ.kType.virtualType.relaxedTypeCheck(max))
     require(keys.forall(typ.kType.virtualType.relaxedTypeCheck))
 
-    val kOrd = PartitionBoundOrdering(ctx.stateManager, typ.kType.virtualType).toOrdering
+    val kOrd = PartitionBoundOrdering(typ.kType.virtualType).toOrdering
     val sortedKeys = keys.sorted(kOrd)
     val step = (sortedKeys.length - 1).toDouble / nPartitions
     val partitionEdges = ArraySeq.tabulate(nPartitions - 1) { i =>
@@ -401,17 +383,15 @@ object RVDPartitioner extends Logging {
 
     val interval = Interval(min, max, true, true)
     new RVDPartitioner(
-      ctx.stateManager,
       typ.kType.virtualType,
       FastSeq(interval),
     ).subdivide(partitionEdges, math.max(partitionKey - 1, 0))
   }
 
-  def isValid(sm: HailStateManager, kType: TStruct, rangeBounds: IndexedSeq[Interval]): Boolean =
-    isValid(sm, kType, rangeBounds, kType.size)
+  def isValid(kType: TStruct, rangeBounds: IndexedSeq[Interval]): Boolean =
+    isValid(kType, rangeBounds, kType.size)
 
   def isValid(
-    sm: HailStateManager,
     kType: TStruct,
     rangeBounds: IndexedSeq[Interval],
     allowedOverlap: Int,
@@ -419,7 +399,7 @@ object RVDPartitioner extends Logging {
     rangeBounds.isEmpty ||
     rangeBounds.zip(rangeBounds.tail).forall { case (left: Interval, right: Interval) =>
       val r =
-        PartitionBoundOrdering(sm, kType).intervalEndpointOrdering.lteqWithOverlap(allowedOverlap)(
+        PartitionBoundOrdering(kType).intervalEndpointOrdering.lteqWithOverlap(allowedOverlap)(
           left.right,
           right.left,
         )

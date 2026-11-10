@@ -11,13 +11,23 @@ import is.hail.types.physical.stypes.SValue
 import is.hail.types.physical.stypes.concrete.SNDArrayPointer
 import is.hail.types.physical.stypes.primitives.SFloat64Value
 import is.hail.types.virtual._
+import is.hail.variant.ReferenceGenomeEnv
 
 import java.io.InputStream
 
 import org.json4s.{DefaultFormats, Extraction, Formats, JValue, ShortTypeHints}
 
 object ValueReader {
-  implicit val formats: Formats =
+
+  /** Formats that read types, parsing them against `rgs`. */
+  def formats(rgs: ReferenceGenomeEnv): Formats = typeFormats(Some(rgs))
+
+  /** Formats that write types but cannot read them. */
+  def formats: Formats = writeOnlyFormats
+
+  private[this] lazy val writeOnlyFormats: Formats = typeFormats(None)
+
+  private def typeFormats(rgs: Option[ReferenceGenomeEnv]): Formats =
     new DefaultFormats() {
       override val typeHints = ShortTypeHints(
         List(
@@ -29,9 +39,9 @@ object ValueReader {
         typeHintFieldName = "name",
       ) + BufferSpec.shortTypeHints
     } +
-      new TStructSerializer +
-      new TypeSerializer +
-      new PTypeSerializer +
+      new TStructSerializer(rgs) +
+      new TypeSerializer(rgs) +
+      new PTypeSerializer(rgs) +
       new ETypeSerializer
 }
 

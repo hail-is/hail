@@ -115,7 +115,6 @@ object TableValue extends Logging {
       globalType = newGlobalType,
     )
     val ctx = childValues.head.ctx
-    val sm = ctx.stateManager
 
     val childRVDs = RVD.unify(ctx, childValues.map(_.rvd))
     assert(childRVDs.forall(_.typ.key.startsWith(typ.key)))
@@ -129,7 +128,7 @@ object TableValue extends Logging {
       else {
         logger.info("TableMultiWayZipJoin: repartitioning children")
         val childRanges = childRVDs.flatMap(_.partitioner.coarsenedRangeBounds(typ.key.length))
-        val newPartitioner = RVDPartitioner.generate(ctx.stateManager, typ.keyType, childRanges)
+        val newPartitioner = RVDPartitioner.generate(typ.keyType, childRanges)
         childRVDs.map(_.repartition(ctx, newPartitioner))
       }
     val newPartitioner = repartitionedRVDs(0).partitioner
@@ -153,7 +152,7 @@ object TableValue extends Logging {
     )
     val localDataLength = childValues.length
     val rvMerger = { (ctx: RVDContext, it: Iterator[collection.IndexedSeq[(RegionValue, Int)]]) =>
-      val rvb = new RegionValueBuilder(sm)
+      val rvb = new RegionValueBuilder()
       val newRegionValue = RegionValue()
 
       it.map { rvs =>
@@ -186,8 +185,8 @@ object TableValue extends Logging {
       partitioner = newPartitioner,
       crdd = ContextRDD.czipNPartitions(repartitionedRVDs.map(_.crdd.toCRDDRegionValue)) {
         (ctx, its) =>
-          val orvIters = its.map(it => OrderedRVIterator(localRVDType, it, ctx, sm))
-          rvMerger(ctx, OrderedRVIterator.multiZipJoin(sm, orvIters))
+          val orvIters = its.map(it => OrderedRVIterator(localRVDType, it, ctx))
+          rvMerger(ctx, OrderedRVIterator.multiZipJoin(orvIters))
       }.toCRDDPtr,
     )
 
@@ -280,7 +279,6 @@ object TableValue extends Logging {
       new RVD(
         RVDType(rowType, ArraySeq("idx")),
         new RVDPartitioner(
-          ctx.stateManager,
           Array("idx"),
           typ.rowType,
           ArraySeq.tabulate(nPartitions) { i =>
@@ -440,7 +438,6 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
   def aggregateByKey(extracted: IndependentExtractedAggs): TableValue = {
     val prevRVD = rvd.truncateKey(typ.key)
     val fsBc = ctx.fsBc
-    val sm = ctx.stateManager
 
     val aggSigs = extracted.sigs
 
@@ -502,7 +499,7 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
 
     val localChildRowType = prevRVD.rowPType
     val keyIndices = prevRVD.typ.kFieldIdx
-    val keyOrd = prevRVD.typ.kRowOrd(ctx.stateManager)
+    val keyOrd = prevRVD.typ.kRowOrd
     val globalsBc = globals.broadcast(ctx.theHailClassLoader)
 
     val newRVDType = prevRVD.typ.copy(rowType = rowType)
@@ -529,7 +526,7 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
         new Iterator[Long] {
           var isEnd = false
           var current: Long = 0
-          val rowKey: WritableRegionValue = WritableRegionValue(sm, keyType, ctx.freshRegion())
+          val rowKey: WritableRegionValue = WritableRegionValue(keyType, ctx.freshRegion())
           val consumerRegion: Region = ctx.region
 
           override def hasNext: Boolean = {
@@ -651,7 +648,7 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
     if (pred == True())
       return this
     else if (pred == False())
-      return copy(rvd = RVD.empty(ctx, typ.canonicalRVDType))
+      return copy(rvd = RVD.empty(typ.canonicalRVDType))
 
     val (Some(BooleanSingleCodeType), f) = Compile[AsmFunction3RegionLongLongBoolean](
       ctx,
@@ -696,7 +693,6 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
     val rightRVDType = rightValue.rvd.typ.copy(key = rightValue.typ.key)
     val rightValueFields = rightRVDType.valueType.fieldNames
 
-    val sm = ctx.stateManager
     val localKey = typ.key
     val localRoot = root
     val newRVD =
@@ -710,7 +706,7 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
           (
             RVDType(newRowType, localKey),
             (_: RVDContext, it: Iterator[Muple[RegionValue, Iterable[RegionValue]]]) => {
-              val rvb = new RegionValueBuilder(sm)
+              val rvb = new RegionValueBuilder()
               val rv2 = RegionValue()
               it.map { case Muple(rv, is) =>
                 rvb.set(rv.region)
@@ -741,7 +737,7 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
           (
             RVDType(newRowType, localKey),
             (_: RVDContext, it: Iterator[JoinedRegionValue]) => {
-              val rvb = new RegionValueBuilder(sm)
+              val rvb = new RegionValueBuilder()
               val rv2 = RegionValue()
               it.map { case Muple(rv, i) =>
                 rvb.set(rv.region)
@@ -778,7 +774,6 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
     bufferSize: Int,
   ): TableValue = {
     val fsBc = ctx.fsBc
-    val sm = ctx.stateManager
 
     val aggSigs = extracted.sigs
 
@@ -917,7 +912,7 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
     val crdd = ContextRDD.weaken(rdd).cmapPartitionsWithIndex({ (i, hcl, ctx, it) =>
       val region = ctx.region
 
-      val rvb = new RegionValueBuilder(sm)
+      val rvb = new RegionValueBuilder()
       val partRegion = ctx.partitionRegion
       val tc = SparkTaskContext.get()
       val globals = globalsBc.value.readRegionValue(partRegion, hcl)
@@ -1416,7 +1411,7 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
     val sortColIndexOrd = sortFields.map { case SortField(n, so) =>
       val i = rowType.fieldIdx(n)
       val f = rowType.fields(i)
-      val fo = f.typ.ordering(ctx.stateManager)
+      val fo = f.typ.ordering
       if (so == Ascending) fo else fo.reverse
     }
 

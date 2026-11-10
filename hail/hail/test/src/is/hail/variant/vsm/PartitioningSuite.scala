@@ -19,7 +19,7 @@ class PartitioningSuite {
         ctx,
         typ,
         BroadcastRow.empty(ctx),
-        RVD.empty(ctx, typ.canonicalRVDType),
+        RVD.empty(typ.canonicalRVDType),
       ),
       ctx.theHailClassLoader,
     )

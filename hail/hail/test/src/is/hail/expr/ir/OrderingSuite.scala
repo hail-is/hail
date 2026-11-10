@@ -31,8 +31,6 @@ class OrderingSuite {
 
   implicit val execStrats: hail.ExecStrategy.ValueSet = ExecStrategy.values
 
-  def sm(implicit ctx: ExecuteContext) = ctx.stateManager
-
   def genTypeNonMissingVal2(implicit ctx: ExecuteContext): Gen[(Type, Annotation, Annotation)] =
     for {
       typ <- scale(0.3, arbitrary[Type])
@@ -57,17 +55,8 @@ class OrderingSuite {
     r: Region,
     sortOrder: SortOrder = Ascending,
   )(implicit ctx: ExecuteContext
-  ): AsmFunction3[Region, Long, Long, op.ReturnType] = {
-    implicit val x = op.rtti
-    val fb = EmitFunctionBuilder[Region, Long, Long, op.ReturnType](ctx, "lifted")
-    fb.emitWithBuilder { cb =>
-      val cv1 = t.loadCheapSCode(cb, fb.getCodeParam[Long](2))
-      val cv2 = t.loadCheapSCode(cb, fb.getCodeParam[Long](3))
-      fb.ecb.getOrderingFunction(cv1.st, cv2.st, op)
-        .apply(cb, EmitValue.present(cv1), EmitValue.present(cv2))
-    }
-    fb.resultWithIndex()(ctx.theHailClassLoader, ctx.fs, ctx.taskContext, r)
-  }
+  ): AsmFunction3[Region, Long, Long, op.ReturnType] =
+    getStagedOrderingFunction(t, t, op, r)
 
   @Test def testMissingNonequalComparisons(implicit ctx: ExecuteContext): Unit = {
     val pool = ctx.r.pool
@@ -97,10 +86,10 @@ class OrderingSuite {
       pool.scopedRegion { region =>
         val pType = PType.canonical(t).asInstanceOf[PStruct]
 
-        val v = pType.unstagedStoreJavaObject(sm, a, region)
+        val v = pType.unstagedStoreJavaObject(a, region)
 
-        val eordME = t.mkOrdering(sm)
-        val eordMNE = t.mkOrdering(sm, missingEqual = false)
+        val eordME = t.mkOrdering()
+        val eordMNE = t.mkOrdering(missingEqual = false)
 
         def checkCompare(compResult: Int, expected: Int): Unit =
           assert(
@@ -245,11 +234,11 @@ class OrderingSuite {
       pool.scopedRegion { region =>
         val pType = PType.canonical(t)
 
-        val v1 = pType.unstagedStoreJavaObject(sm, a1, region)
+        val v1 = pType.unstagedStoreJavaObject(a1, region)
 
-        val v2 = pType.unstagedStoreJavaObject(sm, a2, region)
+        val v2 = pType.unstagedStoreJavaObject(a2, region)
 
-        val compare = java.lang.Integer.signum(t.ordering(sm).compare(a1, a2))
+        val compare = java.lang.Integer.signum(t.ordering.compare(a1, a2))
         val fcompare = getStagedOrderingFunction(pType, CodeOrdering.Compare(), region)
         val result = java.lang.Integer.signum(fcompare(region, v1, v2))
 
@@ -258,27 +247,27 @@ class OrderingSuite {
           s"compare expected: $compare vs $result\n  t=${t.parsableString()}\n  v1=$a1\n  v2=$a2",
         )
 
-        val equiv = t.ordering(sm).equiv(a1, a2)
+        val equiv = t.ordering.equiv(a1, a2)
         val fequiv = getStagedOrderingFunction(pType, CodeOrdering.Equiv(), region)
 
         assert(fequiv(region, v1, v2) == equiv, s"equiv expected: $equiv")
 
-        val lt = t.ordering(sm).lt(a1, a2)
+        val lt = t.ordering.lt(a1, a2)
         val flt = getStagedOrderingFunction(pType, CodeOrdering.Lt(), region)
 
         assert(flt(region, v1, v2) == lt, s"lt expected: $lt")
 
-        val lteq = t.ordering(sm).lteq(a1, a2)
+        val lteq = t.ordering.lteq(a1, a2)
         val flteq = getStagedOrderingFunction(pType, CodeOrdering.Lteq(), region)
 
         assert(flteq(region, v1, v2) == lteq, s"lteq expected: $lteq")
 
-        val gt = t.ordering(sm).gt(a1, a2)
+        val gt = t.ordering.gt(a1, a2)
         val fgt = getStagedOrderingFunction(pType, CodeOrdering.Gt(), region)
 
         assert(fgt(region, v1, v2) == gt, s"gt expected: $gt")
 
-        val gteq = t.ordering(sm).gteq(a1, a2)
+        val gteq = t.ordering.gteq(a1, a2)
         val fgteq = getStagedOrderingFunction(pType, CodeOrdering.Gteq(), region)
 
         assert(fgteq(region, v1, v2) == gteq, s"gteq expected: $gteq")
@@ -292,11 +281,11 @@ class OrderingSuite {
       pool.scopedRegion { region =>
         val pType = PType.canonical(t)
 
-        val v1 = pType.unstagedStoreJavaObject(sm, a1, region)
+        val v1 = pType.unstagedStoreJavaObject(a1, region)
 
-        val v2 = pType.unstagedStoreJavaObject(sm, a2, region)
+        val v2 = pType.unstagedStoreJavaObject(a2, region)
 
-        val reversedExtendedOrdering = t.ordering(sm).reverse
+        val reversedExtendedOrdering = t.ordering.reverse
 
         val compare = java.lang.Integer.signum(reversedExtendedOrdering.compare(a2, a1))
         val fcompare = getStagedOrderingFunction(pType, CodeOrdering.Compare(), region, Descending)
@@ -337,7 +326,7 @@ class OrderingSuite {
 
     check(forAll(genTypeVal[TArray](ctx), arbitrary[Boolean]) {
       case ((tarray, a: IndexedSeq[Any]), asc) =>
-        val ord = tarray.elementType.ordering(sm)
+        val ord = tarray.elementType.ordering
         assertEvalsTo(
           ArraySort(ToStream(In(0, tarray)), Literal.coerce(TBoolean, asc)),
           FastSeq(a -> tarray),
@@ -354,7 +343,7 @@ class OrderingSuite {
       assertEvalsTo(
         ToArray(ToStream(ToSet(ToStream(In(0, tarray))))),
         FastSeq(array -> tarray),
-        expected = array.sorted(tarray.elementType.ordering(sm).toOrdering).distinct,
+        expected = array.sorted(tarray.elementType.ordering.toOrdering).distinct,
       )
     })
   }
@@ -366,7 +355,7 @@ class OrderingSuite {
     val compareGen: Gen[(TTuple, IndexedSeq[Annotation])] =
       for {
         pkey <- smaller[PType]
-        if pkey.virtualType.ordering(sm) != null
+        if pkey.virtualType.ordering != null
         pval <- smaller[PType]
         pelt = PCanonicalTuple(false, pkey.setRequired(true), pval)
         a <- genVal(ctx, PCanonicalArray(pelt, required = true))
@@ -383,7 +372,7 @@ class OrderingSuite {
             .map { case Row(k, _) => k }
             .to(ArraySeq)
             .distinct
-            .sorted(telt.types(0).ordering(sm).toOrdering),
+            .sorted(telt.types(0).ordering.toOrdering),
       )
     })
   }
@@ -470,9 +459,9 @@ class OrderingSuite {
       val pArray = PCanonicalArray(pt)
 
       ctx.r.pool.scopedRegion { region =>
-        val soff = pset.unstagedStoreJavaObject(sm, set, region)
+        val soff = pset.unstagedStoreJavaObject(set, region)
 
-        val eoff = pTuple.unstagedStoreJavaObject(sm, RowSeq(elem), region)
+        val eoff = pTuple.unstagedStoreJavaObject(RowSeq(elem), region)
 
         val fb = EmitFunctionBuilder[Region, Long, Long, Int](ctx, "binary_search")
         val cset = fb.getCodeParam[Long](2)
@@ -500,7 +489,7 @@ class OrderingSuite {
 
         val f = fb.resultWithIndex()(ctx.theHailClassLoader, ctx.fs, ctx.taskContext, region)
         val i = f(region, soff, eoff)
-        val ordering = t.ordering(sm)
+        val ordering = t.ordering
 
         // if i-1 is in bounds, then asArray(i) < elem
         // if i is in bounds, then elem <= asArray(i)
@@ -522,10 +511,10 @@ class OrderingSuite {
       val pDict = PType.canonical(tDict).asInstanceOf[PDict]
 
       ctx.r.pool.scopedRegion { region =>
-        val soff = pDict.unstagedStoreJavaObject(sm, dict, region)
+        val soff = pDict.unstagedStoreJavaObject(dict, region)
 
         val ptuple = PCanonicalTuple(false, FastSeq(pDict.keyType): _*)
-        val eoff = ptuple.unstagedStoreJavaObject(sm, RowSeq(key), region)
+        val eoff = ptuple.unstagedStoreJavaObject(RowSeq(key), region)
 
         val fb = EmitFunctionBuilder[Region, Long, Long, Int](ctx, "binary_search_dict")
         val cdict = fb.getCodeParam[Long](2)
@@ -554,11 +543,13 @@ class OrderingSuite {
         )
 
         val asArray =
-          SafeIndexedSeq(PCanonicalArray(pDict.elementType), soff).map(_.asInstanceOf[Row])
+          SafeIndexedSeq(PCanonicalArray(pDict.elementType), soff).map(
+            _.asInstanceOf[Row]
+          )
 
         val f = fb.resultWithIndex()(ctx.theHailClassLoader, ctx.fs, ctx.taskContext, region)
         val i = f(region, soff, eoff)
-        val ordering = pDict.keyType.virtualType.ordering(sm)
+        val ordering = pDict.keyType.virtualType.ordering
 
         // if i-1 is in bounds, then asArray(i).getKey < key
         // if i is in bounds, then key <= asArray(i).getKey
@@ -573,8 +564,8 @@ class OrderingSuite {
     check(forAll(genTypeNonMissingVal2) { case (t, a1, a2) =>
       pool.scopedRegion { region =>
         val pType = PType.canonical(t)
-        val v1 = pType.unstagedStoreJavaObject(sm, a1, region)
-        val v2 = pType.unstagedStoreJavaObject(sm, a2, region)
+        val v1 = pType.unstagedStoreJavaObject(a1, region)
+        val v2 = pType.unstagedStoreJavaObject(a2, region)
         val fcompare = getStagedOrderingFunction(pType, CodeOrdering.Compare(), region)
         val result = java.lang.Integer.signum(fcompare(region, v1, v2))
 
@@ -707,5 +698,71 @@ class OrderingSuite {
     assertEvalSame(ApplyComparisonOp(GT, In(0, t), In(1, t)), args)
     assertEvalSame(ApplyComparisonOp(GTEQ, In(0, t), In(1, t)), args)
     assertEvalSame(ApplyComparisonOp(Compare, In(0, t), In(1, t)), args)
+  }
+
+  def getStagedOrderingFunction(
+    t1: PType,
+    t2: PType,
+    op: CodeOrdering.Op,
+    r: Region,
+  )(implicit ctx: ExecuteContext
+  ): AsmFunction3[Region, Long, Long, op.ReturnType] = {
+    implicit val x = op.rtti
+    val fb = EmitFunctionBuilder[Region, Long, Long, op.ReturnType](ctx, "lifted")
+    fb.emitWithBuilder { cb =>
+      val cv1 = t1.loadCheapSCode(cb, fb.getCodeParam[Long](2))
+      val cv2 = t2.loadCheapSCode(cb, fb.getCodeParam[Long](3))
+      fb.ecb.getOrderingFunction(cv1.st, cv2.st, op)
+        .apply(cb, EmitValue.present(cv1), EmitValue.present(cv2))
+    }
+    fb.resultWithIndex()(ctx.theHailClassLoader, ctx.fs, ctx.taskContext, r)
+  }
+
+  // Compiled orderings between loci of any pair of representations, at top level and nested, on the
+  // same reference genome or an equal copy of it, agree with the virtual type's ordering. The
+  // session does not hold the custom reference genome: locus types carry their own.
+  @Test def testLocusRepresentationOrderings(implicit ctx: ExecuteContext): Unit = {
+    val nestings = ArraySeq[PLocus => PType](
+      identity,
+      l => PCanonicalStruct(true, "l" -> l, "i" -> PInt32()),
+      l => PCanonicalArray(l, true),
+      l => PCanonicalInterval(l, true),
+    )
+
+    for {
+      rg <- LocusRepresentations.references
+      nest <- nestings
+      (lt, rt) <- LocusRepresentations.representationPairs(nest(PCanonicalLocus(rg, true)), rg)
+    } ctx.r.pool.scopedRegion { r =>
+      val t = lt.virtualType
+      val ord = t.ordering
+      val compare = getStagedOrderingFunction(lt, rt, CodeOrdering.Compare(), r)
+      val less = getStagedOrderingFunction(lt, rt, CodeOrdering.Lt(), r)
+      val equiv = getStagedOrderingFunction(lt, rt, CodeOrdering.Equiv(), r)
+      // PInterval's unsafe ordering assumes both sides share its layout
+      val unsafeOrd = lt match {
+        case _: PInterval => None
+        case _ => Some(lt.unsafeOrdering(rt))
+      }
+      val genValue = genVal(ctx, lt)
+
+      check(forAll(genValue, genValue) { (a, b) =>
+        val clue = s"$lt vs $rt: $a, $b"
+        for ((x, y) <- ArraySeq((a, b), (a, a))) {
+          val xOff = lt.unstagedStoreJavaObject(x, r)
+          val yOff = rt.unstagedStoreJavaObject(y, r)
+          assert(
+            math.signum(compare(r, xOff, yOff)) == math.signum(ord.compare(x, y)),
+            clue,
+          )
+          assert(less(r, xOff, yOff) == ord.lt(x, y), clue)
+          assert(equiv(r, xOff, yOff) == ord.equiv(x, y), clue)
+          unsafeOrd.foreach { u =>
+            assert(math.signum(u.compare(xOff, yOff)) == math.signum(ord.compare(x, y)), clue)
+          }
+        }
+        true
+      })
+    }
   }
 }

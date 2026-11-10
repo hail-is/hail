@@ -9,7 +9,7 @@ abstract class FakeFS extends FS {
   override type URL = FakeURL
   override def validUrl(filename: String): Boolean = ???
   override def parseUrl(filename: String): FakeURL = new FakeURL(filename)
-  override def openNoCompression(url: FakeURL): SeekableDataInputStream = ???
+  override def openNoCompression(url: FakeURL, bufferSize: Int): SeekableDataInputStream = ???
   override def createNoCompression(url: FakeURL): PositionedDataOutputStream = ???
   override def delete(url: FakeURL, recursive: Boolean): Unit = ???
   override def eTag(url: FakeURL): Option[String] = ???

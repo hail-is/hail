@@ -8,9 +8,7 @@ import is.hail.expr.{
 }
 import is.hail.expr.ir.RelationalSpec
 import is.hail.io.fs.FS
-import is.hail.io.reference.{
-  FASTAReader, FASTAReaderConfig, FastaSequenceIndex, IndexedFastaSequenceFile, LiftOver,
-}
+import is.hail.io.reference.FastaSequenceIndex
 import is.hail.types._
 import is.hail.types.virtual.{TLocus, Type}
 import is.hail.utils._
@@ -24,14 +22,27 @@ import java.io.{FileNotFoundException, InputStream}
 import org.json4s.{DefaultFormats, Extraction, Formats, JValue}
 import org.json4s.jackson.{JsonMethods, Serialization}
 
-case class ReferenceGenome(
-  name: String,
-  contigs: IndexedSeq[String],
-  lengths: Map[String, Int],
-  xContigs: Set[String] = Set.empty[String],
-  yContigs: Set[String] = Set.empty[String],
-  mtContigs: Set[String] = Set.empty[String],
-  parInput: IndexedSeq[(Locus, Locus)] = IndexedSeq.empty[(Locus, Locus)],
+/** A reference genome: its defining fields, and everything derived from them.
+  *
+  * A reference genome is immutable, so the builtin reference genomes are cached once per JVM and
+  * shared across sessions, threads and users. Nothing on a reference genome may be mutable or
+  * scoped to a session, and any lazily derived field must be safe to publish.
+  *
+  * Equality checks identity first, then compares the defining fields. Comparing names alone is not
+  * enough, since values from different sessions can meet in one reused Batch driver JVM.
+  *
+  * A reference genome serializes through a small proxy. A builtin serializes as its name and
+  * resolves to the cached copy on read. Any other reference genome serializes only its defining
+  * fields, and rebuilds the derived ones on read.
+  */
+final class ReferenceGenome(
+  val name: String,
+  val contigs: IndexedSeq[String],
+  val lengths: Map[String, Int],
+  val xContigs: Set[String],
+  val yContigs: Set[String],
+  val mtContigs: Set[String],
+  val parInput: IndexedSeq[(Locus, Locus)],
 ) extends Serializable {
 
   val nContigs = contigs.length
@@ -42,16 +53,18 @@ case class ReferenceGenome(
   if (!contigs.areDistinct())
     fatal("Repeated contig names are not allowed.")
 
-  val missingLengths = contigs.toSet.diff(lengths.keySet)
-  val extraLengths = lengths.keySet.diff(contigs.toSet)
+  {
+    val missingLengths = contigs.toSet.diff(lengths.keySet)
+    val extraLengths = lengths.keySet.diff(contigs.toSet)
 
-  if (missingLengths.nonEmpty)
-    fatal(s"No lengths given for the following contigs: ${missingLengths.mkString(", ")}")
+    if (missingLengths.nonEmpty)
+      fatal(s"No lengths given for the following contigs: ${missingLengths.mkString(", ")}")
 
-  if (extraLengths.nonEmpty)
-    fatal(
-      s"Contigs found in 'lengths' that are not present in 'contigs': ${extraLengths.mkString(", ")}"
-    )
+    if (extraLengths.nonEmpty)
+      fatal(
+        s"Contigs found in 'lengths' that are not present in 'contigs': ${extraLengths.mkString(", ")}"
+      )
+  }
 
   if (xContigs.intersect(yContigs).nonEmpty)
     fatal(
@@ -68,12 +81,12 @@ case class ReferenceGenome(
       s"Found the contigs '${yContigs.intersect(mtContigs).mkString(", ")}' in both Y and MT contigs."
     )
 
-  val contigsIndex: java.util.HashMap[String, Integer] =
+  private val contigsIndex: java.util.HashMap[String, Integer] =
     makeJavaMap(contigs.iterator.zipWithIndex.map { case (c, i) => (c, box(i)) })
 
-  val contigsSet: java.util.HashSet[String] = makeJavaSet(contigs)
+  private val contigsSet: java.util.HashSet[String] = makeJavaSet(contigs)
 
-  private val jLengths: java.util.HashMap[String, java.lang.Integer] =
+  private[this] val jLengths: java.util.HashMap[String, java.lang.Integer] =
     makeJavaMap(lengths.iterator.map { case (c, i) => (c, box(i)) })
 
   val lengthsByIndex: IndexedSeq[Int] = contigs.map(lengths)
@@ -83,24 +96,26 @@ case class ReferenceGenome(
       fatal(s"Contig length must be positive. Contig '$n' has length equal to $l.")
   }
 
-  val xNotInRef = xContigs.diff(contigsSet.asScala)
-  val yNotInRef = yContigs.diff(contigsSet.asScala)
-  val mtNotInRef = mtContigs.diff(contigsSet.asScala)
+  {
+    val xNotInRef = xContigs.diff(contigsSet.asScala)
+    val yNotInRef = yContigs.diff(contigsSet.asScala)
+    val mtNotInRef = mtContigs.diff(contigsSet.asScala)
 
-  if (xNotInRef.nonEmpty)
-    fatal(
-      s"The following X contig names are absent from the reference: '${xNotInRef.mkString(", ")}'."
-    )
+    if (xNotInRef.nonEmpty)
+      fatal(
+        s"The following X contig names are absent from the reference: '${xNotInRef.mkString(", ")}'."
+      )
 
-  if (yNotInRef.nonEmpty)
-    fatal(
-      s"The following Y contig names are absent from the reference: '${yNotInRef.mkString(", ")}'."
-    )
+    if (yNotInRef.nonEmpty)
+      fatal(
+        s"The following Y contig names are absent from the reference: '${yNotInRef.mkString(", ")}'."
+      )
 
-  if (mtNotInRef.nonEmpty)
-    fatal(
-      s"The following mitochondrial contig names are absent from the reference: '${mtNotInRef.mkString(", ")}'."
-    )
+    if (mtNotInRef.nonEmpty)
+      fatal(
+        s"The following mitochondrial contig names are absent from the reference: '${mtNotInRef.mkString(", ")}'."
+      )
+  }
 
   val xContigIndices = xContigs.map(contigsIndex.get)
   val yContigIndices = yContigs.map(contigsIndex.get)
@@ -116,18 +131,7 @@ case class ReferenceGenome(
 
   val extendedLocusOrdering = ExtendedOrdering.extendToNull(locusOrdering)
 
-  // must be constructed after orderings
-  @transient @volatile var _locusType: TLocus = _
-
-  def locusType: TLocus = {
-    if (_locusType == null) {
-      synchronized {
-        if (_locusType == null)
-          _locusType = TLocus(this.name)
-      }
-    }
-    _locusType
-  }
+  lazy val locusType: TLocus = TLocus(this)
 
   val par = parInput.map { case (start, end) =>
     if (start.contig != end.contig)
@@ -146,44 +150,58 @@ case class ReferenceGenome(
     Interval(start, end, includesStart = true, includesEnd = false)
   }
 
-  private[this] var fastaFile: IndexedFastaSequenceFile = _
-  @transient private[this] var fastaReaderCfg: FASTAReaderConfig = _
-
-  @transient lazy val contigParser = Parser.oneOfLiteral(contigs)
+  lazy val contigParser = Parser.oneOfLiteral(contigs)
 
   val globalPosContigStarts = {
     var pos = 0L
     contigs.map { c =>
       val x = (c, pos)
-      pos += contigLength(c)
+      pos += lengths(c)
       x
     }.toMap
   }
 
   val nBases = lengths.map(_._2.toLong).sum
 
-  @transient private var globalContigEnds: IndexedSeq[Long] = _
+  private[this] lazy val globalContigEnds: IndexedSeq[Long] =
+    lengthsByIndex.map(_.toLong).scan(0L)(_ + _).tail
 
-  def getGlobalContigEnds: IndexedSeq[Long] =
-    contigs.map(contigLength(_).toLong).scan(0L)(_ + _).tail
+  def copy(
+    name: String = name,
+    contigs: IndexedSeq[String] = contigs,
+    lengths: Map[String, Int] = lengths,
+    xContigs: Set[String] = xContigs,
+    yContigs: Set[String] = yContigs,
+    mtContigs: Set[String] = mtContigs,
+    parInput: IndexedSeq[(Locus, Locus)] = parInput,
+  ): ReferenceGenome =
+    new ReferenceGenome(name, contigs, lengths, xContigs, yContigs, mtContigs, parInput)
 
   def locusToGlobalPos(contig: String, pos: Int): Long =
     globalPosContigStarts(contig) + (pos - 1)
 
   def locusToGlobalPos(l: Locus): Long = locusToGlobalPos(l.contig, l.position)
 
-  def globalPosToContig(idx: Long): String = {
-    if (globalContigEnds == null)
-      globalContigEnds = getGlobalContigEnds
+  def globalPosToContig(idx: Long): String =
     contigs(globalContigEnds.partitionPoint(_ > idx))
-  }
 
   def globalPosToLocus(idx: Long): Locus = {
     val contig = globalPosToContig(idx)
     Locus(contig, (idx - globalPosContigStarts(contig) + 1).toInt)
   }
 
-  def getContigIndex(contig: String): Int = contigsIndex.get(contig)
+  def getContigIndex(contig: String): Int = {
+    val idx = contigsIndex.get(contig)
+    if (idx == null)
+      fatal(s"Contig '$contig' is not in the reference genome '$name'.")
+    idx.intValue()
+  }
+
+  /** The index of `contig`, or `None` if it is null or not in this reference genome. */
+  def contigIndexOption(contig: String): Option[Int] =
+    Option(contigsIndex.get(contig)).map(_.intValue())
+
+  def getContig(contigIdx: Int): String = contigs(contigIdx)
 
   def contigLength(contig: String): Int = {
     val r = jLengths.get(contig)
@@ -346,109 +364,24 @@ case class ReferenceGenome(
       )
   }
 
-  private def hasSequence: Boolean = fastaFile != null
+  override val hashCode: Int =
+    (name, contigs, lengths, xContigs, yContigs, mtContigs, parInput).##
 
-  def addSequence(fasta: IndexedFastaSequenceFile): Unit = {
-    if (hasSequence)
-      fatal(s"FASTA sequence has already been loaded for reference genome '$name'.")
-
-    fasta.raiseIfIncompatible(this)
-    fastaFile = fasta
-  }
-
-  @transient private lazy val realFastaReader: ThreadLocal[FASTAReader] =
-    new ThreadLocal[FASTAReader]
-
-  private def fastaReader(): FASTAReader = {
-    if (!hasSequence)
-      fatal(s"FASTA file has not been loaded for reference genome '$name'.")
-
-    if (realFastaReader.get() == null)
-      realFastaReader.set(fastaReaderCfg.reader)
-    if (realFastaReader.get().cfg != fastaReaderCfg)
-      realFastaReader.set(fastaReaderCfg.reader)
-    realFastaReader.get()
-  }
-
-  def getSequence(contig: String, position: Int, before: Int = 0, after: Int = 0): String =
-    fastaReader().lookup(contig, position, before, after)
-
-  def getSequence(l: Locus, before: Int, after: Int): String =
-    getSequence(l.contig, l.position, before, after)
-
-  def getSequence(i: Interval): String =
-    fastaReader().lookup(i)
-
-  def removeSequence(): Unit = {
-    if (!hasSequence)
-      fatal(s"Reference genome '$name' does not have sequence loaded.")
-    fastaFile = null
-    fastaReaderCfg = null
-  }
-
-  private[this] val liftovers: mutable.Map[String, LiftOver] =
-    mutable.Map.empty
-
-  def addLiftover(destRef: ReferenceGenome, liftOver: LiftOver): Unit = {
-    if (name == destRef.name)
-      fatal(s"Destination reference genome cannot have the same name as this reference '$name'")
-    if (liftovers.contains(destRef.name))
-      fatal(
-        s"LiftOver already exists for source reference '$name' and destination reference '${destRef.name}'."
-      )
-
-    liftOver.checkChainFile(this, destRef)
-    liftovers += destRef.name -> liftOver
-  }
-
-  def removeLiftover(destRGName: String): Unit =
-    liftovers -= destRGName
-
-  def liftoverLocus(destRGName: String, l: Locus, minMatch: Double): (Locus, Boolean) =
-    liftovers(destRGName).queryLocus(l, minMatch)
-
-  def liftoverLocusInterval(destRGName: String, interval: Interval, minMatch: Double)
-    : (Interval, Boolean) =
-    liftovers(destRGName).queryInterval(interval, minMatch)
-
-  def heal(tmpdir: String, fs: FS): Unit = synchronized {
-    liftovers.values.foreach(_.restore(fs))
-    // add sequence
-    if (fastaFile != null) {
-      fastaFile.restore(fs)
-      val fastaPath = fs.parseUrl(fastaFile.path).toString
-      val indexPath = fs.parseUrl(fastaFile.index.path).toString
-      fastaReaderCfg = FASTAReaderConfig(tmpdir, fs, this, fastaPath, indexPath)
-    }
-  }
-
-  override def hashCode: Int = {
-    import org.apache.commons.lang3.builder.HashCodeBuilder
-
-    val b = new HashCodeBuilder()
-      .append(name)
-      .append(contigs)
-      .append(lengths)
-      .append(xContigs)
-      .append(yContigs)
-      .append(mtContigs)
-      .append(par)
-    b.toHashCode
-  }
-
-  override def equals(other: Any): Boolean = {
+  override def equals(other: Any): Boolean =
     other match {
-      case rg: ReferenceGenome =>
-        name == rg.name &&
-        contigs.sameElements(rg.contigs) &&
-        lengths == rg.lengths &&
-        xContigs == rg.xContigs &&
-        yContigs == rg.yContigs &&
-        mtContigs == rg.mtContigs &&
-        par.sameElements(rg.par)
+      case that: ReferenceGenome =>
+        (this eq that) || (
+          hashCode == that.hashCode &&
+            name == that.name &&
+            contigs == that.contigs &&
+            lengths == that.lengths &&
+            xContigs == that.xContigs &&
+            yContigs == that.yContigs &&
+            mtContigs == that.mtContigs &&
+            parInput == that.parInput
+        )
       case _ => false
     }
-  }
 
   def isBound: Boolean = true
 
@@ -473,6 +406,20 @@ case class ReferenceGenome(
       )
     )
 
+  private def writeReplace(): AnyRef =
+    if (ReferenceGenome.builtins.get(name).exists(_ eq this))
+      ReferenceGenome.Builtin(name)
+    else
+      new ReferenceGenome.Inline(
+        name,
+        contigs.toArray,
+        lengthsByIndex.toArray,
+        xContigs.toArray,
+        yContigs.toArray,
+        mtContigs.toArray,
+        parInput.map(_._1).toArray,
+        parInput.map(_._2).toArray,
+      )
 }
 
 object ReferenceGenome {
@@ -482,20 +429,51 @@ object ReferenceGenome {
   var CanFam3: String = "CanFam3"
   val hailReferences: Set[String] = Set(GRCh37, GRCh38, GRCm38, CanFam3)
 
-  def builtinReferences(): Map[String, ReferenceGenome] = {
-    var builtin: Map[String, ReferenceGenome] = Map()
-    val files = Array(
-      "reference/grch37.json",
-      "reference/grch38.json",
-      "reference/grcm38.json",
-      "reference/canfam3.json",
-    )
-    for (filename <- files) {
-      val rg = loadFromResource[ReferenceGenome](filename)(read)
-      builtin += (rg.name -> rg)
-    }
-    builtin
+  private[this] val builtinResources = ArraySeq(
+    "reference/grch37.json",
+    "reference/grch38.json",
+    "reference/grcm38.json",
+    "reference/canfam3.json",
+  )
+
+  /** The builtin reference genomes, parsed from the Hail jar on first use and cached for the life
+    * of the Hail-jar classloader. Sharing them is safe because a reference genome is immutable.
+    */
+  private[variant] lazy val builtins: Map[String, ReferenceGenome] =
+    builtinResources.map { file =>
+      val rg = loadFromResource(file)(read)
+      rg.name -> rg
+    }.toMap
+
+  // A builtin is identified by being the cached reference genome itself, never by its name: a
+  // user-defined genome may reuse a builtin's name, and must serialize in full.
+  final private case class Builtin(name: String) {
+    private def readResolve(): AnyRef = builtins(name)
   }
+
+  final private class Inline(
+    val name: String,
+    val contigs: Array[String],
+    val lengthsByIndex: Array[Int],
+    val xContigs: Array[String],
+    val yContigs: Array[String],
+    val mtContigs: Array[String],
+    val parStarts: Array[Locus],
+    val parEnds: Array[Locus],
+  ) extends Serializable {
+    private def readResolve(): AnyRef =
+      new ReferenceGenome(
+        name,
+        ArraySeq.unsafeWrapArray(contigs),
+        contigs.iterator.zip(lengthsByIndex.iterator).toMap,
+        xContigs.toSet,
+        yContigs.toSet,
+        mtContigs.toSet,
+        ArraySeq.unsafeWrapArray(parStarts.zip(parEnds)),
+      )
+  }
+
+  def builtinReferences(): Map[String, ReferenceGenome] = builtins
 
   def read(is: InputStream): ReferenceGenome = {
     implicit val formats = DefaultFormats
@@ -581,8 +559,8 @@ object ReferenceGenome {
       rg.write(fs, rgPath)
   }
 
-  def getReferences(t: Type): Set[String] = {
-    var rgs = Set[String]()
+  def getReferences(t: Type): Set[ReferenceGenome] = {
+    var rgs = Set[ReferenceGenome]()
     MapTypes.foreach {
       case tl: TLocus =>
         rgs += tl.rg
@@ -609,6 +587,17 @@ object ReferenceGenome {
 
     Integer.compare(l1.position, l2.position)
   }
+
+  def apply(
+    name: String,
+    contigs: IndexedSeq[String],
+    lengths: Map[String, Int],
+    xContigs: Set[String] = Set.empty[String],
+    yContigs: Set[String] = Set.empty[String],
+    mtContigs: Set[String] = Set.empty[String],
+    parInput: IndexedSeq[(Locus, Locus)] = IndexedSeq.empty[(Locus, Locus)],
+  ): ReferenceGenome =
+    new ReferenceGenome(name, contigs, lengths, xContigs, yContigs, mtContigs, parInput)
 
   def apply(
     name: String,
@@ -648,32 +637,5 @@ object ReferenceGenome {
       mtContigs.asScala.to(ArraySeq),
       parInput.asScala.to(ArraySeq),
     )
-
-  def getMapFromArray(arr: Array[ReferenceGenome]): Map[String, ReferenceGenome] =
-    arr.map(rg => (rg.name, rg)).toMap
-
-  def addFatalOnCollision(
-    existing: mutable.Map[String, ReferenceGenome],
-    newReferences: Iterable[ReferenceGenome],
-  ): Unit =
-    for (rg <- newReferences) {
-      if (existing.get(rg.name).exists(_ != rg))
-        fatal(
-          s"Cannot add reference genome '${rg.name}', a different reference with that name already exists. " ++
-            "Choose a reference name NOT in the following list:" ++
-            ArraySeq.sorted(existing.keys).mkString(start = "\n  ", sep = "\n  ", end = "")
-        )
-
-      existing += (rg.name -> rg)
-    }
-
-  def addFatalOnCollision(
-    existing: Map[String, ReferenceGenome],
-    newReferences: Iterable[ReferenceGenome],
-  ): Map[String, ReferenceGenome] = {
-    val mut = mutable.Map(existing.toSeq: _*)
-    addFatalOnCollision(mut, newReferences)
-    mut.toMap
-  }
 
 }

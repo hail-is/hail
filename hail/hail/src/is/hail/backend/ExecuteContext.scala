@@ -8,9 +8,10 @@ import is.hail.expr.ir.{BaseIR, CompileCache, Compiled}
 import is.hail.expr.ir.LoweredTableReader.LoweredTableReaderCoercer
 import is.hail.expr.ir.lowering.IrMetadata
 import is.hail.io.fs.FS
+import is.hail.io.reference.RgAttachments
 import is.hail.linalg.BlockMatrix
 import is.hail.utils._
-import is.hail.variant.ReferenceGenome
+import is.hail.variant.ReferenceGenomeEnv
 
 import scala.collection.mutable
 
@@ -59,7 +60,8 @@ object ExecuteContext {
     tmpdir: String,
     localTmpdir: String,
     backend: Backend,
-    references: Map[String, ReferenceGenome],
+    references: ReferenceGenomeEnv,
+    attachments: RgAttachments,
     fs: FS,
     tempFileManager: TempFileManager,
     theHailClassLoader: HailClassLoader,
@@ -79,6 +81,7 @@ object ExecuteContext {
           localTmpdir,
           backend,
           references,
+          attachments,
           fs,
           region,
           tempFileManager,
@@ -109,7 +112,8 @@ class ExecuteContext(
   val tmpdir: String,
   val localTmpdir: String,
   val backend: Backend,
-  val references: Map[String, ReferenceGenome],
+  val references: ReferenceGenomeEnv,
+  val attachments: RgAttachments,
   val fs: FS,
   val r: Region,
   val tempFileManager: TempFileManager,
@@ -132,8 +136,6 @@ class ExecuteContext(
           exc,
         )
     }
-
-  val stateManager = HailStateManager(references)
 
   lazy val fsBc: BroadcastValue[FS] = backend.broadcast(fs)
 
@@ -168,7 +170,8 @@ class ExecuteContext(
     tmpdir: String = this.tmpdir,
     localTmpdir: String = this.localTmpdir,
     backend: Backend = this.backend,
-    references: Map[String, ReferenceGenome] = this.references,
+    references: ReferenceGenomeEnv = this.references,
+    attachments: RgAttachments = this.attachments,
     fs: FS = this.fs,
     r: Region = this.r,
     tempFileManager: TempFileManager = NonOwningTempFileManager(this.tempFileManager),
@@ -187,6 +190,7 @@ class ExecuteContext(
       localTmpdir,
       backend,
       references,
+      attachments,
       fs,
       r,
       tempFileManager,

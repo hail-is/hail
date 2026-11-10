@@ -11,6 +11,7 @@ Full procedure:
 
 See dev-docs/refreshing-trivy-scanner-github-secret.md for context.
 """
+
 import itertools
 import json
 import os
@@ -28,7 +29,7 @@ GITHUB_SECRET = 'GOOGLE_GAR_CREDENTIALS'
 
 
 def run(args):
-    result = subprocess.run(args, capture_output=True, text=True)
+    result = subprocess.run(args, check=False, capture_output=True, text=True)
     if result.returncode != 0:
         raise RuntimeError(result.stderr.strip() or f'Command failed: {args}')
     return result.stdout
@@ -38,7 +39,7 @@ def spin(name, getter):
     """Run getter() while displaying a spinner, then print the result string it returns."""
     stop = threading.Event()
     result = [None]
-    error = [None]
+    error: BaseException | None = None
     prefix = f'{name}: '
 
     def _spin():
@@ -53,14 +54,14 @@ def spin(name, getter):
     try:
         result[0] = getter()
     except Exception as e:
-        error[0] = e
+        error = e
     finally:
         stop.set()
         t.join()
 
-    if error[0] is not None:
+    if error is not None:
         print(f'\r{prefix}FAILED{"":<50}')
-        raise error[0]
+        raise error
 
     line = f'{prefix}{result[0]}'
     print(f'\r{line:<60}')
@@ -97,10 +98,14 @@ def check_prereqs():
         sys.exit(1)
 
     def get_gh_user():
-        result = subprocess.run(['gh', 'auth', 'status', '--hostname', 'github.com'], capture_output=True, text=True)
+        result = subprocess.run(
+            ['gh', 'auth', 'status', '--hostname', 'github.com'], check=False, capture_output=True, text=True
+        )
         if result.returncode != 0:
             raise RuntimeError(result.stderr.strip() or 'not authenticated')
-        user_result = subprocess.run(['gh', 'api', 'user', '--jq', '.login'], capture_output=True, text=True)
+        user_result = subprocess.run(
+            ['gh', 'api', 'user', '--jq', '.login'], check=False, capture_output=True, text=True
+        )
         return user_result.stdout.strip() if user_result.returncode == 0 else '(authenticated)'
 
     try:
@@ -115,11 +120,19 @@ def check_prereqs():
 
 def list_keys():
     out = run([
-        'gcloud', 'iam', 'service-accounts', 'keys', 'list',
-        '--iam-account', SA_EMAIL,
-        '--project', PROJECT,
-        '--managed-by', 'user',
-        '--format', 'json',
+        'gcloud',
+        'iam',
+        'service-accounts',
+        'keys',
+        'list',
+        '--iam-account',
+        SA_EMAIL,
+        '--project',
+        PROJECT,
+        '--managed-by',
+        'user',
+        '--format',
+        'json',
     ])
     return json.loads(out)
 
@@ -165,10 +178,16 @@ def main():
 
         def create_key():
             run([
-                'gcloud', 'iam', 'service-accounts', 'keys', 'create',
+                'gcloud',
+                'iam',
+                'service-accounts',
+                'keys',
+                'create',
                 key_file,
-                '--iam-account', SA_EMAIL,
-                '--project', PROJECT,
+                '--iam-account',
+                SA_EMAIL,
+                '--project',
+                PROJECT,
             ])
             return 'done'
 
@@ -178,7 +197,7 @@ def main():
             print(f'\nError creating GSA key: {e}', file=sys.stderr)
             sys.exit(1)
 
-        with open(key_file) as f:
+        with open(key_file, encoding='utf-8') as f:
             key_json = f.read()
         new_key_id = json.loads(key_json).get('private_key_id', '(unknown)')
         print(f'  New key ID: {new_key_id}')
@@ -217,9 +236,16 @@ def main():
                 for k in existing_keys:
                     key_id = k['name'].split('/')[-1]
                     run([
-                        'gcloud', 'iam', 'service-accounts', 'keys', 'delete', key_id,
-                        '--iam-account', SA_EMAIL,
-                        '--project', PROJECT,
+                        'gcloud',
+                        'iam',
+                        'service-accounts',
+                        'keys',
+                        'delete',
+                        key_id,
+                        '--iam-account',
+                        SA_EMAIL,
+                        '--project',
+                        PROJECT,
                         '--quiet',
                     ])
                 return f'{len(existing_keys)} deleted'

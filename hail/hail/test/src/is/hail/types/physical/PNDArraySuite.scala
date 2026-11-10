@@ -445,7 +445,7 @@ class PNDArraySuite extends PhysicalTestUtils {
 
     assert(region3.memory.listNDArrayRefs().size == 0)
     // Do an unstaged copy into region3
-    nd.copyFromAddress(ctx.stateManager, region3, nd, result1, true): Unit
+    nd.copyFromAddress(region3, nd, result1, true): Unit
     assert(region3.memory.listNDArrayRefs().size == 1)
 
     // Check that clearing region2 removes both ndarrays
@@ -459,8 +459,8 @@ class PNDArraySuite extends PhysicalTestUtils {
     val region2 = Region(pool = pool)
     val x = SafeNDArray(IndexedSeq(3L, 2L), (0 until 6).map(_.toDouble))
     val pNd = PCanonicalNDArray(PFloat64Required, 2, true)
-    val ndAddr1 = pNd.unstagedStoreJavaObject(ctx.stateManager, x, region = region1)
-    val ndAddr2 = pNd.copyFromAddress(ctx.stateManager, region2, pNd, ndAddr1, true)
+    val ndAddr1 = pNd.unstagedStoreJavaObject(x, region = region1)
+    val ndAddr2 = pNd.copyFromAddress(region2, pNd, ndAddr1, true)
     val unsafe1 = UnsafeRow.read(pNd, region1, ndAddr1)
     val unsafe2 = UnsafeRow.read(pNd, region2, ndAddr2)
     // Deep copy same ptype just increments reference count, doesn't change the address.
@@ -494,12 +494,11 @@ class PNDArraySuite extends PhysicalTestUtils {
       new SafeNDArray(IndexedSeq(5L), (0 until 5).map(idx => RowSeq(idx, idx + 100)))
 
     val addr5 = pNDOfStructs1.unstagedStoreJavaObject(
-      ctx.stateManager,
       annotationNDOfStructs,
       region = region1,
     )
     val unsafe5 = UnsafeRow.read(pNDOfStructs1, region1, addr5)
-    val addr6 = pNDOfStructs2.copyFromAddress(ctx.stateManager, region2, pNDOfStructs1, addr5, true)
+    val addr6 = pNDOfStructs2.copyFromAddress(region2, pNDOfStructs1, addr5, true)
     val unsafe6 = UnsafeRow.read(pNDOfStructs2, region2, addr6)
     assert(unsafe5 == unsafe6)
   }

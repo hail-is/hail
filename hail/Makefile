@@ -15,7 +15,7 @@ $(error "git rev-parse --short=12 HEAD" failed to produce output)
 endif
 
 HAIL_MAJOR_MINOR_VERSION := 0.2
-HAIL_PATCH_VERSION := 139
+HAIL_PATCH_VERSION := 140
 HAIL_PIP_VERSION := $(HAIL_MAJOR_MINOR_VERSION).$(HAIL_PATCH_VERSION)
 HAIL_VERSION := $(HAIL_PIP_VERSION)-$(SHORT_REVISION)
 
@@ -126,7 +126,7 @@ ifdef HAIL_COMPILE_NATIVES
 fs-jvm-test: native-lib-prebuilt
 endif
 fs-jvm-test: upload-remote-test-resources
-	! [ -z $(HAIL_CLOUD) ]  # call like make fs-jvm-test HAIL_CLOUD=gcp or azure
+	! [ -z $(HAIL_CLOUD) ]  # call like make fs-jvm-test HAIL_CLOUD=gcp
 	! [ -z $(NAMESPACE) ]  # call like make fs-jvm-test NAMEPSPACE=default
 	HAIL_CLOUD=$(HAIL_CLOUD) \
 	HAIL_DEFAULT_NAMESPACE=$(NAMESPACE) \
@@ -343,7 +343,7 @@ python/hailtop/hailctl/deploy.yaml: $(resources)
 	done
 	echo "  wheel: $(wheel_cloud_path)" >> $@
 	echo "  pip_dependencies:" >> $@
-	sed '/^[[:blank:]]*#/d;s/#.*//;s/^/    - /' python/pinned-requirements.txt | grep -v pyspark >> $@
+	grep -E '^[A-Za-z0-9]' python/pinned-requirements.txt | sed 's/[[:space:]]*\\$$//;s/^/    - /' | grep -v pyspark >> $@
 
 .PHONY: upload-artifacts
 upload-artifacts: $(WHEEL)
@@ -416,7 +416,10 @@ install: $(WHEEL)
 
 .PHONY: install-on-cluster
 install-on-cluster: $(WHEEL) check-pip-lockfile
-	sed '/^pyspark/d' python/pinned-requirements.txt | grep -v -e '^[[:space:]]*#' -e '^$$' | tr '\n' '\0' | xargs -0 $(PIP) install -U
+	reqs=$$(mktemp) && \
+	awk '/^[A-Za-z0-9]/ { skip = /^pyspark==/ } !skip' python/pinned-requirements.txt > $$reqs && \
+	$(PIP) install -U -r $$reqs; \
+	rc=$$?; rm -f $$reqs; exit $$rc
 	-$(PIP) uninstall -y hail
 	$(PIP) install $(WHEEL) --no-deps
 	hailctl config set query/backend spark

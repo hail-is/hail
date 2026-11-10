@@ -2,7 +2,7 @@ package is.hail.io.vcf
 
 import is.hail.annotations._
 import is.hail.asm4s._
-import is.hail.backend.{BroadcastValue, ExecuteContext, HailStateManager}
+import is.hail.backend.{BroadcastValue, ExecuteContext}
 import is.hail.backend.spark.SparkBackend
 import is.hail.collection.{FastSeq, MissingArrayBuilder}
 import is.hail.collection.implicits.toRichIterable
@@ -67,7 +67,7 @@ object VCFHeaderInfo {
 
   val headerTypePType: PType = PType.canonical(headerType, required = false, innerRequired = true)
 
-  def fromJSON(jv: JValue): VCFHeaderInfo = {
+  def fromJSON(jv: JValue, rgs: ReferenceGenomeEnv): VCFHeaderInfo = {
     val sampleIDs =
       (jv \ "sampleIDs").asInstanceOf[JArray].arr.map(_.asInstanceOf[JString].s).to(ArraySeq)
     val infoFlagFields =
@@ -75,7 +75,7 @@ object VCFHeaderInfo {
 
     def lookupFields(name: String) = (jv \ name).asInstanceOf[JArray].arr.map { case elt: JArray =>
       val List(name: JString, typeStr: JString) = elt.arr
-      name.s -> IRParser.parseType(typeStr.s)
+      name.s -> IRParser.parseType(typeStr.s, rgs)
     }.to(ArraySeq)
 
     val infoFields = lookupFields("infoFields")
@@ -175,8 +175,8 @@ case class VCFHeaderInfo(
     (infoType, vaSignature, formatType)
   }
 
-  def writeToRegion(sm: HailStateManager, r: Region, dropAttrs: Boolean): Long = {
-    val rvb = new RegionValueBuilder(sm, r)
+  def writeToRegion(r: Region, dropAttrs: Boolean): Long = {
+    val rvb = new RegionValueBuilder(r)
     rvb.start(VCFHeaderInfo.headerTypePType)
     rvb.startStruct()
     rvb.addAnnotation(rvb.currentType().virtualType, sampleIds.toFastSeq)
@@ -1319,8 +1319,8 @@ object LoadVCF extends Logging {
     }
   }
 
-  def getEntryFloatType(entryFloatTypeName: String): TNumeric = {
-    IRParser.parseType(entryFloatTypeName) match {
+  def getEntryFloatType(entryFloatTypeName: String, rgs: ReferenceGenomeEnv): TNumeric = {
+    IRParser.parseType(entryFloatTypeName, rgs) match {
       case TFloat32 => TFloat32
       case TFloat64 => TFloat64
       case _ => fatal(
@@ -1781,7 +1781,7 @@ object MatrixVCFReader extends Logging {
     val backend = ctx.backend
     val fs = ctx.fs
 
-    val referenceGenome = params.rg.map(ctx.references)
+    val referenceGenome = params.rg.map(ctx.references.resolve)
 
     referenceGenome.foreach(_.validateContigRemap(params.contigRecoding))
 
@@ -1870,6 +1870,7 @@ object MatrixVCFReader extends Logging {
       fileListEntries,
       referenceGenome,
       header1,
+      ctx.references,
     )
   }
 
@@ -1911,6 +1912,7 @@ class MatrixVCFReader(
   fileListEntries: IndexedSeq[FileListEntry],
   referenceGenome: Option[ReferenceGenome],
   header: VCFHeaderInfo,
+  referenceGenomesInScope: ReferenceGenomeEnv,
 ) extends MatrixHybridReader {
   require(
     params.partitionsJSON.isEmpty || fileListEntries.length == 1,
@@ -1926,9 +1928,12 @@ class MatrixVCFReader(
 
   val (infoPType, rowValuePType, formatPType) = header.getPTypes(
     params.arrayElementsRequired,
-    IRParser.parseType(params.entryFloatTypeName),
+    IRParser.parseType(params.entryFloatTypeName, referenceGenomesInScope),
     params.callFields,
   )
+
+  private[this] val partitionsType: Option[Type] =
+    params.partitionsTypeStr.map(IRParser.parseType(_, referenceGenomesInScope))
 
   override def fullMatrixTypeWithoutUIDs: MatrixType = MatrixType(
     globalType = TStruct.empty,
@@ -1936,7 +1941,7 @@ class MatrixVCFReader(
     colKey = ArraySeq("s"),
     rowType = TStruct(
       ArraySeq(
-        "locus" -> TLocus.schemaFromRG(referenceGenome.map(_.name)),
+        "locus" -> TLocus.schemaFromRG(referenceGenome),
         "alleles" -> TArray(TString),
       )
         ++ rowValuePType.fields.map(f => f.name -> f.typ.virtualType): _*
@@ -1950,7 +1955,7 @@ class MatrixVCFReader(
     PCanonicalStruct(
       true,
       FastSeq(
-        "locus" -> PCanonicalLocus.schemaFromRG(referenceGenome.map(_.name), true),
+        "locus" -> PCanonicalLocus.schemaFromRG(referenceGenome, true),
         "alleles" -> PCanonicalArray(PCanonicalString(true), true),
       )
         ++ rowValuePType.fields.map(f => f.name -> f.typ)
@@ -1970,9 +1975,9 @@ class MatrixVCFReader(
 
   override def partitionCounts: Option[IndexedSeq[Long]] = None
 
-  def partitioner(sm: HailStateManager): Option[RVDPartitioner] =
+  lazy val partitioner: Option[RVDPartitioner] =
     params.partitionsJSON.map { partitionsJSON =>
-      val indexedPartitionsType = IRParser.parseType(params.partitionsTypeStr.get)
+      val indexedPartitionsType = partitionsType.get
       val jv = JsonMethods.parse(partitionsJSON)
       val rangeBounds = JSONAnnotationImpex.importAnnotation(jv, indexedPartitionsType)
         .asInstanceOf[IndexedSeq[Interval]]
@@ -1989,7 +1994,6 @@ class MatrixVCFReader(
           )
       }
       new RVDPartitioner(
-        sm,
         Array("locus"),
         fullType.keyType,
         rangeBounds,
@@ -2009,7 +2013,6 @@ class MatrixVCFReader(
 
   def executeGeneric(ctx: ExecuteContext, dropRows: Boolean = false): GenericTableValue = {
     val fs = ctx.fs
-    val sm = ctx.stateManager
 
     val rgBc = referenceGenome.map(ctx.backend.broadcast)
     val localArrayElementsRequired = params.arrayElementsRequired
@@ -2019,7 +2022,7 @@ class MatrixVCFReader(
     val localNSamples = nCols
     val localFilterAndReplace = params.filterAndReplace
 
-    val part = partitioner(ctx.stateManager)
+    val part = partitioner
     val lines = part match {
       case Some(partitioner) =>
         GenericLines.readTabix(
@@ -2065,7 +2068,7 @@ class MatrixVCFReader(
           LowerMatrixIR.entriesFieldName,
         )
 
-        val rvb = new RegionValueBuilder(sm, region)
+        val rvb = new RegionValueBuilder(region)
 
         val abs = new MissingArrayBuilder[String]
         val abi = new MissingArrayBuilder[Int]
@@ -2161,7 +2164,7 @@ case class GVCFPartitionReader(
   callFields: Set[String],
   entryFloatType: Type,
   arrayElementsRequired: Boolean,
-  rg: Option[String],
+  rg: Option[ReferenceGenome],
   contigRecoding: Map[String, String],
   skipInvalidLoci: Boolean,
   filterAndReplace: TextInputFilterAndReplace,
@@ -2201,7 +2204,7 @@ case class GVCFPartitionReader(
     ]
 
   override def toJValue: JValue = {
-    implicit val formats: Formats = DefaultFormats
+    implicit val formats: Formats = DefaultFormats + new ReferenceGenomeNameSerializer(None)
     decomposeWithName(this, "MatrixVCFReader")
   }
 
@@ -2254,7 +2257,6 @@ case class GVCFPartitionReader(
                 classOf[String],
                 classOf[Int],
                 classOf[Int],
-                classOf[HailStateManager],
                 classOf[Region],
                 classOf[Region],
                 classOf[PStruct],
@@ -2275,7 +2277,6 @@ case class GVCFPartitionReader(
                 contig,
                 start,
                 end,
-                cb.emb.getObject(cb.emb.ecb.ctx.stateManager),
                 outerRegion,
                 eltRegion,
                 mb.getPType(requestedPType),

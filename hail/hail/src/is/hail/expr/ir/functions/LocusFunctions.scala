@@ -15,7 +15,7 @@ import is.hail.variant._
 
 object LocusFunctions extends RegistryFunctions {
 
-  def rgCode(mb: EmitMethodBuilder[_], rg: String): Code[ReferenceGenome] =
+  def rgCode(mb: EmitMethodBuilder[_], rg: ReferenceGenome): Code[ReferenceGenome] =
     mb.getReferenceGenome(rg)
 
   def tlocus(name: String): Type = tv(name, "locus")
@@ -134,10 +134,7 @@ object LocusFunctions extends RegistryFunctions {
 
     registerSCode1("contig_idx", tlocus("T"), TInt32, (_: Type, x: SType) => SInt32) {
       case (_, cb, _, locus: SLocusValue, _) =>
-        primitive(cb.memoize(cb.emb.getReferenceGenome(locus.st.rg).invoke[String, Int](
-          "getContigIndex",
-          locus.contig(cb).loadString(cb),
-        )))
+        primitive(locus.contigIdx(cb))
     }
 
     registerSCode1("position", tlocus("T"), TInt32, (_: Type, x: SType) => SInt32) {
@@ -638,9 +635,8 @@ object LocusFunctions extends RegistryFunctions {
             val locusObj = loc.getLocusObj(cb)
             val lifted = cb.newLocal[(Locus, Boolean)](
               "lifterover_locus_ lifted",
-              rgCode(cb.emb, srcRG).invoke[String, Locus, Double, (Locus, Boolean)](
-                "liftoverLocus",
-                destRG,
+              cb.emb.getLiftover(srcRG, destRG).invoke[Locus, Double, (Locus, Boolean)](
+                "queryLocus",
                 locusObj,
                 minMatch.asDouble.value,
               ),
@@ -711,9 +707,12 @@ object LocusFunctions extends RegistryFunctions {
             val intervalObj = Code.checkcast[Interval](svalueToJavaValue(cb, r, interval))
             val lifted = cb.newLocal[(Interval, Boolean)](
               "liftover_locus_interval_lifted",
-              rgCode(cb.emb, srcRG).invoke[String, Interval, Double, (Interval, Boolean)](
-                "liftoverLocusInterval",
-                destRG,
+              cb.emb.getLiftover(srcRG, destRG).invoke[
+                Interval,
+                Double,
+                (Interval, Boolean),
+              ](
+                "queryInterval",
                 intervalObj,
                 minMatch.asDouble.value,
               ),

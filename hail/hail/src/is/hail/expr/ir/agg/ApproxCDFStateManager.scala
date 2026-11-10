@@ -1,7 +1,6 @@
 package is.hail.expr.ir.agg
 
 import is.hail.annotations._
-import is.hail.backend.HailStateManager
 import is.hail.collection.{DoubleArrayBuilder, IntArrayBuilder, LongArrayBuilder}
 import is.hail.collection.implicits.toRichArraySeqCompanion
 import is.hail.io.{InputBuffer, OutputBuffer}
@@ -682,7 +681,7 @@ class ApproxCDFStateManager(val k: Int, var combiner: ApproxCDFCombiner) {
   }
 
   def rvResult(r: Region): Long = {
-    val rvb = new RegionValueBuilder(HailStateManager(Map.empty), r)
+    val rvb = new RegionValueBuilder(r)
     rvb.start(QuantilesAggregator.resultPType)
     result(rvb)
     rvb.end()

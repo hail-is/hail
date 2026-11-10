@@ -4,21 +4,21 @@ import is.hail.collection.FastSeq
 import is.hail.collection.implicits.toRichIterable
 import is.hail.expr.ir.{Env, IRParser, MatrixIR, Name}
 import is.hail.expr.ir.lowering.LowerMatrixIR
+import is.hail.types.TypeStringSerializer
 import is.hail.types.physical.{PArray, PStruct}
 import is.hail.utils._
+import is.hail.variant.{ReferenceGenome, ReferenceGenomeEnv}
 
 import scala.collection.immutable.ArraySeq
 
 import org.apache.spark.sql.Row
-import org.json4s.{CustomSerializer, JValue}
+import org.json4s.JValue
 import org.json4s.JsonAST.{JArray, JObject, JString}
 
-class MatrixTypeSerializer extends CustomSerializer[MatrixType](format =>
-      (
-        { case JString(s) => IRParser.parseMatrixType(s) },
-        { case mt: MatrixType => JString(mt.toString) },
-      )
-    )
+class MatrixTypeSerializer(rgs: Option[ReferenceGenomeEnv])
+    extends TypeStringSerializer[MatrixType](rgs, IRParser.parseMatrixType, _.toString) {
+  def this(rgs: ReferenceGenomeEnv) = this(Some(rgs))
+}
 
 object MatrixType {
   val entriesIdentifier = "the entries! [877f12a8827e18f61222c6c8c5fb04a8]"
@@ -35,13 +35,6 @@ object MatrixType {
     getEntryArrayType(rvRowType).elementType.asInstanceOf[PStruct]
 
   def getEntriesIndex(rvRowType: PStruct): Int = rvRowType.fieldIdx(entriesIdentifier)
-
-  def globalBindings: IndexedSeq[Int] = FastSeq(0)
-  def rowInRowBindings: IndexedSeq[Int] = FastSeq(0, 1)
-  def colInColBindings: IndexedSeq[Int] = FastSeq(0, 1)
-  def rowInEntryBindings: IndexedSeq[Int] = FastSeq(0, 2)
-  def colInEntryBindings: IndexedSeq[Int] = FastSeq(0, 1)
-  def entryBindings: IndexedSeq[Int] = FastSeq(0, 1, 2, 3)
 
   def fromTableType(
     typ: TableType,
@@ -222,7 +215,7 @@ case class MatrixType(
   def requireColKeyString(): Unit =
     assert(colKeyStruct.types == ArraySeq(TString))
 
-  def referenceGenomeName: String = {
+  def referenceGenome: ReferenceGenome = {
     val firstKeyField = rowKeyStruct.types(0)
     firstKeyField.asInstanceOf[TLocus].rg
   }

@@ -1,6 +1,6 @@
 ARG DOCKER_PREFIX={{ global.docker_prefix }}
 ARG SKIP_GCLOUD_PROFILER=false
-FROM $DOCKER_PREFIX/ubuntu:noble-20260911 AS initializer
+FROM $DOCKER_PREFIX/ubuntu:noble-20261024.1 AS initializer
 
 ENV LANG=C.UTF-8
 ENV DEBIAN_FRONTEND=noninteractive
@@ -48,7 +48,7 @@ RUN hail-apt-get-install g++ gcc
 # Only install google-cloud-profiler if SKIP_GCLOUD_PROFILER is not set to true
 RUN --mount=type=bind,source=gear/pinned-requirements.txt,target=/tmp/gear-requirements.txt,readonly \
     if [ "$SKIP_GCLOUD_PROFILER" != "true" ]; then \
-        hail-pip-install google-cloud-profiler --constraint /tmp/gear-requirements.txt && \
+        hail-pip-install --no-require-hashes google-cloud-profiler --constraint /tmp/gear-requirements.txt && \
         pip wheel --wheel-dir=/tmp/wheels google-cloud-profiler; \
     else \
         touch /tmp/wheels/.no-profiler; \
@@ -61,5 +61,5 @@ COPY --from=wheel-builder /tmp/wheels/ /tmp/wheels/
 # Only install google-cloud-profiler if the wheel exists and SKIP_GCLOUD_PROFILER is not true
 RUN --mount=type=bind,source=gear/pinned-requirements.txt,target=/tmp/gear-requirements.txt,readonly \
     if [ "$SKIP_GCLOUD_PROFILER" != "true" ] && [ -f /tmp/wheels/google_cloud_profiler*.whl ]; then \
-        hail-pip-install /tmp/wheels/google_cloud_profiler*.whl --constraint /tmp/gear-requirements.txt; \
+        hail-pip-install --no-require-hashes /tmp/wheels/google_cloud_profiler*.whl --constraint /tmp/gear-requirements.txt; \
     fi

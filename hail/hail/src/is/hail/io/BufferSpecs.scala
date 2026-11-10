@@ -8,7 +8,7 @@ import is.hail.utils.implicits.ByteTrackingOutputStream
 
 import java.io._
 
-import org.json4s.{JValue, ShortTypeHints}
+import org.json4s.{Formats, JValue, ShortTypeHints}
 import org.json4s.jackson.JsonMethods
 
 object BufferSpec {
@@ -51,7 +51,7 @@ object BufferSpec {
   )
 
   def parse(s: String): BufferSpec = {
-    import AbstractRVDSpec.formats
+    implicit val formats: Formats = AbstractRVDSpec.formats
     JsonMethods.parse(s).extract[BufferSpec]
   }
 

@@ -8,6 +8,7 @@ import is.hail.types.physical.{PCanonicalLocus, PType}
 import is.hail.types.physical.stypes.{SSettable, SType, SValue}
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.virtual.Type
+import is.hail.variant.{ContigIndexCache, ReferenceGenome}
 
 final case class SCanonicalLocusPointer(pType: PCanonicalLocus) extends SLocus {
   require(!pType.required)
@@ -18,7 +19,7 @@ final case class SCanonicalLocusPointer(pType: PCanonicalLocus) extends SLocus {
 
   override def castRename(t: Type): SType = this
 
-  override def rg: String = pType.rg
+  override def rg: ReferenceGenome = pType.rg
 
   override def _coerceOrCopy(
     cb: EmitCodeBuilder,
@@ -29,10 +30,10 @@ final case class SCanonicalLocusPointer(pType: PCanonicalLocus) extends SLocus {
     value match {
       case value: SLocusValue =>
         val locusCopy = pType.store(cb, region, value, deepCopy)
-        val contigCopy = if (deepCopy)
-          cb.memoize(pType.contigAddr(locusCopy))
-        else
-          value.contigLong(cb)
+        val contigCopy = value match {
+          case v: SCanonicalLocusPointerValue if !deepCopy => v._contig
+          case _ => cb.memoize(pType.contigAddr(locusCopy))
+        }
         new SCanonicalLocusPointerValue(this, locusCopy, contigCopy, value.position(cb))
     }
 
@@ -83,9 +84,24 @@ class SCanonicalLocusPointerValue(
   override def contig(cb: EmitCodeBuilder): SStringValue =
     pt.contigType.loadCheapSCode(cb, _contig).asString
 
-  override def contigLong(cb: EmitCodeBuilder): Value[Long] = _contig
+  // Compares the contig's bytes in place against the last contig seen, so runs of loci on one
+  // contig load no String.
+  override def contigIdx(cb: EmitCodeBuilder): Value[Int] = {
+    val cache = cb.emb.getOrDefineLazyField[ContigIndexCache](
+      Code.newInstance[ContigIndexCache, ReferenceGenome](cb.emb.getReferenceGenome(st.rg)),
+      (s"contig_index_cache_${st.rg.name}", st.rg),
+    )
+    cb.memoize(cache.invoke[Long, Int, Int](
+      "contigIndex",
+      pt.contigType.binaryRepresentation.bytesAddress(_contig),
+      pt.contigType.loadLength(_contig),
+    ))
+  }
 
   override def position(cb: EmitCodeBuilder): Value[Int] = _position
+
+  override def packed(cb: EmitCodeBuilder): Value[Long] =
+    cb.memoize((contigIdx(cb).toL << 32) | _position.toL)
 
   override def structRepr(cb: EmitCodeBuilder): SBaseStructValue = new SBaseStructPointerValue(
     SBaseStructPointer(st.pType.representation),

@@ -36,9 +36,11 @@ def run_on_batch_mocks(mocker):
     job = mocker.patch(classname(Job))
     job.job_id = randint(0, 999_999_999)
 
+    infile = type('Settable', (object,), {'value': None})
     outfile = type('Settable', (object,), {'value': None})
 
     async def write_output(*args, **kwargs):
+        m.driver_config = orjson.loads(await backend.fs.afs.read(infile.value))
         async with await backend.fs.afs.create(outfile.value) as f:
             payload = hl.ttuple(hl.tint64)._to_encoding([0])
             await f.write(struct.pack('<b', 1))
@@ -49,10 +51,10 @@ def run_on_batch_mocks(mocker):
     mjob_group.wait = write_output
 
     def set_outdir(*args, **kwargs):
+        # Runs on the Hail event loop, so it can't use the blocking fs API. write_output reads the input.
+        infile.value = kwargs['argv'][2]
         outfile.value = kwargs['argv'][3]
-        with backend.fs.open(kwargs['argv'][2]) as f:
-            m.driver_config = orjson.loads(f.read())
-            return job
+        return job
 
     batch = backend._batch
     m.create_jvm_job = mocker.patch.object(batch, 'create_jvm_job')

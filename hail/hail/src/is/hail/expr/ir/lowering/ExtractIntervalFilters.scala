@@ -90,7 +90,7 @@ object ExtractIntervalFilters extends Logging {
 
   def liftPosIntervalsToLocus(pos: IndexedSeq[Interval], rg: ReferenceGenome, ctx: ExecuteContext)
     : IndexedSeq[Interval] = {
-    val ord = PartitionBoundOrdering(ctx, TTuple(TInt32))
+    val ord = PartitionBoundOrdering(TTuple(TInt32))
     val nonNull = rg.contigs.indices.flatMap { cont =>
       pos.flatMap { i =>
         i.intersect(ord, Interval(RowSeq(1), RowSeq(rg.contigLength(cont)), true, false))
@@ -142,7 +142,7 @@ class KeySetLattice(ctx: ExecuteContext, keyType: TStruct) extends Lattice {
       interval.right != IntervalEndpoint(RowSeq(null), 1)
   }
 
-  def keyOrd: ExtendedOrdering = PartitionBoundOrdering(ctx, keyType)
+  def keyOrd: ExtendedOrdering = PartitionBoundOrdering(keyType)
   val iord: IntervalEndpointOrdering = keyOrd.intervalEndpointOrdering
 
   // l is contained in r
@@ -254,9 +254,9 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) extends Logg
 
     private case class ConcreteKeyField(idx: Int) extends KeyField
 
-    case class Contig(rg: String) extends Value
+    case class Contig(rg: ReferenceGenome) extends Value
 
-    case class Position(rg: String) extends Value
+    case class Position(rg: ReferenceGenome) extends Value
 
     object StructValue {
       def apply(fields: Iterable[(String, Value)]): StructValue = {
@@ -649,9 +649,9 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) extends Logg
         case r: KeyField if r.idx == 0 =>
           // simple key comparison
           BoolValue.fromComparison(l, op).restrict(keySet)
-        case Contig(rgStr) =>
+        case Contig(rg) =>
           // locus contig equality comparison
-          val b = getIntervalFromContig(l.asInstanceOf[String], ctx.references(rgStr)) match {
+          val b = getIntervalFromContig(l.asInstanceOf[String], rg) match {
             case Some(i) =>
               val b = BoolValue(
                 KeySet(i),
@@ -672,10 +672,9 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) extends Logg
               )
           }
           b.restrict(keySet)
-        case Position(rgStr) =>
+        case Position(rg) =>
           // locus position comparison
           val posBoolValue = BoolValue.fromComparison(l, op)
-          val rg = ctx.references(rgStr)
           val b = BoolValue(
             KeySet(liftPosIntervalsToLocus(posBoolValue.trueBound, rg, ctx)),
             KeySet(liftPosIntervalsToLocus(posBoolValue.falseBound, rg, ctx)),
@@ -708,8 +707,8 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) extends Logg
       copy(keySet = KeySetLattice.meet(keySet, k))
   }
 
-  def firstKeyOrd: ExtendedOrdering = keyType.types.head.ordering(ctx.stateManager)
-  def keyOrd: ExtendedOrdering = PartitionBoundOrdering(ctx, keyType)
+  def firstKeyOrd: ExtendedOrdering = keyType.types.head.ordering
+  def keyOrd: ExtendedOrdering = PartitionBoundOrdering(keyType)
   val iord: IntervalEndpointOrdering = keyOrd.intervalEndpointOrdering
 
   private def intervalsFromLiteral(lit: Any, ordering: Ordering[Any], wrapped: Boolean): KeySet =
@@ -732,20 +731,16 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) extends Logg
   private def intervalsFromLiteralContigs(contigs: Any, rg: ReferenceGenome): KeySet = {
     KeySet((contigs: @unchecked) match {
       case x: Map[_, _] => x.keys.asInstanceOf[Iterable[String]].toFastSeq
-          .sortBy(rg.contigsIndex.get(_))(
-            TInt32.ordering(null).toOrdering.asInstanceOf[Ordering[Integer]]
-          )
+          .sortBy(rg.contigIndexOption(_).getOrElse(Int.MaxValue))
           .flatMap(getIntervalFromContig(_, rg))
       case x: Iterable[_] => x.asInstanceOf[Iterable[String]].toArray.toFastSeq
-          .sortBy(rg.contigsIndex.get(_))(
-            TInt32.ordering(null).toOrdering.asInstanceOf[Ordering[Integer]]
-          )
+          .sortBy(rg.contigIndexOption(_).getOrElse(Int.MaxValue))
           .flatMap(getIntervalFromContig(_, rg))
     })
   }
 
   private def getIntervalFromContig(c: String, rg: ReferenceGenome): Option[Interval] = {
-    if (rg.contigsSet.contains(c))
+    if (rg.isValidContig(c))
       Some(Interval(RowSeq(Locus(c, 1)), RowSeq(Locus(c, rg.contigLength(c))), true, false))
     else if (c == null) {
       logger.warn(s"Filtered with null contig")
@@ -874,8 +869,7 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) extends Logg
       if (collectionVal == null) {
         BoolValue.allNA(keySet)
       } else queryVal match {
-        case Contig(rgStr) =>
-          val rg = ctx.stateManager.referenceGenomes(rgStr)
+        case Contig(rg) =>
           val intervals = intervalsFromLiteralContigs(collectionVal, rg)
           BoolValue(intervals, KeySetLattice.complement(intervals), KeySetLattice.bottom).restrict(
             keySet

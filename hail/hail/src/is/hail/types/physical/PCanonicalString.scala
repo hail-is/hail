@@ -2,7 +2,6 @@ package is.hail.types.physical
 
 import is.hail.annotations.{Annotation, Region}
 import is.hail.asm4s.{Code, Value}
-import is.hail.backend.HailStateManager
 import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.types.physical.stypes.SValue
 import is.hail.types.physical.stypes.concrete.{SStringPointer, SStringPointerValue}
@@ -22,14 +21,12 @@ class PCanonicalString(val required: Boolean) extends PString {
   lazy val binaryRepresentation: PCanonicalBinary = PCanonicalBinary(required)
 
   override def _copyFromAddress(
-    sm: HailStateManager,
     region: Region,
     srcPType: PType,
     srcAddress: Long,
     deepCopy: Boolean,
   ): Long =
     binaryRepresentation.copyFromAddress(
-      sm,
       region,
       srcPType.asInstanceOf[PString].binaryRepresentation,
       srcAddress,
@@ -70,7 +67,6 @@ class PCanonicalString(val required: Boolean) extends PString {
   }
 
   override def unstagedStoreAtAddress(
-    sm: HailStateManager,
     addr: Long,
     region: Region,
     srcPType: PType,
@@ -78,7 +74,6 @@ class PCanonicalString(val required: Boolean) extends PString {
     deepCopy: Boolean,
   ): Unit =
     binaryRepresentation.unstagedStoreAtAddress(
-      sm,
       addr,
       region,
       srcPType.asInstanceOf[PString].binaryRepresentation,
@@ -119,22 +114,18 @@ class PCanonicalString(val required: Boolean) extends PString {
   override def unstagedLoadFromNested(addr: Long): Long =
     binaryRepresentation.unstagedLoadFromNested(addr)
 
-  override def unstagedStoreJavaObject(sm: HailStateManager, annotation: Annotation, region: Region)
-    : Long =
+  override def unstagedStoreJavaObject(annotation: Annotation, region: Region): Long =
     binaryRepresentation.unstagedStoreJavaObject(
-      sm,
       annotation.asInstanceOf[String].getBytes(),
       region,
     )
 
   override def unstagedStoreJavaObjectAtAddress(
-    sm: HailStateManager,
     addr: Long,
     annotation: Annotation,
     region: Region,
   ): Unit =
     binaryRepresentation.unstagedStoreJavaObjectAtAddress(
-      sm,
       addr,
       annotation.asInstanceOf[String].getBytes(),
       region,

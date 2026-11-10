@@ -2,7 +2,7 @@ package is.hail.io.index
 
 import is.hail.annotations._
 import is.hail.asm4s.HailClassLoader
-import is.hail.backend.{ExecuteContext, HailStateManager}
+import is.hail.backend.ExecuteContext
 import is.hail.collection.implicits.toRichIndexedSeq
 import is.hail.io._
 import is.hail.io.fs.{FS, SeekableDataInputStream}
@@ -10,6 +10,7 @@ import is.hail.rvd.{AbstractIndexSpec, PartitionBoundOrdering}
 import is.hail.types.physical.PStruct
 import is.hail.types.virtual.{TStruct, Type, TypeSerializer}
 import is.hail.utils._
+import is.hail.variant.ReferenceGenomeEnv
 
 import scala.collection.immutable.ArraySeq
 
@@ -30,7 +31,6 @@ object IndexReaderBuilder {
     val (intPType: PStruct, intDec) =
       spec.internalNodeCodec.buildDecoder(ctx, spec.internalNodeCodec.encodedVirtualType)
     withDecoders(
-      ctx,
       leafDec,
       intDec,
       keyType,
@@ -41,7 +41,6 @@ object IndexReaderBuilder {
   }
 
   def withDecoders(
-    ctx: ExecuteContext,
     leafDec: (InputStream, HailClassLoader) => Decoder,
     intDec: (InputStream, HailClassLoader) => Decoder,
     keyType: Type,
@@ -49,12 +48,11 @@ object IndexReaderBuilder {
     leafPType: PStruct,
     intPType: PStruct,
   ): (HailClassLoader, FS, String, Int, RegionPool) => IndexReader = {
-    val sm = ctx.stateManager
     (theHailClassLoader, fs, path, cacheCapacity, pool) =>
       new IndexReader(
         theHailClassLoader, fs, path, cacheCapacity, leafDec, intDec, keyType,
         annotationType,
-        leafPType, intPType, pool, sm)
+        leafPType, intPType, pool)
   }
 }
 
@@ -71,9 +69,9 @@ object IndexReader {
     untyped.toMetadata(keyType, annotationType)
   }
 
-  def readTypes(fs: FS, path: String): (Type, Type) = {
+  def readTypes(fs: FS, rgs: ReferenceGenomeEnv, path: String): (Type, Type) = {
     val jv = readMetadataRaw(fs, path)
-    implicit val formats: Formats = DefaultFormats + new TypeSerializer
+    implicit val formats: Formats = DefaultFormats + new TypeSerializer(rgs)
     val metadata = jv.extract[IndexMetadata]
     metadata.keyType -> metadata.annotationType
   }
@@ -128,7 +126,6 @@ class IndexReader(
   val leafPType: PStruct,
   val internalPType: PStruct,
   val pool: RegionPool,
-  val sm: HailStateManager,
 ) extends AutoCloseable with Logging {
   /* prior to ~0.2.139, The index files were written as a directory with two files, the index
    * itself, and a metadata.json.gz, when reading an index, we switch on if the old style metadata
@@ -148,8 +145,8 @@ class IndexReader(
   val attributes = metadata.attributes
 
   val ordering = keyType match {
-    case ts: TStruct => PartitionBoundOrdering(sm, ts)
-    case t => t.ordering(sm)
+    case ts: TStruct => PartitionBoundOrdering(ts)
+    case t => t.ordering
   }
 
   private val leafDecoder = leafDecoderBuilder(is, theHailClassLoader)

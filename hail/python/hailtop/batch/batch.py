@@ -151,15 +151,16 @@ class Batch:
         -------
         A Batch object that can append jobs to an existing batch.
         """
-        return async_to_blocking(Batch._async_from_batch_id(batch_id, *args, **kwargs))
-
-    @staticmethod
-    async def _async_from_batch_id(batch_id: int, *args, **kwargs) -> 'Batch':
         from hailtop.batch.backend import ServiceBackend  # pylint: disable=import-outside-toplevel
 
         b = Batch(*args, **kwargs)
-        assert isinstance(b._backend, ServiceBackend), repr(b._backend)
-        b._async_batch = await (await b._backend._batch_client()).get_batch(batch_id)
+
+        async def get_batch():
+            assert isinstance(b._backend, ServiceBackend), repr(b._backend)
+            bc = await b._backend._batch_client()
+            return await bc.get_batch(batch_id)
+
+        b._async_batch = async_to_blocking(get_batch())
         return b
 
     def __init__(
@@ -215,7 +216,7 @@ class Batch:
         self._default_storage = default_storage
         self._default_regions = default_regions
         if self._default_regions is None and isinstance(self._backend, ServiceBackend):
-            self._default_regions = self._backend.regions or [self._backend.default_region()]
+            self._default_regions = self._backend.regions or [self._backend._default_region]
         self._default_timeout = default_timeout
         self._default_shell = default_shell
         self._default_python_image = default_python_image
@@ -619,6 +620,9 @@ class Batch:
             where `identifier` is the identifier of the file in the
             :class:`.ResourceGroup` map.
         """
+        async_to_blocking(self._async_write_output(resource, dest))
+
+    async def _async_write_output(self, resource: _resource.Resource, dest: Union[str, os.PathLike]) -> None:
         from hailtop.batch.backend import LocalBackend  # pylint: disable=import-outside-toplevel
 
         if not isinstance(resource, _resource.Resource):
@@ -653,7 +657,7 @@ class Batch:
             if dest_scheme == '':
                 dest = os.path.abspath(os.path.expanduser(dest))
 
-        async_to_blocking(self._backend.validate_file(dest, self.requester_pays_project))
+        await self._backend.validate_file(dest, self.requester_pays_project)
 
         resource._add_output_path(dest)
 

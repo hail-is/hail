@@ -53,15 +53,15 @@ apt-get update
 apt-get install -y build-essential linux-headers-$(uname -r)
 
 echo "=== Downloading NVIDIA driver ==="
-wget --no-verbose https://us.download.nvidia.com/XFree86/Linux-x86_64/595.99.02/NVIDIA-Linux-x86_64-595.99.02.run
-echo "e87477958bf763070549324bd5ad6c948eba6ed210e44005b3eff84940f6e1ec  NVIDIA-Linux-x86_64-595.99.02.run" | sha256sum -c
-chmod +x NVIDIA-Linux-x86_64-595.99.02.run
+wget --no-verbose https://us.download.nvidia.com/XFree86/Linux-x86_64/595.104.02/NVIDIA-Linux-x86_64-595.104.02.run
+echo "e421c202e4c79f58c3c7f3161bbe71454ebb3d88936f88205a0e327cd04c59ca  NVIDIA-Linux-x86_64-595.104.02.run" | sha256sum -c
+chmod +x NVIDIA-Linux-x86_64-595.104.02.run
 
 echo "=== Running NVIDIA driver installer ==="
 touch /var/log/nvidia-installer.log
 tail -f /var/log/nvidia-installer.log &
 NVIDIA_LOG_PID=$!
-./NVIDIA-Linux-x86_64-595.99.02.run --silent
+./NVIDIA-Linux-x86_64-595.104.02.run --silent
 kill $NVIDIA_LOG_PID
 
 echo "=== Installing NVIDIA container toolkit ==="
@@ -78,16 +78,6 @@ export HOME=/root
 
 docker-credential-gcr configure-docker --include-artifact-registry
 docker pull {{ global.docker_root_image }}
-
-echo "=== Disabling algif_aead kernel module (copy.fail / CVE-2026-31431) ==="
-echo "install algif_aead /bin/false" > /etc/modprobe.d/disable-algif.conf
-rmmod algif_aead 2>/dev/null || true
-
-echo "=== Blacklisting ESP modules (copy.fail2) ==="
-cat > /etc/modprobe.d/blocklist-esp.conf << 'EOF'
-blacklist esp4
-blacklist esp6
-EOF
 
 echo "=== Enabling Docker debug logging ==="
 jq '.debug = true' /etc/docker/daemon.json > daemon.json.tmp

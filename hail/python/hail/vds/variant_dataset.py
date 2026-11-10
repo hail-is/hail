@@ -31,15 +31,23 @@ def read_vds(
     :class:`.VariantDataset`
     """
     if intervals or not n_partitions:
-        reference_data = hl.read_matrix_table(VariantDataset._reference_path(path), _intervals=intervals)
-        variant_data = hl.read_matrix_table(VariantDataset._variants_path(path), _intervals=intervals)
+        reference_data = hl.read_matrix_table(
+            VariantDataset._reference_path(path), _intervals=intervals, _assert_type=_assert_reference_type
+        )
+        variant_data = hl.read_matrix_table(
+            VariantDataset._variants_path(path), _intervals=intervals, _assert_type=_assert_variant_type
+        )
     else:
         assert n_partitions is not None
-        reference_data = hl.read_matrix_table(VariantDataset._reference_path(path))
+        reference_data = hl.read_matrix_table(VariantDataset._reference_path(path), _assert_type=_assert_reference_type)
         intervals = reference_data._calculate_new_partitions(n_partitions)
         assert len(intervals) > 0
-        reference_data = hl.read_matrix_table(VariantDataset._reference_path(path), _intervals=intervals)
-        variant_data = hl.read_matrix_table(VariantDataset._variants_path(path), _intervals=intervals)
+        reference_data = hl.read_matrix_table(
+            VariantDataset._reference_path(path), _intervals=intervals, _assert_type=reference_data._type
+        )
+        variant_data = hl.read_matrix_table(
+            VariantDataset._variants_path(path), _intervals=intervals, _assert_type=_assert_variant_type
+        )
 
     # if LEN is missing, add it, _add_len is a no-op if LEN is already present
     reference_data = VariantDataset._add_len(reference_data)

@@ -76,7 +76,7 @@ class Aggregators2Suite {
       )
 
     ctx.r.pool.scopedRegion { region =>
-      val argOff = ScalaToRegionValue(ctx.stateManager, region, argT, argVs)
+      val argOff = ScalaToRegionValue(region, argT, argVs)
 
       def withArgs(foo: IR) =
         CompileWithAggregators[AsmFunction2RegionLongUnit](

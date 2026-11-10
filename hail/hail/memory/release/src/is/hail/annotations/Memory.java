@@ -6,6 +6,8 @@ import java.lang.reflect.Field;
 
 @SuppressWarnings("sunapi")
 public final class Memory {
+    public static final boolean IS_DEBUG = false;
+
     private static final Unsafe unsafe;
 
     public static void storeByte(byte[] mem, long off, byte b) {

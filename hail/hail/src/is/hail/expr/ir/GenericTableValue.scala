@@ -200,7 +200,7 @@ class GenericTableValue(
       case Some(partitioner) =>
         p = partitioner
       case None if requestedType.key.isEmpty =>
-        p = RVDPartitioner.unkeyed(ctx.stateManager, contexts.length)
+        p = RVDPartitioner.unkeyed(contexts.length)
       case None =>
     }
     if (p != null) {

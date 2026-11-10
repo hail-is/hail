@@ -100,7 +100,7 @@ class MostRecentVersionKeepPolicy(CleanupPolicy):
 
 third_party_images_fp = 'docker/third-party/images.txt'
 third_party_packages = []
-with open(third_party_images_fp, 'r') as f:
+with open(third_party_images_fp, 'r', encoding='utf-8') as f:
     for image in f:
         image = image.strip()
         package, _ = image.split(':')
@@ -112,7 +112,7 @@ deploy_packages = []
 
 def scrape_build_yaml(file_path: str):
     found_packages = []
-    with open(file_path, 'r') as f:
+    with open(file_path, 'r', encoding='utf-8') as f:
         config_str = f.read().strip()
         build_config = yaml.safe_load(config_str)
         for step in build_config['steps']:

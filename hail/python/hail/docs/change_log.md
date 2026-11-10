@@ -52,6 +52,31 @@ supports.
 policy. Their functionality or even existence may change without notice. Please contact us if you
 critically depend on experimental functionality.**
 
+## Version 0.2.140
+
+Released 2026-11-02
+
+### New Features
+
+- (hail#15662) Hail now uses Spark 4.1.2 and Scala 2.13, and requires Java 17 or later. Support for Spark 3 and Scala 2.12 is removed.
+- (hail#15663) Hail now supports Python 3.12, 3.13 and 3.14. Support for Python 3.10 and 3.11 is removed.
+- (hail#15692) `hailctl dataproc` now creates clusters with Dataproc 3.0 images, which ship Spark 4. Notebooks are now served by JupyterLab through the Dataproc component gateway, and `hailctl dataproc connect` opens the gateway URL in your browser. The `--port` flag of `hailctl dataproc connect` and the `HAILCTL_CHROME` environment variables are removed. The default machine type is now n2 instead of n1.
+- (hail#15792) Add `hl.experimental.write_mts_split_by_cols`, which writes a matrix table as several matrix tables, each holding a subset of the columns.
+- (hail#15695, hail#15689) Interrupting a query (e.g. with Ctrl-C) now cancels it in the JVM. Previously the query kept running, and later calls waited for it to finish. `hl.stop()` followed by `hl.init()` now recovers from a dead or unresponsive JVM.
+- (hail#15893, hail#15891) Reduce memory use when reading and writing files on Google Cloud Storage with the 'local' and 'batch' backends. Each open read or write stream now uses one buffer instead of two.
+- (hail#15756) Reduce the size of the tasks the Spark backend sends to executors. Large pipelines no longer trigger Spark's "task of very large size" warnings.
+
+### Bug Fixes
+
+- (hail#15752) Fix a memory leak where `hl.agg.array_agg` over an entry array, combined with functions like `contains`, used far more memory than needed and could exhaust off-heap memory. Also fix a performance regression where `Table.head` and `MatrixTable.head` read whole partitions instead of stopping after `n` rows.
+- (hail#15704) Fix a bug where scans with large aggregator states, such as `hl.scan.take` or `hl.experimental.densify`, crashed with `NotImplementedError` on tables with more than 50 partitions.
+- (hail#15822) Fix a bug where the VDS combiner reused a transform function built for a different `gvcf_save_filters` setting, so filters were saved or dropped incorrectly.
+- (hail#15787) Fix a bug where `MatrixTable.head` warned that `n` is deprecated when `n_rows=None` was passed explicitly. `n_rows` now defaults to `None`, so `mt.head(n=...)` works again.
+
+### Deprecations
+
+- (hail#15895, hail#15897) Hail Query no longer supports Azure Blob Storage URLs (`https://<account>.blob.core.windows.net/...`) or Azure credentials in the JVM.
+
 ## Version 0.2.139
 
 Released 2026-08-07

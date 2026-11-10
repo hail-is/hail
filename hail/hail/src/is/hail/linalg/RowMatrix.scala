@@ -1,7 +1,7 @@
 package is.hail.linalg
 
 import is.hail.annotations.RowSeq
-import is.hail.backend.{BroadcastValue, ExecuteContext, HailStateManager}
+import is.hail.backend.{BroadcastValue, ExecuteContext}
 import is.hail.backend.spark.SparkBackend
 import is.hail.io.InputBuffer
 import is.hail.io.fs.FS
@@ -91,7 +91,6 @@ class RowMatrix(
     val partStarts = partitionStarts()
 
     new RVDPartitioner(
-      HailStateManager(Map.empty),
       partitionKey,
       kType,
       ArraySeq.tabulate(partStarts.length - 1) { i =>

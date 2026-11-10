@@ -1,0 +1,9 @@
+# Minimum versions required for security fixes. Constraints only: these never add a package,
+# and setup.py skips -c files, so they don't end up in the published wheels' dependencies.
+# Add one whenever a security fix is the reason for COOLDOWN_EXEMPT, so that a later run
+# inside the cooldown window fails rather than silently downgrading.
+# See dev-docs/pip-dependencies.md#release-cooldown
+certifi>=2026.10.23 # trust list update after a leaked CA
+pillow>=13.0.0 # fixes many advisories against 12.x
+pyasn1>=0.6.5 # fixes high-severity advisories against <=0.6.4
+uv>=0.13.6 # trust list update after a leaked CA

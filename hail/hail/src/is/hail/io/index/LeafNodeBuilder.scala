@@ -49,6 +49,7 @@ class StagedLeafNodeBuilder(
   maxSize: Int,
   keyType: PType,
   annotationType: PType,
+  eType: EType,
   sb: SettableBuilder,
 ) {
   private val region = sb.newSettable[Region]("leaf_node_region")
@@ -92,8 +93,7 @@ class StagedLeafNodeBuilder(
   }
 
   def encode(cb: EmitCodeBuilder, ob: Value[OutputBuffer]): Unit = {
-    val enc =
-      EType.defaultFromPType(cb.emb.ctx, pType).buildEncoder(SBaseStructPointer(pType), cb.emb.ecb)
+    val enc = eType.buildEncoder(SBaseStructPointer(pType), cb.emb.ecb)
     ab.storeLength(cb)
     enc(cb, node, ob)
   }

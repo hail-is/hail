@@ -351,7 +351,7 @@ class BatchPoolExecutor:
         pipe.seek(0)
         pickledfun_remote = self.inputs + f'{name}/pickledfun'
         await self._fs.write(pickledfun_remote, pipe.getvalue())
-        pickledfun_local = batch.read_input(pickledfun_remote)
+        pickledfun_local = await batch._async_read_input(pickledfun_remote)
 
         thread_limit = "1"
         if self.cpus_per_job:
@@ -378,8 +378,8 @@ with open(\\"{j.ofile}\\", \\"wb\\") as out:
         dill.dump((e, traceback.format_exception(type(e), e, e.__traceback__)), out, recurse=True)
 "''')
         output_gcs = self.outputs + f'{name}/output'
-        batch.write_output(j.ofile, output_gcs)
-        sync_batch = batch.run(wait=False, disable_progress_bar=True)
+        await batch._async_write_output(j.ofile, output_gcs)
+        sync_batch = await batch._async_run(wait=False, disable_progress_bar=True)
         assert sync_batch is not None
         backend_batch = sync_batch._async_batch
         try:
@@ -401,10 +401,10 @@ with open(\\"{j.ofile}\\", \\"wb\\") as out:
     def _add_future(self, f):
         self.futures.append(f)
 
-    def _finish_future(self):
+    async def _async_finish_future(self):
         self.finished_future_count += 1
         if self._shutdown and self.finished_future_count == len(self.futures):
-            self._cleanup()
+            await self._async_cleanup()
 
     def shutdown(self, wait: bool = True):
         """Allow temporary resources to be cleaned up.
@@ -427,17 +427,25 @@ with open(\\"{j.ofile}\\", \\"wb\\") as out:
                 except Exception:
                     pass
 
-            async_to_blocking(asyncio.gather(*[ignore_exceptions(f) for f in self.futures]))
-        if self.finished_future_count == len(self.futures):
-            self._cleanup()
-        self._shutdown = True
+            async def wait_for_all():
+                await asyncio.gather(*[ignore_exceptions(f) for f in self.futures])
 
-    def _cleanup(self):
+            async_to_blocking(wait_for_all())
+        async_to_blocking(self._async_shutdown())
+
+    async def _async_shutdown(self):
+        # Futures finish on the Hail event loop, so mark the shutdown there too. Otherwise the last
+        # future could finish between the check and the mark, and nothing would clean up.
+        self._shutdown = True
+        if self.finished_future_count == len(self.futures):
+            await self._async_cleanup()
+
+    async def _async_cleanup(self):
         if self.cleanup_bucket:
-            async_to_blocking(self._fs.rmtree(None, self.directory))
+            await self._fs.rmtree(None, self.directory)
         if self.__fs is not None:  # only close the fs if we created it
-            async_to_blocking(self.__fs.close())
-        self.backend.close()
+            await self.__fs.close()
+        await self.backend.async_close()
 
 
 class BatchPoolFuture:
@@ -552,7 +560,7 @@ class BatchPoolFuture:
             raise ValueError(f'submitted job failed:\n{traceback}')
         finally:
             await self.batch.cancel()
-            self.executor._finish_future()
+            await self.executor._async_finish_future()
 
     def exception(self, timeout: Optional[Union[float, int]] = None):
         """Block until the job is complete and raise any exceptions."""

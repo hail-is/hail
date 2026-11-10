@@ -2,7 +2,6 @@ package is.hail.types.physical
 
 import is.hail.annotations.{Annotation, Region}
 import is.hail.asm4s.{Code, Value}
-import is.hail.backend.HailStateManager
 import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.types.physical.stypes.SValue
 
@@ -15,7 +14,6 @@ trait PUnrealizable extends PType {
   override def alignment: Long = unsupported
 
   override protected[physical] def _copyFromAddress(
-    sm: HailStateManager,
     region: Region,
     srcPType: PType,
     srcAddress: Long,
@@ -24,7 +22,6 @@ trait PUnrealizable extends PType {
     unsupported
 
   override def copyFromAddress(
-    sm: HailStateManager,
     region: Region,
     srcPType: PType,
     srcAddress: Long,
@@ -33,7 +30,6 @@ trait PUnrealizable extends PType {
     unsupported
 
   override def unstagedStoreAtAddress(
-    sm: HailStateManager,
     addr: Long,
     region: Region,
     srcPType: PType,
@@ -42,12 +38,10 @@ trait PUnrealizable extends PType {
   ): Unit =
     unsupported
 
-  override def unstagedStoreJavaObject(sm: HailStateManager, annotation: Annotation, region: Region)
-    : Long =
+  override def unstagedStoreJavaObject(annotation: Annotation, region: Region): Long =
     unsupported
 
   override def unstagedStoreJavaObjectAtAddress(
-    sm: HailStateManager,
     addr: Long,
     annotation: Annotation,
     region: Region,

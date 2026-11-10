@@ -20,4 +20,7 @@ object ExecStrategy extends Enumeration {
   val lowering: Set[ExecStrategy] = Set(LoweredJVMCompile)
   val backendOnly: Set[ExecStrategy] = Set(LoweredJVMCompile)
   val allRelational: Set[ExecStrategy] = interpretOnly.union(lowering)
+
+  // `loweredExecute` runs without the optimiser.
+  val unoptimizedRelational: Set[ExecStrategy] = Set(InterpretUnoptimized, LoweredJVMCompile)
 }

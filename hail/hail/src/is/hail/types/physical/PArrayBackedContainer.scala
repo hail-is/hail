@@ -2,7 +2,6 @@ package is.hail.types.physical
 
 import is.hail.annotations.{Annotation, Region, UnsafeOrdering}
 import is.hail.asm4s.{Code, Value}
-import is.hail.backend.HailStateManager
 import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.types.physical.stypes.SValue
 import is.hail.types.physical.stypes.concrete.{SIndexablePointer, SIndexablePointerValue}
@@ -122,21 +121,19 @@ trait PArrayBackedContainer extends PContainer {
   override def hasMissingValues(sourceOffset: Code[Long]): Code[Boolean] =
     arrayRep.hasMissingValues(sourceOffset)
 
-  override def unsafeOrdering(sm: HailStateManager): UnsafeOrdering =
-    unsafeOrdering(sm, this)
+  override def unsafeOrdering: UnsafeOrdering =
+    unsafeOrdering(this)
 
-  override def unsafeOrdering(sm: HailStateManager, rightType: PType): UnsafeOrdering =
-    arrayRep.unsafeOrdering(sm, rightType)
+  override def unsafeOrdering(rightType: PType): UnsafeOrdering =
+    arrayRep.unsafeOrdering(rightType)
 
   override def _copyFromAddress(
-    sm: HailStateManager,
     region: Region,
     srcPType: PType,
     srcAddress: Long,
     deepCopy: Boolean,
   ): Long =
     arrayRep.copyFromAddress(
-      sm,
       region,
       srcPType.asInstanceOf[PArrayBackedContainer].arrayRep,
       srcAddress,
@@ -162,7 +159,6 @@ trait PArrayBackedContainer extends PContainer {
     arrayRep.pastLastElementOffset(aoff, length)
 
   override def unstagedStoreAtAddress(
-    sm: HailStateManager,
     addr: Long,
     region: Region,
     srcPType: PType,
@@ -170,7 +166,6 @@ trait PArrayBackedContainer extends PContainer {
     deepCopy: Boolean,
   ): Unit =
     arrayRep.unstagedStoreAtAddress(
-      sm,
       addr,
       region,
       srcPType.asInstanceOf[PArrayBackedContainer].arrayRep,
@@ -206,12 +201,11 @@ trait PArrayBackedContainer extends PContainer {
   override def unstagedLoadFromNested(addr: Long): Long = arrayRep.unstagedLoadFromNested(addr)
 
   override def unstagedStoreJavaObjectAtAddress(
-    sm: HailStateManager,
     addr: Long,
     annotation: Annotation,
     region: Region,
   ): Unit =
-    Region.storeAddress(addr, unstagedStoreJavaObject(sm, annotation, region))
+    Region.storeAddress(addr, unstagedStoreJavaObject(annotation, region))
 }
 
 trait PCanonicalArrayBackedContainer extends PArrayBackedContainer {

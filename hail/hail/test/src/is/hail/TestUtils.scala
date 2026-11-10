@@ -15,6 +15,7 @@ import is.hail.expr.ir.lowering.{Compilable, LowererUnsupportedOperation}
 import is.hail.expr.ir.lowering.Optimize.Flags.Optimize
 import is.hail.io.vcf.MatrixVCFReader
 import is.hail.linalg.DenseMatrix
+import is.hail.types.encoded.EType.Flags.UseUnstableEncodings
 import is.hail.types.physical.{PBaseStruct, PCanonicalArray, PType}
 import is.hail.types.physical.stypes.PTypeReferenceSingleCodeType
 import is.hail.types.virtual._
@@ -117,6 +118,13 @@ object TestUtils extends Logging {
   def unoptimized[A](f: ExecuteContext => A)(implicit ctx: ExecuteContext): A =
     ctx.local(flags = ctx.flags - Optimize)(f)
 
+  def withUnstableEncodings[A](f: ExecuteContext => A)(implicit ctx: ExecuteContext): A =
+    ctx.local(flags = ctx.flags + (UseUnstableEncodings -> "1"))(f)
+
+  // Tests may run with unstable encodings on for the whole run, so stable baselines must say so.
+  def withStableEncodings[A](f: ExecuteContext => A)(implicit ctx: ExecuteContext): A =
+    ctx.local(flags = ctx.flags + (UseUnstableEncodings -> null))(f)
+
   def loweredExecute(
     x: IR,
     env: Env[(Any, Type)],
@@ -203,7 +211,7 @@ object TestUtils extends Logging {
 
         ctx.r.pool.scopedRegion { region =>
           ctx.local(r = region) { ctx =>
-            val rvb = new RegionValueBuilder(ctx.stateManager, ctx.r)
+            val rvb = new RegionValueBuilder(ctx.r)
             rvb.start(argsPType)
             rvb.startTuple()
             var i = 0
@@ -244,7 +252,7 @@ object TestUtils extends Logging {
 
         ctx.r.pool.scopedRegion { region =>
           ctx.local(r = region) { ctx =>
-            val rvb = new RegionValueBuilder(ctx.stateManager, ctx.r)
+            val rvb = new RegionValueBuilder(ctx.r)
             rvb.start(argsPType)
             rvb.startTuple()
             var i = 0
@@ -398,23 +406,22 @@ object TestUtils extends Logging {
       RowSeq.fromSeq(xs.map(_._2)),
     )
 
-  def assertThrows[E <: Throwable: ClassTag](x: IR, regex: String)(implicit ctx: ExecuteContext)
-    : Unit =
-    ctx.local() { ctx =>
-      val emptyEnv: Env[(Any, Type)] = Env.empty[(Any, Type)]
-      val emptyArgs: IndexedSeq[(Any, Type)] = FastSeq.empty[(Any, Type)]
-      ctx.flags.set(Optimize, "1")
-      interceptException[E](regex)(Interpret[Any](ctx, x, emptyEnv, emptyArgs))
-      ctx.flags.set(Optimize, null)
-      interceptException[E](regex)(Interpret[Any](ctx, x, emptyEnv, emptyArgs))
-      ctx.flags.set(Optimize, "1")
-      interceptException[E](regex) {
-        implicit val innerCtx: ExecuteContext = ctx
-        eval(x)
-      }
-    }
+  def assertThrows[E <: Throwable: ClassTag](
+    x: IR,
+    regex: String,
+  )(implicit
+    ctx: ExecuteContext,
+    execStrats: Set[ExecStrategy],
+  ): Unit =
+    assertThrows[E](x, Env.empty[(Any, Type)], FastSeq.empty[(Any, Type)], regex)
 
-  def assertFatal(x: IR, regex: String)(implicit ctx: ExecuteContext): Unit =
+  def assertFatal(
+    x: IR,
+    regex: String,
+  )(implicit
+    ctx: ExecuteContext,
+    execStrats: Set[ExecStrategy],
+  ): Unit =
     assertThrows[HailException](x, regex)
 
   def assertThrows[E <: Throwable: ClassTag](
@@ -422,18 +429,12 @@ object TestUtils extends Logging {
     env: Env[(Any, Type)],
     args: IndexedSeq[(Any, Type)],
     regex: String,
-  )(implicit ctx: ExecuteContext
+  )(implicit
+    ctx: ExecuteContext,
+    execStrats: Set[ExecStrategy],
   ): Unit =
-    ctx.local() { ctx =>
-      ctx.flags.set(Optimize, "1")
-      interceptException[E](regex)(Interpret[Any](ctx, x, env, args))
-      ctx.flags.set(Optimize, null)
-      interceptException[E](regex)(Interpret[Any](ctx, x, env, args))
-      ctx.flags.set(Optimize, "1")
-      interceptException[E](regex) {
-        implicit val innerCtx: ExecuteContext = ctx
-        eval(x, env, args)
-      }
+    execStrats.foreach { implicit strat =>
+      interceptException[E](regex)(evaluate(x.deepCopy, args, env, None))
     }
 
   def assertFatal(
@@ -441,7 +442,8 @@ object TestUtils extends Logging {
     args: IndexedSeq[(Any, Type)],
     regex: String,
   )(implicit
-    ctx: ExecuteContext
+    ctx: ExecuteContext,
+    execStrats: Set[ExecStrategy],
   ): Unit =
     assertThrows[HailException](x, Env.empty[(Any, Type)], args, regex)
 
@@ -450,7 +452,9 @@ object TestUtils extends Logging {
     env: Env[(Any, Type)],
     args: IndexedSeq[(Any, Type)],
     regex: String,
-  )(implicit ctx: ExecuteContext
+  )(implicit
+    ctx: ExecuteContext,
+    execStrats: Set[ExecStrategy],
   ): Unit =
     assertThrows[HailException](x, env, args, regex)
 

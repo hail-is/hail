@@ -9,7 +9,7 @@ from pytest import CollectReport, StashKey
 from hail import current_backend
 from hail.backend.service_backend import ServiceBackend
 from hail.utils.java import Env, choose_backend
-from hailtop.hail_event_loop import hail_event_loop
+from hailtop.utils import async_to_blocking
 
 from .helpers import hl_init_for_test, hl_stop_for_test
 
@@ -92,7 +92,7 @@ def init_hail(request):
                 report: Dict[str, CollectReport] = request.node.stash[test_results_key]
                 if any(r.failed for r in report.values()):
                     log.info(f'cancelling failed test batch {batch.id}')
-                    hail_event_loop().run_until_complete(batch.cancel())
+                    async_to_blocking(batch.cancel())
             finally:
                 hl_stop_for_test()
         else:

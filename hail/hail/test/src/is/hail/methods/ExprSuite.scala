@@ -2,12 +2,13 @@ package is.hail.methods
 
 import is.hail.TestUtils._
 import is.hail.annotations.RowSeq
-import is.hail.backend.{ExecuteContext, HailStateManager}
+import is.hail.backend.ExecuteContext
 import is.hail.expr._
 import is.hail.expr.ir.IRParser
 import is.hail.scalacheck._
 import is.hail.types.virtual._
 import is.hail.utils.StringEscapeUtils._
+import is.hail.variant.ReferenceGenomeEnv
 
 import org.json4s.jackson.JsonMethods._
 import org.junit.jupiter.api.Test
@@ -17,8 +18,6 @@ import org.scalacheck.Prop.forAll
 
 class ExprSuite {
 
-  def sm(implicit ctx: ExecuteContext): HailStateManager = ctx.stateManager
-
   @Test def testTypePretty(): Unit = {
     // for arbType
 
@@ -27,7 +26,7 @@ class ExprSuite {
       sb.clear()
       t.pretty(sb, 0, compact = true)
       val res = sb.result()
-      val parsed = IRParser.parseType(res)
+      val parsed = IRParser.parseType(res, ReferenceGenomeEnv.empty)
       t == parsed
     })
 
@@ -35,13 +34,13 @@ class ExprSuite {
       sb.clear()
       t.pretty(sb, 0, compact = false)
       val res = sb.result()
-      val parsed = IRParser.parseType(res)
+      val parsed = IRParser.parseType(res, ReferenceGenomeEnv.empty)
       t == parsed
     })
 
     check(forAll { (t: Type) =>
       val s = t.parsableString()
-      val parsed = IRParser.parseType(s)
+      val parsed = IRParser.parseType(s, ReferenceGenomeEnv.empty)
       assert(t == parsed)
     })
   }
@@ -112,7 +111,7 @@ class ExprSuite {
   }
 
   @Test def testOrdering(implicit ctx: ExecuteContext): Unit = {
-    val intOrd = TInt32.ordering(ctx.stateManager)
+    val intOrd = TInt32.ordering
 
     assertEq(intOrd.compare(-2, -2), 0)
     assertEq(intOrd.compare(null, null), 0)
@@ -127,7 +126,7 @@ class ExprSuite {
     } yield (t, a, b)
 
     check(forAll(g) { case (t, a, b) =>
-      val ord = t.ordering(ctx.stateManager)
+      val ord = t.ordering
       assertEq(ord.compare(a, b), -ord.compare(b, a))
     })
   }

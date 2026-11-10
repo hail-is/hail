@@ -85,9 +85,11 @@ class Tests(unittest.TestCase):
     @skip_unless_spark_backend()
     def test_type_jvm_roundtrip(self):
         ts = self.types_to_test()
+        # The types to test only use builtin reference genomes.
+        builtins_only = Env.hail().variant.ReferenceGenomeEnv.empty()
         for t in ts:
             rev_str = t._parsable_string()
-            jtyp = Env.hail().expr.ir.IRParser.parseType(rev_str)
+            jtyp = Env.hail().expr.ir.IRParser.parseType(rev_str, builtins_only)
             self.assertEqual(t, dtype(jtyp.toString()))
 
     def test_pretty_roundtrip(self):

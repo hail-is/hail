@@ -15,6 +15,26 @@ versions. In particular, Hail officially supports:
 Change Log
 ==========
 
+**Version 0.2.140**
+
+- (`#15663 <https://github.com/hail-is/hail/pull/15663>`__) ``hailtop`` now supports Python 3.12, 3.13 and 3.14. Support for Python 3.10 and 3.11 is removed. The default Python version for jobs is now 3.12.
+- (`#15824 <https://github.com/hail-is/hail/pull/15824>`__) ``hailtop`` no longer uses ``nest_asyncio``. Hail's async work now runs on its own event loop thread. This fixes ``hailctl batch submit`` and other clients failing with ``RuntimeError: Timeout context manager should be used inside a task`` on Python 3.14, and ``hailctl batch submit --wait`` hanging after it finished. ``hailtop.hail_event_loop.hail_event_loop()`` is removed.
+- (`#15883 <https://github.com/hail-is/hail/pull/15883>`__) User jobs no longer have the ``CAP_NET_RAW`` capability, so tools like ``ping`` and ``traceroute`` no longer work inside jobs.
+- (`#15692 <https://github.com/hail-is/hail/pull/15692>`__) ``hailctl dataproc`` now creates clusters with Dataproc 3.0 images, which ship Spark 4. Notebooks are served by JupyterLab through the Dataproc component gateway, and ``hailctl dataproc connect`` opens the gateway URL in your browser. The ``--port`` flag of ``hailctl dataproc connect`` is removed. The default machine type is now n2 instead of n1.
+- (`#15683 <https://github.com/hail-is/hail/pull/15683>`__) Add N4 machine types for ``job-private`` jobs. N4 machines use Hyperdisk volumes, capped at the free IOPS and throughput rates.
+- (`#15675 <https://github.com/hail-is/hail/pull/15675>`__) JVM jobs can now declare the Spark version their jar was built against with the optional ``spark_version`` field of the job spec. It defaults to 3.5.3, so existing clients are unaffected.
+- (`#15768 <https://github.com/hail-is/hail/pull/15768>`__) Add ``/timing`` and ``/job_graph`` API endpoints that return per-attempt timing data and the job dependency graph of a batch. The job details response now includes ``job_group_id``.
+- (`#15888 <https://github.com/hail-is/hail/pull/15888>`__) Job resource charts and the job timing chart now label the time axis with clock time. A toggle switches back to time relative to the job start.
+- (`#15730 <https://github.com/hail-is/hail/pull/15730>`__) The job page now shows the requested and actual region of each attempt.
+- (`#15738 <https://github.com/hail-is/hail/pull/15738>`__) Job logs in the new UI layout are now colored according to their ANSI color codes.
+- (`#15782 <https://github.com/hail-is/hail/pull/15782>`__, `#15708 <https://github.com/hail-is/hail/pull/15708>`__) Add new-layout versions of the batch details page and the batch driver dashboard.
+- (`#15690 <https://github.com/hail-is/hail/pull/15690>`__) Creating job groups is now idempotent and no longer needs to happen in id order, so clients can safely retry after a lost response.
+- (`#15890 <https://github.com/hail-is/hail/pull/15890>`__) Query-on-Batch JVMs now use the serial garbage collector and size themselves for their job's cores. This fixes drivers being killed for running out of memory without an ``OutOfMemoryError``.
+- (`#15773 <https://github.com/hail-is/hail/pull/15773>`__) Fix a bug where users were billed for about a minute of startup time when a ``job-private`` VM could not be created because no capacity was available.
+- (`#15723 <https://github.com/hail-is/hail/pull/15723>`__) Fix a deadlock between creating and canceling job groups that could make requests fail with a 400 error.
+- (`#15620 <https://github.com/hail-is/hail/pull/15620>`__) Fix a bug where inactive users did not see the "account is inactive" error message, e.g. in Jupyter notebooks or the web UI.
+- (`#15701 <https://github.com/hail-is/hail/pull/15701>`__) Fix a race condition that crashed the batch driver when it deleted an instance.
+
 **Version 0.2.139**
 
 - (`#15200 <https://github.com/hail-is/hail/pull/15200>`__) Services now use role-based access control for system-level actions. Users can be granted specific system roles (e.g. sysadmin, billing manager) instead of the previous all-or-nothing developer flag.

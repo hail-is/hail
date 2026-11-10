@@ -25,12 +25,14 @@ import is.hail.types.physical.stypes.primitives.SInt32
 import is.hail.types.virtual._
 import is.hail.types.virtual.TIterable.elementType
 import is.hail.utils._
-import is.hail.variant.{Call2, Locus}
+import is.hail.variant.{Call2, Locus, ReferenceGenome}
+import is.hail.variant.BuiltinLoci.{builtin, tlocus}
 
 import scala.collection.immutable.ArraySeq
 import scala.collection.mutable
 
 import org.apache.spark.sql.Row
+import org.json4s.Formats
 import org.json4s.jackson.{JsonMethods, Serialization}
 import org.junit.jupiter.api.Test
 
@@ -3361,7 +3363,7 @@ class IRSuite {
       invoke(
         "index_bgen",
         TInt64,
-        ArraySeq(TLocus("GRCh37")),
+        ArraySeq(tlocus("GRCh37")),
         Str(getTestResource("example.8bits.bgen")),
         Str(getTestResource("example.8bits.bgen.idx2")),
         Literal(TDict(TString, TString), Map("01" -> "1")),
@@ -3614,6 +3616,7 @@ class IRSuite {
       MatrixToValueApply(mt, ForceCountMatrixTable()),
       TableWrite(table, TableNativeWriter("/path/to/data.ht")),
       MatrixWrite(mt, MatrixNativeWriter("/path/to/data.mt")),
+      MatrixWrite(mt, MatrixNativePartitionedColumnsWriter("/path/to/data", 4)),
       MatrixWrite(vcf, MatrixVCFWriter("/path/to/sample.vcf")),
       MatrixWrite(vcf, MatrixPLINKWriter("/path/to/base")),
       MatrixWrite(bgen, MatrixGENWriter("/path/to/base")),
@@ -3656,6 +3659,14 @@ class IRSuite {
         Begin(FastSeq()),
         RelationalWriter("path", overwrite = false, None),
       ),
+      WriteMetadata(
+        Begin(FastSeq()),
+        RelationalWriter(
+          "path",
+          overwrite = false,
+          Some("references" -> Set(builtin(ReferenceGenome.GRCh38))),
+        ),
+      ),
       ReadValue(
         Str("foo"),
         ETypeValueReader(TypedCodecSpec(
@@ -3686,9 +3697,16 @@ class IRSuite {
     try {
       val fs = ctx.fs
 
-      val read = TableIR.read(fs, getTestResource("backward_compatability/1.1.0/table/0.ht"))
-      val mtRead =
-        MatrixIR.read(fs, getTestResource("backward_compatability/1.0.0/matrix_table/0.hmt"))
+      val read = TableIR.read(
+        fs,
+        ctx.references,
+        getTestResource("backward_compatability/1.1.0/table/0.ht"),
+      )
+      val mtRead = MatrixIR.read(
+        fs,
+        ctx.references,
+        getTestResource("backward_compatability/1.0.0/matrix_table/0.hmt"),
+      )
       val b = True()
 
       val xs: Array[TableIR] = Array(
@@ -3766,7 +3784,7 @@ class IRSuite {
         ),
         RelationalLetTable(freshName(), I32(0), read), {
           val structs = MakeStream(FastSeq(), TStream(TStruct()))
-          val partitioner = RVDPartitioner.empty(ctx.stateManager, TStruct())
+          val partitioner = RVDPartitioner.empty(TStruct())
           TableGen(
             structs,
             MakeStruct(FastSeq()),
@@ -3799,7 +3817,7 @@ class IRSuite {
         invoke(
           "index_bgen",
           TInt64,
-          ArraySeq(TLocus("GRCh37")),
+          ArraySeq(tlocus("GRCh37")),
           Str(getTestResource("example.8bits.bgen")),
           Str(getTestResource("example.8bits.bgen.idx2")),
           Literal(TDict(TString, TString), Map("01" -> "1")),
@@ -3808,9 +3826,16 @@ class IRSuite {
         ),
       )
 
-      val tableRead = TableIR.read(fs, getTestResource("backward_compatability/1.1.0/table/0.ht"))
-      val read =
-        MatrixIR.read(fs, getTestResource("backward_compatability/1.0.0/matrix_table/0.hmt"))
+      val tableRead = TableIR.read(
+        fs,
+        ctx.references,
+        getTestResource("backward_compatability/1.1.0/table/0.ht"),
+      )
+      val read = MatrixIR.read(
+        fs,
+        ctx.references,
+        getTestResource("backward_compatability/1.0.0/matrix_table/0.hmt"),
+      )
       val range = MatrixIR.range(ctx, 3, 7, None)
       val vcf = importVCF(getTestResource("sample.vcf"))(ctx)
 
@@ -3952,6 +3977,24 @@ class IRSuite {
     assert(x2 == x)
   }
 
+  // A relational writer names the reference genomes it writes, as types do, and reads them back as
+  // the reference genomes in scope.
+  @Test def testRelationalWriterNamesItsReferenceGenomes(implicit ctx: ExecuteContext): Unit = {
+    val rg = builtin(ReferenceGenome.GRCh38).copy(name = "user_defined")
+    ctx.local(references = ctx.references.withReferences(Seq(rg))) { ctx =>
+      val x = WriteMetadata(
+        Begin(FastSeq()),
+        RelationalWriter("path", overwrite = false, Some("references" -> Set(rg))),
+      )
+      val s = Pretty.sexprStyle(x, elideLiterals = false)
+      assert(s.contains(rg.name) && !s.contains("chrX"), s.take(500))
+      val x2 = IRParser.parse_value_ir(ctx, s)
+      assert(x2 == x)
+      val RelationalWriter(_, _, Some((_, rgs))) = x2.asInstanceOf[WriteMetadata].writer: @unchecked
+      assert(rgs.forall(_ eq rg))
+    }
+  }
+
   @ParameterizedTest
   def testTableIRParser(x: TableIR)(implicit ctx: ExecuteContext): Unit = {
     val s = Pretty.sexprStyle(x, elideLiterals = false)
@@ -4030,7 +4073,7 @@ class IRSuite {
         ctx,
         t1,
         BroadcastRow(ctx, RowSeq(1, 1.1), t1.globalType),
-        RVD.empty(ctx, t1.canonicalRVDType),
+        RVD.empty(t1.canonicalRVDType),
       ),
       ctx.theHailClassLoader,
     )
@@ -4039,7 +4082,7 @@ class IRSuite {
         ctx,
         t2,
         BroadcastRow(ctx, RowSeq(2, 2.2), t2.globalType),
-        RVD.empty(ctx, t2.canonicalRVDType),
+        RVD.empty(t2.canonicalRVDType),
       ),
       ctx.theHailClassLoader,
     )
@@ -4128,7 +4171,7 @@ class IRSuite {
 
   def testRelationalFunctionsSerialize(ctx: ExecuteContext) = Seq[Any](
     TableFilterPartitions(ArraySeq(1, 2, 3), keep = true),
-    VEP(ctx.fs, getTestResource("dummy_vep_config.json"), false, 1, true),
+    VEP(ctx.fs, ctx.references, getTestResource("dummy_vep_config.json"), false, 1, true),
     WrappedMatrixToTableFunction(
       LinearRegressionRowsSingle(ArraySeq("foo"), "bar", ArraySeq("baz"), 1, ArraySeq("a", "b")),
       "foo",
@@ -4178,7 +4221,7 @@ class IRSuite {
 
   @ParameterizedTest
   def testRelationalFunctionsSerialize(x: Any)(implicit ctx: ExecuteContext): Unit = {
-    implicit val formats = RelationalFunctions.formats
+    implicit val formats: Formats = RelationalFunctions.formats(ctx.references)
 
     x match {
       case x: MatrixToMatrixFunction =>
@@ -4216,7 +4259,7 @@ class IRSuite {
     val t = TTuple(FastSeq(TupleField(1, TInt64)))
     val lit = Literal(t, RowSeq(1L))
 
-    assert(IRParser.parseType(t.parsableString()) == t)
+    assert(IRParser.parseType(t.parsableString(), ctx.references) == t)
     assert(IRParser.parse_value_ir(ctx, Pretty.sexprStyle(lit, elideLiterals = false)) == lit)
   }
 
@@ -4235,7 +4278,7 @@ class IRSuite {
     val v = ctx.backend.execute(ctx, ir)
 
     assert(
-      ir.typ.ordering(ctx.stateManager).equiv(
+      ir.typ.ordering.equiv(
         FastSeq(
           Interval(
             RowSeq(Locus("20", 10277621)),
@@ -4515,7 +4558,7 @@ class IRSuite {
       )
     )
     val kord: ExtendedOrdering =
-      PartitionBoundOrdering(ctx, pivots.typ.asInstanceOf[TArray].elementType)
+      PartitionBoundOrdering(pivots.typ.asInstanceOf[TArray].elementType)
 
     var dataIdx = 0
 
@@ -4555,6 +4598,60 @@ class IRSuite {
     result.map(_._1).zip(expectedStartsAndEnds).foreach { case (interval, splitterPair) =>
       assert(interval.start.asInstanceOf[Row](0) == splitterPair(0))
       assert(interval.end.asInstanceOf[Row](0) == splitterPair(1))
+    }
+  }
+
+  private def mapChildrenWithEnvBoth(
+    ir: BaseIR
+  )(
+    f: (BaseIR, BindingEnv[Type]) => BaseIR
+  ): Seq[BaseIR] = {
+    val env = BindingEnv.empty[Type]
+    Seq(
+      ir.mapChildrenWithEnv(env)((_, t) => t)(f),
+      ir.mapChildrenWithEnvStackSafe(env)((_, t) => t)((c, e) => StackSafe.done(f(c, e))).run(),
+    )
+  }
+
+  private def mapChildrenWithEnvIRs: Seq[IR] = {
+    val x = Name("x")
+    Seq(
+      MakeStruct(FastSeq("a" -> I32(1), "b" -> I32(2))),
+      Block(FastSeq(Binding(x, I32(1)), Binding(Name("y"), I32(2))), Ref(x, TInt32)),
+    )
+  }
+
+  @Test def mapChildrenWithEnvReturnsNodeWhenNoChildChanges(): Unit =
+    for (ir <- mapChildrenWithEnvIRs)
+      mapChildrenWithEnvBoth(ir)((c, _) => c).foreach(res => assert(res eq ir))
+
+  @Test def mapChildrenWithEnvHoldsEveryNewChild(): Unit =
+    for (ir <- mapChildrenWithEnvIRs) {
+      val children = ir.children.toIndexedSeq
+      val newChildren = children.map(_ => I32(3))
+      val f = (c: BaseIR, _: BindingEnv[Type]) => newChildren(children.indexWhere(_ eq c))
+      mapChildrenWithEnvBoth(ir)(f).foreach { res =>
+        assert(res.children.toIndexedSeq.corresponds(newChildren)(_ eq _))
+      }
+    }
+
+  @Test def mapChildrenWithEnvReadsNewChildTypes(): Unit = {
+    val x = Name("x")
+    val i64s = ToStream(MakeArray(FastSeq(I64(0)), TArray(TInt64)))
+    val irs = Seq(
+      Block(FastSeq(Binding(x, I32(1))), Ref(x, TInt32)),
+      StreamMap(ToStream(MakeArray(FastSeq(I32(0)), TArray(TInt32))), x, Ref(x, TInt32)),
+    )
+    for (ir <- irs) {
+      val seen = mutable.ArrayBuffer.empty[Type]
+      val _ = mapChildrenWithEnvBoth(ir) {
+        case (_: I32, _) => I64(1)
+        case (_: ToStream, _) => i64s
+        case (c, env) =>
+          seen += env.eval.lookup(x)
+          c
+      }
+      assert(seen == Seq(TInt64, TInt64))
     }
   }
 }

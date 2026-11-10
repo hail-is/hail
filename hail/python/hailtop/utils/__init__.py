@@ -1,3 +1,4 @@
+from ..hail_event_loop import async_to_blocking, on_hail_loop, run_on_hail_loop
 from . import rich_progress_bar, serialization
 from .process import (
     CalledProcessError,
@@ -27,7 +28,6 @@ from .utils import (
     WaitableSharedPool,
     ait_to_blocking,
     am_i_interactive,
-    async_to_blocking,
     blocking_to_async,
     bounded_gather,
     bounded_gather2,
@@ -107,6 +107,7 @@ __all__ = [
     'is_delayed_warning_error',
     'is_limited_retries_error',
     'is_transient_error',
+    'on_hail_loop',
     'parse_docker_image_reference',
     'parse_timestamp_msecs',
     'partition',
@@ -127,6 +128,7 @@ __all__ = [
     'rich_progress_bar',
     'run_if_changed',
     'run_if_changed_idempotent',
+    'run_on_hail_loop',
     'secret_alnum_string',
     'serialization',
     'sleep_before_try',

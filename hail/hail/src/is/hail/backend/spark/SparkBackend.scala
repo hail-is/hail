@@ -387,7 +387,7 @@ class SparkBackend(val spark: SparkSession) extends Backend with Logging {
     val sortColIndexOrd = sortFields.map { case SortField(n, so) =>
       val i = rowType.fieldIdx(n)
       val f = rowType.fields(i)
-      val fo = f.typ.ordering(ctx.stateManager)
+      val fo = f.typ.ordering
       if (so == Ascending) fo else fo.reverse
     }
 

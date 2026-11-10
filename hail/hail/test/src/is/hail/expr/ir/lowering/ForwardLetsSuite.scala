@@ -34,6 +34,8 @@ class ForwardLetsSuite {
       maketuple(x + 1, x.ir + 2),
       x + x.ir + 1,
       streamAggIR(ToStream(a))(y => ApplyAggOp(Sum())(x + y)),
+      ToArray(streamAggScanIR(ToStream(a))(y => x + y)),
+      sortIR(ToStream(a))((l, r) => l < r + x),
     ).map(ir => Let(FastSeq(x.name -> (In(0, TInt32) + In(0, TInt32))), ir))
   }
 

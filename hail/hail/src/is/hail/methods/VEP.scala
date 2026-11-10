@@ -13,7 +13,7 @@ import is.hail.sparkextras.ContextRDD
 import is.hail.types.physical.PType
 import is.hail.types.virtual._
 import is.hail.utils._
-import is.hail.variant.{Locus, RegionValueVariant}
+import is.hail.variant.{Locus, ReferenceGenomeEnv, RegionValueVariant}
 import is.hail.variant.VariantMethods.locusAllelesToString
 
 import scala.collection.immutable.ArraySeq
@@ -33,22 +33,28 @@ case class VEPConfiguration(
 
 object VEP {
 
-  def readConfiguration(fs: FS, path: String): VEPConfiguration = {
+  def readConfiguration(fs: FS, rgs: ReferenceGenomeEnv, path: String): VEPConfiguration = {
     val jv = using(fs.open(path))(in => JsonMethods.parse(in))
-    implicit val formats: Formats = DefaultFormats + new TStructSerializer
+    implicit val formats: Formats = DefaultFormats + new TStructSerializer(rgs)
     jv.extract[VEPConfiguration]
   }
 
-  def apply(fs: FS, params: VEPParameters): VEP =
-    new VEP(params, VEP.readConfiguration(fs, params.config))
+  def apply(fs: FS, rgs: ReferenceGenomeEnv, params: VEPParameters): VEP =
+    new VEP(params, VEP.readConfiguration(fs, rgs, params.config))
 
-  def apply(fs: FS, config: String, csq: Boolean, blockSize: Int, tolerateParseError: Boolean)
-    : VEP =
-    VEP(fs, VEPParameters(config, csq, blockSize, tolerateParseError))
+  def apply(
+    fs: FS,
+    rgs: ReferenceGenomeEnv,
+    config: String,
+    csq: Boolean,
+    blockSize: Int,
+    tolerateParseError: Boolean,
+  ): VEP =
+    VEP(fs, rgs, VEPParameters(config, csq, blockSize, tolerateParseError))
 
-  def fromJValue(fs: FS, jv: JValue): VEP = {
-    implicit val formats: Formats = RelationalFunctions.formats
-    VEP(fs, jv.extract[VEPParameters])
+  def fromJValue(fs: FS, rgs: ReferenceGenomeEnv, jv: JValue): VEP = {
+    implicit val formats: Formats = RelationalFunctions.formats(rgs)
+    VEP(fs, rgs, jv.extract[VEPParameters])
   }
 }
 

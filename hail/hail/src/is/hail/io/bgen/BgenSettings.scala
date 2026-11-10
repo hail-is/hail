@@ -8,6 +8,7 @@ import is.hail.types.encoded._
 import is.hail.types.physical._
 import is.hail.types.virtual._
 import is.hail.utils._
+import is.hail.variant.ReferenceGenome
 
 import scala.collection.immutable.ArraySeq
 
@@ -16,7 +17,7 @@ object BgenSettings {
   val ZLIB_COMPRESSION: Int = 1
   val ZSTD_COMPRESSION: Int = 2
 
-  def indexKeyType(rg: Option[String]): TStruct = TStruct(
+  def indexKeyType(rg: Option[ReferenceGenome]): TStruct = TStruct(
     "locus" -> rg.map(TLocus(_)).getOrElse(TLocus.representation),
     "alleles" -> TArray(TString),
   )
@@ -32,7 +33,8 @@ object BgenSettings {
       BufferSpec.lz4HCCompressionLEB
     }
 
-  def getIndexSpec(indexVersion: SemanticVersion, rg: Option[String]): AbstractIndexSpec = {
+  def getIndexSpec(indexVersion: SemanticVersion, rg: Option[ReferenceGenome])
+    : AbstractIndexSpec = {
     val bufferSpec = specFromVersion(indexVersion)
     val `v1.3` = indexVersion >= SemanticVersion(1, 3, 0)
 
@@ -139,7 +141,7 @@ object BgenSettings {
 case class BgenSettings(
   nSamples: Int,
   requestedType: TableType,
-  rg: Option[String],
+  rg: Option[ReferenceGenome],
   indexAnnotationType: Type,
 ) {
   require(PruneDeadFields.isSupertype(

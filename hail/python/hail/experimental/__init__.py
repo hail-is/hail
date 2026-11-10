@@ -19,7 +19,13 @@ from .sparse_mt import densify, sparse_split_multi
 from .table_ndarray_utils import mt_to_table_of_ndarray
 from .tidyr import gather, separate, spread
 from .time import strftime, strptime
-from .write_multiple import block_matrices_tofiles, export_block_matrices, write_block_matrices, write_matrix_tables
+from .write_multiple import (
+    block_matrices_tofiles,
+    export_block_matrices,
+    write_block_matrices,
+    write_matrix_tables,
+    write_mts_split_by_cols,
+)
 
 __all__ = [
     'DB',
@@ -56,4 +62,5 @@ __all__ = [
     'write_block_matrices',
     'write_expression',
     'write_matrix_tables',
+    'write_mts_split_by_cols',
 ]

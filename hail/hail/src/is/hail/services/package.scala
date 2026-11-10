@@ -1,7 +1,6 @@
 package is.hail
 
 import is.hail.services.requests.ClientResponseException
-import is.hail.shadedazure.com.azure.storage.common.implementation.Constants
 import is.hail.utils._
 
 import scala.annotation.tailrec
@@ -47,15 +46,8 @@ package object services extends Logging {
   }
 
   @tailrec
-  def isLimitedRetriesError(_e: Throwable): Boolean = {
-    // An exception is a "retry once error" if a rare, known bug in a dependency or in a cloud
-    // provider can manifest as this exception *and* that manifestation is indistinguishable from a
-    // true error.
-    val e = is.hail.shadedazure.reactor.core.Exceptions.unwrap(_e)
+  def isLimitedRetriesError(e: Throwable): Boolean = {
     e match {
-      case e: RuntimeException
-          if e.getMessage != null && e.getMessage == Constants.STREAM_CLOSED =>
-        true
       case e: SocketException
           if e.getMessage != null && (e.getMessage.contains(
             "Connection reset"
@@ -87,14 +79,7 @@ package object services extends Logging {
   }
 
   @tailrec
-  def isTransientError(_e: Throwable): Boolean = {
-    // ReactiveException is package private inside reactore.core.Exception so we cannot access
-    // it directly for an isInstance check. AFAICT, this is the only way to check if we received
-    // a ReactiveException.
-    //
-    // If the argument is a ReactiveException, it returns its cause. If the argument is not a
-    // ReactiveException it returns the exception unmodified.
-    val e = is.hail.shadedazure.reactor.core.Exceptions.unwrap(_e)
+  def isTransientError(e: Throwable): Boolean = {
     e match {
       case _: java.nio.channels.ClosedByInterruptException =>
         true
@@ -152,19 +137,6 @@ package object services extends Logging {
         true
       case e: EOFException
           if e.getMessage != null && e.getMessage.contains("SSL peer shut down incorrectly") =>
-        true
-      case e: IllegalStateException
-          if e.getMessage.contains("Timeout on blocking read") ||
-            e.getMessage.contains("Faulted stream due to underlying sink write failure") =>
-        /* Caused by: java.lang.IllegalStateException: Timeout on blocking read for 30000000000
-         * NANOSECONDS */
-        /* reactor.core.publisher.BlockingSingleSubscriber.blockingGet(BlockingSingleSubscriber.java:123) */
-        // reactor.core.publisher.Mono.block(Mono.java:1727)
-        /* com.azure.storage.common.implementation.StorageImplUtils.blockWithOptionalTimeout(StorageImplUtils.java:130) */
-        /* com.azure.storage.blob.specialized.BlobClientBase.downloadStreamWithResponse(BlobClientBase.java:731) */
-        // is.hail.io.fs.AzureStorageFS$$anon$1.fill(AzureStorageFS.scala:152)
-        // is.hail.io.fs.FSSeekableInputStream.read(FS.scala:141)
-        // ...
         true
       case e: java.net.SocketTimeoutException
           if e.getMessage != null && e.getMessage.contains("connect timed out") =>

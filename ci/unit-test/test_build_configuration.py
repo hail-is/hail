@@ -1,3 +1,7 @@
+import pathlib
+
+import pytest
+
 from ci.build import BuildConfiguration, Code
 
 _YAML = """
@@ -187,3 +191,45 @@ def test_unsplit_step_is_not_wrapped_in_a_job_group():
 
     assert 'merge_code' in batch.built_step_names
     assert not batch.job_groups_created
+
+
+# Tactical retries of a full-suite build (build.yaml changed, or rerun-all label) name every step
+# explicitly, so the already-succeeded ones can be dropped. That relies on the explicit list
+# selecting exactly what the implicit "run everything" configuration would have built.
+
+_BUILD_YAML = (pathlib.Path(__file__).parents[2] / 'build.yaml').read_text()
+
+
+class _FakePRCode(_FakeCode):
+    def config(self):
+        return {'number': 1}
+
+
+@pytest.mark.parametrize('pr_labels', [frozenset(), frozenset({'run-dataproc-tests'})])
+def test_explicit_full_step_list_builds_the_same_steps_as_run_all(pr_labels):
+    run_all = BuildConfiguration(_FakePRCode(), _BUILD_YAML, scope='test', pr_labels=pr_labels)
+    full_step_names = run_all.built_step_names('test')
+
+    explicit = BuildConfiguration(
+        _FakePRCode(), _BUILD_YAML, scope='test', requested_step_names=full_step_names, pr_labels=pr_labels
+    )
+
+    assert set(explicit.built_step_names('test')) == set(full_step_names)
+
+
+def test_tactical_full_suite_retry_only_reruns_failed_step_and_its_prerequisites():
+    full_step_names = BuildConfiguration(_FakePRCode(), _BUILD_YAML, scope='test').built_step_names('test')
+    succeeded = set(full_step_names) - {'test_hail_python'}
+
+    retry = BuildConfiguration(
+        _FakePRCode(),
+        _BUILD_YAML,
+        scope='test',
+        requested_step_names=[s for s in full_step_names if s not in succeeded],
+        tactically_succeeded_always_run_steps=frozenset({'merge_code'}),
+    )
+    names = set(retry.built_step_names('test'))
+
+    assert 'test_hail_python' in names
+    assert 'merge_code' in names  # prerequisite, re-added by the backward pass
+    assert names.isdisjoint({'test_batch', 'test_ci', 'test_hail_java', 'test_auth'})

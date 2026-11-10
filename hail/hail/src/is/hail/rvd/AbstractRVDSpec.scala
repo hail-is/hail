@@ -1,7 +1,7 @@
 package is.hail.rvd
 
 import is.hail.annotations._
-import is.hail.backend.{ExecuteContext, HailStateManager}
+import is.hail.backend.ExecuteContext
 import is.hail.compatibility
 import is.hail.expr.{ir, JSONAnnotationImpex}
 import is.hail.expr.ir.{
@@ -18,6 +18,7 @@ import is.hail.types.encoded.ETypeSerializer
 import is.hail.types.physical._
 import is.hail.types.virtual._
 import is.hail.utils._
+import is.hail.variant.ReferenceGenomeEnv
 
 import scala.collection.immutable.ArraySeq
 
@@ -27,7 +28,16 @@ import org.json4s.{DefaultFormats, Formats, JValue, ShortTypeHints}
 import org.json4s.jackson.{JsonMethods, Serialization}
 
 object AbstractRVDSpec {
-  implicit val formats: Formats =
+
+  /** Formats that read types, parsing them against `rgs`. */
+  def formats(rgs: ReferenceGenomeEnv): Formats = typeFormats(Some(rgs))
+
+  /** Formats that write types but cannot read them. */
+  def formats: Formats = writeOnlyFormats
+
+  private[this] lazy val writeOnlyFormats: Formats = typeFormats(None)
+
+  private def typeFormats(rgs: Option[ReferenceGenomeEnv]): Formats =
     new DefaultFormats() {
       override val typeHints = ShortTypeHints(
         List(
@@ -45,13 +55,16 @@ object AbstractRVDSpec {
         typeHintFieldName = "name",
       ) + BufferSpec.shortTypeHints
     } +
-      new TStructSerializer +
-      new TypeSerializer +
-      new PTypeSerializer +
-      new RVDTypeSerializer +
-      new ETypeSerializer
+      new TStructSerializer(rgs) +
+      new TypeSerializer(rgs) +
+      new PTypeSerializer(rgs) +
+      new RVDTypeSerializer(rgs) +
+      new ETypeSerializer +
+      new compatibility.LegacyEncodedTypeSerializer(rgs) +
+      new compatibility.LegacyRVDTypeSerializer(rgs)
 
-  def read(fs: FS, path: String): AbstractRVDSpec = {
+  def read(fs: FS, rgs: ReferenceGenomeEnv, path: String): AbstractRVDSpec = {
+    implicit val formats: Formats = AbstractRVDSpec.formats(rgs)
     try {
       val metadataFile = path + "/metadata.json.gz"
       using(fs.open(metadataFile))(in => JsonMethods.parse(in))
@@ -84,12 +97,12 @@ object AbstractRVDSpec {
     val (part0Count, bytesWritten) =
       using(fs.create(partsPath + "/" + filePath)) { os =>
         using(RVDContext.default(execCtx.r.pool)) { ctx =>
-          RichContextRDDRegionValue.writeRowsPartition(codecSpec.buildEncoder(execCtx, rowType))(
+          RichContextRDDRegionValue.writeRowsPartition(
+            codecSpec.buildEncoder(execCtx, rowType)
+          )(
             execCtx.theHailClassLoader,
             ctx,
-            rows.iterator.map { a =>
-              rowType.unstagedStoreJavaObject(execCtx.stateManager, a, ctx.r)
-            },
+            rows.iterator.map(a => rowType.unstagedStoreJavaObject(a, ctx.r)),
             os,
             null,
           )
@@ -97,7 +110,7 @@ object AbstractRVDSpec {
       }
 
     val spec =
-      MakeRVDSpec(codecSpec, ArraySeq(filePath), RVDPartitioner.unkeyed(execCtx.stateManager, 1))
+      MakeRVDSpec(codecSpec, ArraySeq(filePath), RVDPartitioner.unkeyed(1))
     spec.write(fs, path)
 
     ArraySeq(FileWriteMetadata(path, part0Count, bytesWritten))
@@ -116,7 +129,7 @@ object AbstractRVDSpec {
     uidFieldName: String,
   ): IR => TableStage = {
     require(specRight.key.isEmpty)
-    val partitioner = specLeft.partitioner(ctx.stateManager)
+    val partitioner = specLeft.partitioner
 
     newPartitioner match {
       case None =>
@@ -221,7 +234,7 @@ trait Indexed extends AbstractRVDSpec {
 }
 
 abstract class AbstractRVDSpec {
-  def partitioner(sm: HailStateManager): RVDPartitioner
+  def partitioner: RVDPartitioner
 
   def key: IndexedSeq[String]
 
@@ -245,7 +258,7 @@ abstract class AbstractRVDSpec {
   ): IR => TableStage = newPartitioner match {
     case Some(_) => fatal("attempted to read unindexed data as indexed")
     case None =>
-      val part = partitioner(ctx.stateManager)
+      val part = partitioner
       if (!part.kType.fieldNames.startsWith(requestedType.key))
         fatal(s"Error while reading table $path: legacy table written without key." +
           s"\n  Read and write with version 0.2.70 or earlier")
@@ -273,8 +286,7 @@ abstract class AbstractRVDSpec {
 
   def write(fs: FS, path: String): Unit =
     using(fs.create(path + "/metadata.json.gz")) { out =>
-      import AbstractRVDSpec.formats
-      Serialization.write(this, out)
+      Serialization.write(this, out)(AbstractRVDSpec.formats)
     }
 }
 
@@ -471,8 +483,8 @@ case class IndexedRVDSpec2(
       .importAnnotation(_jRangeBounds, TArray(TInterval(keyType)), padNulls = false)
       .asInstanceOf[IndexedSeq[Interval]]
 
-  override def partitioner(sm: HailStateManager): RVDPartitioner =
-    new RVDPartitioner(sm, keyType, partitionBounds)
+  override lazy val partitioner: RVDPartitioner =
+    new RVDPartitioner(keyType, partitionBounds)
 
   override def partFiles: IndexedSeq[String] = _partFiles
 
@@ -489,7 +501,7 @@ case class IndexedRVDSpec2(
     filterIntervals: Boolean = false,
   ): IR => TableStage = newPartitioner match {
     case Some(np) =>
-      val part = partitioner(ctx.stateManager)
+      val part = partitioner
       /* ensure the old and new partitioners have the same key, and ensure the new partitioner is
        * strict */
       val extendedNP = np.extendKey(part.kType)
@@ -541,7 +553,7 @@ case class IndexedRVDSpec2(
         }
         val (nestedContexts, newRangeBounds) = contextsAndBounds.unzip
 
-        (nestedContexts, new RVDPartitioner(part.sm, part.kType, newRangeBounds))
+        (nestedContexts, new RVDPartitioner(part.kType, newRangeBounds))
       } else {
         /* We want to use newPartitioner as the partitioner, dropping any rows not contained in any
          * new partition. So we construct a map from new partitioner to the range of overlapping old
@@ -590,11 +602,10 @@ case class OrderedRVDSpec2(
 
   require(codecSpec2.encodedType.required)
 
-  override def partitioner(sm: HailStateManager): RVDPartitioner = {
+  override lazy val partitioner: RVDPartitioner = {
     val keyType = codecSpec2.encodedVirtualType.asInstanceOf[TStruct].select(key)._1
     val rangeBoundsType = TArray(TInterval(keyType))
     new RVDPartitioner(
-      sm,
       keyType,
       JSONAnnotationImpex.importAnnotation(
         _jRangeBounds,

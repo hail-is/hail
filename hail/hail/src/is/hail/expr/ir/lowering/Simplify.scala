@@ -30,6 +30,11 @@ object Simplify {
       case bmir: BlockMatrixIR => simplifyBlockMatrix(ctx, bmir)
     }
 
+  // Does child i of ir bind name in eval?
+  private[this] def bindsEval(ir: IR, name: Name, i: Int): Boolean =
+    ChildEnv.get(BindingEnv.empty[Unit].createAgg.createScan, ir, i)((_, _) => ())
+      .eval.contains(name)
+
   private[this] def visitNode[T <: BaseIR](
     transform: (ExecuteContext, T) => Option[T],
     post: => (ExecuteContext, T) => T,
@@ -1123,10 +1128,7 @@ object Simplify {
                 bindings.view.drop(i).foreach {
                   case Binding(name, ir: Block, scope) =>
                     if (scope == EVAL) newBindings ++= ir.bindings
-                    else ir.bindings.foreach { case Binding(name, value, s) =>
-                      if (s != EVAL) fatal(s"Simplify: found nested $s binding in $scope")
-                      newBindings += Binding(name, value, scope)
-                    }
+                    else newBindings ++= ir.bindings.map(_.copy(scope = scope))
                     newBindings += Binding(name, ir.body, scope)
                   case binding =>
                     newBindings += binding
@@ -1157,7 +1159,7 @@ object Simplify {
                           .zipWithIndex
                           .forall {
                             case (child: IR, idx) =>
-                              Binds(ir1, name, idx) || allRefsCanBePassedThrough(child)
+                              bindsEval(ir1, name, idx) || allRefsCanBePassedThrough(child)
                             case _ => true
                           }
                     }
@@ -1200,9 +1202,11 @@ object Simplify {
                     )
                   case ta: TableAggregate => ta
                   case ma: MatrixAggregate => ma
-                  case _ => ir1.mapChildrenWithIndex {
-                      case (child: IR, idx) =>
-                        if (Binds(ir1, name, idx)) child else rewrite(child)
+                  case _ =>
+                    ir1.mapChildrenWithEnv(BindingEnv.empty[Unit].createAgg.createScan)((_, _) =>
+                      ()
+                    ) {
+                      case (child: IR, e) => if (e.eval.contains(name)) child else rewrite(child)
                       case (child, _) => child
                     }
                 }
@@ -2043,10 +2047,7 @@ object Simplify {
               ))
 
             case TableFilterIntervals(c, _i1, keep1) if keep1 == keep =>
-              val ord = PartitionBoundOrdering(
-                ctx,
-                c.typ.keyType,
-              ).intervalEndpointOrdering
+              val ord = PartitionBoundOrdering(c.typ.keyType).intervalEndpointOrdering
               val i1 = Interval.union(_i1, ord)
               val i2 = Interval.union(intervals, ord)
               val merged =
@@ -2082,13 +2083,13 @@ object Simplify {
                   NativeReaderOptions(
                     Interval.union(
                       intervals,
-                      PartitionBoundOrdering(ctx, pt).intervalEndpointOrdering,
+                      PartitionBoundOrdering(pt).intervalEndpointOrdering,
                     ),
                     pt,
                     true,
                   )
                 case Some(NativeReaderOptions(preIntervals, intervalPointType, _)) =>
-                  val iord = PartitionBoundOrdering(ctx, intervalPointType).intervalEndpointOrdering
+                  val iord = PartitionBoundOrdering(intervalPointType).intervalEndpointOrdering
                   NativeReaderOptions(
                     Interval.intersection(
                       Interval.union(preIntervals, iord),
@@ -2120,7 +2121,7 @@ object Simplify {
                   NativeReaderOptions(
                     Interval.union(
                       intervals,
-                      PartitionBoundOrdering(ctx, pt).intervalEndpointOrdering,
+                      PartitionBoundOrdering(pt).intervalEndpointOrdering,
                     ),
                     pt,
                     true,
@@ -2130,7 +2131,7 @@ object Simplify {
                       intervalPointType,
                       _,
                     )) =>
-                  val iord = PartitionBoundOrdering(ctx, intervalPointType).intervalEndpointOrdering
+                  val iord = PartitionBoundOrdering(intervalPointType).intervalEndpointOrdering
                   NativeReaderOptions(
                     Interval.intersection(
                       Interval.union(preIntervals, iord),

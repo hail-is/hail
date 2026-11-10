@@ -7,8 +7,7 @@ import org.json4s.jackson.JsonMethods
 
 trait Spec extends Serializable {
   override def toString: String = {
-    import AbstractRVDSpec.formats
-    val jv = Extraction.decompose(this)
+    val jv = Extraction.decompose(this)(AbstractRVDSpec.formats)
     JsonMethods.compact(JsonMethods.render(jv))
   }
 }

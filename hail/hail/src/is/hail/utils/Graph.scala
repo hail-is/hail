@@ -2,12 +2,11 @@ package is.hail.utils
 
 import is.hail.annotations.{Region, RegionValueBuilder, UnsafeIndexedSeq}
 import is.hail.asm4s._
-import is.hail.backend.{HailStateManager, HailTaskContext}
+import is.hail.backend.HailTaskContext
 import is.hail.collection.BinaryHeap
 import is.hail.expr.ir.Compiled
 import is.hail.io.fs.FS
 import is.hail.types.physical.PTuple
-import is.hail.variant.ReferenceGenome
 
 import scala.collection.mutable
 import scala.reflect.ClassTag
@@ -44,7 +43,6 @@ object Graph {
     maximalIndependentSet(mkGraph(edges.view.map { case Row(i, j) => i -> j }))
 
   def maximalIndependentSet(
-    rgs: Map[String, ReferenceGenome],
     edges: UnsafeIndexedSeq,
     hcl: HailClassLoader,
     fs: FS,
@@ -57,7 +55,7 @@ object Graph {
     val nodeType = wrappedNodeType.types.head.virtualType
     val region = outerRegion.getPool().getRegion()
     val tieBreakerF = tieBreaker(hcl, fs, htc, region)
-    val rvb = new RegionValueBuilder(HailStateManager(rgs))
+    val rvb = new RegionValueBuilder()
     val tbf = (l: Any, r: Any) => {
       region.clear()
       rvb.set(region)

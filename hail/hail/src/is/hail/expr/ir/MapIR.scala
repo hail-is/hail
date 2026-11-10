@@ -1,7 +1,6 @@
 package is.hail.expr.ir
 
 import is.hail.expr.ir.defs.{MatrixAggregate, TableAggregate}
-import is.hail.types.virtual.Type
 
 object MapIR {
   def apply(f: IR => IR)(ir: IR): IR = ir match {
@@ -20,11 +19,5 @@ object VisitIR {
   def apply(ir: BaseIR)(f: BaseIR => Unit): Unit = {
     f(ir)
     ir.children.foreach(apply(_)(f))
-  }
-
-  def withEnv[V, E <: GenericBindingEnv[E, Type]](ir: BaseIR, env: E)(f: (BaseIR, E) => Unit)
-    : Unit = {
-    f(ir, env)
-    ir.forEachChildWithEnv(env)(withEnv(_, _)(f))
   }
 }

@@ -214,7 +214,7 @@ steps:
       kubectl get secret -n {{ default_ns.name }} ssl-config-hail-root \
         --template={% raw %}'{{index .data "hail-root-cert.pem"}}'{% endraw %} \
         | base64 --decode \
-        | openssl x509 -checkend 0 -noout -in -
+        | openssl x509 -checkend 0 -noout
 
       if [ "$?" -ne 0 ]
       then
@@ -829,7 +829,10 @@ steps:
       export COURSIER_ARCHIVE_CACHE='/io/cache/coursier/arc'
       export MILL_DOWNLOAD_PATH=/io/cache/mill
       # force download of mill binary and coursier dependencies
-      sh mill --no-daemon 'hail.__.{prepareOffline,scalaCompilerClasspath,javaHome}'
+      sh mill --no-daemon \
+        'hail.__.prepareOffline' + \
+        'hail.__.scalaCompilerClasspath' + \
+        'hail.__.javaHome'
       tar -C /io -czf /io/mill-cache.tgz cache
     inputs:
       - from: /repo/hail
@@ -1033,7 +1036,7 @@ steps:
       export COURSIER_CACHE='/io/cache/coursier/v1'
       export COURSIER_ARCHIVE_CACHE='/io/cache/coursier/arc'
       export MILL_DOWNLOAD_PATH=/io/cache/mill
-      time sh mill --no-daemon hail.test.{compile,testForkGrouping}
+      time sh mill --no-daemon hail.test.compile + hail.test.testForkGrouping
     inputs:
       - from: /repo/hail
         to: /io/repo/hail
@@ -1776,6 +1779,8 @@ steps:
         to: /io/repo/batch
       - from: /repo/ci
         to: /io/repo/ci
+      - from: /repo/docker/hailgenetics/hail
+        to: /io/repo/docker/hailgenetics/hail
     dependsOn:
       - hail_linting_image
       - merge_code
@@ -1824,6 +1829,8 @@ steps:
         to: /io/repo/gear
       - from: /repo/web_common
         to: /io/repo/web_common
+      - from: /repo/devbin
+        to: /io/repo/devbin
     dependsOn:
       - hail_linting_image
       - merge_code
@@ -2318,6 +2325,9 @@ steps:
         online: true
       - name: retried-tests
         script: /io/sql/007-retried-tests.sql
+        online: true
+      - name: ci-events
+        script: /io/sql/008-ci-events.sql
         online: true
     inputs:
       - from: /repo/ci/sql
@@ -3178,6 +3188,60 @@ steps:
       - hail_ubuntu_image
       - gpu_image
   - kind: runImage
+    name: test_batch_db
+    numSplits: 1
+    image:
+      valueFrom: batch_image.image
+    script: |
+      set -ex
+
+      hail-pip-install -r /io/dev-requirements.txt
+
+      # Install and start MySQL ad-hoc — not baked into the batch image.
+      hail-apt-get-install mysql-server
+      mysqld --user=root --daemonize --log-error=/tmp/mysqld.log
+      until mysqladmin --user=root ping --silent; do sleep 1; done
+      # Ubuntu's root uses auth_socket, which refuses the fixture's TCP login. IDENTIFIED BY alone keeps the plugin.
+      mysql --user=root -e "ALTER USER 'root'@'localhost' IDENTIFIED WITH caching_sha2_password BY 'pw'; FLUSH PRIVILEGES;"
+
+      # The db fixture applies the batch migrations listed in build.yaml, relative to this root.
+      export HAIL_TEST_REPO_ROOT=/io/repo
+
+      cd /io
+      # Migrating takes ~2-3 min, so the per-test timeout excludes fixtures; the step timeout bounds setup.
+      python3 -m pytest \
+              --log-cli-level=INFO \
+              -s \
+              -r A \
+              -vv \
+              --instafail \
+              --durations=50 \
+              --timeout=120 \
+              -o timeout_func_only=true \
+              /io/test/test_db_framework.py
+    inputs:
+      - from: /repo/batch/test
+        to: /io/test
+      - from: /repo/hail/python/dev/pinned-requirements.txt
+        to: /io/dev-requirements.txt
+      - from: /repo/build.yaml
+        to: /io/repo/build.yaml
+      - from: /repo/ci/create_local_database.py
+        to: /io/repo/ci/create_local_database.py
+      - from: /repo/ci/create_database.py
+        to: /io/repo/ci/create_database.py
+      - from: /repo/batch/sql
+        to: /io/repo/batch/sql
+    timeout: 900
+    scopes:
+      - test
+      - dev
+    clouds:
+      - gcp
+    dependsOn:
+      - merge_code
+      - batch_image
+  - kind: runImage
     name: test_batch_job_private_machines
     scopes:
       - test
@@ -3255,67 +3319,6 @@ steps:
       - volume_image
       - workdir_image
       - hail_ubuntu_image
-  - kind: runImage
-    name: batch_worker_image_regression_tests
-    scopes:
-      - test
-      - dev
-    numSplits: 1
-    image:
-      valueFrom: batch_image.image
-    script: |
-      set -ex
-
-      export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
-      export HAIL_TEST_GSA_KEY_FILE=/test-gsa-key/key.json
-      export HAIL_TEST_DEV_GSA_KEY_FILE=/test-dev-gsa-key/key.json
-      export HAIL_GSA_KEY_FILE=/test-gsa-key/key.json
-      export HAIL_DEFAULT_NAMESPACE={{ default_ns.name }}
-      export DOCKER_PREFIX="{{ global.docker_prefix }}"
-      export DOCKER_ROOT_IMAGE="{{ global.docker_root_image }}"
-      export HAIL_TOKEN="{{ token }}"
-      export HAIL_CLOUD="{{ global.cloud }}"
-      export HAIL_PRODUCTION_DOMAIN="{{ global.domain }}"
-      export HAIL_BATCH_REMOTE_TMPDIR="{{ global.test_storage_uri }}/batch_worker_image_regression_tests/{{ token }}/"
-
-      hail-pip-install -r /io/dev-requirements.txt
-
-      python3 -m pytest \
-              --color=yes \
-              -Werror:::hail -Werror:::hailtop -Werror::ResourceWarning \
-              --log-cli-level=INFO \
-              -s \
-              -r A \
-              -vv \
-              --instafail \
-              --durations=50 \
-              --log-date-format="%Y-%m-%dT%H:%M:%S" \
-              --log-format="%(asctime)s %(levelname)s %(name)s %(filename)s:%(lineno)d:%(funcName)s %(message)s" \
-              --timeout=660 \
-              /io/test/test_worker_image_security.py
-    inputs:
-      - from: /repo/batch/test
-        to: /io/test
-      - from: /repo/hail/python/dev/pinned-requirements.txt
-        to: /io/dev-requirements.txt
-    port: 5000
-    timeout: 1800
-    secrets:
-      - name: test-gsa-key
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /test-gsa-key
-      - name: test-dev-gsa-key
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /test-dev-gsa-key
-    dependsOn:
-      - create_deploy_config
-      - create_accounts
-      - default_ns
-      - merge_code
-      - deploy_batch
-      - batch_image
   - kind: runImage
     name: test_auth
     scopes:
@@ -3407,16 +3410,21 @@ steps:
         -H "Authorization: token ${TOKEN}" \
         -d "{ \"name\" : \"$REPO_NAME\" }"
 
+      # Authenticate via header rather than a token in the URL: GitHub sometimes
+      # redirects freshly-created repos, and git drops URL credentials on redirect
+      set +x
+      git config --global http.https://github.com/.extraHeader \
+        "Authorization: Basic $(printf 'x-access-token:%s' "$TOKEN" | base64 -w0)"
+      set -x
+
       # checkout new ci repo
       # Repeated clones should happen in fresh directories so we mv to the final
       # destination on successful clone
-      set +x
       clone() {
-        tmp_dir=$(mktemp -d) && git clone https://$1@github.com/hail-ci-test/$2.git $tmp_dir && mv $tmp_dir $2
+        tmp_dir=$(mktemp -d) && git clone https://github.com/hail-ci-test/$1.git $tmp_dir && mv $tmp_dir $1
       }
       typeset -fx clone
-      retry clone $TOKEN $REPO_NAME
-      set -x
+      retry clone $REPO_NAME
       cd $REPO_NAME
 
       mkdir -p ./ci/test ./hail/

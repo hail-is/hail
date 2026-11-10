@@ -1672,7 +1672,7 @@ class Tests(unittest.TestCase):
             x10=hl.dict({'hello': 3, 'bar': 5}),
             x11=(True, False),
         )
-        result = ht.show(handler=str)
+        result = ht.show(width=80, handler=str)
         assert (
             result
             == """+-------+--------------+--------------------------------+------------+

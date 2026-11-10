@@ -19,6 +19,7 @@ Default (test) mode updates:
 """
 
 import argparse
+import json
 import os
 import re
 import shutil
@@ -45,12 +46,20 @@ def latest_ubuntu_noble_image() -> str:
     print('Querying GCP for latest ubuntu-minimal noble amd64 image...')
     result = subprocess.run(
         [
-            'gcloud', 'compute', 'images', 'list',
-            '--project', 'ubuntu-os-cloud',
-            '--filter', 'name~^ubuntu-minimal-2404-noble-amd64-v',
-            '--sort-by', '~creationTimestamp',
-            '--limit', '1',
-            '--format', 'value(name)',
+            'gcloud',
+            'compute',
+            'images',
+            'list',
+            '--project',
+            'ubuntu-os-cloud',
+            '--filter',
+            'name~^ubuntu-minimal-2404-noble-amd64-v',
+            '--sort-by',
+            '~creationTimestamp',
+            '--limit',
+            '1',
+            '--format',
+            'value(name)',
             '--no-standard-images',
         ],
         capture_output=True,
@@ -171,8 +180,6 @@ def available_nvidia_versions() -> list[str]:
 
 def nvidia_release_dates(versions: list[str]) -> dict[str, str]:
     """Return {version: YYYY-MM-DD} for the given versions, looked up from GitHub releases."""
-    import json
-
     req = urllib.request.Request(
         'https://api.github.com/repos/NVIDIA/open-gpu-kernel-modules/releases?per_page=100',
         headers={'Accept': 'application/vnd.github+json'},
@@ -184,11 +191,7 @@ def nvidia_release_dates(versions: list[str]) -> dict[str, str]:
         return {}
 
     version_set = set(versions)
-    return {
-        rel['tag_name']: rel['published_at'][:10]
-        for rel in releases
-        if rel['tag_name'] in version_set
-    }
+    return {rel['tag_name']: rel['published_at'][:10] for rel in releases if rel['tag_name'] in version_set}
 
 
 def ver_tuple(v: str) -> tuple[int, ...]:
@@ -254,7 +257,6 @@ def show_nvidia_info() -> str | None:
     return suggested
 
 
-
 def print_next_steps(namespace: str, new_worker_version: int) -> None:
     test_image = f'batch-worker-{namespace}-{new_worker_version}'
     prod_image = f'batch-worker-{new_worker_version}'
@@ -290,7 +292,10 @@ def find_test_image_ref() -> tuple[str, int]:
     text = CREATE_INSTANCE_PY.read_text()
     m = re.search(r'batch-worker-([a-zA-Z0-9]+?)-(\d+)', text)
     if not m:
-        print(f'ERROR: Could not find a batch-worker-<namespace>-<version> reference in {CREATE_INSTANCE_PY}', file=sys.stderr)
+        print(
+            f'ERROR: Could not find a batch-worker-<namespace>-<version> reference in {CREATE_INSTANCE_PY}',
+            file=sys.stderr,
+        )
         sys.exit(1)
     return m.group(1), int(m.group(2))
 

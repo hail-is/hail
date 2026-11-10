@@ -22,7 +22,6 @@ from hailtop.aiotools.validators import validate_file
 from hailtop.batch_client.aioclient import Batch, BatchClient, JobGroup
 from hailtop.config import ConfigVariable, configuration_of, get_remote_tmpdir
 from hailtop.fs.router_fs import RouterFS
-from hailtop.hail_event_loop import hail_event_loop
 from hailtop.utils import am_i_interactive, async_to_blocking, retry_transient_errors
 from hailtop.utils.rich_progress_bar import BatchProgressBar
 
@@ -271,7 +270,7 @@ class ServiceBackend(Backend):
         if self._router_fs is not None:
             self._router_fs.close()
 
-        hail_event_loop().run_until_complete(self._async_exit_stack.aclose())
+        async_to_blocking(self._async_exit_stack.aclose())
         super().stop()
 
     async def _run_on_batch(

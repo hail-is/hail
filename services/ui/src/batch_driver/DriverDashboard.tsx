@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { AutoRefreshBar } from '../shared/AutoRefreshBar';
 import { SpinnerIcon } from '../shared/SpinnerIcon';
-import { formatDuration, formatTime } from '../shared/timeUtils';
+import { formatDuration, formatRelative, formatTimestamp } from '../shared/timeUtils';
 import { hasPermission } from '../shared/authUtils';
 import { SegmentedBar, Segment } from '../shared/SegmentedBar';
 import { hailApiFetch as apiFetch } from '../shared/hailApiFetch';
@@ -71,11 +71,6 @@ type InstanceSortCol =
   | 'free_cores_mcpu' | 'failed_request_count' | 'time_created_ms' | 'age' | 'last_updated_ms';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
-
-function formatAgo(ms: number | null): string {
-  const d = formatDuration(ms);
-  return d ? `${d} ago` : '';
-}
 
 function pctFree(free: number, total: number): string {
   return total !== 0 ? `${((free * 100) / total).toFixed(1)}%` : '';
@@ -398,9 +393,9 @@ function InstancesTable({ instances }: { instances: InstanceData[] }): JSX.Eleme
                 <Td><span className="inline-flex items-center gap-1"><InstanceStateIcon state={inst.state} />{inst.state}</span></Td>
                 <TdNum>{inst.free_cores_mcpu / 1000} / {inst.cores_mcpu / 1000}</TdNum>
                 <TdNum>{inst.failed_request_count}</TdNum>
-                <Td className="font-mono">{formatTime(inst.time_created_ms)}</Td>
-                <Td>{formatDuration(inst.time_created_ms)}</Td>
-                <Td>{formatAgo(inst.last_updated_ms)}</Td>
+                <Td className="font-mono">{formatTimestamp(inst.time_created_ms)}</Td>
+                <Td>{inst.time_created_ms != null ? formatDuration(Date.now() - inst.time_created_ms) : ''}</Td>
+                <Td>{formatRelative(inst.last_updated_ms)}</Td>
                 <Td>
                   <a
                     target="_blank"
