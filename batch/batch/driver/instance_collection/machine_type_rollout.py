@@ -9,6 +9,6 @@ class MachineTypeRollout:
 
     This default rolls nothing out."""
 
-    def machine_type(self, worker_type: str, cores: int) -> Optional[str]:
+    def machine_type(self, worker_type: str, cores: int) -> Optional[str]:  # pylint: disable=unused-argument
         """The machine type for one new autoscaled instance, or None for the pool's own."""
         return None
