@@ -325,27 +325,29 @@ iptables --table nat --append POSTROUTING --source 172.20.0.0/15 --jump MASQUERA
 
 INTERNET_INTERFACE=$(ip link list | grep ens | awk -F": " '{{ print $2 }}')
 
-# Forwarded traffic is only allowed by the explicit rules below and the per-job rules the worker adds
+# Disallows any forwarded traffic not allowed by a rule below or by the per-job rules the worker adds
 iptables --policy FORWARD DROP
 
-# [public] Jobs get the internet, their own metadata server and the internal gateway's HTTP port.
-# Nothing else on the internal network, and nothing on this worker. Only add allows for a known use.
-# Metadata server requests go to the job's own metadata server on this worker
+# [public] Only add allows for a known use
+# Sends jobs' metadata server requests to the job's own metadata server on this worker
 iptables --table nat --append PREROUTING --source 172.21.0.0/16 --destination 169.254.169.254 -p tcp -j REDIRECT --to-ports 5555
-# Replies from a job's exposed port (job `port` option) to whoever connected to it
+# Allows replies from a job's exposed port (job `port` option) to whoever connected to it
 iptables --append FORWARD --source 172.21.0.0/16 --match conntrack --ctstate ESTABLISHED --jump ACCEPT
-# Traffic leaving the worker. A job reaching its own exposed port via the worker IP is allowed by the
-# per-job rules the worker adds; traffic between different jobs matches no rule and is dropped.
-# Hail service APIs (hailtop, Query-on-Batch) via the internal gateway
+# Allows Hail service APIs (hailtop, Query-on-Batch) via the internal gateway's HTTP port. Must come before the block below
 iptables --append FORWARD --source 172.21.0.0/16 --out-interface $INTERNET_INTERFACE --destination $INTERNAL_GATEWAY_IP -p tcp --dport 80 --jump ACCEPT
-for PRIVATE_RANGE in 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16 100.64.0.0/10 169.254.0.0/16; do
-    iptables --append FORWARD --source 172.21.0.0/16 --out-interface $INTERNET_INTERFACE --destination $PRIVATE_RANGE --jump DROP
+# Disallows everything that isn't the internet: the VPC, GKE pods and services, Cloud SQL, the VM metadata server.
+# Ranges are the IANA special-purpose ranges that aren't globally routable, plus multicast
+# (https://www.iana.org/assignments/iana-ipv4-special-registry)
+for NON_INTERNET_RANGE in \
+    0.0.0.0/8 10.0.0.0/8 100.64.0.0/10 127.0.0.0/8 169.254.0.0/16 172.16.0.0/12 192.0.0.0/24 192.0.2.0/24 \
+    192.168.0.0/16 198.18.0.0/15 198.51.100.0/24 203.0.113.0/24 224.0.0.0/4 240.0.0.0/4; do
+    iptables --append FORWARD --source 172.21.0.0/16 --out-interface $INTERNET_INTERFACE --destination $NON_INTERNET_RANGE --jump DROP
 done
-# The internet
+# Allows the internet
 iptables --append FORWARD --source 172.21.0.0/16 --out-interface $INTERNET_INTERFACE --jump ACCEPT
-# Traffic addressed to this worker itself (e.g. the worker API on its IP) goes through INPUT, not FORWARD.
-# Only the metadata server redirect above.
+# Allows the redirected metadata server requests to reach this worker
 iptables --append INPUT --source 172.21.0.0/16 -p tcp --dport 5555 --jump ACCEPT
+# Disallows anything else addressed to this worker, e.g. the worker API
 iptables --append INPUT --source 172.21.0.0/16 --jump DROP
 
 # [private]
