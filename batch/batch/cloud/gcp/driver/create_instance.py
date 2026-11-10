@@ -334,8 +334,8 @@ iptables --policy FORWARD DROP
 iptables --table nat --append PREROUTING --source 172.21.0.0/16 --destination 169.254.169.254 -p tcp -j REDIRECT --to-ports 5555
 # Replies from a job's exposed port (job `port` option) to whoever connected to it
 iptables --append FORWARD --source 172.21.0.0/16 --match conntrack --ctstate ESTABLISHED --jump ACCEPT
-# Traffic leaving the worker. Traffic between jobs on this worker (e.g. a job reaching its own exposed
-# port via the worker IP) stays on the per-job rules the worker adds.
+# Traffic leaving the worker. A job reaching its own exposed port via the worker IP is allowed by the
+# per-job rules the worker adds; traffic between different jobs matches no rule and is dropped.
 # Hail service APIs (hailtop, Query-on-Batch) via the internal gateway
 iptables --append FORWARD --source 172.21.0.0/16 --out-interface $INTERNET_INTERFACE --destination $INTERNAL_GATEWAY_IP -p tcp --dport 80 --jump ACCEPT
 for PRIVATE_RANGE in 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16 100.64.0.0/10 169.254.0.0/16; do
