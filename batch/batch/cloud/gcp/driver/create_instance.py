@@ -323,16 +323,25 @@ mkdir -p /batch/jvm-container-logs/
 # [all networks] Rewrite traffic coming from containers to masquerade as the host
 iptables --table nat --append POSTROUTING --source 172.20.0.0/15 --jump MASQUERADE
 
-# [public]
-# Send public jobs' metadata server requests to the batch worker itself
-iptables --table nat --append PREROUTING --source 172.21.0.0/16 --destination 169.254.169.254 -p tcp -j REDIRECT --to-ports 5555
-# Allow the internal gateway
-iptables --append FORWARD --destination $INTERNAL_GATEWAY_IP --jump ACCEPT
-# And this worker
-iptables --append FORWARD --destination $IP_ADDRESS --jump ACCEPT
-# Allow traffic going to the internet
 INTERNET_INTERFACE=$(ip link list | grep ens | awk -F": " '{{ print $2 }}')
-iptables --append FORWARD --out-interface $INTERNET_INTERFACE ! --destination 10.128.0.0/16 --jump ACCEPT
+
+# [public] Jobs get the internet, their own metadata server and the internal gateway's HTTP port.
+# Nothing else on the internal network, and nothing on this worker.
+# Send public jobs' metadata server requests to the job's metadata server on this worker
+iptables --table nat --append PREROUTING --source 172.21.0.0/16 --destination 169.254.169.254 -p tcp -j REDIRECT --to-ports 5555
+# Replies on connections made into the job, e.g. to an exposed port
+iptables --append FORWARD --source 172.21.0.0/16 --match conntrack --ctstate ESTABLISHED,RELATED --jump ACCEPT
+# Traffic leaving the worker. Traffic between jobs on this worker (e.g. a job reaching its own exposed
+# port via the worker IP) stays on the per-job rules the worker adds.
+iptables --append FORWARD --source 172.21.0.0/16 --out-interface $INTERNET_INTERFACE --destination $INTERNAL_GATEWAY_IP -p tcp --dport 80 --jump ACCEPT
+for PRIVATE_RANGE in 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16 100.64.0.0/10 169.254.0.0/16; do
+    iptables --append FORWARD --source 172.21.0.0/16 --out-interface $INTERNET_INTERFACE --destination $PRIVATE_RANGE --jump DROP
+done
+iptables --append FORWARD --source 172.21.0.0/16 --out-interface $INTERNET_INTERFACE --jump ACCEPT
+# Traffic addressed to this worker itself (e.g. the worker API on its IP) goes through INPUT, not FORWARD
+iptables --append INPUT --source 172.21.0.0/16 -p tcp --dport 5555 --jump ACCEPT
+iptables --append INPUT --source 172.21.0.0/16 --match conntrack --ctstate ESTABLISHED,RELATED --jump ACCEPT
+iptables --append INPUT --source 172.21.0.0/16 --jump DROP
 
 # [private]
 # Allow all traffic from the private job network
