@@ -1296,17 +1296,27 @@ curl -fsSL -m 5 $OTHER_IP
 
 
 @skip_in_azure
-def test_cannot_contact_own_worker(client: BatchClient):
+def test_cannot_contact_any_worker_api(client: BatchClient):
+    # Jobs aren't told their worker's IP, so scan the worker subnet (the /20 holding the internal
+    # gateway) for worker APIs. This covers the job's own worker as well as the others.
+    script = r"""
+IFS=. read -r A B C _ <<< "$(getent hosts internal.hail | awk '{ print $1 }')"
+BASE=$((C & ~15))
+for c in $(seq $BASE $((BASE + 15))); do
+    for d in $(seq 1 254); do echo "$A.$B.$c.$d"; done
+done | xargs -P 256 -I{} curl -q -s -o /dev/null -m 2 'http://{}:5000/healthcheck' \
+    -w 'responded: %{url_effective} (HTTP %{http_code})\n' \
+    | grep -v '(HTTP 000)$'
+echo "scanned $A.$B.$BASE.0/20"
+"""
     b = create_batch(client)
-    j = b.create_job(
-        os.environ['HAIL_CURL_IMAGE'],
-        ['/bin/bash', '-c', 'curl -fsSL -m 5 "http://$HAIL_BATCH_WORKER_IP:5000/healthcheck"'],
-    )
+    j = b.create_job(os.environ['HAIL_CURL_IMAGE'], ['/bin/bash', '-c', script], regions=['us-central1'])
     b.submit()
     status = j.wait()
-    assert status['state'] == 'Failed', str((status, b.debug_info()))
-    job_log = j.log()
-    assert "Connection timed out" in job_log['main'], str((job_log, b.debug_info()))
+    assert status['state'] == 'Success', str((status, b.debug_info()))
+    job_log = j.log()['main']
+    assert 'scanned ' in job_log, str((job_log, b.debug_info()))
+    assert 'responded: ' not in job_log, str((job_log, b.debug_info()))
 
 
 @skip_in_azure
@@ -1315,9 +1325,10 @@ def test_can_only_contact_internal_gateway_http_port(client: BatchClient):
     script = """
 set -x
 INTERNAL_GATEWAY_IP=$(getent hosts internal.hail | awk '{ print $1 }')
-curl -sS -o /dev/null -m 5 "http://$INTERNAL_GATEWAY_IP:80/"
+# -q skips the image's .curlrc, whose --fail would turn the gateway's 404 for / into an error
+curl -q -sS -o /dev/null -m 5 "http://$INTERNAL_GATEWAY_IP:80/"
 echo "http exit code: $?"
-curl -sS -k -o /dev/null -m 5 "https://$INTERNAL_GATEWAY_IP:443/"
+curl -q -sS -k -o /dev/null -m 5 "https://$INTERNAL_GATEWAY_IP:443/"
 echo "https exit code: $?"
 """
     j = b.create_job(os.environ['HAIL_CURL_IMAGE'], ['/bin/bash', '-c', script])
