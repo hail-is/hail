@@ -1711,6 +1711,10 @@ async def create_batch_fast(request, userdata):
     except ValidationError as e:
         raise web.HTTPBadRequest(reason=e.reason)
 
+    # Reject before creating the batch so a bad request doesn't leave an empty batch behind.
+    for spec in job_groups:
+        check_callback_permissions(user, spec.get('callback'))
+
     batch_id = await _create_batch(batch_spec, userdata, db)
 
     update_id, start_job_group_id, start_job_id = await _create_batch_update(
@@ -1908,6 +1912,10 @@ async def update_batch_fast(request, userdata):
         validate_job_groups(job_groups)
     except ValidationError as e:
         raise web.HTTPBadRequest(reason=e.reason)
+
+    # Reject before creating the update so a bad request doesn't leave an orphaned update behind.
+    for spec in job_groups:
+        check_callback_permissions(user, spec.get('callback'))
 
     update_id, start_job_group_id, start_job_id = await _create_batch_update(
         batch_id, update_spec['token'], update_spec['n_jobs'], update_spec.get('n_job_groups', 0), user, db

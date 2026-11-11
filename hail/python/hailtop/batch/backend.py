@@ -722,8 +722,8 @@ class ServiceBackend(Backend[bc.Batch]):
         disable_progress_bar:
             If `True`, disable the progress bar.
         callback:
-            Deprecated. Batch no longer accepts callbacks from users; any value other than
-            `None` causes submission to fail.
+            Deprecated. Batch no longer accepts callbacks; passing a non-empty value causes
+            submission to fail.
         token:
             If not `None`, a string used for idempotency of batch submission.
         """
