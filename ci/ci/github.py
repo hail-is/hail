@@ -53,8 +53,6 @@ log = logging.getLogger('ci')
 
 deploy_config = get_deploy_config()
 
-CALLBACK_URL = deploy_config.url('ci', '/api/v1alpha/batch_callback')
-
 zulip_client: Optional[zulip.Client] = None
 if os.path.exists("/zulip-config/.zuliprc"):
     zulip_client = zulip.Client(config_file="/zulip-config/.zuliprc")
@@ -758,8 +756,7 @@ mkdir -p {shq(repo_dir)}
                     'name': f'PR test #{self.number}: {self.source_branch.name} @ {self.source_sha[:8]} -> {self.target_branch.branch.name} @ {(self.target_branch.sha or "unknown")[:8]}',
                     'batch_type': 'ci/test/pr',
                     'reason': reason,
-                },
-                callback=CALLBACK_URL,
+                }
             )
             if tactical_skipped:
                 # A step removed from requested_step_names may still run if it's a transitive
@@ -1577,8 +1574,7 @@ mkdir -p {shq(repo_dir)}
                     'sha': self.sha,
                     'name': batch_name,
                     'batch_type': 'ci/release/prod' if is_release else 'ci/deploy/prod',
-                },
-                callback=CALLBACK_URL,
+                }
             )
             try:
                 config.build(deploy_batch, self, scope='deploy')

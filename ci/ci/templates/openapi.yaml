@@ -763,20 +763,27 @@ paths:
         '403':
           description: Forbidden - requires developer privileges
 
-  /api/v1alpha/batch_callback:
+  /api/v1alpha/batch_callback/{batch_id}:
     post:
-      summary: Batch callback
-      description: Callback endpoint for batch operations
+      summary: Batch completion callback (internal)
+      description: |
+        Internal API, not for external use. The batch driver calls this when a batch owned by ci
+        completes, so CI can re-check it without waiting for its next poll. Only the batch service
+        and users with the manage_ci permission may call it. The request body is ignored.
       tags: [Builds]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
+      parameters:
+        - name: batch_id
+          in: path
+          required: true
+          schema:
+            type: integer
       responses:
         '200':
-          description: Callback processed successfully
+          description: Callback processed (non-ci batches are ignored)
+        '401':
+          description: Unauthorized - requires the batch service or manage_ci permission
+        '404':
+          description: Batch not found
 
   /api/v1alpha/builds:
     get:

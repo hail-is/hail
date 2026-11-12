@@ -98,6 +98,8 @@ PERMISSION_ENDPOINTS: dict[str, list[tuple[str, str, str]]] = {
     ],
     'manage_ci': [
         ('ci', 'POST', '/api/v1alpha/update'),
+        # Batch 0 never exists, so a permitted caller gets 404 and nothing happens.
+        ('ci', 'POST', '/api/v1alpha/batch_callback/0'),
     ],
     # Monitoring service — AuthServiceAuthenticator, 10s TTL cache
     'view_monitoring_dashboards': [

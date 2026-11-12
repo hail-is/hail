@@ -694,7 +694,6 @@ class ServiceBackend(Backend[bc.Batch]):
         wait: bool = True,
         open: bool = False,
         disable_progress_bar: bool = False,
-        callback: Optional[str] = None,
         token: Optional[str] = None,
         **backend_kwargs,
     ) -> Optional[bc.Batch]:  # pylint: disable-msg=too-many-statements
@@ -721,9 +720,6 @@ class ServiceBackend(Backend[bc.Batch]):
             If `True`, open the UI page for the batch.
         disable_progress_bar:
             If `True`, disable the progress bar.
-        callback:
-            If not `None`, a URL that will receive at most one POST request
-            after the entire batch completes.
         token:
             If not `None`, a string used for idempotency of batch submission.
         """
@@ -745,7 +741,6 @@ class ServiceBackend(Backend[bc.Batch]):
         if batch._async_batch is None:
             batch._async_batch = (await self._batch_client()).create_batch(
                 attributes=attributes,
-                callback=callback,
                 token=token,
                 cancel_after_n_failures=batch._cancel_after_n_failures,
             )

@@ -153,9 +153,9 @@ class JobGroup:
     def last_known_status(self) -> GetJobGroupResponseV1Alpha:
         return async_to_blocking(self._async_job_group.last_known_status())
 
-    def create_job_group(self, *, attributes=None, callback=None, cancel_after_n_failures=None) -> 'JobGroup':
+    def create_job_group(self, *, attributes=None, cancel_after_n_failures=None) -> 'JobGroup':
         async_job_group = self._async_job_group.create_job_group(
-            attributes=attributes, callback=callback, cancel_after_n_failures=cancel_after_n_failures
+            attributes=attributes, cancel_after_n_failures=cancel_after_n_failures
         )
         return JobGroup(async_job_group)
 
@@ -295,9 +295,9 @@ class Batch:
     def delete(self):
         async_to_blocking(self._async_batch.delete())
 
-    def create_job_group(self, *, attributes=None, callback=None, cancel_after_n_failures=None) -> JobGroup:
+    def create_job_group(self, *, attributes=None, cancel_after_n_failures=None) -> JobGroup:
         async_job_group = self._async_batch.create_job_group(
-            attributes=attributes, callback=callback, cancel_after_n_failures=cancel_after_n_failures
+            attributes=attributes, cancel_after_n_failures=cancel_after_n_failures
         )
         return JobGroup(async_job_group)
 
@@ -420,9 +420,9 @@ class BatchClient:
         b = async_to_blocking(self._async_client.get_batch(id))
         return Batch(b)
 
-    def create_batch(self, attributes=None, callback=None, token=None, cancel_after_n_failures=None) -> 'Batch':
+    def create_batch(self, attributes=None, token=None, cancel_after_n_failures=None) -> 'Batch':
         batch = self._async_client.create_batch(
-            attributes=attributes, callback=callback, token=token, cancel_after_n_failures=cancel_after_n_failures
+            attributes=attributes, token=token, cancel_after_n_failures=cancel_after_n_failures
         )
         return Batch(batch)
 

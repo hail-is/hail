@@ -1860,9 +1860,6 @@ components:
           description: "Key-value pairs of attributes for the batch"
           additionalProperties:
             type: string
-        callback:
-          type: string
-          description: "Optional callback URL to notify when batch completes"
         token:
           type: string
           description: "Optional token for batch identification"
@@ -2165,9 +2162,6 @@ components:
           type: integer
           description: "Optional number of failures after which to cancel the job group"
           minimum: 1
-        callback:
-          type: string
-          description: "Optional callback URL to notify when job group completes"
 
     BatchFastUpdateRequest:
       type: object
@@ -2204,9 +2198,6 @@ components:
           description: "Key-value pairs of attributes for the batch"
           additionalProperties:
             type: string
-        callback:
-          type: string
-          description: "Optional callback URL to notify when batch completes"
         cancel_after_n_failures:
           type: integer
           description: "Optional number of failures after which to cancel the batch"

@@ -12,10 +12,9 @@ import aiohttp
 from gear import CommonAiohttpAppKeys, Database, K8sCache
 from hailtop import httpx
 from hailtop.aiotools import BackgroundTaskManager
-from hailtop.batch_client.globals import ROOT_JOB_GROUP_ID
+from hailtop.config import get_deploy_config
 from hailtop.utils import Notice, retry_transient_errors, time_msecs
 
-from ..batch import batch_record_to_dict, job_group_record_to_dict
 from ..batch_configuration import KUBERNETES_SERVER_URL
 from ..batch_format_version import BatchFormatVersion
 from ..file_store import FileStore
@@ -29,137 +28,33 @@ if TYPE_CHECKING:
 
 log = logging.getLogger('job')
 
+deploy_config = get_deploy_config()
 
-async def notify_batch_job_complete(db: Database, client_session: httpx.ClientSession, batch_id: int):
+
+async def notify_ci_of_batch_complete(app, db: Database, batch_id: int):
+    # CI polls for batch state anyway; this just lets it react to its own batches sooner.
     record = await db.select_and_fetchone(
         """
-SELECT batches.*,
-  cost_t.cost,
-  cost_t.cost_breakdown,
-  job_groups_cancelled.id IS NOT NULL AS cancelled,
-  job_groups_n_jobs_in_complete_states.n_completed,
-  job_groups_n_jobs_in_complete_states.n_succeeded,
-  job_groups_n_jobs_in_complete_states.n_failed,
-  job_groups_n_jobs_in_complete_states.n_cancelled
-FROM batches
-LEFT JOIN job_groups_n_jobs_in_complete_states
-  ON batches.id = job_groups_n_jobs_in_complete_states.id
-LEFT JOIN LATERAL (
-  SELECT COALESCE(SUM(`usage` * rate), 0) AS cost, JSON_OBJECTAGG(resources.resource, COALESCE(`usage` * rate, 0)) AS cost_breakdown
-  FROM (
-    SELECT batch_id, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
-    FROM aggregated_job_group_resources_v3
-    WHERE batches.id = aggregated_job_group_resources_v3.batch_id
-    GROUP BY batch_id, resource_id
-  ) AS usage_t
-  LEFT JOIN resources ON usage_t.resource_id = resources.resource_id
-  GROUP BY batch_id
-) AS cost_t ON TRUE
-LEFT JOIN job_groups_cancelled
-  ON batches.id = job_groups_cancelled.id
-WHERE batches.id = %s AND NOT deleted AND callback IS NOT NULL AND
-   batches.`state` = 'complete';
+SELECT 1 FROM batches
+WHERE id = %s AND `user` = 'ci' AND NOT deleted AND `state` = 'complete';
 """,
         (batch_id,),
-        'notify_batch_job_complete',
+        'notify_ci_of_batch_complete',
     )
-
     if not record:
         return
-    callback = record['callback']
 
-    log.info(f'making callback for batch {batch_id}: {callback}')
-
-    async def request(session):
-        await session.post(callback, json=batch_record_to_dict(record))
-        log.info(f'callback for batch {batch_id} successful')
-
+    client_session: httpx.ClientSession = app[CommonAiohttpAppKeys.CLIENT_SESSION]
+    url = deploy_config.url('ci', f'/api/v1alpha/batch_callback/{batch_id}')
     try:
-        if record['user'] == 'ci':
-            # only jobs from CI may use batch's TLS identity
-            await request(client_session)
-        else:
-            async with httpx.client_session() as session:
-                await request(session)
+        headers = await app['hail_credentials'].auth_headers()
+        async with client_session.post(url, headers=headers):
+            pass
+        log.info(f'notified ci of completed batch {batch_id}')
     except asyncio.CancelledError:
         raise
     except Exception:
-        log.info(f'callback for batch {batch_id} failed, will not retry.')
-
-
-async def notify_job_group_on_job_complete(
-    db: Database, client_session: httpx.ClientSession, batch_id: int, job_group_id: int
-):
-    records = db.select_and_fetchall(
-        """
-SELECT job_groups.*,
-  ancestor_id,
-  cost_t.cost,
-  cost_t.cost_breakdown,
-  t.cancelled IS NOT NULL AS cancelled,
-  job_groups_n_jobs_in_complete_states.n_completed,
-  job_groups_n_jobs_in_complete_states.n_succeeded,
-  job_groups_n_jobs_in_complete_states.n_failed,
-  job_groups_n_jobs_in_complete_states.n_cancelled
-FROM job_group_self_and_ancestors
-LEFT JOIN job_groups ON job_groups.batch_id = job_group_self_and_ancestors.batch_id AND
-  job_groups.job_group_id = job_group_self_and_ancestors.ancestor_id
-LEFT JOIN batches ON job_group_self_and_ancestors.batch_id = batches.id
-LEFT JOIN job_groups_n_jobs_in_complete_states
-  ON job_group_self_and_ancestors.batch_id = job_groups_n_jobs_in_complete_states.id AND
-     job_group_self_and_ancestors.ancestor_id = job_groups_n_jobs_in_complete_states.job_group_id
-LEFT JOIN LATERAL (
-  SELECT COALESCE(SUM(`usage` * rate), 0) AS cost, JSON_OBJECTAGG(resources.resource, COALESCE(`usage` * rate, 0)) AS cost_breakdown
-  FROM (
-    SELECT resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
-    FROM aggregated_job_group_resources_v3
-    WHERE job_group_self_and_ancestors.batch_id = aggregated_job_group_resources_v3.batch_id AND
-          job_group_self_and_ancestors.ancestor_id = aggregated_job_group_resources_v3.job_group_id
-    GROUP BY resource_id
-  ) AS usage_t
-  LEFT JOIN resources ON usage_t.resource_id = resources.resource_id
-) AS cost_t ON TRUE
-LEFT JOIN LATERAL (
-  SELECT 1 AS cancelled
-  FROM job_group_self_and_ancestors AS self_and_ancestors
-  INNER JOIN job_groups_cancelled
-    ON self_and_ancestors.batch_id = job_groups_cancelled.id AND
-       self_and_ancestors.ancestor_id = job_groups_cancelled.job_group_id
-  WHERE self_and_ancestors.batch_id = job_group_self_and_ancestors.batch_id AND
-    self_and_ancestors.job_group_id = job_group_self_and_ancestors.ancestor_id
-) AS t ON TRUE
-WHERE job_group_self_and_ancestors.batch_id = %s AND
-  job_group_self_and_ancestors.job_group_id = %s AND
-  job_group_self_and_ancestors.ancestor_id != %s AND
-  NOT deleted AND
-  job_groups.callback IS NOT NULL AND
-  job_groups.`state` = 'complete';
-""",
-        (batch_id, job_group_id, ROOT_JOB_GROUP_ID),
-        'notify_job_group_on_job_complete',
-    )
-
-    async for record in records:
-        ancestor_job_group_id = record['ancestor_id']
-        callback = record['callback']
-
-        log.info(f'making callback for batch {batch_id} job group {ancestor_job_group_id}: {callback}')
-
-        async def request(session, record, callback, batch_id, ancestor_job_group_id):
-            await session.post(callback, json=job_group_record_to_dict(record))
-            log.info(f'callback for batch {batch_id} job group {ancestor_job_group_id} successful')
-
-        try:
-            if record['user'] == 'ci':
-                # only jobs from CI may use batch's TLS identity
-                await request(client_session, record, callback, batch_id, ancestor_job_group_id)
-            else:
-                async with httpx.client_session() as session:
-                    await request(session, record, callback, batch_id, ancestor_job_group_id)
-        except asyncio.CancelledError:
-            raise
-        except Exception:
-            log.info(f'callback for batch {batch_id} job group {ancestor_job_group_id} failed, will not retry.')
+        log.info(f'notifying ci of completed batch {batch_id} failed, will not retry.', exc_info=True)
 
 
 async def add_attempt_resources(app, db, batch_id, job_id, attempt_id, resources: List[QuantifiedResource]):
@@ -204,7 +99,7 @@ async def mark_job_complete(
     batch_id,
     job_id,
     attempt_id,
-    job_group_id,
+    job_group_id,  # pylint: disable=unused-argument
     instance_name,
     new_state,
     status,
@@ -218,7 +113,6 @@ async def mark_job_complete(
     scheduler_state_changed: Notice = app['scheduler_state_changed']
     cancel_ready_state_changed: asyncio.Event = app['cancel_ready_state_changed']
     db: Database = app['db']
-    client_session = app[CommonAiohttpAppKeys.CLIENT_SESSION]
 
     inst_coll_manager: 'InstanceCollectionManager' = app['driver'].inst_coll_manager
     task_manager: BackgroundTaskManager = app['task_manager']
@@ -277,8 +171,7 @@ async def mark_job_complete(
         # already complete, do nothing
         return
 
-    await notify_batch_job_complete(db, client_session, batch_id)
-    await notify_job_group_on_job_complete(db, client_session, batch_id, job_group_id)
+    await notify_ci_of_batch_complete(app, db, batch_id)
 
     if instance and not instance.inst_coll.is_pool and instance.state == 'active':
         task_manager.ensure_future(instance.kill())
