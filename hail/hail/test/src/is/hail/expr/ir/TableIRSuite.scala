@@ -74,6 +74,26 @@ class TableIRSuite {
     assertEvalsTo(TableCollect(droppedRows), RowSeq(FastSeq(), expectedGlobals))
   }
 
+  @Test def testReadOfUncommittedPathFails(implicit ctx: ExecuteContext): Unit = {
+    val path = ctx.createTmpPath("test-read-uncommitted", "ht")
+    ctx.fs.mkDir(path)
+    ctx.fs.touch(s"$path/metadata.json.gz")
+
+    interceptFatal("write failed: file not found: .*/_SUCCESS") {
+      TableIR.read(ctx.fs, ctx.references, path)
+    }
+  }
+
+  @Test def testReadOfManifestRootPassesCommitCheck(implicit ctx: ExecuteContext): Unit = {
+    val path = ctx.createTmpPath("test-read-manifest-root", "ht")
+    ctx.fs.mkDir(path)
+    ctx.fs.touch(s"$path/manifest.json")
+
+    // The native reader cannot read this stub, but it must not be reported as a failed write.
+    val failure = intercept[Exception](TableIR.read(ctx.fs, ctx.references, path))
+    assert(!failure.getMessage.contains("write failed"), failure.getMessage)
+  }
+
   @Test def testCountRead(implicit ctx: ExecuteContext): Unit = {
     implicit val execStrats = ExecStrategy.lowering
     val tir: TableIR =
