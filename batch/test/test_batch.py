@@ -1297,6 +1297,58 @@ curl -fsSL -m 5 $OTHER_IP
 
 
 @skip_in_azure
+def test_cannot_contact_any_worker_api(client: BatchClient):
+    # Jobs aren't told their worker's IP, so scan the worker subnet (the /20 holding the internal
+    # gateway) for worker APIs. This covers the job's own worker as well as the others.
+    script = r"""
+IP=$(getent hosts internal.hail | awk '{ print $1 }')
+if ! [[ $IP =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    echo "internal.hail did not resolve to an IPv4 address: '$IP'"
+    exit 1
+fi
+IFS=. read -r A B C _ <<< "$IP"
+BASE=$((C & ~15))
+for c in $(seq $BASE $((BASE + 15))); do
+    for d in $(seq 1 254); do echo "$A.$B.$c.$d"; done
+done | xargs -P 256 -I{} curl -q -s -o /dev/null -m 2 'http://{}:5000/healthcheck' \
+    -w 'responded: %{url_effective} (HTTP %{http_code})\n' \
+    | tee /tmp/probes | grep -v '(HTTP 000)$'
+echo "scanned $A.$B.$BASE.0/20: $(grep -c "" /tmp/probes) addresses probed"
+"""
+    b = create_batch(client)
+    j = b.create_job(os.environ['HAIL_CURL_IMAGE'], ['/bin/bash', '-c', script], regions=['us-central1'])
+    b.submit()
+    status = j.wait()
+    assert status['state'] == 'Success', str((status, b.debug_info()))
+    job_log = j.log()['main']
+    # 16 x 254 addresses: guards against a scan that silently probed nothing
+    assert ': 4064 addresses probed' in job_log, str((job_log, b.debug_info()))
+    assert 'responded: ' not in job_log, str((job_log, b.debug_info()))
+
+
+@skip_in_azure
+def test_can_only_contact_internal_gateway_http_port(client: BatchClient):
+    b = create_batch(client)
+    script = """
+set -x
+INTERNAL_GATEWAY_IP=$(getent hosts internal.hail | awk '{ print $1 }')
+# -q skips the image's .curlrc, whose --fail would turn the gateway's 404 for / into an error
+curl -q -sS -o /dev/null -m 5 "http://$INTERNAL_GATEWAY_IP:80/"
+echo "http exit code: $?"
+curl -q -sS -k -o /dev/null -m 5 "https://$INTERNAL_GATEWAY_IP:443/"
+echo "https exit code: $?"
+"""
+    j = b.create_job(os.environ['HAIL_CURL_IMAGE'], ['/bin/bash', '-c', script])
+    b.submit()
+    status = j.wait()
+    assert status['state'] == 'Success', str((status, b.debug_info()))
+    job_log = j.log()['main']
+    assert 'http exit code: 0' in job_log, str((job_log, b.debug_info()))
+    # 28 is curl's timeout exit code: the port is dropped rather than refused
+    assert 'https exit code: 28' in job_log, str((job_log, b.debug_info()))
+
+
+@skip_in_azure
 def test_hadoop_can_use_cloud_credentials(client: BatchClient, remote_tmpdir: str):
     token = os.environ["HAIL_TOKEN"]
     b = create_batch(client)
