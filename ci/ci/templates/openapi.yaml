@@ -319,6 +319,9 @@ components:
             - service_edited
             - service_deleted
             - namespace_expired_cleanup
+            - batch_callback_received
+            - batch_callback_failed
+            - build_finished
         target_branch:
           type: string
           nullable: true

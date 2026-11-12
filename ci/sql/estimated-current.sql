@@ -96,7 +96,10 @@ CREATE TABLE ci_events (
     'service_added',
     'service_edited',
     'service_deleted',
-    'namespace_expired_cleanup'
+    'namespace_expired_cleanup',
+    'batch_callback_received',
+    'batch_callback_failed',
+    'build_finished'
   ) NOT NULL,
   target_branch VARCHAR(255),
   pr_number INT,

@@ -47,6 +47,9 @@ class CIEvent(Enum):
     SERVICE_EDITED = 'service_edited'
     SERVICE_DELETED = 'service_deleted'
     NAMESPACE_EXPIRED_CLEANUP = 'namespace_expired_cleanup'
+    BATCH_CALLBACK_RECEIVED = 'batch_callback_received'
+    BATCH_CALLBACK_FAILED = 'batch_callback_failed'
+    BUILD_FINISHED = 'build_finished'
 
 
 def truncate_message(message: str) -> str:

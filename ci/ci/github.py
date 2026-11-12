@@ -863,13 +863,37 @@ mkdir -p {shq(repo_dir)}
         if current_build_batch_status is None:
             self.set_build_state(None)
         elif current_build_batch_status['complete']:
-            if current_build_batch_status['state'] == 'success':
-                self.set_build_state('success')
-                self.source_sha_failed = False
-            else:
-                self.set_build_state('failure')
-                self.source_sha_failed = True
+            assert current_build_batch is not None
+            build_state = 'success' if current_build_batch_status['state'] == 'success' else 'failure'
+            if build_state != self.build_state:
+                await self._record_build_finished(db, current_build_batch, current_build_batch_status, build_state)
+            self.set_build_state(build_state)
+            self.source_sha_failed = build_state == 'failure'
             self.target_branch.state_changed = True
+
+    async def _record_build_finished(self, db: Database, batch: Batch, status: dict, build_state: str):
+        # Build state lives in memory, so after a CI restart every finished build looks newly
+        # finished. Only record the first time each batch is seen to finish.
+        try:
+            already_recorded = await db.select_and_fetchone(
+                "SELECT 1 FROM ci_events WHERE event = 'build_finished' AND batch_id = %s LIMIT 1;",
+                (batch.id,),
+            )
+        except Exception:  # pylint: disable=broad-except
+            log.exception(f'failed to check for a build_finished event for batch {batch.id}')
+            return
+        if already_recorded:
+            return
+        await record_event(
+            db,
+            CIEvent.BUILD_FINISHED,
+            target_branch=self.target_branch.branch.short_str(),
+            pr_number=self.number,
+            batch_id=batch.id,
+            source_sha=self.source_sha,
+            target_sha=batch.attributes.get('target_sha'),
+            message=f'{build_state}; batch completed at {status.get("time_completed")}',
+        )
 
     async def _determine_build_reason(self, batch_client, db: Database) -> str:
         most_recent = None
