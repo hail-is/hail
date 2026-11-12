@@ -5,13 +5,15 @@ import json
 import logging
 import os
 import traceback
-from typing import TYPE_CHECKING, Dict, List
+from typing import TYPE_CHECKING, Dict, List, Optional
 
 import aiohttp
 
 from gear import CommonAiohttpAppKeys, Database, K8sCache
 from hailtop import httpx
 from hailtop.aiotools import BackgroundTaskManager
+from hailtop.auth import hail_credentials
+from hailtop.auth.auth import HailCredentials
 from hailtop.config import get_deploy_config
 from hailtop.utils import Notice, retry_transient_errors, time_msecs
 
@@ -29,6 +31,26 @@ if TYPE_CHECKING:
 log = logging.getLogger('job')
 
 deploy_config = get_deploy_config()
+
+
+class LazyHailCredentials:
+    """The driver's own Hail credentials, created on first use.
+
+    Creating credentials can fail (e.g. on a cloud without a Google key), and only the CI
+    notification needs them, so that failure must not stop the driver from starting.
+    """
+
+    def __init__(self):
+        self._credentials: Optional[HailCredentials] = None
+
+    async def auth_headers(self) -> Dict[str, str]:
+        if self._credentials is None:
+            self._credentials = hail_credentials()
+        return await self._credentials.auth_headers()
+
+    async def close(self):
+        if self._credentials is not None:
+            await self._credentials.close()
 
 
 async def notify_ci_of_batch_complete(app, db: Database, batch_id: int):

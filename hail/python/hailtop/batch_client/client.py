@@ -420,7 +420,7 @@ class BatchClient:
         b = async_to_blocking(self._async_client.get_batch(id))
         return Batch(b)
 
-    def create_batch(self, attributes=None, token=None, cancel_after_n_failures=None) -> 'Batch':
+    def create_batch(self, attributes=None, *, token=None, cancel_after_n_failures=None) -> 'Batch':
         batch = self._async_client.create_batch(
             attributes=attributes, token=token, cancel_after_n_failures=cancel_after_n_failures
         )

@@ -1424,7 +1424,7 @@ class BatchClient:
         assert attributes is None or isinstance(attributes, dict), attributes
         return Batch(self, id=b['id'], attributes=attributes, token=b['token'], last_known_status=b)
 
-    def create_batch(self, attributes=None, token=None, cancel_after_n_failures=None) -> Batch:
+    def create_batch(self, attributes=None, *, token=None, cancel_after_n_failures=None) -> Batch:
         return Batch(
             self,
             id=None,

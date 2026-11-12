@@ -158,6 +158,11 @@ _ENDPOINT_KWARGS: dict[tuple[str, str, str], dict] = {
     },
 }
 
+# Exact status expected when permission is granted, for endpoints where "not 401" would hide a failure
+_GRANTED_STATUS: dict[tuple[str, str, str], int] = {
+    ('ci', 'POST', '/api/v1alpha/batch_callback/0'): 404,
+}
+
 
 def _request(session, service: str, method: str, path: str):
     url = deploy_config.url(service, path)
@@ -173,6 +178,9 @@ def _assert_denied(session, service: str, method: str, path: str):
 def _assert_granted(session, service: str, method: str, path: str):
     r = _request(session, service, method, path)
     assert r.status_code != 401, f"{method} {service}{path}: expected not-401 (permission granted), got {r.status_code}"
+    expected = _GRANTED_STATUS.get((service, method, path))
+    if expected is not None:
+        assert r.status_code == expected, f"{method} {service}{path}: expected {expected}, got {r.status_code}"
 
 
 # ---------------------------------------------------------------------------
