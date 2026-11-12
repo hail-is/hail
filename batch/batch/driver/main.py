@@ -89,7 +89,7 @@ from .canceller import Canceller
 from .driver import CloudDriver
 from .instance import Instance
 from .instance_collection import InstanceCollectionManager, JobPrivateInstanceManager, Pool
-from .job import mark_job_complete, mark_job_started
+from .job import LazyHailCredentials, mark_job_complete, mark_job_started
 
 uvloopx.install()
 
@@ -2216,6 +2216,9 @@ SELECT instance_id, frozen FROM globals;
 
     app[CommonAiohttpAppKeys.CLIENT_SESSION] = httpx.client_session()
     exit_stack.push_async_callback(app[CommonAiohttpAppKeys.CLIENT_SESSION].close)
+
+    app['hail_credentials'] = LazyHailCredentials()
+    exit_stack.push_async_callback(app['hail_credentials'].close)
 
     app['driver'] = await get_cloud_driver(app, db, MACHINE_NAME_PREFIX, DEFAULT_NAMESPACE, inst_coll_configs)
     exit_stack.push_async_callback(app['driver'].shutdown)

@@ -180,6 +180,10 @@ spec:
            value: "5000"
          - name: GOOGLE_APPLICATION_CREDENTIALS
            value: /gsa-key/key.json
+{% if global.cloud == "gcp" %}
+         - name: HAIL_IDENTITY_PROVIDER_JSON
+           value: '{"idp": "Google"}'
+{% endif %}
          - name: HAIL_DEPLOY_CONFIG_FILE
            value: /deploy-config/deploy-config.json
          - name: HAIL_BATCH_WORKER_IMAGE

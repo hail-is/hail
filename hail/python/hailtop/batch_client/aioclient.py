@@ -496,13 +496,11 @@ class JobGroup:
         self,
         *,
         attributes: Optional[Dict[str, str]] = None,
-        callback: Optional[str] = None,
         cancel_after_n_failures: Optional[int] = None,
     ) -> 'JobGroup':
         return self._batch._create_job_group(
             self,
             attributes=attributes,
-            callback=callback,
             cancel_after_n_failures=cancel_after_n_failures,
         )
 
@@ -626,7 +624,6 @@ class Batch:
         id: Optional[int],
         *,
         attributes: Optional[Dict[str, str]] = None,
-        callback: Optional[str] = None,
         token: Optional[str] = None,
         cancel_after_n_failures: Optional[int] = None,
         last_known_status: Optional[Dict[str, Any]] = None,
@@ -634,7 +631,6 @@ class Batch:
         self._client = client
         self._id = id
         self.attributes: Dict[str, str] = attributes or {}
-        self._callback = callback
 
         if token is None:
             token = secrets.token_urlsafe(32)
@@ -825,13 +821,11 @@ class Batch:
         self,
         *,
         attributes: Optional[Dict[str, str]] = None,
-        callback: Optional[str] = None,
         cancel_after_n_failures: Optional[int] = None,
     ) -> JobGroup:
         return self._create_job_group(
             self._root_job_group,
             attributes=attributes,
-            callback=callback,
             cancel_after_n_failures=cancel_after_n_failures,
         )
 
@@ -962,15 +956,12 @@ class Batch:
         parent_job_group: JobGroup,
         *,
         attributes: Optional[Dict[str, str]] = None,
-        callback: Optional[str] = None,
         cancel_after_n_failures: Optional[int] = None,
     ) -> JobGroup:
         self._in_update_job_group_id += 1
         spec: Dict[str, Any] = {'job_group_id': self._in_update_job_group_id}
         if attributes is not None:
             spec['attributes'] = attributes
-        if callback is not None:
-            spec['callback'] = callback
         if cancel_after_n_failures is not None:
             spec['cancel_after_n_failures'] = cancel_after_n_failures
 
@@ -1148,8 +1139,6 @@ class Batch:
         }
         if self.attributes:
             batch_spec['attributes'] = self.attributes
-        if self._callback:
-            batch_spec['callback'] = self._callback
         if self._cancel_after_n_failures is not None:
             batch_spec['cancel_after_n_failures'] = self._cancel_after_n_failures
         return batch_spec
@@ -1435,12 +1424,11 @@ class BatchClient:
         assert attributes is None or isinstance(attributes, dict), attributes
         return Batch(self, id=b['id'], attributes=attributes, token=b['token'], last_known_status=b)
 
-    def create_batch(self, attributes=None, callback=None, token=None, cancel_after_n_failures=None) -> Batch:
+    def create_batch(self, attributes=None, *, token=None, cancel_after_n_failures=None) -> Batch:
         return Batch(
             self,
             id=None,
             attributes=attributes,
-            callback=callback,
             token=token,
             cancel_after_n_failures=cancel_after_n_failures,
         )

@@ -674,29 +674,39 @@ async def remove_namespace_from_db(db: Database, namespace: str):
     )
 
 
-async def batch_callback_handler(request: web.Request):
-    app = request.app
+async def batch_callback_handler(app: web.Application, batch_id: int):
     db = app[AppKeys.DB]
-    params = await json_request(request)
-    log.info(f'batch callback {params}')
-    attrs = params.get('attributes')
-    if attrs:
-        target_branch = attrs.get('target_branch')
-        if target_branch:
-            for wb in watched_branches:
-                if wb.branch.short_str() == target_branch:
-                    log.info(f'watched_branch {wb.branch.short_str()} notify batch changed')
+    batch_client = app[AppKeys.BATCH_CLIENT]
+    log.info(f'batch callback for batch {batch_id}')
 
-                    if 'test' in attrs and params['complete']:
-                        assert 'deploy' not in attrs
-                        assert 'dev' not in attrs
-                        namespace = attrs['namespace']
-                        if DEFAULT_NAMESPACE == 'default':
-                            await remove_namespace_from_db(db, namespace)
+    # What to do depends on the batch's attributes, so read them from Batch rather than trusting the caller.
+    try:
+        batch = await retry_transient_errors(batch_client.get_batch, batch_id)
+    except httpx.ClientResponseError as e:
+        if e.status in (403, 404):
+            raise web.HTTPNotFound() from e
+        raise
+    status = await batch.last_known_status()
+    if status['user'] != 'ci':
+        log.info(f'ignoring batch callback for batch {batch_id} owned by {status["user"]}')
+        return
 
-                    await wb.notify_batch_changed(
-                        db, app[AppKeys.BATCH_CLIENT], app[AppKeys.GH_CLIENT], app[AppKeys.FROZEN_MERGE_DEPLOY]
-                    )
+    attrs = batch.attributes
+    target_branch = attrs.get('target_branch')
+    if not target_branch:
+        return
+    for wb in watched_branches:
+        if wb.branch.short_str() == target_branch:
+            log.info(f'watched_branch {wb.branch.short_str()} notify batch changed')
+
+            if 'test' in attrs and status['complete']:
+                assert 'deploy' not in attrs
+                assert 'dev' not in attrs
+                namespace = attrs['namespace']
+                if DEFAULT_NAMESPACE == 'default':
+                    await remove_namespace_from_db(db, namespace)
+
+            await wb.notify_batch_changed(db, batch_client, app[AppKeys.GH_CLIENT], app[AppKeys.FROZEN_MERGE_DEPLOY])
 
 
 @routes.get('/api/v1alpha/version')
@@ -822,9 +832,14 @@ async def dev_deploy_branch(request: web.Request, userdata: UserData) -> web.Res
     return json_response({'sha': sha, 'batch_id': batch_id})
 
 
-@routes.post('/api/v1alpha/batch_callback')
-async def batch_callback(request: web.Request):
-    await asyncio.shield(batch_callback_handler(request))
+@routes.post(r'/api/v1alpha/batch_callback/{batch_id:\d+}')
+@auth.authenticated_users_only(redirect=False)
+async def batch_callback(request: web.Request, userdata: UserData) -> web.Response:
+    # The batch driver calls this when a ci batch completes; developers may also nudge CI by hand.
+    if userdata['username'] != 'batch' and not userdata['system_permissions'].get(SystemPermission.MANAGE_CI, False):
+        raise web.HTTPUnauthorized()
+    batch_id = int(request.match_info['batch_id'])
+    await asyncio.shield(batch_callback_handler(request.app, batch_id))
     return web.Response(status=200)
 
 

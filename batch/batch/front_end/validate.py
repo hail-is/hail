@@ -107,7 +107,7 @@ job_validator = keyed({
 batch_validator = keyed({
     'attributes': nullable(dictof(str_type)),
     required('billing_project'): str_type,
-    'callback': nullable(str_type),
+    'callback': nullable(str_type),  # no longer supported; accepted and ignored so older clients still work
     required('n_jobs'): int_type,
     'n_job_groups': int_type,
     required('token'): str_type,
@@ -124,7 +124,7 @@ batch_update_validator = keyed({
 job_group_validator = keyed({
     required('job_group_id'): int_type,
     'attributes': nullable(dictof(str_type)),
-    'callback': nullable(str_type),
+    'callback': nullable(str_type),  # no longer supported; accepted and ignored so older clients still work
     'cancel_after_n_failures': nullable(numeric(**{"x > 0": lambda x: isinstance(x, int) and x > 0})),
     'absolute_parent_id': nullable(int_type),
     'in_update_parent_id': nullable(int_type),

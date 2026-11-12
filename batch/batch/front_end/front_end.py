@@ -985,7 +985,6 @@ async def _create_job_group(
     user: str,
     attributes: Optional[Dict[str, str]],
     cancel_after_n_failures: Optional[int],
-    callback: Optional[str],
     timestamp: int,
     parent_job_group_id: int,
 ):
@@ -1005,8 +1004,8 @@ WHERE job_group_self_and_ancestors.batch_id = %s AND job_group_self_and_ancestor
 
     await tx.execute_insertone(
         """
-INSERT INTO job_groups (batch_id, job_group_id, `user`, attributes, cancel_after_n_failures, state, n_jobs, time_created, time_completed, callback, update_id)
-VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
+INSERT INTO job_groups (batch_id, job_group_id, `user`, attributes, cancel_after_n_failures, state, n_jobs, time_created, time_completed, update_id)
+VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
 """,
         (
             batch_id,
@@ -1018,7 +1017,6 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
             0,
             timestamp,
             timestamp,
-            callback,
             update_id,
         ),
         query_name='insert_job_group',
@@ -1149,7 +1147,6 @@ WHERE batch_id = %s AND update_id = %s AND job_group_id BETWEEN %s AND %s;
                     user=user,
                     attributes=spec.get('attributes'),
                     cancel_after_n_failures=spec.get('cancel_after_n_failures'),
-                    callback=spec.get('callback'),
                     timestamp=now,
                     parent_job_group_id=parent_job_group_id,
                 )
@@ -1838,15 +1835,14 @@ WHERE token = %s AND user = %s FOR UPDATE;
         now = time_msecs()
         id = await tx.execute_insertone(
             """
-INSERT INTO batches (userdata, user, billing_project, attributes, callback, n_jobs, time_created, time_completed, token, state, format_version, cancel_after_n_failures, migrated_batch)
-VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
+INSERT INTO batches (userdata, user, billing_project, attributes, n_jobs, time_created, time_completed, token, state, format_version, cancel_after_n_failures, migrated_batch)
+VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
 """,
             (
                 json.dumps(userdata),
                 user,
                 billing_project,
                 json.dumps(attributes),
-                batch_spec.get('callback'),
                 0,
                 now,
                 now,
@@ -1867,7 +1863,6 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
             user=user,
             attributes=attributes,
             cancel_after_n_failures=batch_spec.get('cancel_after_n_failures'),
-            callback=batch_spec.get('callback'),
             timestamp=now,
             parent_job_group_id=ROOT_JOB_GROUP_ID,
         )

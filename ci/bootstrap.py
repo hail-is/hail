@@ -76,18 +76,13 @@ async def docker_run(*args: str):
 
 
 class LocalBatchBuilder:
-    def __init__(self, attributes: Dict[str, str], callback: Optional[str]):
+    def __init__(self, attributes: Dict[str, str]):
         self._attributes = attributes
-        self._callback = callback
         self._jobs: List[LocalJob] = []
 
     @property
     def attributes(self) -> Dict[str, str]:
         return self._attributes
-
-    @property
-    def callback(self) -> Optional[str]:
-        return self._callback
 
     def create_job(self, image: str, command: List[str], **kwargs):
         index = len(self._jobs)
@@ -385,7 +380,7 @@ async def main():
         config = BuildConfiguration(code, f.read(), scope, requested_step_names=steps)
 
     token = generate_token()
-    batch = LocalBatchBuilder(attributes={'token': token}, callback=None)
+    batch = LocalBatchBuilder(attributes={'token': token})
     config.build(batch, code, scope)
 
     await batch.run()

@@ -1,10 +1,6 @@
-import asyncio
-import os
 import re
-import secrets
 
 import pytest
-from aiohttp import web
 
 from hailtop.batch_client import aioclient
 from hailtop.batch_client.client import BatchClient, Job
@@ -17,13 +13,6 @@ def client():
     client = BatchClient('test')
     yield client
     client.close()
-
-
-@pytest.fixture
-async def async_client():
-    client = await aioclient.BatchClient.create('test')
-    yield client
-    await client.close()
 
 
 def test_simple(client):
@@ -121,149 +110,6 @@ def test_cancel_left_after_tail(client):
     for node in [left, tail]:
         node_status = node.status()
         assert node_status['state'] == 'Cancelled', str((node_status, batch.debug_info()))
-
-
-async def test_batch_callback(async_client: aioclient.BatchClient):
-    app = web.Application()
-    callback_bodies = []
-    callback_event = asyncio.Event()
-
-    def url_for(uri):
-        host = os.environ['HAIL_BATCH_WORKER_IP']
-        port = os.environ['HAIL_BATCH_WORKER_PORT']
-        return f'http://{host}:{port}{uri}'
-
-    async def callback(request):
-        body = await request.json()
-        callback_bodies.append(body)
-        callback_event.set()
-        return web.Response()
-
-    app.add_routes([web.post('/test', callback)])
-    runner = web.AppRunner(app)
-    await runner.setup()
-    site = web.TCPSite(runner, '0.0.0.0', 5000)
-    await site.start()
-
-    try:
-        token = secrets.token_urlsafe(32)
-        b = create_batch(
-            async_client, callback=url_for('/test'), attributes={'foo': 'bar', 'name': 'test_callback'}, token=token
-        )
-        head = b.create_job('alpine:3.8', command=['echo', 'head'])
-        b.create_job('alpine:3.8', command=['echo', 'tail'], parents=[head])
-        await b.submit()
-        await asyncio.wait_for(callback_event.wait(), 5 * 60)
-        callback_body = callback_bodies[0]
-
-        # verify required fields present
-        callback_body.pop('cost')
-        callback_body.pop('msec_mcpu')
-        callback_body.pop('time_created')
-        callback_body.pop('time_closed')
-        callback_body.pop('time_completed')
-        callback_body.pop('duration')
-        callback_body.pop('duration_ms')
-        callback_body.pop('cost_breakdown')
-        callback_body['attributes'].pop('client_job')
-        assert callback_body == {
-            'id': b.id,
-            'user': 'test',
-            'billing_project': 'test',
-            'token': token,
-            'state': 'success',
-            'complete': True,
-            'closed': True,
-            'n_jobs': 2,
-            'n_completed': 2,
-            'n_succeeded': 2,
-            'n_failed': 0,
-            'n_cancelled': 0,
-            'attributes': {'foo': 'bar', 'name': 'test_callback'},
-        }, callback_body
-    finally:
-        await runner.cleanup()
-
-
-async def test_job_group_callback(async_client: aioclient.BatchClient):
-    app = web.Application()
-    callback_bodies = []
-    callback_event = asyncio.Event()
-
-    def url_for(uri):
-        host = os.environ['HAIL_BATCH_WORKER_IP']
-        port = os.environ['HAIL_BATCH_WORKER_PORT']
-        return f'http://{host}:{port}{uri}'
-
-    async def callback(request):
-        body = await request.json()
-        callback_bodies.append(body)
-        callback_event.set()
-        return web.Response()
-
-    app.add_routes([web.post('/test', callback)])
-    runner = web.AppRunner(app)
-    await runner.setup()
-    site = web.TCPSite(runner, '0.0.0.0', 5000)
-    await site.start()
-
-    try:
-        token = secrets.token_urlsafe(32)
-        b = create_batch(async_client, token=token)
-        jg = b.create_job_group(callback=url_for('/test'), attributes={'name': 'test_callback_1'})
-        jg.create_job(DOCKER_ROOT_IMAGE, ['sleep', '300'])
-        jg2 = jg.create_job_group(callback=url_for('/test'), attributes={'name': 'test_callback_2'})
-        jg2.create_job('alpine:3.8', command=['true'])
-        await b.submit()
-        await asyncio.wait_for(callback_event.wait(), 5 * 60)
-        callback_event.clear()
-        callback_body = callback_bodies[0]
-
-        # verify required fields present
-        callback_body.pop('cost')
-        callback_body.pop('time_created')
-        callback_body.pop('time_completed')
-        callback_body.pop('duration')
-        callback_body.pop('cost_breakdown')
-        assert callback_body == {
-            'batch_id': jg2.batch_id,
-            'job_group_id': jg2.job_group_id,
-            'state': 'success',
-            'complete': True,
-            'n_jobs': 1,
-            'n_completed': 1,
-            'n_succeeded': 1,
-            'n_failed': 0,
-            'n_cancelled': 0,
-            'attributes': {'name': 'test_callback_2'},
-        }, callback_body
-
-        await b.cancel()
-
-        await asyncio.wait_for(callback_event.wait(), 5 * 60)
-
-        callback_body = callback_bodies[1]
-
-        # verify required fields present
-        callback_body.pop('cost')
-        callback_body.pop('time_created')
-        callback_body.pop('time_completed')
-        callback_body.pop('duration')
-        callback_body.pop('cost_breakdown')
-        assert callback_body == {
-            'batch_id': jg.batch_id,
-            'job_group_id': jg.job_group_id,
-            'state': 'cancelled',
-            'complete': True,
-            'n_jobs': 2,
-            'n_completed': 2,
-            'n_succeeded': 1,
-            'n_failed': 0,
-            'n_cancelled': 1,
-            'attributes': {'name': 'test_callback_1'},
-        }, callback_body
-    finally:
-        await runner.cleanup()
 
 
 def test_no_parents_allowed_in_other_batches(client):
