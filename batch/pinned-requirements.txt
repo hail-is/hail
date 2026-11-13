@@ -705,16 +705,16 @@ frozenlist==1.8.0 \
     #   -c batch/../web_common/pinned-requirements.txt
     #   aiohttp
     #   aiosignal
-google-api-core==2.43.2 \
-    --hash=sha256:5a9d21baab97fd3c0547ccfc186a9e64f4227d8d7026f393835316400b29a6d4 \
-    --hash=sha256:5dfc5e9d52982bcc03bd6af380a893365b5fdf907dc527f63d3a372833c33329
+google-api-core==2.44.0 \
+    --hash=sha256:5ab9a396965c1227d7dea4581e562b7018aa2bca96d2de0be5eb70dc9c8ab3a1 \
+    --hash=sha256:8cb9ad8af28de9bc75121686d69b697ce0937e21fad2ad80c9a7e89f22b26e1f
     # via
     #   -c batch/../gear/pinned-requirements.txt
     #   google-cloud-core
     #   google-cloud-storage
-google-auth==2.62.0 \
-    --hash=sha256:0bef0ce54bdf9ce226c5d66e4264413bd918141c31bbe49fb52eac882f513d69 \
-    --hash=sha256:4ff4319aeb4ad128409759d397a9fcafad126d0031d241cc0dd6b9a00b43e3f3
+google-auth==2.62.1 \
+    --hash=sha256:015399a5abde39033c69404cc1c079e6d4c2de2993e164c9f4eac6e5376ad72b \
+    --hash=sha256:3c8e1ce2553784ae17fd220e6f88df3281d86ab98019278f436d06dffab17a9e
     # via
     #   -c batch/../gear/pinned-requirements.txt
     #   -c batch/../hail/python/pinned-requirements.txt
