@@ -3160,7 +3160,9 @@ steps:
               --log-format="%(asctime)s %(levelname)s %(name)s %(filename)s:%(lineno)d:%(funcName)s %(message)s" \
               -k "not test_scale and not test_invariants" \
               --timeout=360 \
-              /io/test/test_batch.py
+              --ignore=/io/test/test_batch_rare_instances.py \
+              --ignore=/io/test/test_db_framework.py \
+              /io/test/
     inputs:
       - from: /repo/batch/test
         to: /io/test
