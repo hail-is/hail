@@ -4,28 +4,25 @@ from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import gidgethub
+import yaml
 
 from ci.events import MAX_MESSAGE_LENGTH, CIEvent, record_event, truncate_message
 from ci.github import PR, describe_exception
 from hailtop.utils import CalledProcessError
 
 SQL_DIR = Path(__file__).parent.parent / 'sql'
+OPENAPI_PATH = Path(__file__).parent.parent / 'ci' / 'templates' / 'openapi.yaml'
 
 
-def _sql_enum_values(sql: str) -> list:
-    m = re.search(r'event ENUM\((.*?)\) NOT NULL', sql, re.DOTALL)
+def test_event_values_fit_the_column():
+    m = re.search(r'event VARCHAR\((\d+)\) NOT NULL', (SQL_DIR / 'estimated-current.sql').read_text())
     assert m is not None
-    return re.findall(r"'([a-z_]+)'", m.group(1))
+    assert all(len(e.value) <= int(m.group(1)) for e in CIEvent)
 
 
-def test_python_enum_matches_latest_migration():
-    # New event types are added by later migrations that redefine the ENUM, so the latest one wins.
-    migrations = sorted(p for p in SQL_DIR.glob('[0-9][0-9][0-9]-*.sql') if 'event ENUM(' in p.read_text())
-    assert _sql_enum_values(migrations[-1].read_text()) == [e.value for e in CIEvent]
-
-
-def test_python_enum_matches_estimated_current():
-    assert _sql_enum_values((SQL_DIR / 'estimated-current.sql').read_text()) == [e.value for e in CIEvent]
+def test_openapi_event_enum_matches_python_enum():
+    spec = yaml.safe_load(OPENAPI_PATH.read_text())
+    assert spec['components']['schemas']['CIEvent']['properties']['event']['enum'] == [e.value for e in CIEvent]
 
 
 def test_truncate_message_keeps_short_messages():

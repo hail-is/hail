@@ -11,7 +11,7 @@ MAX_MESSAGE_LENGTH = 10_000
 _CLEANUP_BATCH_SIZE = 1000
 
 
-# Mirrors the ENUM on ci_events.event; adding a value needs a migration.
+# Source of truth for event types. ci_events.event is a plain VARCHAR(64), so adding one needs no migration.
 class CIEvent(Enum):
     MERGE_REQUESTED = 'merge_requested'
     MERGE_PENDING = 'merge_pending'
