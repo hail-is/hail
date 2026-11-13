@@ -8,9 +8,12 @@ import mainargs.{main, ParserForMethods}
 // bits above `Family.FamilyShift`, and its position within the family below, so a pass
 // can switch on the family and then on the tag, and each switch compiles to a jump table.
 //
-// Relational, Table and Matrix hold the nodes a lowering pass removes: a node goes in the
-// family of the first invariant that forbids it. For example, NoMatrixIR forbids every
-// node that is or reads a MatrixIR, so LowerMatrixIR removes the whole Matrix family.
+// RelationalToValue, Table and Matrix hold the nodes a lowering pass removes: a node goes
+// in the family of the first invariant that forbids it. For example, NoMatrixIR forbids
+// every node that is or reads a MatrixIR, so LowerMatrixIR removes the whole Matrix family.
+// RelationalToValue holds the value nodes that read a Table or block matrix, such as
+// TableCount: EvalRelationalToValue replaces each of them with its value before any table
+// is lowered, unless its type is void.
 // BlockMatrix is the odd one out: CompilableIR forbids it at the same point as Table, so
 // a node goes in BlockMatrix if it reads or makes a block matrix but no Table.
 //
@@ -50,8 +53,8 @@ object Family extends Enumeration {
   // creates or splits RNG state
   , Random
 
-  // binds or refers to a value computed from relational IR
-  , Relational
+  // computes a value from relational IR on the driver
+  , RelationalToValue
 
   // reads, transforms or writes a Table
   , Table
@@ -1353,8 +1356,26 @@ object Main {
     r += node(Random, "RNGSplitStatic", in("state", child), in("staticUid", att("Long")))
     r += node(Random, "RNGStateLiteral")
 
-    r += node(Relational, "RelationalRef", name, _typ()).withTraits(BaseRef, Atom)
-    r += node(Relational, "RelationalLet", name, in("value", child), in("body", child))
+    r += node(RelationalToValue, "TableAggregate", tableChild, in("query", child))
+    r += node(RelationalToValue, "TableCollect", tableChild)
+    r += node(RelationalToValue, "TableCount", tableChild)
+    r += node(RelationalToValue, "TableGetGlobals", tableChild)
+
+    r += node(
+      RelationalToValue,
+      "TableToValueApply",
+      tableChild,
+      in("function", att("TableToValueFunction")),
+    )
+
+    r += node(
+      RelationalToValue,
+      "BlockMatrixToValueApply",
+      bmChild,
+      in("function", att("BlockMatrixToValueFunction")),
+    )
+
+    r += node(RelationalToValue, "BlockMatrixCollect", bmChild)
 
     r += handWritten(Table, "TableParallelize")
     r += handWritten(Table, "TableKeyBy")
@@ -1364,7 +1385,6 @@ object Main {
     r += handWritten(Table, "TableExplode")
     r += handWritten(Table, "TableUnion")
     r += handWritten(Table, "TableRename")
-    r += node(Table, "TableAggregate", tableChild, in("query", child))
 
     r += node(
       Table,
@@ -1373,26 +1393,14 @@ object Main {
       in("writer", att("WrappedMatrixNativeMultiWriter")),
     )
 
-    r += node(Table, "TableCollect", tableChild)
     r += handWritten(Table, "TableGen")
     r += handWritten(Table, "TableMapPartitions")
     r += handWritten(Table, "TableMapRows")
     r += handWritten(Table, "TableKeyByAndAggregate")
     r += handWritten(Table, "TableAggregateByKey")
-    r += node(Table, "TableCount", tableChild)
     r += node(Table, "TableWrite", tableChild, in("writer", att("TableWriter")))
-    r += node(Table, "TableGetGlobals", tableChild)
-
-    r += node(
-      Table,
-      "TableToValueApply",
-      tableChild,
-      in("function", att("TableToValueFunction")),
-    )
-
     r += handWritten(Table, "TableFilter")
     r += handWritten(Table, "TableMapGlobals")
-    r += handWritten(Table, "RelationalLetTable")
     r += handWritten(Table, "TableLiteral")
     r += handWritten(Table, "TableRead")
     r += handWritten(Table, "TableRange")
@@ -1442,7 +1450,6 @@ object Main {
     r += handWritten(Matrix, "MatrixMapCols")
     r += handWritten(Matrix, "MatrixMapGlobals")
     r += handWritten(Matrix, "MatrixFilterEntries")
-    r += handWritten(Matrix, "RelationalLetMatrixTable")
     r += handWritten(Matrix, "MatrixRowsTable")
     r += handWritten(Matrix, "MatrixColsTable")
     r += handWritten(Matrix, "MatrixEntriesTable")
@@ -1467,15 +1474,6 @@ object Main {
     r += handWritten(BlockMatrix, "ValueToBlockMatrix")
     r += handWritten(BlockMatrix, "BlockMatrixMap")
     r += handWritten(BlockMatrix, "BlockMatrixMap2")
-
-    r += node(
-      BlockMatrix,
-      "BlockMatrixToValueApply",
-      bmChild,
-      in("function", att("BlockMatrixToValueFunction")),
-    )
-
-    r += node(BlockMatrix, "BlockMatrixCollect", bmChild)
     r += node(BlockMatrix, "BlockMatrixWrite", bmChild, in("writer", att("BlockMatrixWriter")))
 
     r += node(

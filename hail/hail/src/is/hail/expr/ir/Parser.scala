@@ -879,16 +879,6 @@ object IRParser {
       case "Ref" =>
         val id = name(it)
         done(Ref(id, null))
-      case "RelationalRef" =>
-        val id = name(it)
-        val t = type_expr(ctx.references)(it)
-        done(RelationalRef(id, t))
-      case "RelationalLet" =>
-        val n = name(it)
-        for {
-          value <- ir_value_expr(ctx)(it)
-          body <- ir_value_expr(ctx)(it)
-        } yield RelationalLet(n, value, body)
       case "ApplyBinaryPrimOp" =>
         val op = BinaryOp.fromString(identifier(it))
         for {
@@ -1710,12 +1700,6 @@ object IRParser {
           body <- ir_value_expr(ctx)(it)
         } yield TableMapPartitions(child, globalsName, partitionStreamName, body, requestedKey,
           allowedOverlap)
-      case "RelationalLetTable" =>
-        val n = name(it)
-        for {
-          value <- ir_value_expr(ctx)(it)
-          body <- table_ir(ctx)(it)
-        } yield RelationalLetTable(n, value, body)
       case "JavaTable" =>
         val id = int32_literal(it)
         done(ctx.PersistedIrCache(id).deepCopy.asInstanceOf[TableIR])
@@ -1907,12 +1891,6 @@ object IRParser {
             keep,
           )
         }
-      case "RelationalLetMatrixTable" =>
-        val n = name(it)
-        for {
-          value <- ir_value_expr(ctx)(it)
-          body <- matrix_ir(ctx)(it)
-        } yield RelationalLetMatrixTable(n, value, body)
     }
   }
 

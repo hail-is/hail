@@ -210,9 +210,6 @@ case object SemanticHash extends Logging {
       case Ref(name, _) =>
         buffer ++= name.str.getBytes
 
-      case RelationalRef(name, _) =>
-        buffer ++= name.str.getBytes
-
       case RNGSplitStatic(_, staticUid) =>
         buffer ++= Bytes.fromLong(staticUid)
 
@@ -323,7 +320,6 @@ case object SemanticHash extends Logging {
           _: NDArraySlice |
           _: NDArrayReshape |
           _: NDArrayWrite |
-          _: RelationalLet |
           _: RNGSplit |
           _: RNGStateLiteral |
           _: StreamAgg |

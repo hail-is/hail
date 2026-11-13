@@ -2,14 +2,10 @@ package is.hail.expr.ir.lowering
 
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
-import is.hail.expr.ir.{
-  BaseIR, CompileAndEvaluate, IR, Interpret, Name, RelationalLetMatrixTable, RelationalLetTable,
-}
-import is.hail.expr.ir.defs.{Begin, Literal, RelationalLet, RelationalRef}
+import is.hail.expr.ir.{BaseIR, CompileAndEvaluate, IR, Interpret}
+import is.hail.expr.ir.defs.{Begin, Literal}
 import is.hail.types.virtual.TVoid
 import is.hail.utils._
-
-import scala.collection.mutable
 
 object LowerOrInterpretNonCompilable extends Logging {
 
@@ -38,31 +34,13 @@ object LowerOrInterpretNonCompilable extends Logging {
       result
     }
 
-    def rewriteChildren(x: BaseIR, m: mutable.Map[Name, IR]): BaseIR =
-      x.mapChildren(rewrite(_, m))
-
-    def rewrite(x: BaseIR, m: mutable.Map[Name, IR]): BaseIR = {
-
+    def rewrite(x: BaseIR): BaseIR =
       x match {
-        case RelationalLet(name, value, body) =>
-          rewrite(body, m += (name -> evaluate(rewrite(value, m).asInstanceOf[IR])))
-        case RelationalLetTable(name, value, body) =>
-          rewrite(body, m += (name -> evaluate(rewrite(value, m).asInstanceOf[IR])))
-        case RelationalLetMatrixTable(name, value, body) =>
-          rewrite(body, m += (name -> evaluate(rewrite(value, m).asInstanceOf[IR])))
-        case RelationalRef(name, t) =>
-          m.get(name) match {
-            case Some(res) =>
-              assert(res.typ == t)
-              res
-            case None => throw new RuntimeException(name.str)
-          }
         case x: IR if InterpretableButNotCompilable(x) =>
-          evaluate(rewriteChildren(x, m).asInstanceOf[IR])
-        case _ => rewriteChildren(x, m)
+          evaluate(x.mapChildren(rewrite).asInstanceOf[IR])
+        case _ => x.mapChildren(rewrite)
       }
-    }
 
-    rewrite(ir, mutable.HashMap.empty)
+    rewrite(ir)
   }
 }

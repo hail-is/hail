@@ -156,7 +156,7 @@ object NestingDepth {
           case StreamBufferedAggregate(stream, initAggs, newKey, seqOps, _, _, _) =>
             computeIR(stream, depth)
             FastSeq(initAggs, newKey, seqOps).foreach(computeIR(_, depth.incrementEval))
-          // a fresh scope that runs once per partition; only RelationalRefs see this depth
+          // a fresh scope that runs once per partition
           case CollectDistributedArray(ctxs, globals, _, _, body, dynamicID, _, _) =>
             computeIR(ctxs, depth)
             computeIR(globals, depth)
@@ -168,9 +168,6 @@ object NestingDepth {
           case ApplyScanOp(initOpArgs, seqOpArgs, _) =>
             initOpArgs.foreach(computeIR(_, depth.noScan))
             seqOpArgs.foreach(computeIR(_, depth.promoteScan))
-          case RelationalLet(_, value, body) =>
-            computeIR(value, ScopedDepth(0, 0, 0))
-            computeIR(body, depth.noAgg.noScan)
           // the query's agg scope is new, as in StreamAgg
           case TableAggregate(child, query) =>
             computeChildren(child)

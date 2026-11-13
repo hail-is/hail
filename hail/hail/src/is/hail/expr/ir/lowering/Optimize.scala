@@ -62,7 +62,6 @@ object Optimize {
               ir_
             }
 
-            ir = ForwardRelationalLets(ctx, ir)
             ir = PruneDeadFields(ctx, ir)
 
             TypeCheck(ctx, ir)
