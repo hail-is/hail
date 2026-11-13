@@ -30,7 +30,7 @@ import java.io.OutputStream
 import org.json4s.{DefaultFormats, Extraction, Formats, JValue, ShortTypeHints}
 import org.json4s.JsonAST.{JNothing, JString}
 
-abstract class IR extends BaseIR {
+abstract class IR(tag: Tag) extends BaseIR(tag) {
   private var _typ: Type = null
 
   override def typ: Type =
@@ -346,10 +346,6 @@ package defs {
         StreamJoinRightDistinct(left, right, lKey, rKey, l, r, joinF, joinType)
       }
     }
-  }
-
-  trait NDArrayIR extends TypedIR[TNDArray] {
-    def elementTyp: Type = typ.elementType
   }
 
   object GetFieldByIdx {

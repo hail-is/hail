@@ -11,7 +11,11 @@ case class Name(str: String) {
   override def toString: String = str
 }
 
-abstract class BaseIR {
+/** @param tag
+  *   identifies this node's class, for dispatch with `@switch`. See [[Tag]]. It is a field, not a
+  *   method, so reading it is a load rather than a virtual call.
+  */
+abstract class BaseIR(final val tag: Tag) {
   def typ: VType
 
   protected def childrenSeq: IndexedSeq[BaseIR]
