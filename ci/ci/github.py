@@ -273,6 +273,102 @@ class UnreadablePr(Exception):
     """GitHub returned a PR without a field CI needs, e.g. its head repository was deleted."""
 
 
+class StackEntry(NamedTuple):
+    position: int  # 1 is nearest the stack's base branch
+    number: int
+    state: str  # GraphQL PullRequestState: OPEN / CLOSED / MERGED
+    title: str
+
+
+class GitHubStack(NamedTuple):
+    """A native GitHub PR stack (`gh stack`). Linear; merged and closed PRs stay in it."""
+
+    number: int  # identifies the stack; not a PR number
+    base_ref_name: str
+    size: int
+    entries: Optional[Tuple[StackEntry, ...]]  # by position; None when not fetched
+
+    @staticmethod
+    def from_graphql(node: Dict[str, Any]) -> 'GitHubStack':
+        entries = None
+        if 'entries' in node:
+            entries = tuple(
+                sorted(
+                    (
+                        StackEntry(
+                            e['position'],
+                            e['pullRequest']['number'],
+                            e['pullRequest']['state'],
+                            e['pullRequest']['title'],
+                        )
+                        for e in node['entries']['nodes']
+                        if e['pullRequest'] is not None
+                    ),
+                    key=lambda e: e.position,
+                )
+            )
+        return GitHubStack(node['number'], node['baseRefName'], node['size'], entries)
+
+
+class StackInfo(NamedTuple):
+    """A stack based on a watched branch, as the API shows it: entries plus the position-1 PR's Stack Meta."""
+
+    number: int
+    base_ref_name: str
+    size: int
+    entries: Tuple[StackEntry, ...]
+    name: Optional[str]
+    doc_url: Optional[str]
+    meta: Dict[str, str]  # Stack Meta keys other than name and reference doc
+
+
+_STACK_META_HEADING = re.compile(r'^\s*#{1,6}\s*stack\s+meta\s*#*\s*$', re.IGNORECASE)
+_MARKDOWN_HEADING = re.compile(r'^\s*#{1,6}\s')
+_STACK_META_LINE = re.compile(r'^\s*(?:[-*]\s+)?([A-Za-z][A-Za-z0-9 _-]*?)\s*:\s*(.*?)\s*$')
+
+
+def _stack_meta_key(key: str) -> str:
+    return ' '.join(key.lower().split())
+
+
+def parse_stack_meta(body: Optional[str]) -> Dict[str, str]:
+    """The `key: value` lines of a PR body's `## Stack Meta` section, keys lower-cased with spaces collapsed.
+
+    Skips blank lines, lines without a key, and placeholder values (`<...>`) as the PR template ships them.
+    """
+    meta: Dict[str, str] = {}
+    in_section = False
+    for line in (body or '').splitlines():
+        if _STACK_META_HEADING.match(line):
+            in_section = True
+            continue
+        if not in_section:
+            continue
+        if _MARKDOWN_HEADING.match(line):
+            break
+        match = _STACK_META_LINE.match(line)
+        if match is None:
+            continue
+        key, value = _stack_meta_key(match.group(1)), match.group(2)
+        # `https://...` on its own line isn't a key
+        if not value or value.startswith('//') or (value.startswith('<') and value.endswith('>')):
+            continue
+        meta[key] = value
+    return meta
+
+
+def stack_info(stack: GitHubStack, position_one_body: Optional[str]) -> StackInfo:
+    """Name the stack from its position-1 PR's Stack Meta, falling back to its lowest open entry's title."""
+    entries = stack.entries or ()
+    meta = parse_stack_meta(position_one_body)
+    by_spaceless_key = {key.replace(' ', ''): key for key in meta}
+    name = meta.pop(by_spaceless_key.get('name', 'name'), None)
+    doc_url = meta.pop(by_spaceless_key.get('referencedoc', 'reference doc'), None)
+    if name is None:
+        name = next((e.title for e in entries if e.state == 'OPEN'), None)
+    return StackInfo(stack.number, stack.base_ref_name, stack.size, entries, name, doc_url, meta)
+
+
 class GitHubPr(NamedTuple):
     """A PR's fields as GitHub reports them, read from a GraphQL PullRequest node."""
 
@@ -287,6 +383,8 @@ class GitHubPr(NamedTuple):
     source_sha: str
     state: str  # GraphQL PullRequestState: OPEN / CLOSED / MERGED
     base_ref_name: str
+    stack_position: Optional[int] = None  # None when not in a native stack
+    stack: Optional[GitHubStack] = None
 
     @staticmethod
     def from_graphql(node: Dict[str, Any]) -> 'GitHubPr':
@@ -312,6 +410,8 @@ class GitHubPr(NamedTuple):
             source_sha=node['headRefOid'],
             state=node['state'],
             base_ref_name=node['baseRefName'],
+            stack_position=stack_entry['position'] if (stack_entry := node.get('stackEntry')) is not None else None,
+            stack=GitHubStack.from_graphql(stack) if (stack := node.get('stack')) is not None else None,
         )
 
 
@@ -415,6 +515,37 @@ def _read_pip_version(repo_dir: str) -> Optional[str]:
     return pip_version
 
 
+def review_state_from_decision(review_decision: str, pr_name: str) -> str:
+    """CI's review state (approved / changes_requested / pending) from GitHub's PullRequestReviewDecision."""
+    if review_decision == 'APPROVED':
+        return 'approved'
+    if review_decision == 'CHANGES_REQUESTED':
+        return 'changes_requested'
+    if review_decision == 'REVIEW_REQUIRED':
+        return 'pending'
+    if review_decision == "API_NONE":
+        # This probably means the repo has no "required reviews" configuration. But CI shouldn't merge without
+        # at least one approval, so we'll treat this as "pending":
+        return 'pending'
+    # Should be impossible, per https://docs.github.com/en/graphql/reference/enums#pullrequestreviewdecision
+    log.error(f'{pr_name}: unexpected review decision from github: {review_decision}')
+    return 'pending'
+
+
+def required_github_statuses(check_nodes: List[Dict[str, Any]]) -> Dict[str, GithubStatus]:
+    """Each required check's status, by check name, from a statusCheckRollup's contexts."""
+    statuses = {}
+    for check in check_nodes:
+        if check["isRequired"]:
+            if (typename := check["__typename"]) == "StatusContext":
+                statuses[check["context"]] = github_status(check["state"])
+            elif typename == "CheckRun":
+                statuses[check["name"]] = github_status(check["conclusion"])
+            else:
+                raise ValueError(f"Unexpected statusCheckRollup type: {typename}")
+    return statuses
+
+
 class PR(Code):
     def __init__(
         self,
@@ -446,6 +577,10 @@ class PR(Code):
         # Open review requests and each reviewer's latest approve / request-changes review
         self.review_requests: List[ReviewRequest] = []
         self.reviews: List[Review] = []
+
+        # Display-only: where this PR sits in a native stack, if it's in one
+        self.stack_position: Optional[int] = None
+        self.stack_number: Optional[int] = None
 
         self.sha: Optional[str] = None
         self.batch: Union[Batch, MergeFailureBatch, None] = None
@@ -580,6 +715,11 @@ class PR(Code):
             self.target_branch.state_changed = True
 
         self.source_branch = gh_pr.source_branch
+        self._set_stack(gh_pr)
+
+    def _set_stack(self, gh_pr: GitHubPr):
+        self.stack_position = gh_pr.stack_position
+        self.stack_number = gh_pr.stack.number if gh_pr.stack is not None else None
 
     @staticmethod
     def from_github(gh_pr: GitHubPr, target_branch: 'WatchedBranch') -> 'PR':
@@ -596,6 +736,7 @@ class PR(Code):
             set(gh_pr.labels),
             target_branch.developers,
         )
+        pr._set_stack(gh_pr)
         pr.increment_pr_metric()
         return pr
 
@@ -703,40 +844,17 @@ class PR(Code):
                 )
 
     def _apply_github_data(self, data: '_PrGithubData'):
-        review_decision, check_nodes = data.review_decision, data.check_nodes
         # Display-only: no merge or build decision depends on these, so no state_changed
         self.review_requests = data.review_requests
         self.reviews = data.reviews
 
-        if review_decision == 'APPROVED':
-            review_state = 'approved'
-        elif review_decision == 'CHANGES_REQUESTED':
-            review_state = 'changes_requested'
-        elif review_decision == 'REVIEW_REQUIRED':
-            review_state = 'pending'
-        elif review_decision == "API_NONE":
-            # This probably means the repo has no "required reviews" configuration. But CI shouldn't merge without
-            # at least one approval, so we'll treat this as "pending":
-            review_state = 'pending'
-        else:
-            # Should be impossible, per https://docs.github.com/en/graphql/reference/enums#pullrequestreviewdecision
-            log.error(f'{self.short_str()}: unexpected review decision from github: {review_decision}')
-            review_state = 'pending'
-
+        review_state = review_state_from_decision(data.review_decision, self.short_str())
         if review_state != self.review_state:
             log.info(f'{self.short_str()}: review state changing from {self.review_state} => {review_state}')
             self.set_review_state(review_state)
             self.target_branch.state_changed = True
 
-        last_known_github_status = {}
-        for check in check_nodes:
-            if check["isRequired"]:
-                if (typename := check["__typename"]) == "StatusContext":
-                    last_known_github_status[check["context"]] = github_status(check["state"])
-                elif typename == "CheckRun":
-                    last_known_github_status[check["name"]] = github_status(check["conclusion"])
-                else:
-                    raise ValueError(f"Unexpected statusCheckRollup type: {typename}")
+        last_known_github_status = required_github_statuses(data.check_nodes)
         if last_known_github_status != self.last_known_github_status:
             log.info(
                 f'{self.short_str()}: new github statuses: {self.last_known_github_status} => {last_known_github_status}'
@@ -1155,7 +1273,22 @@ _GRAPHQL_PR_FIELDS = f"""
       }}
     }}
   }}
+  stackEntry {{ position }}
 """
+
+_GITHUB_GRAPHQL_STACK_ENTRIES_LIMIT = 30
+_GRAPHQL_STACK_FIELDS = 'number baseRefName size'
+_GRAPHQL_STACK_ENTRIES = f"""
+  entries(first: {_GITHUB_GRAPHQL_STACK_ENTRIES_LIMIT}) {{
+    nodes {{ position pullRequest {{ number state title }} }}
+  }}
+"""
+
+
+def _graphql_pr_fields(stack_entries: bool) -> str:
+    # A stack's entries are the same for every member, so they're fetched once per stack: on the PR targeting the branch
+    entries = _GRAPHQL_STACK_ENTRIES if stack_entries else ''
+    return f'{_GRAPHQL_PR_FIELDS} stack {{ {_GRAPHQL_STACK_FIELDS} {entries} }}'
 
 
 class _PrGithubData(NamedTuple):
@@ -1183,9 +1316,13 @@ class _PrFetch(NamedTuple):
 class _BranchPrs(NamedTuple):
     numbers: List[int]  # open PRs targeting the branch, newest first
     prs: Dict[int, _PrGithubData]
-    unreadable: Dict[int, UnreadablePrInfo]
-    unexplained: Dict[int, UnreadablePrInfo]
+    unreadable: Dict[int, UnreadablePrInfo]  # targeting the branch or upper-stack
+    unexplained: Dict[int, UnreadablePrInfo]  # targeting the branch
     rate_limit: Optional[GraphQLRateLimit]
+    stacked_numbers: List[int]  # open upper-stack PRs (in a stack based on the branch, not targeting it), newest first
+    stacked: Dict[int, _PrGithubData]
+    stacked_unexplained: Dict[int, UnreadablePrInfo]
+    stacks: Dict[int, StackInfo]  # stacks based on the branch, by stack number
 
 
 def _graphql_reviewer(node: Optional[Dict[str, Any]]) -> Optional[Tuple[str, bool]]:
@@ -1327,6 +1464,8 @@ async def _fetch_pr_github_data(
     repo_name: str,
     pr_numbers: List[int],
     cost: Optional[_GraphQLCost] = None,
+    *,
+    stack_entries: bool = True,
 ) -> _PrFetch:
     """Fetch each PR's fields, review decision, review requests / reviews and status check rollup, batched in chunks.
 
@@ -1350,7 +1489,7 @@ async def _fetch_pr_github_data(
         aliases = []
         for pr_number, cursor in remaining.items():
             cursor_arg = f', after: "{cursor}"' if cursor is not None else ''
-            first_page_fields = _GRAPHQL_PR_FIELDS if cursor is None else ''
+            first_page_fields = _graphql_pr_fields(stack_entries) if cursor is None else ''
             aliases.append(f"""
                 pr_{pr_number}: pullRequest(number: {pr_number}) {{
                   {first_page_fields}
@@ -1446,8 +1585,62 @@ async def _fetch_pr_github_data(
     return _PrFetch(prs, unreadable, unexplained)
 
 
+def upper_stack_pr_numbers(branch: str, branch_prs: Sequence[GitHubPr]) -> List[int]:
+    """Open members of the native stacks based on `branch` that don't target it, newest first.
+    Found through each stack's entries, as fetched on the PRs that do target it."""
+    targeting = {pr.number for pr in branch_prs}
+    found: Set[int] = set()
+    for pr in branch_prs:
+        if pr.stack is not None and pr.stack.base_ref_name == branch and pr.stack.entries is not None:
+            found.update(e.number for e in pr.stack.entries if e.state == 'OPEN')
+    return sorted(found - targeting, reverse=True)
+
+
+def is_upper_stack_pr(pr: GitHubPr, branch: str) -> bool:
+    """Open, in a native stack based on `branch`, and targeting another PR in it rather than `branch`."""
+    return (
+        pr.state == 'OPEN' and pr.stack is not None and pr.stack.base_ref_name == branch and pr.base_ref_name != branch
+    )
+
+
+async def _fetch_pr_bodies(
+    gh: _GitHubGraphQL, owner: str, repo_name: str, pr_numbers: Sequence[int], cost: _GraphQLCost
+) -> Dict[int, str]:
+    """Each PR's description. A PR GitHub doesn't return is left out."""
+    if not pr_numbers:
+        return {}
+    aliases = ' '.join(f'pr_{n}: pullRequest(number: {n}) {{ body }}' for n in pr_numbers)
+    data, _ = await _graphql(gh, f'repository(owner: "{owner}", name: "{repo_name}") {{ {aliases} }}', cost)
+    repo_data = data.get("repository") or {}
+    return {n: pr["body"] for n in pr_numbers if isinstance(pr := repo_data.get(f"pr_{n}"), dict) and "body" in pr}
+
+
+async def _stack_infos(
+    gh: _GitHubGraphQL,
+    owner: str,
+    repo_name: str,
+    stacks: Iterable[GitHubStack],
+    bodies: Dict[int, str],
+    cost: _GraphQLCost,
+) -> Dict[int, StackInfo]:
+    """Name each stack from its position-1 PR's body: from `bodies` when already fetched, else fetched here."""
+    position_one = {
+        stack.number: next((e.number for e in stack.entries or () if e.position == 1), None) for stack in stacks
+    }
+    missing = sorted({n for n in position_one.values() if n is not None and n not in bodies})
+    bodies = {**bodies, **await _fetch_pr_bodies(gh, owner, repo_name, missing, cost)}
+    return {
+        stack.number: stack_info(stack, bodies.get(n) if (n := position_one[stack.number]) is not None else None)
+        for stack in stacks
+    }
+
+
 async def _fetch_branch_prs(gh: _GitHubGraphQL, owner: str, repo_name: str, branch: str) -> _BranchPrs:
-    """Everything CI reads from GitHub about the open PRs targeting `branch`: list their numbers, then fetch details."""
+    """Everything CI reads from GitHub about the open PRs targeting `branch` and the stacks based on it.
+
+    Phase 1 lists the PRs targeting `branch`; phase 2 fetches their details, with stack entries; phase 3 fetches the
+    open upper-stack PRs those entries name, and any position-1 PR body phase 2 didn't fetch (for Stack Meta).
+    """
     cost = _GraphQLCost()
     numbers = await _list_open_pr_numbers(gh, owner, repo_name, branch, cost)
     fetched = await _fetch_pr_github_data(gh, owner, repo_name, numbers, cost)
@@ -1461,7 +1654,114 @@ async def _fetch_branch_prs(gh: _GitHubGraphQL, owner: str, repo_name: str, bran
             log.info(f'PR {number} is now {data.pr.state} targeting {data.pr.base_ref_name}; skipped for this update')
             continue
         prs[number] = data
-    return _BranchPrs(numbers, prs, fetched.unreadable, fetched.unexplained, cost.rate_limit())
+
+    branch_prs = [data.pr for data in prs.values()]
+    stacked_numbers = upper_stack_pr_numbers(branch, branch_prs)
+    upper = await _fetch_pr_github_data(gh, owner, repo_name, stacked_numbers, cost, stack_entries=False)
+    stacked: Dict[int, _PrGithubData] = {}
+    for number in stacked_numbers:
+        data = upper.prs.get(number)
+        if data is None:
+            continue
+        if not is_upper_stack_pr(data.pr, branch):
+            log.info(f'upper-stack PR {number} is now {data.pr.state} targeting {data.pr.base_ref_name}; skipped')
+            continue
+        stacked[number] = data
+
+    stacks = {
+        pr.stack.number: pr.stack
+        for pr in branch_prs
+        if pr.stack is not None and pr.stack.base_ref_name == branch and pr.stack.entries is not None
+    }
+    bodies = {number: data.pr.body for number, data in [*prs.items(), *stacked.items()]}
+    stack_infos = await _stack_infos(gh, owner, repo_name, stacks.values(), bodies, cost)
+
+    return _BranchPrs(
+        numbers,
+        prs,
+        {**fetched.unreadable, **upper.unreadable},
+        fetched.unexplained,
+        cost.rate_limit(),
+        stacked_numbers,
+        stacked,
+        upper.unexplained,
+        stack_infos,
+    )
+
+
+class StackedPr(NamedTuple):
+    """An open PR in a native stack based on a watched branch, targeting another PR in the stack rather than the branch.
+
+    Display only: CI never builds, merges or assigns reviewers to it. When the PR below merges, GitHub retargets it onto
+    the branch and it becomes a `PR`.
+    """
+
+    github: GitHubPr
+    review_state: str
+    review_requests: List[ReviewRequest]
+    reviews: List[Review]
+    github_statuses: Dict[str, GithubStatus]  # required checks only, as for `PR`
+
+    @staticmethod
+    def from_github_data(data: _PrGithubData) -> 'StackedPr':
+        return StackedPr(
+            data.pr,
+            review_state_from_decision(data.review_decision, f'pr-{data.pr.number}'),
+            data.review_requests,
+            data.reviews,
+            required_github_statuses(data.check_nodes),
+        )
+
+
+class PrSummary(NamedTuple):
+    """A PR CI doesn't hold in memory (e.g. merged or closed), read from GitHub for the PR details page."""
+
+    number: int
+    title: str
+    labels: List[str]
+    merged: bool
+    merge_commit_sha: Optional[str]
+    stack_position: Optional[int]
+    stack: Optional[StackInfo]
+
+
+async def fetch_pr_summary(gh: _GitHubGraphQL, owner: str, repo_name: str, number: int) -> Optional[PrSummary]:
+    """None if GitHub has no such PR. Raises GitHubGraphQLError if GitHub returned nothing at all."""
+    cost = _GraphQLCost()
+    data, _ = await _graphql(
+        gh,
+        f"""
+        repository(owner: "{owner}", name: "{repo_name}") {{
+          pullRequest(number: {number}) {{
+            number title body merged
+            mergeCommit {{ oid }}
+            labels(first: 100) {{ nodes {{ name }} }}
+            stackEntry {{ position }}
+            stack {{ {_GRAPHQL_STACK_FIELDS} {_GRAPHQL_STACK_ENTRIES} }}
+          }}
+        }}
+        """,
+        cost,
+    )
+    pr = (data.get("repository") or {}).get("pullRequest")
+    if pr is None:
+        return None
+    stack = None
+    if pr["stack"] is not None:
+        stack_infos = await _stack_infos(
+            gh, owner, repo_name, [GitHubStack.from_graphql(pr["stack"])], {number: pr["body"]}, cost
+        )
+        stack = next(iter(stack_infos.values()))
+    merge_commit = pr["mergeCommit"]
+    return PrSummary(
+        number=pr["number"],
+        title=pr["title"],
+        labels=[label["name"] for label in pr["labels"]["nodes"]],
+        merged=pr["merged"],
+        merge_commit_sha=merge_commit["oid"] if pr["merged"] and merge_commit is not None else None,
+        stack_position=pr["stackEntry"]["position"] if pr["stackEntry"] is not None else None,
+        stack=stack,
+    )
 
 
 class WatchedBranch(Code):
@@ -1480,6 +1780,9 @@ class WatchedBranch(Code):
         self.developers = developers
 
         self.prs: Dict[int, PR] = {}
+        # Display only: build, merge, heal and #assign code reads `prs`, never these
+        self.stacked_prs: Dict[int, StackedPr] = {}
+        self.stacks: Dict[int, StackInfo] = {}
         self.sha: Optional[str] = None
         self.last_seen_sha: Optional[str] = None
 
@@ -1515,6 +1818,15 @@ class WatchedBranch(Code):
 
         # Async merge failures are only observed on a later pass, so remember them to give other PRs a turn
         self.failed_merges: Dict[MergeAttempt, FailedMerge] = {}
+
+    def tracks_pr_event(self, number: int, base: FQBranch) -> bool:
+        """Whether a webhook about PR `number`, whose base is `base`, should trigger a GitHub update. True for a PR CI
+        holds, one targeting this branch, or one targeting a held PR's head branch (e.g. a new upper-stack PR)."""
+        if number in self.prs or number in self.stacked_prs or base == self.branch:
+            return True
+        return any(pr.source_branch == base for pr in self.prs.values()) or any(
+            pr.github.source_branch == base for pr in self.stacked_prs.values()
+        )
 
     def running_prs(self) -> List[PR]:
         return [pr for pr in self.prs.values() if pr.batch and not pr.build_state]
@@ -1753,7 +2065,9 @@ class WatchedBranch(Code):
         fetched = await _fetch_branch_prs(gh, self.branch.repo.owner, self.branch.repo.name, self.branch.name)
         if fetched.rate_limit is not None:
             self.graphql_rate_limit = fetched.rate_limit
-        await self._record_pr_read_errors(db, {**fetched.unreadable, **fetched.unexplained})
+        await self._record_pr_read_errors(
+            db, {**fetched.unreadable, **fetched.unexplained, **fetched.stacked_unexplained}
+        )
 
         new_prs: Dict[int, PR] = {}
         for number in fetched.numbers:
@@ -1810,6 +2124,15 @@ class WatchedBranch(Code):
 
         for number, pr_data in fetched.prs.items():
             new_prs[number]._apply_github_data(pr_data)
+
+        stacked_prs: Dict[int, StackedPr] = {}
+        for number in fetched.stacked_numbers:
+            if (pr_data := fetched.stacked.get(number)) is not None:
+                stacked_prs[number] = StackedPr.from_github_data(pr_data)
+            elif number in fetched.stacked_unexplained and number in self.stacked_prs:
+                stacked_prs[number] = self.stacked_prs[number]
+        self.stacked_prs = stacked_prs
+        self.stacks = fetched.stacks
 
     async def _record_pr_read_errors(self, db: Database, unreadable: Dict[int, UnreadablePrInfo]):
         """Record an update_failed event, with its pr_number, for each PR newly unreadable (or at a new head SHA).
