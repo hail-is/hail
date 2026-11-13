@@ -78,16 +78,18 @@ async def test_trigger_violations_surface_as_user_errors(db, unique_name, op):
     q, q2, bp, bp2 = unique_name('q-trig'), unique_name('q-trig2'), unique_name('bp-trig'), unique_name('bp-trig2')
     quote_id = await _quote(db, q, authorized_amount=100.0)
     await create_billing_project(db, bp, quote_id, 100.0, 'admin', 'global_bm')
+    if op == 'move':
+        await create_billing_project(db, bp2, await _quote(db, q2), 1.0, 'admin', 'global_bm')
+    elif op == 'patch':
+        await patch_billing_project(db, bp, {'limit': 50.0}, 'admin', 'global_bm')
+        await create_billing_project(db, bp2, quote_id, 50.0, 'admin', 'global_bm')
     with patch.object(billing_project_management, '_sum_of_limits', AsyncMock(return_value=0)):
         with pytest.raises(BillingValidationError, match='Billing invariant violated'):
             if op == 'create':
                 await create_billing_project(db, bp2, quote_id, 1.0, 'admin', 'global_bm')
             elif op == 'move':
-                await create_billing_project(db, bp2, await _quote(db, q2), 1.0, 'admin', 'global_bm')
                 await change_billing_project_quote(db, bp2, quote_id, 'admin')
             elif op == 'patch':
-                await patch_billing_project(db, bp, {'limit': 50.0}, 'admin', 'global_bm')
-                await create_billing_project(db, bp2, quote_id, 50.0, 'admin', 'global_bm')
                 await patch_billing_project(db, bp, {'limit': 60.0}, 'admin', 'global_bm')
             else:
                 await edit_quote(db, q, {'authorized_amount': 50.0}, 'admin', 'global_bm')
