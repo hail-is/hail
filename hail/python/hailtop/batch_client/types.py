@@ -31,6 +31,11 @@ class GetJobResponseV1Alpha(TypedDict):
     inst_coll: NotRequired[str]
 
 
+class GetJobPreemptionCostsResponseV1Alpha(TypedDict):
+    retried_attempts_cost: Optional[float]
+    projected_nonpreemptible_cost: Optional[float]
+
+
 class JobListEntryV1Alpha(TypedDict):
     batch_id: int
     job_id: int

@@ -101,6 +101,7 @@ export function JobPage({ basePath, batchId, jobId }: Props): JSX.Element {
   const {
     job,
     attempts,
+    preemptionCosts,
     error,
     loading,
     autoRefresh,
@@ -231,6 +232,7 @@ export function JobPage({ basePath, batchId, jobId }: Props): JSX.Element {
           jobId={jobId}
           basePath={basePath}
           job={job}
+          preemptionCosts={preemptionCosts}
           latestAttempt={latestAttempt}
           autoRefresh={autoRefresh}
           isTerminal={isTerminal}

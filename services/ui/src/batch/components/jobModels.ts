@@ -73,6 +73,11 @@ export type Job = {
   status?: JobStatus | null;
 };
 
+export type PreemptionCosts = {
+  retried_attempts_cost: number | null;
+  projected_nonpreemptible_cost: number | null;
+};
+
 export type Attempt = {
   attempt_id: string;
   instance_name?: string;

@@ -1,4 +1,4 @@
-import { Job, Attempt } from './jobModels';
+import { Job, Attempt, PreemptionCosts } from './jobModels';
 import { stateColor } from './StateIcon';
 import { CollapsibleItem } from './CollapsibleItem';
 import { RelativeTime } from './RelativeTime';
@@ -10,6 +10,7 @@ interface Props {
   jobId: string;
   basePath: string;
   job: Job;
+  preemptionCosts: PreemptionCosts | null;
   latestAttempt: Attempt | null;
   autoRefresh: boolean;
   isTerminal: boolean;
@@ -20,7 +21,7 @@ interface Props {
   jobRefreshing: boolean;
 }
 
-export function JobStatusPanel({ batchId, jobId, basePath, job, latestAttempt, autoRefresh, isTerminal, hasJvmProfile, onAutoRefreshToggle, countdownKey, refreshIntervalMs, jobRefreshing }: Props): JSX.Element {
+export function JobStatusPanel({ batchId, jobId, basePath, job, preemptionCosts, latestAttempt, autoRefresh, isTerminal, hasJvmProfile, onAutoRefreshToggle, countdownKey, refreshIntervalMs, jobRefreshing }: Props): JSX.Element {
   return (
     <div className="w-full lg:basis-1/4 drop-shadow-sm shrink-0">
       <ul className="border border-collapse divide-y bg-slate-50 rounded">
@@ -75,6 +76,23 @@ export function JobStatusPanel({ batchId, jobId, basePath, job, latestAttempt, a
               </table>
             )}
           </CollapsibleItem>
+        )}
+        {preemptionCosts?.retried_attempts_cost != null && preemptionCosts.retried_attempts_cost > 0 && (
+          <li className="px-4 py-3 text-sm">
+            <div className="flex justify-between items-center">
+              <span className="font-medium">Cost of retried attempts</span>
+              <span className="text-zinc-400 text-xs"><CostDisplay cost={preemptionCosts.retried_attempts_cost} /></span>
+            </div>
+            <div className="text-xs text-zinc-500 mt-1">Attempts whose VM went away before they finished, most often because it was preempted.</div>
+          </li>
+        )}
+        {preemptionCosts?.projected_nonpreemptible_cost != null && (
+          <li className="px-4 py-3 text-sm">
+            <div className="flex justify-between items-center">
+              <span className="font-medium">Projected cost on non-preemptible</span>
+              <span className="text-zinc-400 text-xs"><CostDisplay cost={preemptionCosts.projected_nonpreemptible_cost} /></span>
+            </div>
+          </li>
         )}
         {hasJvmProfile && isTerminal && (
           <li className="p-4">

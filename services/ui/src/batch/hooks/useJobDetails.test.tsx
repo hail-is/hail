@@ -11,6 +11,7 @@ const ATTEMPT_OLDER = 'attempt-0';
 const mockJob = { id: 1, batch_id: 1, state: 'Running', spec: {} };
 const mockTerminalJob = { id: 1, batch_id: 1, state: 'Success', spec: {} };
 const mockAttempts = [{ attempt_id: ATTEMPT_OLDER }, { attempt_id: ATTEMPT_LATEST }];
+const mockPreemptionCosts = { retried_attempts_cost: 0.25, projected_nonpreemptible_cost: 4.5 };
 const LOG_V1 = 'log text v1';
 const LOG_V2 = 'log text v2 — updated';
 const JOB_URL = `${BASE_PATH}/api/v1alpha/batches/${BATCH_ID}/jobs/${JOB_ID}`;
@@ -31,6 +32,9 @@ function makeFetch({ log = LOG_V1, job = mockJob }: MockFetchOpts = {}) {
     }
     if (u.includes('/resource_usage')) {
       return Promise.resolve({ ok: true, json: () => Promise.resolve(null) });
+    }
+    if (u === `${JOB_URL}/preemption_costs`) {
+      return Promise.resolve({ ok: true, json: () => Promise.resolve(mockPreemptionCosts) });
     }
     return Promise.resolve({ ok: false, status: 404 });
   });
@@ -303,5 +307,36 @@ describe('T8 — proactive prefetch on refresh', () => {
     // Data should now be populated without ever calling ensureAttemptLoaded
     expect(result.current.getAttemptData(ATTEMPT_LATEST).loading).toBe(false);
     expect(result.current.getAttemptData(ATTEMPT_LATEST).logs.get('main')).toBe(LOG_V1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// T9 — Preemption costs are fetched once, and only for a terminal job
+// ---------------------------------------------------------------------------
+describe('T9 — preemption costs', () => {
+  const preemptionCostsCalls = (fetchSpy: ReturnType<typeof makeFetch>) =>
+    fetchSpy.mock.calls.filter(([u]) => u === `${JOB_URL}/preemption_costs`).length;
+
+  it('never fetches them while the job is running', async () => {
+    const fetchSpy = makeFetch();
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const { result } = renderHook(() => useJobDetails(BASE_PATH, BATCH_ID, JOB_ID));
+    await flush();
+
+    expect(preemptionCostsCalls(fetchSpy)).toBe(0);
+    expect(result.current.preemptionCosts).toBeNull();
+  });
+
+  it('fetches them once a terminal job has loaded', async () => {
+    const fetchSpy = makeFetch({ job: mockTerminalJob });
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const { result } = renderHook(() => useJobDetails(BASE_PATH, BATCH_ID, JOB_ID));
+    await flush();
+    await flush();
+
+    expect(preemptionCostsCalls(fetchSpy)).toBe(1);
+    expect(result.current.preemptionCosts).toEqual(mockPreemptionCosts);
   });
 });

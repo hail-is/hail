@@ -62,6 +62,7 @@ from hailtop.batch_client.types import (
     GetBatchTimingResponseV1Alpha,
     GetJobGraphResponseV1Alpha,
     GetJobGroupResponseV1Alpha,
+    GetJobPreemptionCostsResponseV1Alpha,
     GetJobResponseV1Alpha,
     GetJobsResponseV1Alpha,
     JobListEntryV1Alpha,
@@ -132,6 +133,7 @@ from ..utils import (
     rewrite_dockerhub_image,
     unavailable_if_frozen,
 )
+from .job_preemption_costs import get_job_preemption_costs
 from .query import (
     CURRENT_QUERY_VERSION,
     parse_job_group_jobs_query_v1,
@@ -2736,6 +2738,18 @@ async def get_job(request: web.Request, _, batch_id: int) -> web.Response:
     return json_response(status)
 
 
+async def _get_job_preemption_costs(app, batch_id: int, job_id: int) -> GetJobPreemptionCostsResponseV1Alpha:
+    record = await _get_job_record(app, batch_id, job_id)
+    return await get_job_preemption_costs(app['db'], batch_id, job_id, record['state'], record['attempt_id'])
+
+
+@routes.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/preemption_costs')
+@billing_project_users_only()
+async def api_get_job_preemption_costs(request: web.Request, _, batch_id: int) -> web.Response:
+    job_id = int(request.match_info['job_id'])
+    return json_response(await _get_job_preemption_costs(request.app, batch_id, job_id))
+
+
 @routes.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/resource_usage')
 @billing_project_users_only()
 async def get_job_resource_usage(request: web.Request, _, batch_id: int) -> web.Response:
@@ -3029,11 +3043,12 @@ async def ui_get_job(request, userdata, batch_id):
         return await render_template('batch', request, userdata, 'job_react.html', page_context)
 
     # Otherwise: old server-side style rendering:
-    job, attempts, job_log_bytes, resource_usage = await asyncio.gather(
+    job, attempts, job_log_bytes, resource_usage, preemption_costs = await asyncio.gather(
         _get_job(app, batch_id, job_id),
         _get_attempts(app, batch_id, job_id),
         _get_job_log(app, batch_id, job_id),
         _get_job_resource_usage(app, batch_id, job_id),
+        _get_job_preemption_costs(app, batch_id, job_id),
     )
 
     job = cast(Dict[str, Any], job)
@@ -3147,6 +3162,11 @@ async def ui_get_job(request, userdata, batch_id):
             resource_usage, memory_limit_bytes, io_storage_limit_bytes, non_io_storage_limit_bytes
         ),
         'has_jvm_profile': has_jvm_profile,
+        # the retried row is shown only when there was retried cost
+        'retried_attempts_cost': (
+            cost_str(preemption_costs['retried_attempts_cost']) if preemption_costs['retried_attempts_cost'] else None
+        ),
+        'projected_nonpreemptible_cost': cost_str(preemption_costs['projected_nonpreemptible_cost']),
     }
 
     return await render_template('batch', request, userdata, 'job.html', page_context)
