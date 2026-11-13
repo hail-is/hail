@@ -10,6 +10,8 @@ import { useTip, FloatingTip } from '../shared/useTip';
 import { AutoRefreshBar } from '../shared/AutoRefreshBar';
 import { formatTimestamp } from '../shared/timeUtils';
 import { EventLog } from './components/EventLog';
+import { LabelChip } from './components/LabelChip';
+import { sortLabels } from './components/labelModel';
 
 const REFRESH_INTERVAL_MS = 30_000;
 
@@ -246,7 +248,10 @@ function MergeEligibility({ pr, basePath, batchBaseUrl, wbIndex }: {
         </li>
         {pr.blocking_labels && pr.blocking_labels.length > 0 && (
           <li>
-            <Icon name="cancel" className="text-red-600" /> Blocked by label: {pr.blocking_labels.join(', ')}
+            <Icon name="cancel" className="text-red-600" /> Blocked by label:{' '}
+            <span className="inline-flex flex-wrap gap-1 align-middle">
+              {pr.blocking_labels.map((label) => <LabelChip key={label} label={label} />)}
+            </span>
           </li>
         )}
         {pr.merge_pending && (
@@ -562,7 +567,6 @@ function BuildPanel({ pr, basePath, batchBaseUrl, wbBranchName, prNumber, batchS
             </a>
           </div>
           <div>cost: {pr.batch.cost ?? ''}</div>
-          <div>labels: {pr.labels.join(', ')}</div>
         </div>
 
         {jobBuckets && totalJobs > 0 && (
@@ -949,6 +953,12 @@ function PrPage({ basePath, batchBaseUrl, wbIndex, prNumber }: {
           <><Icon name="block" className="text-red-600" /> closed without merging</>
         )}
       </div>
+      {pr.labels.length > 0 && (
+        <div className="mt-1 text-sm flex flex-wrap items-center gap-1">
+          Labels:
+          {sortLabels(pr.labels).map((label) => <LabelChip key={label} label={label} />)}
+        </div>
+      )}
 
       {active && <MergeEligibility pr={pr} basePath={basePath} batchBaseUrl={batchBaseUrl} wbIndex={wbIndex} />}
       {active && (
