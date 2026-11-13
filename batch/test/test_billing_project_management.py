@@ -399,7 +399,7 @@ async def test_change_bp_quote_nonexistent_bp_raises(db, unique_name):
     q_change_missing_bp = unique_name('q-change-missing-bp')
     await create_quote(db, q_change_missing_bp, cost_object='CO', actor='admin', authorized_amount=500.0)
     q = await db.select_and_fetchone('SELECT id FROM quotes WHERE name = %s', (q_change_missing_bp,))
-    with pytest.raises(Exception):  # NonExistentBillingProjectError
+    with pytest.raises(NonExistentBillingProjectError):
         await change_billing_project_quote(db, 'no-such-bp', q['id'], actor='admin')
 
 
@@ -566,7 +566,7 @@ async def test_add_billing_project_user_closed_raises(db, unique_name):
     bp_add_u_cl = unique_name('bp-add-u-cl')
     await _make_bp(db, q_add_u_cl, bp_add_u_cl)
     await close_billing_project(db, bp_add_u_cl, 'admin')
-    with pytest.raises(Exception):  # ClosedBillingProjectError
+    with pytest.raises(ClosedBillingProjectError):
         await add_billing_project_user(db, bp_add_u_cl, 'nova', 'admin')
 
 
@@ -625,7 +625,7 @@ async def test_close_billing_project_happy_path(db, unique_name):
 
 
 async def test_close_billing_project_not_found_raises(db):
-    with pytest.raises(Exception):  # NonExistentBillingProjectError
+    with pytest.raises(NonExistentBillingProjectError):
         await close_billing_project(db, 'no-such-bp', 'admin')
 
 
