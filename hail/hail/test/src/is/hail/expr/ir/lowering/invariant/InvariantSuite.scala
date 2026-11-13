@@ -128,12 +128,6 @@ class InvariantSuite {
           ),
         )
       },
-      // — relational —
-      // nested RelationalLets bind the same name
-      {
-        val n = Name("rel")
-        RelationalLet(n, I32(1), RelationalLet(n, I32(2), RelationalRef(n, TInt32)))
-      },
       // — renamed and kept binders share a name, neither in the other's scope —
       // TableMapRows binds 'row', a StreamMap beside it re-binds it
       MakeTuple.ordered(FastSeq(

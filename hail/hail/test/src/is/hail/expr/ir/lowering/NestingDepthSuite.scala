@@ -89,12 +89,10 @@ class NestingDepthSuite {
       dropped(underAgg, Scope.AGG)(b => StreamAggScan(range, freshName(), b)),
       dropped(underAgg, Scope.AGG)(b => ApplyAggOp(Take(), b)(I32(0))),
       dropped(underScan, Scope.SCAN)(b => ApplyScanOp(Take(), b)(I32(0))),
-      dropped(underScan, Scope.EVAL)(b => RelationalLet(freshName(), b, I32(0))),
     ) ++
       droppedBoth(b => aggFoldIR(I32(0))(acc => acc)((_, _) => b)) ++
       droppedBoth(b => ArrayMaximalIndependentSet(range, Some((freshName(), freshName(), b)))) ++
       droppedBoth(b => cdaIR(range, makestruct(), "test")((_, _) => b)) ++
-      droppedBoth(b => RelationalLet(freshName(), I32(0), b)) ++
       sameKind ++
       created
   }

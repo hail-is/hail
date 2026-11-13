@@ -220,7 +220,7 @@ class Pretty(
       case Family.IO => headerIO(ir)
       case Family.NDArray => headerNDArray(ir, elideBindings)
       case Family.Random => headerRandom(ir)
-      case Family.Relational => headerRelational(ir, elideBindings)
+      case Family.Relational => headerRelational(ir)
       case Family.Table => headerTable(ir)
       case Family.Matrix => headerMatrix(ir)
       case Family.BlockMatrix => headerBlockMatrix(ir, elideBindings)
@@ -681,15 +681,14 @@ class Pretty(
       case _ => Iterable.empty
     }
 
-  private def headerRelational(ir: BaseIR, elideBindings: Boolean): Iterable[Doc] =
+  private def headerRelational(ir: BaseIR): Iterable[Doc] =
     (ir.tag.toInt: @switch) match {
-      case Tag.RelationalRef =>
-        val x = ir.asInstanceOf[RelationalRef]
-        if (elideBindings) single(x._typ.parsableString())
-        else FastSeq(prettyName(x.name), x._typ.parsableString())
-      case Tag.RelationalLet =>
-        if (elideBindings) Iterable.empty
-        else single(prettyName(ir.asInstanceOf[RelationalLet].name))
+      case Tag.TableToValueApply =>
+        val function = ir.asInstanceOf[TableToValueApply].function
+        single(prettyStringLiteral(Serialization.write(function)(RelationalFunctions.formats)))
+      case Tag.BlockMatrixToValueApply =>
+        val function = ir.asInstanceOf[BlockMatrixToValueApply].function
+        single(prettyStringLiteral(Serialization.write(function)(RelationalFunctions.formats)))
       case _ =>
         Iterable.empty
     }
@@ -762,9 +761,6 @@ class Pretty(
       case Tag.TableToTableApply =>
         val function = ir.asInstanceOf[TableToTableApply].function
         single(prettyStringLiteral(JsonMethods.compact(function.toJValue)))
-      case Tag.TableToValueApply =>
-        val function = ir.asInstanceOf[TableToValueApply].function
-        single(prettyStringLiteral(Serialization.write(function)(RelationalFunctions.formats)))
       case Tag.BlockMatrixToTableApply =>
         val function = ir.asInstanceOf[BlockMatrixToTableApply].function
         single(prettyStringLiteral(Serialization.write(function)(RelationalFunctions.formats)))
@@ -806,8 +802,6 @@ class Pretty(
           )(RelationalSpec.formats)),
           Pretty.prettyBooleanLiteral(x.keep),
         )
-      case Tag.RelationalLetTable =>
-        single(prettyName(ir.asInstanceOf[RelationalLetTable].name))
       case _ =>
         Iterable.empty
     }
@@ -905,8 +899,6 @@ class Pretty(
           )(RelationalSpec.formats)),
           Pretty.prettyBooleanLiteral(x.keep),
         )
-      case Tag.RelationalLetMatrixTable =>
-        single(prettyName(ir.asInstanceOf[RelationalLetMatrixTable].name))
       case _ =>
         Iterable.empty
     }
@@ -970,9 +962,6 @@ class Pretty(
             prettyName(x.rightName),
             Pretty.prettyClass(x.sparsityStrategy),
           )
-      case Tag.BlockMatrixToValueApply =>
-        val function = ir.asInstanceOf[BlockMatrixToValueApply].function
-        single(prettyStringLiteral(Serialization.write(function)(RelationalFunctions.formats)))
       case _ =>
         Iterable.empty
     }
@@ -1265,13 +1254,6 @@ class Pretty(
           val body =
             blockBindings.lookupOption(name).getOrElse("#" + uniqueify("undefined_ref", Some(name)))
           concat(openBlock, group(nest(2, concat(line, body, line)), "}"))
-        case RelationalRef(name, _) =>
-          val body =
-            blockBindings.lookupOption(name).getOrElse("#" + uniqueify(
-              "undefined_relational_ref",
-              Some(name),
-            ))
-          concat(openBlock, group(nest(2, concat(line, body, line)), "}"))
         case _ =>
           val (pre, body) = pretty(ir, blockBindings)
           concat(openBlock, nest(2, vsep(pre, body)), line, "}")
@@ -1288,18 +1270,6 @@ class Pretty(
           }
         val (bodyPre, bodyHead) = pretty(body, newBindings)
         (concat(valueDoc, bodyPre), bodyHead)
-      case RelationalLet(name, value, body) =>
-        val (valueDoc, valueIdent) = prettyWithIdent(value, bindings, "%", Some(name))
-        val (bodyPre, bodyHead) = pretty(body, bindings.bind(name, valueIdent))
-        (concat(valueDoc, bodyPre), bodyHead)
-      case RelationalLetTable(name, value, body) =>
-        val (valueDoc, valueIdent) = prettyWithIdent(value, bindings, "%", Some(name))
-        val (bodyPre, bodyHead) = pretty(body, bindings.bind(name, valueIdent))
-        (concat(valueDoc, bodyPre), bodyHead)
-      case RelationalLetMatrixTable(name, value, body) =>
-        val (valueDoc, valueIdent) = prettyWithIdent(value, bindings, "%", Some(name))
-        val (bodyPre, bodyHead) = pretty(body, bindings.bind(name, valueIdent))
-        (concat(valueDoc, bodyPre), bodyHead)
       case _ =>
         val strictChildBodies = mutable.ArrayBuilder.make[Doc]
         val strictChildIdents = for {
@@ -1309,11 +1279,6 @@ class Pretty(
           child match {
             case Ref(name, _) =>
               bindings.lookupOption(name).getOrElse("#" + uniqueify("undefined_ref", Some(name)))
-            case RelationalRef(name, _) =>
-              bindings.lookupOption(name).getOrElse("#" + uniqueify(
-                "undefined_relational_ref",
-                Some(name),
-              ))
             case _ =>
               val (body, ident) = prettyWithIdent(child, bindings, "!", None)
               strictChildBodies += body

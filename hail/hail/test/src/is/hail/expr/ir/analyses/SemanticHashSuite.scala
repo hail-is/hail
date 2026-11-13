@@ -39,15 +39,12 @@ class SemanticHashSuite {
       (NA(TInt32), NA(TFloat64), false, "Refl"),
     )
 
-  def mkRelationalLet(bindings: IndexedSeq[(Name, IR)], body: IR): IR =
-    bindings.foldRight(body) { case ((name, value), body) =>
-      RelationalLet(name, value, body)
-    }
-
   def isLetSemanticallyEquivalent = {
     val x = freshName()
     val y = freshName()
-    ArraySeq((Let(_, _), Ref), (mkRelationalLet _, RelationalRef)).flatMap { case (let, ref) =>
+    val let = Let(_: IndexedSeq[(Name, IR)], _: IR)
+    val ref = Ref(_: Name, _: Type)
+    locally {
       ArraySeq[(BaseIR, BaseIR, Boolean, String)](
         (
           let(FastSeq(x -> I32(0)), ref(x, TInt32)),

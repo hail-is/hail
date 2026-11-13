@@ -18,8 +18,6 @@ object FoldConstants {
       {
         case _: Ref |
             _: In |
-            _: RelationalRef |
-            _: RelationalLet |
             _: UUID4 |
             _: ApplyAggOp |
             _: ApplyScanOp |

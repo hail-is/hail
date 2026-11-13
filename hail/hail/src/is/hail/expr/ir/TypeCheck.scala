@@ -51,7 +51,6 @@ object TypeCheck extends Logging {
       case _: SeqOp => // let seqop checking below catch bad void arguments
       case _: InitOp => // let initop checking below catch bad void arguments
       case _: If if i != 0 =>
-      case _: RelationalLet if i == 1 =>
       case _: WriteMetadata =>
       case _ =>
         throw new RuntimeException(
@@ -75,7 +74,7 @@ object TypeCheck extends Logging {
       case Family.IO => checkIO(ir)
       case Family.NDArray => checkNDArray(ir)
       case Family.Random => checkRandom(ir)
-      case Family.Relational => checkRelational(ir, env)
+      case Family.Relational => checkRelational(ir)
       case Family.Table => checkTable(ir)
       case Family.Matrix => checkMatrix(ir)
       case Family.BlockMatrix => checkBlockMatrix(ir)
@@ -720,23 +719,7 @@ object TypeCheck extends Logging {
       case _ =>
     }
 
-  private def checkRelational(ir: BaseIR, env: BindingEnv[Type]): Unit =
-    (ir.tag.toInt: @switch) match {
-      case Tag.RelationalRef =>
-        val x = ir.asInstanceOf[RelationalRef]
-        env.relational.lookupOption(x.name) match {
-          case Some(t2) =>
-            if (x._typ != t2)
-              throw new RuntimeException(
-                s"RelationalRef type mismatch:\n  node=${x._typ}\n   env=$t2"
-              )
-          case None =>
-            throw new RuntimeException(s"RelationalRef not found in env: ${x.name}")
-        }
-      case _ => // RelationalLet
-    }
-
-  private def checkTable(ir: BaseIR): Unit =
+  private def checkRelational(ir: BaseIR): Unit =
     (ir.tag.toInt: @switch) match {
       case Tag.TableAggregate =>
         val x = ir.asInstanceOf[TableAggregate]
@@ -744,6 +727,11 @@ object TypeCheck extends Logging {
       case Tag.TableCollect =>
         val x = ir.asInstanceOf[TableCollect]
         assert(x.child.typ.key.isEmpty)
+      case _ =>
+    }
+
+  private def checkTable(ir: BaseIR): Unit =
+    (ir.tag.toInt: @switch) match {
       case Tag.TableMultiWrite =>
         val x = ir.asInstanceOf[TableMultiWrite]
         val t = x._children.head.typ

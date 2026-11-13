@@ -3680,8 +3680,7 @@ class IRSuite {
         I32(1),
         Str("foo"),
         ETypeValueWriter(TypedCodecSpec(ctx, PInt32(), BufferSpec.default)),
-      ),
-      relationalBindIR(I32(0))(_ => I32(0)), {
+      ), {
         val y = freshName()
         TailLoop(y, IndexedSeq(freshName() -> I32(0)), TInt32, Recur(y, FastSeq(I32(4)), TInt32))
       },
@@ -3781,8 +3780,7 @@ class IRSuite {
           read,
           FastSeq(Interval(IntervalEndpoint(RowSeq(0), -1), IntervalEndpoint(RowSeq(10), 1))),
           keep = false,
-        ),
-        RelationalLetTable(freshName(), I32(0), read), {
+        ), {
           val structs = MakeStream(FastSeq(), TStream(TStruct()))
           val partitioner = RVDPartitioner.empty(TStruct())
           TableGen(
@@ -3932,7 +3930,6 @@ class IRSuite {
           FastSeq(Interval(IntervalEndpoint(RowSeq(0), -1), IntervalEndpoint(RowSeq(10), 1))),
           keep = false,
         ),
-        RelationalLetMatrixTable(freshName(), I32(0), read),
       )
 
       xs.map(x => Array(x))
@@ -4113,60 +4110,23 @@ class IRSuite {
     assertEvalsTo(ir, 61L)
   }
 
-  @Test def testRelationalLet(implicit ctx: ExecuteContext): Unit = {
-    implicit val execStrats = ExecStrategy.interpretOnly
+  // EvalRelationalValues replaces the TableCount with its value where it sits, before the outer
+  // table is lowered
+  @Test def testRelationalValueInRowExpr(implicit ctx: ExecuteContext): Unit = {
+    implicit val execStrats = ExecStrategy.allRelational
 
-    val ir = relationalBindIR(NA(TInt32))(x => x)
-    assertEvalsTo(ir, null)
-  }
-
-  @Test def testRelationalLetTable(implicit ctx: ExecuteContext): Unit = {
-    implicit val execStrats = ExecStrategy.interpretOnly
-
-    val t = TArray(TStruct("x" -> TInt32))
-    val x = RelationalRef(freshName(), t)
+    val mapped = TableMapRows(
+      TableRange(3, 2),
+      InsertFields(
+        Ref(TableIR.rowName, TStruct("idx" -> TInt32)),
+        FastSeq("n" -> TableCount(TableRange(5, 1))),
+      ),
+    )
     val ir = TableAggregate(
-      RelationalLetTable(
-        x.name,
-        Literal(t, FastSeq(RowSeq(1))),
-        TableParallelize(MakeStruct(FastSeq(
-          "rows" -> x,
-          "global" -> MakeStruct(FastSeq()),
-        ))),
-      ),
-      ApplyAggOp(Count())(),
+      mapped,
+      ApplyAggOp(Sum())(GetField(Ref(TableIR.rowName, mapped.typ.rowType), "n")),
     )
-    assertEvalsTo(ir, 1L)
-  }
-
-  @Test def testRelationalLetMatrixTable(implicit ctx: ExecuteContext): Unit = {
-    implicit val execStrats = ExecStrategy.interpretOnly
-
-    val t = TArray(TStruct("x" -> TInt32))
-    val x = RelationalRef(freshName(), t)
-    val m = CastTableToMatrix(
-      TableMapGlobals(
-        TableMapRows(
-          TableRange(1, 1),
-          InsertFields(
-            Ref(TableIR.rowName, TStruct("idx" -> TInt32)),
-            FastSeq("entries" -> x),
-          ),
-        ),
-        MakeStruct(FastSeq("cols" -> MakeArray(
-          FastSeq(MakeStruct(FastSeq("s" -> I32(0)))),
-          TArray(TStruct("s" -> TInt32)),
-        ))),
-      ),
-      "entries",
-      "cols",
-      FastSeq(),
-    )
-    val ir = MatrixAggregate(
-      RelationalLetMatrixTable(x.name, Literal(t, FastSeq(RowSeq(1))), m),
-      ApplyAggOp(Count())(),
-    )
-    assertEvalsTo(ir, 1L)
+    assertEvalsTo(ir, 15L)
   }
 
   def testRelationalFunctionsSerialize(ctx: ExecuteContext) = Seq[Any](

@@ -21,46 +21,25 @@ object LowerMatrixIR extends Logging {
   val colsFieldName: String = "__cols"
 
   def apply(ctx: ExecuteContext, ir0: BaseIR): BaseIR = {
-    val ab = ArraySeq.newBuilder[(Name, IR)]
-
     val lowered =
       ir0 match {
-        case ir: IR =>
-          val l1 = lower(ctx, ir, ab)
-          ab.result().foldRight[IR](l1) { case ((ident, value), body) =>
-            RelationalLet(ident, value, body)
-          }
-        case tir: TableIR =>
-          val l1 = lower(ctx, tir, ab)
-          ab.result().foldRight[TableIR](l1) { case ((ident, value), body) =>
-            RelationalLetTable(ident, value, body)
-          }
-        case mir: MatrixIR =>
-          val l1 = lower(ctx, mir, ab)
-          ab.result().foldRight[TableIR](l1) { case ((ident, value), body) =>
-            RelationalLetTable(ident, value, body)
-          }
-        case bmir: BlockMatrixIR =>
-          val l1 = lower(ctx, bmir, ab)
-          assert(ab.result().isEmpty)
-          l1
+        case ir: IR => lower(ctx, ir)
+        case tir: TableIR => lower(ctx, tir)
+        case mir: MatrixIR => lower(ctx, mir)
+        case bmir: BlockMatrixIR => lower(ctx, bmir)
       }
 
     if (lowered ne ir0) NormalizeNames()(ctx, lowered)
     else ir0
   }
 
-  private def lowerChildren(
-    ctx: ExecuteContext,
-    ir: BaseIR,
-    ab: mutable.Growable[(Name, IR)],
-  ): BaseIR =
+  private def lowerChildren(ctx: ExecuteContext, ir: BaseIR): BaseIR =
     ir.mapChildren {
-      case tir: TableIR => lower(ctx, tir, ab)
+      case tir: TableIR => lower(ctx, tir)
       case mir: MatrixIR => throw new RuntimeException(s"expect specialized lowering rule for " +
           s"${ir.getClass.getName}\n  Found MatrixIR child $mir")
-      case bmir: BlockMatrixIR => lower(ctx, bmir, ab)
-      case vir: IR => lower(ctx, vir, ab)
+      case bmir: BlockMatrixIR => lower(ctx, bmir)
+      case vir: IR => lower(ctx, vir)
     }
 
   // -- NOTE: Rules for lifting agg/scan ops --
@@ -119,21 +98,10 @@ object LowerMatrixIR extends Logging {
   private def unwrapM[S](bindings: IndexedSeq[(Name, _)], struct: Atom): M[S] =
     bindings.foldLeft(M.unit[S]) { case (m, (name, _)) => m >> (name -> struct.get(name.str)) }
 
-  private def lower(
-    ctx: ExecuteContext,
-    mir: MatrixIR,
-    liftedRelationalLets: mutable.Growable[(Name, IR)],
-  ): TableIR = {
+  private def lower(ctx: ExecuteContext, mir: MatrixIR): TableIR = {
     val lowered = mir match {
-      case RelationalLetMatrixTable(name, value, body) =>
-        RelationalLetTable(
-          name,
-          lower(ctx, value, liftedRelationalLets),
-          lower(ctx, body, liftedRelationalLets),
-        )
-
       case CastTableToMatrix(child, entries, cols, _) =>
-        lower(ctx, child, liftedRelationalLets)
+        lower(ctx, child)
           .mapRows { (global, row) =>
             bindIR(row.get(entries)) { entries =>
               If(
@@ -164,11 +132,11 @@ object LowerMatrixIR extends Logging {
           .rename(Map(entries -> entriesFieldName), Map(cols -> colsFieldName))
 
       case MatrixToMatrixApply(child, function) =>
-        val loweredChild = lower(ctx, child, liftedRelationalLets)
+        val loweredChild = lower(ctx, child)
         TableToTableApply(loweredChild, function.lower())
 
       case MatrixRename(child, globalMap, colMap, rowMap, entryMap) =>
-        var t = lower(ctx, child, liftedRelationalLets).rename(rowMap, globalMap)
+        var t = lower(ctx, child).rename(rowMap, globalMap)
 
         if (colMap.nonEmpty)
           t = t.mapGlobals { global =>
@@ -187,21 +155,21 @@ object LowerMatrixIR extends Logging {
         t
 
       case MatrixKeyRowsBy(child, keys, isSorted) =>
-        lower(ctx, child, liftedRelationalLets).keyBy(keys, isSorted)
+        lower(ctx, child).keyBy(keys, isSorted)
 
       case MatrixFilterRows(child, pred) =>
-        lower(ctx, child, liftedRelationalLets).filter { (global, row) =>
+        lower(ctx, child).filter { (global, row) =>
           M.eval {
             M.sequence(
               globalName -> global.select(child.typ.globalType.fieldNames),
               rowName -> row.select(child.typ.rowType.fieldNames),
-              lower(ctx, pred, liftedRelationalLets),
+              lower(ctx, pred),
             )
           }
         }
 
       case MatrixFilterCols(child, pred) =>
-        lower(ctx, child, liftedRelationalLets)
+        lower(ctx, child)
           .mapGlobals { global =>
             M.eval {
               for {
@@ -213,7 +181,7 @@ object LowerMatrixIR extends Logging {
                   ToArray(rangeIR(cols.len).filter { idx =>
                     Let(
                       FastSeq(colName -> ArrayRef(cols, idx)),
-                      lower(ctx, pred, liftedRelationalLets),
+                      lower(ctx, pred),
                     )
                   })
               )
@@ -234,20 +202,20 @@ object LowerMatrixIR extends Logging {
         val kt = table.typ.keyType
         if (kt.size == 1 && kt.types(0) == TInterval(child.typ.rowKeyStruct.types(0)))
           TableIntervalJoin(
-            lower(ctx, child, liftedRelationalLets),
-            lower(ctx, table, liftedRelationalLets),
+            lower(ctx, child),
+            lower(ctx, table),
             root,
             product,
           )
         else
           TableLeftJoinRightDistinct(
-            lower(ctx, child, liftedRelationalLets),
-            lower(ctx, table, liftedRelationalLets),
+            lower(ctx, child),
+            lower(ctx, table),
             root,
           )
 
       case MatrixChooseCols(child, oldIndices) =>
-        lower(ctx, child, liftedRelationalLets)
+        lower(ctx, child)
           .mapGlobals(_.insert("__new_col_idx" -> Literal(TArray(TInt32), oldIndices)))
           .mapRows { (global, row) =>
             row.update(entriesFieldName) { entries =>
@@ -261,8 +229,8 @@ object LowerMatrixIR extends Logging {
           }
 
       case MatrixAnnotateColsTable(child, table, root) =>
-        lower(ctx, child, liftedRelationalLets).mapGlobals { global =>
-          lower(ctx, table, liftedRelationalLets).collectAsDict.bind { annotations =>
+        lower(ctx, child).mapGlobals { global =>
+          lower(ctx, table).collectAsDict.bind { annotations =>
             global.update(colsFieldName) { cols =>
               mapArray(cols) { col =>
                 val key =
@@ -277,12 +245,12 @@ object LowerMatrixIR extends Logging {
         }
 
       case MatrixMapGlobals(child, newGlobals) =>
-        lower(ctx, child, liftedRelationalLets).mapGlobals { global =>
+        lower(ctx, child).mapGlobals { global =>
           M.eval {
             for {
               cols <- global.get(colsFieldName)
               _ <- globalName -> global.select(child.typ.globalType.fieldNames)
-              newGlobals <- lower(ctx, newGlobals, liftedRelationalLets)
+              newGlobals <- lower(ctx, newGlobals)
             } yield newGlobals.insert(colsFieldName -> cols)
           }
         }
@@ -426,7 +394,7 @@ object LowerMatrixIR extends Logging {
           (body, builder.result().foldLeft(top)(_ >> M.let[EVAL.type](_)))
         }
 
-        lower(ctx, child, liftedRelationalLets).mapRows { (global, row) =>
+        lower(ctx, child).mapRows { (global, row) =>
           M.eval {
             for {
               entries <- row.get(entriesFieldName)
@@ -436,7 +404,7 @@ object LowerMatrixIR extends Logging {
               _ <- rowName -> row.select(child.typ.rowType.fieldNames)
 
               (body, liftedScans) =
-                liftScans(lower(ctx, newRow, liftedRelationalLets))
+                liftScans(lower(ctx, newRow))
 
               /* emit scan bindings, even if there are no scans; the optimiser will remove them if
                * unused. */
@@ -471,7 +439,7 @@ object LowerMatrixIR extends Logging {
         }
 
       case MatrixMapCols(child, newCol, _) =>
-        val lc = lower(ctx, child, liftedRelationalLets)
+        val lc = lower(ctx, child)
 
         var scanTop: M[EVAL.type] = M.unit
         var aggTop: M[EVAL.type] = M.unit
@@ -658,7 +626,7 @@ object LowerMatrixIR extends Logging {
         val aggBuilder = ArraySeq.newBuilder[(Name, IR)]
         // `n_rows` comes out of the row aggregation, so no init arg may read it.
         val env = LiftEnv(FastSeq(colName, Name("n_rows")))
-        val b0 = lift(lower(ctx, newCol, liftedRelationalLets), env, scanBuilder, aggBuilder)
+        val b0 = lift(lower(ctx, newCol), env, scanBuilder, aggBuilder)
 
         val aggs = aggBuilder.result()
         val scans = scanBuilder.result()
@@ -705,14 +673,12 @@ object LowerMatrixIR extends Logging {
                 }
               }
 
-            val ident = freshName()
-            liftedRelationalLets += (ident -> RunAgg)
-
             val arrayAggs = Ref(Name("__array_aggs"), RunAgg.get("__array_aggs").typ)
 
+            // EvalRelationalValues replaces RunAgg with its value before the table is lowered
             val bindResult: M[EVAL.type] =
               for {
-                result <- RelationalRef(ident, RunAgg.typ)
+                result <- RunAgg
                 _ <- arrayAggs.name -> result.get("__array_aggs")
                 _ <- Name("n_rows") -> result.get("__n_rows")
                 unit <- M.unit
@@ -769,7 +735,7 @@ object LowerMatrixIR extends Logging {
 
       case MatrixFilterEntries(child, pred) =>
         val mtype = child.typ
-        lower(ctx, child, liftedRelationalLets).mapRows { (global, row) =>
+        lower(ctx, child).mapRows { (global, row) =>
           M.eval {
             for {
               cols <- global.get(colsFieldName)
@@ -784,7 +750,7 @@ object LowerMatrixIR extends Logging {
                     for {
                       _ <- colName -> col
                       g <- entryName -> entry
-                    } yield If(lower(ctx, pred, liftedRelationalLets), g, NA(mtype.entryType))
+                    } yield If(lower(ctx, pred), g, NA(mtype.entryType))
                   }
                 })
             )
@@ -792,8 +758,8 @@ object LowerMatrixIR extends Logging {
         }
 
       case MatrixUnionCols(left, right, joinType) =>
-        val ll = lower(ctx, left, liftedRelationalLets).distinct
-        val rr = lower(ctx, right, liftedRelationalLets).distinct
+        val ll = lower(ctx, left).distinct
+        val rr = lower(ctx, right).distinct
         TableJoin(
           ll,
           rr
@@ -827,7 +793,7 @@ object LowerMatrixIR extends Logging {
           }
 
       case MatrixMapEntries(child, newEntries) =>
-        lower(ctx, child, liftedRelationalLets).mapRows { (global, row) =>
+        lower(ctx, child).mapRows { (global, row) =>
           M.eval {
             for {
               cols <- global.get(colsFieldName)
@@ -840,7 +806,7 @@ object LowerMatrixIR extends Logging {
                 ToArray(StreamZip(
                   FastSeq(ToStream(cols), ToStream(entries)),
                   FastSeq(colName, entryName),
-                  lower(ctx, newEntries, liftedRelationalLets),
+                  lower(ctx, newEntries),
                   AssumeSameLength,
                 ))
             )
@@ -848,36 +814,36 @@ object LowerMatrixIR extends Logging {
         }
 
       case MatrixRepartition(child, n, shuffle) =>
-        TableRepartition(lower(ctx, child, liftedRelationalLets), n, shuffle)
+        TableRepartition(lower(ctx, child), n, shuffle)
 
       case MatrixFilterIntervals(child, intervals, keep) =>
-        TableFilterIntervals(lower(ctx, child, liftedRelationalLets), intervals, keep)
+        TableFilterIntervals(lower(ctx, child), intervals, keep)
 
       case MatrixUnionRows(children) =>
         // FIXME: this should check that all children have the same column keys.
-        val first = lower(ctx, children.head, liftedRelationalLets)
+        val first = lower(ctx, children.head)
         TableUnion(FastSeq(first) ++
-          children.tail.map(lower(ctx, _, liftedRelationalLets).mapRows { (_, row) =>
+          children.tail.map(lower(ctx, _).mapRows { (_, row) =>
             SelectFields(row, first.typ.rowType.fieldNames)
           }))
 
-      case MatrixDistinctByRow(child) => TableDistinct(lower(ctx, child, liftedRelationalLets))
+      case MatrixDistinctByRow(child) => TableDistinct(lower(ctx, child))
 
-      case MatrixRowsHead(child, n) => TableHead(lower(ctx, child, liftedRelationalLets), n)
-      case MatrixRowsTail(child, n) => TableTail(lower(ctx, child, liftedRelationalLets), n)
+      case MatrixRowsHead(child, n) => TableHead(lower(ctx, child), n)
+      case MatrixRowsTail(child, n) => TableTail(lower(ctx, child), n)
 
       case MatrixColsHead(child, n) =>
-        lower(ctx, child, liftedRelationalLets)
+        lower(ctx, child)
           .mapGlobals(_.update(colsFieldName)(_.slice(0, Some(n))))
           .mapRows((_, row) => row.update(entriesFieldName)(_.slice(0, Some(n))))
 
       case MatrixColsTail(child, n) =>
-        lower(ctx, child, liftedRelationalLets)
+        lower(ctx, child)
           .mapGlobals(_.update(colsFieldName)(_.slice(-n, None)))
           .mapRows((_, row) => row.update(entriesFieldName)(_.slice(-n, None)))
 
       case MatrixExplodeCols(child, path) =>
-        lower(ctx, child, liftedRelationalLets)
+        lower(ctx, child)
           .mapGlobals { global =>
             global.get(colsFieldName).stream.streamAgg { col =>
               IRBuilder.scoped { ib =>
@@ -923,7 +889,7 @@ object LowerMatrixIR extends Logging {
           .mapGlobals(_.drop("__lengths"))
 
       case MatrixAggregateRowsByKey(child, entryExpr, rowExpr) =>
-        lower(ctx, child, liftedRelationalLets).aggregateByKey { (global, row) =>
+        lower(ctx, child).aggregateByKey { (global, row) =>
           M.eval {
             for {
               evalCols <- global.get(colsFieldName)
@@ -934,7 +900,7 @@ object LowerMatrixIR extends Logging {
                   entries <- row.get(entriesFieldName)
                   _ <- globalName -> global.select(child.typ.globalType.fieldNames)
                   _ <- rowName -> row.select(child.typ.rowType.fieldNames)
-                } yield lower(ctx, rowExpr, liftedRelationalLets).insert(
+                } yield lower(ctx, rowExpr).insert(
                   entriesFieldName ->
                     rangeIR(aggCols.len).toArray.aggElements(Some(evalCols.len)) { (elem, idx) =>
                       M.agg {
@@ -942,7 +908,7 @@ object LowerMatrixIR extends Logging {
                           _ <- colName -> aggCols.at(elem)
                           g <- entryName -> entries.at(elem)
                           _ <- M.lift[EVAL.type]((colName -> evalCols.at(idx)) >> M.unit)
-                          aggEntry = lower(ctx, entryExpr, liftedRelationalLets)
+                          aggEntry = lower(ctx, entryExpr)
                         } yield AggFilter(!g.isNA, aggEntry, isScan = false)
                       }
                     }
@@ -953,7 +919,7 @@ object LowerMatrixIR extends Logging {
         }
 
       case MatrixCollectColsByKey(child) =>
-        lower(ctx, child, liftedRelationalLets)
+        lower(ctx, child)
           .mapGlobals { global =>
             bindIR(global.get(colsFieldName)) { cols =>
               global.insert(
@@ -992,12 +958,12 @@ object LowerMatrixIR extends Logging {
           }
 
       case MatrixExplodeRows(child, path) =>
-        TableExplode(lower(ctx, child, liftedRelationalLets), path)
+        TableExplode(lower(ctx, child), path)
 
       case mr: MatrixRead => mr.lower(ctx)
 
       case MatrixAggregateColsByKey(child, entryExpr, colExpr) =>
-        lower(ctx, child, liftedRelationalLets)
+        lower(ctx, child)
           .mapGlobals { global =>
             bindIR(global.get(colsFieldName)) { cols =>
               global.insert(
@@ -1027,7 +993,7 @@ object LowerMatrixIR extends Logging {
                       for {
                         _ <- colName -> cols.at(aggIdx)
                         g <- entryName -> entries.at(aggIdx)
-                        aggEntries = lower(ctx, entryExpr, liftedRelationalLets)
+                        aggEntries = lower(ctx, entryExpr)
                       } yield AggFilter(!g.isNA, aggEntries, isScan = false)
                     }
                   }
@@ -1046,7 +1012,7 @@ object LowerMatrixIR extends Logging {
                   val aggValue =
                     elem.get("value").stream.streamAgg { aggIdx =>
                       M.agg {
-                        (colName -> cols.at(aggIdx)) >> lower(ctx, colExpr, liftedRelationalLets)
+                        (colName -> cols.at(aggIdx)) >> lower(ctx, colExpr)
                       }
                     }
 
@@ -1076,17 +1042,16 @@ object LowerMatrixIR extends Logging {
     lowered
   }
 
-  private def lower(ctx: ExecuteContext, tir: TableIR, ab: mutable.Growable[(Name, IR)])
-    : TableIR = {
+  private def lower(ctx: ExecuteContext, tir: TableIR): TableIR = {
     val lowered = tir match {
       case CastMatrixToTable(child, entries, cols) =>
-        lower(ctx, child, ab)
+        lower(ctx, child)
           .mapRows((_, row) => row.select(child.typ.rowType.fieldNames :+ entriesFieldName))
           .mapGlobals(_.select(child.typ.globalType.fieldNames :+ colsFieldName))
           .rename(Map(entriesFieldName -> entries), Map(colsFieldName -> cols))
 
       case x @ MatrixEntriesTable(child) =>
-        val lc = lower(ctx, child, ab)
+        val lc = lower(ctx, child)
 
         if (child.typ.rowKey.nonEmpty && child.typ.colKey.nonEmpty) {
           lc
@@ -1208,7 +1173,7 @@ object LowerMatrixIR extends Logging {
         }
 
       case MatrixToTableApply(child, function) =>
-        val loweredChild = lower(ctx, child, ab)
+        val loweredChild = lower(ctx, child)
         TableToTableApply(
           loweredChild,
           function.lower()
@@ -1221,14 +1186,14 @@ object LowerMatrixIR extends Logging {
         )
 
       case MatrixRowsTable(child) =>
-        lower(ctx, child, ab)
+        lower(ctx, child)
           .mapGlobals(_.drop(colsFieldName))
           .mapRows((_, row) => row.drop(entriesFieldName))
 
       case MatrixColsTable(child) =>
         val colKey = child.typ.colKey
 
-        bindIR(lower(ctx, child, ab).getGlobals) { global =>
+        bindIR(lower(ctx, child).getGlobals) { global =>
           val sortedCols =
             if (colKey.isEmpty) global.get(colsFieldName)
             else global
@@ -1245,25 +1210,24 @@ object LowerMatrixIR extends Logging {
           .parallelize(None)
           .keyBy(child.typ.colKey)
 
-      case table => lowerChildren(ctx, table, ab).asInstanceOf[TableIR]
+      case table => lowerChildren(ctx, table).asInstanceOf[TableIR]
     }
 
     assertTypeUnchanged(tir, lowered)
     lowered
   }
 
-  private def lower(ctx: ExecuteContext, bmir: BlockMatrixIR, ab: mutable.Growable[(Name, IR)])
-    : BlockMatrixIR = {
-    val lowered = lowerChildren(ctx, bmir, ab).asInstanceOf[BlockMatrixIR]
+  private def lower(ctx: ExecuteContext, bmir: BlockMatrixIR): BlockMatrixIR = {
+    val lowered = lowerChildren(ctx, bmir).asInstanceOf[BlockMatrixIR]
     assertTypeUnchanged(bmir, lowered)
     lowered
   }
 
-  private def lower(ctx: ExecuteContext, ir: IR, ab: mutable.Growable[(Name, IR)]): IR = {
+  private def lower(ctx: ExecuteContext, ir: IR): IR = {
     val lowered = ir match {
       case MatrixToValueApply(child, function) =>
         TableToValueApply(
-          lower(ctx, child, ab),
+          lower(ctx, child),
           function.lower().getOrElse(
             WrappedMatrixToValueFunction(
               function,
@@ -1275,20 +1239,20 @@ object LowerMatrixIR extends Logging {
         )
       case MatrixWrite(child, writer) =>
         TableWrite(
-          lower(ctx, child, ab),
+          lower(ctx, child),
           WrappedMatrixWriter(writer, colsFieldName, entriesFieldName, child.typ.colKey),
         )
       case MatrixMultiWrite(children, writer) =>
         TableMultiWrite(
-          children.map(lower(ctx, _, ab)),
+          children.map(lower(ctx, _)),
           WrappedMatrixNativeMultiWriter(writer, children.head.typ.colKey),
         )
       case MatrixCount(child) =>
-        lower(ctx, child, ab).aggregate { (global, _) =>
+        lower(ctx, child).aggregate { (global, _) =>
           maketuple(ApplyAggOp(Count())(), global.get(colsFieldName).len)
         }
       case MatrixAggregate(child, query) =>
-        lower(ctx, child, ab).aggregate { (global, row) =>
+        lower(ctx, child).aggregate { (global, row) =>
           M.agg {
             for {
               cols <- global.get(colsFieldName)
@@ -1315,7 +1279,7 @@ object LowerMatrixIR extends Logging {
           }
         }
       case _ =>
-        lowerChildren(ctx, ir, ab).asInstanceOf[IR]
+        lowerChildren(ctx, ir).asInstanceOf[IR]
     }
     assertTypeUnchanged(ir, lowered)
     lowered

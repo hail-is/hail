@@ -2692,17 +2692,3 @@ case class BlockMatrixToTable(child: BlockMatrixIR)
     TableType(rvType, ArraySeq.empty, TStruct.empty)
   }
 }
-
-case class RelationalLetTable(name: Name, value: IR, body: TableIR)
-    extends TableIR(new Tag(Tag.RelationalLetTable)) with PreservesRows {
-  override def typ: TableType = body.typ
-
-  override def childrenSeq: IndexedSeq[BaseIR] = ArraySeq(value, body)
-
-  override protected def copyWithNewChildren(newChildren: IndexedSeq[BaseIR]): TableIR = {
-    val IndexedSeq(newValue: IR, newBody: TableIR) = newChildren
-    RelationalLetTable(name, newValue, newBody)
-  }
-
-  override def preservesRowsOrColsFrom: BaseIR = body
-}

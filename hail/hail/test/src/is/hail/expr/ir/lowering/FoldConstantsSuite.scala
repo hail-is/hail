@@ -43,7 +43,6 @@ class FoldConstantsSuite {
   def testReferencesDoNotFold() = ArraySeq(
     ApplyBinaryPrimOp(Add(), Ref(freshName(), TInt32), I32(1)),
     ApplyBinaryPrimOp(Add(), In(0, TInt32), I32(1)),
-    ApplyBinaryPrimOp(Add(), RelationalRef(freshName(), TInt32), I32(1)),
   )
 
   @ParameterizedTest

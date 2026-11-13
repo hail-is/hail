@@ -106,11 +106,6 @@ package object ir extends CompileOps with LowerPriorityImplicits {
     new Block(ArraySeq(Binding(ref.name, v, Scope.EVAL)), body(ref))
   }
 
-  def relationalBindIR(v: IR)(body: Atom => IR): IR = {
-    val ref = RelationalRef(freshName(), v.typ)
-    RelationalLet(ref.name, v, body(ref))
-  }
-
   def iota(start: IR, step: IR): IR = StreamIota(start, step)
 
   def dropWhile(v: IR)(f: Atom => IR): IR = {

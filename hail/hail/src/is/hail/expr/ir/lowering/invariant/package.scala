@@ -3,7 +3,7 @@ package is.hail.expr.ir.lowering
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir._
 import is.hail.expr.ir.NormalizeNames.needsRenaming
-import is.hail.expr.ir.defs.{ApplyIR, RelationalLet, RelationalRef}
+import is.hail.expr.ir.defs.ApplyIR
 import is.hail.expr.ir.lowering.invariant.Flags.StrictInvariants
 import is.hail.utils.StackSafe._
 import is.hail.utils.TimedBlock
@@ -89,11 +89,11 @@ package object invariant {
     // calls record with the names each bind adds
     private def recording(record: Seq[Name] => Unit): Scopes[E] =
       new Scopes[E] {
-        override def fresh[A](e: E[A]): E[A] = ()
+        override def empty[A](e: E[A]): E[A] = ()
         override def create[A](e: E[A], s: Scope): E[A] = ()
         override def drop[A](e: E[A], s: Scope): E[A] = ()
         override def promote[A](e: E[A], s: Scope): E[A] = ()
-        override def bind[A](e: E[A], s: EnvScope, bs: Seq[(Name, A)]): E[A] = record(bs.map(_._1))
+        override def bind[A](e: E[A], s: Scope, bs: Seq[(Name, A)]): E[A] = record(bs.map(_._1))
       }
 
     // A name bound by a node that needs renaming is bound by no other node. Nodes that keep
@@ -138,15 +138,6 @@ package object invariant {
 
   lazy val NoBlockMatrixIR: Invariant =
     Invariant(!_.isInstanceOf[BlockMatrixIR])
-
-  lazy val NoRelationalLets: Invariant =
-    Invariant {
-      case _: RelationalLet => false
-      case _: RelationalLetMatrixTable => false
-      case _: RelationalLetTable => false
-      case _: RelationalRef => false
-      case _ => true
-    }
 
   lazy val NoTableKeyByAndAggregate: Invariant =
     Invariant(!_.isInstanceOf[TableKeyByAndAggregate])
