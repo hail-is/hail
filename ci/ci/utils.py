@@ -1,12 +1,14 @@
 import datetime
+import functools
 import secrets
 import string
 import urllib.parse
 from enum import Enum
-from typing import List, Optional
+from typing import Any, Awaitable, Callable, Dict, List, Optional
 
 from gear import Database
 from gear.cloud_config import get_gcp_config
+from hailtop.utils import time_msecs
 
 
 def generate_token(size=12):
@@ -146,3 +148,15 @@ def github_status(state: Optional[str]) -> GithubStatus:
     if state in {"SUCCESS", "NEUTRAL"}:
         return GithubStatus.SUCCESS
     raise ValueError(f"Unexpected value for GithubStatus: {state}")
+
+
+def record_success(f: Callable[..., Awaitable[Any]], last_success_ms: Dict[str, int]) -> Callable[..., Awaitable[Any]]:
+    """Wrap f to record the time of each successful call under f's name. Exceptions pass through."""
+
+    @functools.wraps(f)
+    async def wrapped(*args, **kwargs):
+        result = await f(*args, **kwargs)
+        last_success_ms[f.__name__] = time_msecs()
+        return result
+
+    return wrapped
