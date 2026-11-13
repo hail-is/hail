@@ -9,6 +9,8 @@ import is.hail.types.virtual._
 import is.hail.types.virtual.TIterable.elementType
 import is.hail.utils.StackSafe._
 
+import scala.annotation.switch
+
 object ChildEnv {
 
   /** Returns the env of the `i`th child of `ir` given the env `e` of `ir`. `v` makes the value each
@@ -26,73 +28,275 @@ object ChildEnv {
   )(
     v: (Name, Type) => A
   ): E[A] =
-    ir match {
-      case x: Block => block(e, i, x.bindings)(v)
-      case x: TailLoop => tailLoop(e, i, x.name, x.params.map(_._1), x.resultType, cs)(v)
-      case x: StreamMap => streamMap(e, i, x.name, cs)(v)
-      case x: StreamZip => streamZip(e, i, x.names, cs)(v)
-      case x: StreamZipJoin =>
-        streamZipJoin(e, i, x.as.length, x.key, x.curKey, x.curVals, cs)(v)
-      case x: StreamZipJoinProducers =>
-        streamZipJoinProducers(e, i, x.ctxName, x.key, x.curKey, x.curVals, cs)(v)
-      case x: StreamLeftIntervalJoin => streamLeftIntervalJoin(e, i, x.lname, x.rname, cs)(v)
-      case x: StreamFor => streamFor(e, i, x.valueName, cs)(v)
-      case x: StreamFlatMap => streamFlatMap(e, i, x.name, cs)(v)
-      case x: StreamFilter => streamFilter(e, i, x.name, cs)(v)
-      case x: StreamTakeWhile => streamTakeWhile(e, i, x.elementName, cs)(v)
-      case x: StreamDropWhile => streamDropWhile(e, i, x.elementName, cs)(v)
-      case x: StreamFold => streamFold(e, i, x.accumName, x.valueName, cs)(v)
-      case x: StreamFold2 => streamFold2(e, i, x.accum.map(_._1), x.valueName, cs)(v)
-      case x: StreamBufferedAggregate => streamBufferedAggregate(e, i, x.name, cs)(v)
-      case x: RunAggScan => runAggScan(e, i, x.name, cs)(v)
-      case x: StreamAgg => streamAgg(e, i, x.name, cs)(v)
-      case x: StreamScan => streamScan(e, i, x.accumName, x.valueName, cs)(v)
-      case x: StreamAggScan => streamAggScan(e, i, x.name, cs)(v)
-      case x: StreamJoinRightDistinct => streamJoinRightDistinct(e, i, x.l, x.r, cs)(v)
-      case x: ArraySort => arraySort(e, i, x.left, x.right, cs)(v)
-      case x: ArrayMaximalIndependentSet =>
-        arrayMaximalIndependentSet(e, i, x.tieBreaker.map { case (l, r, _) => (l, r) }, cs)(v)
-      case x: AggArrayPerElement =>
-        aggArrayPerElement(e, i, x.elementName, x.indexName, x.isScan, cs)(v)
-      case x: AggFold => aggFold(e, i, x.accumName, x.otherAccumName, x.isScan, cs)(v)
-      case x: NDArrayMap => ndArrayMap(e, i, x.valueName, cs)(v)
-      case x: NDArrayMap2 => ndArrayMap2(e, i, x.lName, x.rName, cs)(v)
-      case x: CollectDistributedArray => collectDistributedArray(e, i, x.cname, x.gname, cs)(v)
-      case _: TableAggregate => tableAggregate(e, i, cs)(v)
-      case _: MatrixAggregate => matrixAggregate(e, i, cs)(v)
-      case x: ApplyAggOp => applyAggOp(e, i, x.initOpArgs.length)
-      case x: ApplyScanOp => applyScanOp(e, i, x.initOpArgs.length)
-      case x: AggFilter => aggFilter(e, i, x.isScan)
-      case x: AggGroupBy => aggGroupBy(e, i, x.isScan)
-      case x: AggExplode => aggExplode(e, i, x.name, x.isScan, cs)(v)
-      case x: RelationalLet => relationalLet(e, i, x.name, cs)(v)
-
-      case _: TableFilter => tableFilter(e, i, cs)(v)
-      case x: TableGen => tableGen(e, i, x.cname, x.gname, cs)(v)
-      case _: TableMapGlobals => tableMapGlobals(e, i, cs)(v)
-      case _: TableMapRows => tableMapRows(e, i, cs)(v)
-      case _: TableAggregateByKey => tableAggregateByKey(e, i, cs)(v)
-      case _: TableKeyByAndAggregate => tableKeyByAndAggregate(e, i, cs)(v)
-      case x: TableMapPartitions =>
-        tableMapPartitions(e, i, x.globalName, x.partitionStreamName, cs)(v)
-      case x: RelationalLetTable => relationalLetTable(e, i, x.name, cs)(v)
-
-      case _: MatrixMapRows => matrixMapRows(e, i, cs)(v)
-      case _: MatrixFilterRows => matrixFilterRows(e, i, cs)(v)
-      case _: MatrixMapCols => matrixMapCols(e, i, cs)(v)
-      case _: MatrixFilterCols => matrixFilterCols(e, i, cs)(v)
-      case _: MatrixMapEntries => matrixMapEntries(e, i, cs)(v)
-      case _: MatrixFilterEntries => matrixFilterEntries(e, i, cs)(v)
-      case _: MatrixMapGlobals => matrixMapGlobals(e, i, cs)(v)
-      case _: MatrixAggregateColsByKey => matrixAggregateColsByKey(e, i, cs)(v)
-      case _: MatrixAggregateRowsByKey => matrixAggregateRowsByKey(e, i, cs)(v)
-      case x: RelationalLetMatrixTable => relationalLetMatrixTable(e, i, x.name, cs)(v)
-
-      case x: BlockMatrixMap => blockMatrixMap(e, i, x.eltName)(v)
-      case x: BlockMatrixMap2 => blockMatrixMap2(e, i, x.leftName, x.rightName)(v)
-
-      case _: TableIR | _: MatrixIR | _: BlockMatrixIR => e.fresh
+    (ir.tag.family.toInt: @switch) match {
+      case Family.Core => getCore(e, ir, cs, i)(v)
+      case Family.Stream => getStream(e, ir, cs, i)(v)
+      case Family.Collection => getCollection(e, ir, cs, i)(v)
+      case Family.Agg => getAgg(e, ir, cs, i)(v)
+      case Family.NDArray => getNDArray(e, ir, cs, i)(v)
+      case Family.Relational => getRelational(e, ir, cs, i)(v)
+      case Family.Table => getTable(e, ir, cs, i)(v)
+      case Family.Matrix => getMatrix(e, ir, cs, i)(v)
+      case Family.BlockMatrix => getBlockMatrix(e, ir, i)(v)
       case _ => e
+    }
+
+  private def getCore[E[_]: Scopes, A](
+    e: E[A],
+    ir: BaseIR,
+    cs: IndexedSeq[BaseIR],
+    i: Int,
+  )(
+    v: (Name, Type) => A
+  ): E[A] =
+    (ir.tag.toInt: @switch) match {
+      case Tag.Block =>
+        block(e, i, ir.asInstanceOf[Block].bindings)(v)
+      case Tag.TailLoop =>
+        val x = ir.asInstanceOf[TailLoop]
+        tailLoop(e, i, x.name, x.params.map(_._1), x.resultType, cs)(v)
+      case _ =>
+        e
+    }
+
+  private def getStream[E[_]: Scopes, A](
+    e: E[A],
+    ir: BaseIR,
+    cs: IndexedSeq[BaseIR],
+    i: Int,
+  )(
+    v: (Name, Type) => A
+  ): E[A] =
+    (ir.tag.toInt: @switch) match {
+      case Tag.StreamBufferedAggregate =>
+        streamBufferedAggregate(e, i, ir.asInstanceOf[StreamBufferedAggregate].name, cs)(v)
+      case Tag.StreamMap =>
+        streamMap(e, i, ir.asInstanceOf[StreamMap].name, cs)(v)
+      case Tag.StreamTakeWhile =>
+        streamTakeWhile(e, i, ir.asInstanceOf[StreamTakeWhile].elementName, cs)(v)
+      case Tag.StreamDropWhile =>
+        streamDropWhile(e, i, ir.asInstanceOf[StreamDropWhile].elementName, cs)(v)
+      case Tag.StreamZip =>
+        streamZip(e, i, ir.asInstanceOf[StreamZip].names, cs)(v)
+      case Tag.StreamZipJoinProducers =>
+        val x = ir.asInstanceOf[StreamZipJoinProducers]
+        streamZipJoinProducers(e, i, x.ctxName, x.key, x.curKey, x.curVals, cs)(v)
+      case Tag.StreamZipJoin =>
+        val x = ir.asInstanceOf[StreamZipJoin]
+        streamZipJoin(e, i, x.as.length, x.key, x.curKey, x.curVals, cs)(v)
+      case Tag.StreamFilter =>
+        streamFilter(e, i, ir.asInstanceOf[StreamFilter].name, cs)(v)
+      case Tag.StreamFlatMap =>
+        streamFlatMap(e, i, ir.asInstanceOf[StreamFlatMap].name, cs)(v)
+      case Tag.StreamFold =>
+        val x = ir.asInstanceOf[StreamFold]
+        streamFold(e, i, x.accumName, x.valueName, cs)(v)
+      case Tag.StreamFold2 =>
+        val x = ir.asInstanceOf[StreamFold2]
+        streamFold2(e, i, x.accum.map(_._1), x.valueName, cs)(v)
+      case Tag.StreamScan =>
+        val x = ir.asInstanceOf[StreamScan]
+        streamScan(e, i, x.accumName, x.valueName, cs)(v)
+      case Tag.StreamFor =>
+        streamFor(e, i, ir.asInstanceOf[StreamFor].valueName, cs)(v)
+      case Tag.StreamAgg =>
+        streamAgg(e, i, ir.asInstanceOf[StreamAgg].name, cs)(v)
+      case Tag.StreamAggScan =>
+        streamAggScan(e, i, ir.asInstanceOf[StreamAggScan].name, cs)(v)
+      case Tag.StreamLeftIntervalJoin =>
+        val x = ir.asInstanceOf[StreamLeftIntervalJoin]
+        streamLeftIntervalJoin(e, i, x.lname, x.rname, cs)(v)
+      case Tag.StreamJoinRightDistinct =>
+        val x = ir.asInstanceOf[StreamJoinRightDistinct]
+        streamJoinRightDistinct(e, i, x.l, x.r, cs)(v)
+      case _ =>
+        e
+    }
+
+  private def getCollection[E[_]: Scopes, A](
+    e: E[A],
+    ir: BaseIR,
+    cs: IndexedSeq[BaseIR],
+    i: Int,
+  )(
+    v: (Name, Type) => A
+  ): E[A] =
+    (ir.tag.toInt: @switch) match {
+      case Tag.ArrayMaximalIndependentSet =>
+        val x = ir.asInstanceOf[ArrayMaximalIndependentSet]
+        arrayMaximalIndependentSet(e, i, x.tieBreaker.map { case (l, r, _) => (l, r) }, cs)(v)
+      case Tag.ArraySort =>
+        val x = ir.asInstanceOf[ArraySort]
+        arraySort(e, i, x.left, x.right, cs)(v)
+      case Tag.CollectDistributedArray =>
+        val x = ir.asInstanceOf[CollectDistributedArray]
+        collectDistributedArray(e, i, x.cname, x.gname, cs)(v)
+      case _ =>
+        e
+    }
+
+  private def getAgg[E[_]: Scopes, A](
+    e: E[A],
+    ir: BaseIR,
+    cs: IndexedSeq[BaseIR],
+    i: Int,
+  )(
+    v: (Name, Type) => A
+  ): E[A] =
+    (ir.tag.toInt: @switch) match {
+      case Tag.AggFilter =>
+        aggFilter(e, i, ir.asInstanceOf[AggFilter].isScan)
+      case Tag.AggExplode =>
+        val x = ir.asInstanceOf[AggExplode]
+        aggExplode(e, i, x.name, x.isScan, cs)(v)
+      case Tag.AggGroupBy =>
+        aggGroupBy(e, i, ir.asInstanceOf[AggGroupBy].isScan)
+      case Tag.AggArrayPerElement =>
+        val x = ir.asInstanceOf[AggArrayPerElement]
+        aggArrayPerElement(e, i, x.elementName, x.indexName, x.isScan, cs)(v)
+      case Tag.AggFold =>
+        val x = ir.asInstanceOf[AggFold]
+        aggFold(e, i, x.accumName, x.otherAccumName, x.isScan, cs)(v)
+      case Tag.ApplyAggOp =>
+        applyAggOp(e, i, ir.asInstanceOf[ApplyAggOp].initOpArgs.length)
+      case Tag.ApplyScanOp =>
+        applyScanOp(e, i, ir.asInstanceOf[ApplyScanOp].initOpArgs.length)
+      case Tag.RunAggScan =>
+        runAggScan(e, i, ir.asInstanceOf[RunAggScan].name, cs)(v)
+      case _ =>
+        e
+    }
+
+  private def getNDArray[E[_]: Scopes, A](
+    e: E[A],
+    ir: BaseIR,
+    cs: IndexedSeq[BaseIR],
+    i: Int,
+  )(
+    v: (Name, Type) => A
+  ): E[A] =
+    (ir.tag.toInt: @switch) match {
+      case Tag.NDArrayMap =>
+        ndArrayMap(e, i, ir.asInstanceOf[NDArrayMap].valueName, cs)(v)
+      case Tag.NDArrayMap2 =>
+        val x = ir.asInstanceOf[NDArrayMap2]
+        ndArrayMap2(e, i, x.lName, x.rName, cs)(v)
+      case _ => e
+    }
+
+  private def getRelational[E[_]: Scopes, A](
+    e: E[A],
+    ir: BaseIR,
+    cs: IndexedSeq[BaseIR],
+    i: Int,
+  )(
+    v: (Name, Type) => A
+  ): E[A] =
+    (ir.tag.toInt: @switch) match {
+      case Tag.RelationalLet => relationalLet(e, i, ir.asInstanceOf[RelationalLet].name, cs)(v)
+      case _ => e
+    }
+
+  private def getTable[E[_]: Scopes, A](
+    e: E[A],
+    ir: BaseIR,
+    cs: IndexedSeq[BaseIR],
+    i: Int,
+  )(
+    v: (Name, Type) => A
+  ): E[A] =
+    (ir.tag.toInt: @switch) match {
+      case Tag.TableAggregate =>
+        tableAggregate(e, i, cs)(v)
+      case Tag.TableGen =>
+        val x = ir.asInstanceOf[TableGen]
+        tableGen(e, i, x.cname, x.gname, cs)(v)
+      case Tag.TableMapPartitions =>
+        val x = ir.asInstanceOf[TableMapPartitions]
+        tableMapPartitions(e, i, x.globalName, x.partitionStreamName, cs)(v)
+      case Tag.TableMapRows =>
+        tableMapRows(e, i, cs)(v)
+      case Tag.TableKeyByAndAggregate =>
+        tableKeyByAndAggregate(e, i, cs)(v)
+      case Tag.TableAggregateByKey =>
+        tableAggregateByKey(e, i, cs)(v)
+      case Tag.TableFilter =>
+        tableFilter(e, i, cs)(v)
+      case Tag.TableMapGlobals =>
+        tableMapGlobals(e, i, cs)(v)
+      case Tag.RelationalLetTable =>
+        relationalLetTable(e, i, ir.asInstanceOf[RelationalLetTable].name, cs)(v)
+      case Tag.TableMultiWrite |
+          Tag.TableCollect |
+          Tag.TableCount |
+          Tag.TableWrite |
+          Tag.TableGetGlobals |
+          Tag.TableToValueApply =>
+        e
+      case _ =>
+        e.fresh
+    }
+
+  private def getMatrix[E[_]: Scopes, A](
+    e: E[A],
+    ir: BaseIR,
+    cs: IndexedSeq[BaseIR],
+    i: Int,
+  )(
+    v: (Name, Type) => A
+  ): E[A] =
+    (ir.tag.toInt: @switch) match {
+      case Tag.MatrixAggregate =>
+        matrixAggregate(e, i, cs)(v)
+      case Tag.MatrixAggregateRowsByKey =>
+        matrixAggregateRowsByKey(e, i, cs)(v)
+      case Tag.MatrixAggregateColsByKey =>
+        matrixAggregateColsByKey(e, i, cs)(v)
+      case Tag.MatrixFilterCols =>
+        matrixFilterCols(e, i, cs)(v)
+      case Tag.MatrixFilterRows =>
+        matrixFilterRows(e, i, cs)(v)
+      case Tag.MatrixMapEntries =>
+        matrixMapEntries(e, i, cs)(v)
+      case Tag.MatrixMapRows =>
+        matrixMapRows(e, i, cs)(v)
+      case Tag.MatrixMapCols =>
+        matrixMapCols(e, i, cs)(v)
+      case Tag.MatrixMapGlobals =>
+        matrixMapGlobals(e, i, cs)(v)
+      case Tag.MatrixFilterEntries =>
+        matrixFilterEntries(e, i, cs)(v)
+      case Tag.RelationalLetMatrixTable =>
+        relationalLetMatrixTable(e, i, ir.asInstanceOf[RelationalLetMatrixTable].name, cs)(v)
+      case Tag.MatrixMultiWrite |
+          Tag.MatrixCount |
+          Tag.MatrixWrite |
+          Tag.MatrixToValueApply =>
+        e
+      case _ =>
+        e.fresh
+    }
+
+  private def getBlockMatrix[E[_]: Scopes, A](
+    e: E[A],
+    ir: BaseIR,
+    i: Int,
+  )(
+    v: (Name, Type) => A
+  ): E[A] =
+    (ir.tag.toInt: @switch) match {
+      case Tag.BlockMatrixMap =>
+        blockMatrixMap(e, i, ir.asInstanceOf[BlockMatrixMap].eltName)(v)
+      case Tag.BlockMatrixMap2 =>
+        val x = ir.asInstanceOf[BlockMatrixMap2]
+        blockMatrixMap2(e, i, x.leftName, x.rightName)(v)
+      case Tag.BlockMatrixToValueApply |
+          Tag.BlockMatrixCollect |
+          Tag.BlockMatrixWrite |
+          Tag.BlockMatrixMultiWrite =>
+        e
+      case _ =>
+        e.fresh
     }
 
   private def typ(c: BaseIR): Type = c.asInstanceOf[IR].typ
