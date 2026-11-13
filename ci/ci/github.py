@@ -843,8 +843,7 @@ mkdir -p {shq(repo_dir)}
             f'test=1 target_branch={self.target_branch.branch.short_str()} source_sha={self.source_sha} user:ci'
         )
 
-        current_build_batch = None
-        current_build_batch_status = None
+        current: Optional[Tuple[Batch, dict]] = None
         async for b in batches:
             if await self.is_invalidated_batch(b, db):
                 break
@@ -854,19 +853,20 @@ mkdir -p {shq(repo_dir)}
                 log.exception(f'failed to get the status for batch {b.id}')
                 raise
             if s['state'] != 'cancelled':
-                current_build_batch = b
-                current_build_batch_status = s
+                current = (b, s)
                 break
-        self.batch = current_build_batch
+        self.batch = current[0] if current is not None else None
         self.source_sha_failed = None
 
-        if current_build_batch_status is None:
+        if current is None:
             self.set_build_state(None)
-        elif current_build_batch_status['complete']:
-            assert current_build_batch is not None
-            build_state = 'success' if current_build_batch_status['state'] == 'success' else 'failure'
+            return
+
+        batch, status = current
+        if status['complete']:
+            build_state = 'success' if status['state'] == 'success' else 'failure'
             if build_state != self.build_state:
-                await self._record_build_finished(db, current_build_batch, current_build_batch_status, build_state)
+                await self._record_build_finished(db, batch, status, build_state)
             self.set_build_state(build_state)
             self.source_sha_failed = build_state == 'failure'
             self.target_branch.state_changed = True
