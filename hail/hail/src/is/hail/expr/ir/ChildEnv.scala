@@ -865,7 +865,10 @@ object ChildEnv {
   )(
     v: (Name, Type) => A
   ): E[A] =
-    if (i == 1) Binds.tableMapGlobals(e, tableGlobal(v, tableType(children(0)))) else e.empty
+    if (i == 1) {
+      val t = tableType(children(0))
+      Binds.tableMapGlobals(e, tableGlobal(v, t), tableRow(v, t))
+    } else e.empty
 
   def tableMapRows[E[_]: Scopes, A](
     e: E[A],

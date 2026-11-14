@@ -89,7 +89,13 @@ object ExecuteRelational {
           val globals = BroadcastRow(ctx, RegionValue(ctx.r, globalOffset), globalPType)
           TableValueIntermediate(TableValue(ctx, typ, globals, rvd))
         case TableMapGlobals(child, newGlobals) =>
-          TableValueIntermediate(recur(child).asTableValue(ctx).mapGlobals(newGlobals))
+          if (ContainsAgg(newGlobals)) {
+            val lc = recur(child).asTableStage(ctx)
+            // lc's lets are already in scope here, so the copy must not bind them again
+            TableStageIntermediate(lc.mapGlobals(_ =>
+              lc.copy(letBindings = IndexedSeq.empty).deepCopy.aggregate(ctx, newGlobals, r)
+            ))
+          } else TableValueIntermediate(recur(child).asTableValue(ctx).mapGlobals(newGlobals))
         case TableMapRows(child, newRow) =>
           val extracted =
             agg.Extract(ctx, newRow, r.requirednessAnalysis, isScan = true).independent

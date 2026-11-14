@@ -1316,6 +1316,19 @@ class PruneSuite {
     )
   }
 
+  // the aggregation in newGlobals reads row.2, so the child keeps it
+  @Test def testTableMapGlobalsAggregationRebuild(implicit ctx: ExecuteContext): Unit = {
+    val tmg = tr.mapGlobals((_, _) =>
+      makestruct("foo" -> ApplyAggOp(PrevNonnull())(tableRefBoolean(tr.typ, "row.2")))
+    )
+    checkRebuild(
+      tmg,
+      subsetTable(tmg.typ, "global.foo"),
+      (_: BaseIR, r: BaseIR) =>
+        r.asInstanceOf[TableMapGlobals].child.typ == subsetTable(tr.typ, "row.2"),
+    )
+  }
+
   @Test def testTableLeftJoinRightDistinctRebuild(implicit ctx: ExecuteContext): Unit = {
     val tk1 = TableKeyBy(tab, ArraySeq("1"))
     val tk2 = TableKeyBy(tab, ArraySeq("3"))

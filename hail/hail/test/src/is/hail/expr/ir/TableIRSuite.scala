@@ -981,6 +981,16 @@ class TableIRSuite {
     )
   }
 
+  // newGlobals aggregates over the rows, and the rows stay as they were
+  @Test def testTableMapGlobalsAggregatesOverRows(implicit ctx: ExecuteContext): Unit =
+    assertEvalsTo(
+      TableRange(5, 2)
+        .mapGlobals((_, row) => makestruct("sum" -> ApplyAggOp(Sum())(row.get("idx").toL)))
+        .keyBy(FastSeq())
+        .collect,
+      RowSeq(FastSeq(0 until 5: _*).map(RowSeq(_)), RowSeq(10L)),
+    )
+
   @Test def testTableWrite(implicit ctx: ExecuteContext): Unit = {
     val table = TableRange(5, 4)
     val path = ctx.createTmpPath("test-table-write", "ht")
