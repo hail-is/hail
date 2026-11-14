@@ -80,7 +80,7 @@ and write Vortex itself.
   every entry.
 - **Row ID**: a dataset-unique, order-preserving identifier for a stored row,
   derived from its row partition and its position within that partition.
-- **Key**: the ordered prefix of a table's row fields (or a matrix table's row or
+- **Key**: the ordered list of a table's row fields (or a matrix table's row or
   column fields) by which its rows are sorted and partitioned.
 - **Field**: a named member of a stored schema, such as an Arrow or Parquet schema.
 - **Arrow schema**: an [Apache Arrow](https://arrow.apache.org/docs/format/Columnar.html)

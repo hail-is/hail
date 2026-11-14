@@ -48,6 +48,8 @@ object TableIR {
     dropRows: Boolean = false,
     requestedType: Option[TableType] = None,
   ): TableRead = {
+    if (fs.isFile(s"$path/manifest.json"))
+      fatal(s"reading the columnar format is not supported yet: $path")
     if (!StoredDataset.isCommitted(fs, path))
       fatal(s"write failed: file not found: $path/_SUCCESS")
 
