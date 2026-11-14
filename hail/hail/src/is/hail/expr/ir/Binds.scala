@@ -7,7 +7,7 @@ import is.hail.expr.ir.Scopes.ScopesSyntax
 // takes the env, then the node's name fields and the values it binds, in the
 // order it binds them. A value bound in several scopes comes once.
 object Binds {
-  import Scope.{AGG, EVAL, REL, SCAN}
+  import Scope.{AGG, EVAL, SCAN}
 
   // ApplyAggOp's and ApplyScanOp's init args, AggFold's zero,
   // AggArrayPerElement's knownLength, with s = AGG or SCAN: can't see s
@@ -118,7 +118,7 @@ object Binds {
 
   def arrayMaximalIndependentSet[E[_]: Scopes, A](e: E[A], left: Name, right: Name, l: A, r: A)
     : E[A] =
-    e.fresh.bind(EVAL, FastSeq(left -> l, right -> r))
+    e.empty.bind(EVAL, FastSeq(left -> l, right -> r))
 
   // AggArrayPerElement's aggBody: elementName in s, indexName in s and eval
   def aggArrayPerElement[E[_]: Scopes, A](
@@ -141,7 +141,7 @@ object Binds {
     l: A,
     r: A,
   ): E[A] =
-    e.fresh.bind(EVAL, FastSeq(accumName -> l, otherAccumName -> r))
+    e.empty.bind(EVAL, FastSeq(accumName -> l, otherAccumName -> r))
 
   def aggExplode[E[_]: Scopes, A](e: E[A], s: Scope, name: Name, elt: A): E[A] =
     e.bind(s, FastSeq(name -> elt))
@@ -156,12 +156,12 @@ object Binds {
     ctx: A,
     globals: A,
   ): E[A] =
-    e.fresh.bind(EVAL, FastSeq(cname -> ctx, gname -> globals))
+    e.empty.bind(EVAL, FastSeq(cname -> ctx, gname -> globals))
 
   // TableAggregate's query
   def tableAggregate[E[_]: Scopes, A](e: E[A], global: A, row: A): E[A] = {
     import TableIR.{globalName, rowName}
-    e.fresh
+    e.empty
       .create(AGG)
       .bind(AGG, FastSeq(globalName -> global, rowName -> row))
       .bind(EVAL, FastSeq(globalName -> global))
@@ -170,31 +170,27 @@ object Binds {
   // MatrixAggregate's query
   def matrixAggregate[E[_]: Scopes, A](e: E[A], global: A, sa: A, va: A, g: A): E[A] = {
     import MatrixIR.{colName, entryName, globalName, rowName}
-    e.fresh
+    e.empty
       .create(AGG)
       .bind(AGG, FastSeq(globalName -> global, colName -> sa, rowName -> va, entryName -> g))
       .bind(EVAL, FastSeq(globalName -> global))
   }
 
-  // RelationalLet's body: name bound in REL; no agg or scan scope
-  def relationalLet[E[_]: Scopes, A](e: E[A], name: Name, v: A): E[A] =
-    e.bind(REL, FastSeq(name -> v)).drop(AGG).drop(SCAN)
-
   // table nodes
 
   def tableFilter[E[_]: Scopes, A](e: E[A], global: A, row: A): E[A] =
-    e.fresh.bind(EVAL, FastSeq(TableIR.globalName -> global, TableIR.rowName -> row))
+    e.empty.bind(EVAL, FastSeq(TableIR.globalName -> global, TableIR.rowName -> row))
 
   def tableGen[E[_]: Scopes, A](e: E[A], cname: Name, gname: Name, ctx: A, globals: A): E[A] =
-    e.fresh.bind(EVAL, FastSeq(cname -> ctx, gname -> globals))
+    e.empty.bind(EVAL, FastSeq(cname -> ctx, gname -> globals))
 
   def tableMapGlobals[E[_]: Scopes, A](e: E[A], global: A): E[A] =
-    e.fresh.bind(EVAL, FastSeq(TableIR.globalName -> global))
+    e.empty.bind(EVAL, FastSeq(TableIR.globalName -> global))
 
   // TableMapRows' newRow
   def tableMapRows[E[_]: Scopes, A](e: E[A], global: A, row: A): E[A] = {
     import TableIR.{globalName, rowName}
-    e.fresh
+    e.empty
       .create(SCAN)
       .bind(SCAN, FastSeq(globalName -> global, rowName -> row))
       .bind(EVAL, FastSeq(globalName -> global, rowName -> row))
@@ -202,7 +198,7 @@ object Binds {
 
   def tableAggregateByKey[E[_]: Scopes, A](e: E[A], global: A, row: A): E[A] = {
     import TableIR.{globalName, rowName}
-    e.fresh
+    e.empty
       .create(AGG)
       .bind(AGG, FastSeq(globalName -> global, rowName -> row))
       .bind(EVAL, FastSeq(globalName -> global))
@@ -210,14 +206,14 @@ object Binds {
 
   def tableKeyByAndAggregateExpr[E[_]: Scopes, A](e: E[A], global: A, row: A): E[A] = {
     import TableIR.{globalName, rowName}
-    e.fresh
+    e.empty
       .create(AGG)
       .bind(AGG, FastSeq(globalName -> global, rowName -> row))
       .bind(EVAL, FastSeq(globalName -> global))
   }
 
   def tableKeyByAndAggregateNewKey[E[_]: Scopes, A](e: E[A], global: A, row: A): E[A] =
-    e.fresh.bind(EVAL, FastSeq(TableIR.globalName -> global, TableIR.rowName -> row))
+    e.empty.bind(EVAL, FastSeq(TableIR.globalName -> global, TableIR.rowName -> row))
 
   def tableMapPartitions[E[_]: Scopes, A](
     e: E[A],
@@ -226,17 +222,14 @@ object Binds {
     global: A,
     partition: A,
   ): E[A] =
-    e.fresh.bind(EVAL, FastSeq(globalName -> global, partitionStreamName -> partition))
-
-  def relationalLetTable[E[_]: Scopes, A](e: E[A], name: Name, v: A): E[A] =
-    e.fresh.bind(REL, FastSeq(name -> v))
+    e.empty.bind(EVAL, FastSeq(globalName -> global, partitionStreamName -> partition))
 
   // matrix nodes
 
   // MatrixMapRows' newRow: agg ranges over this row's entries
   def matrixMapRows[E[_]: Scopes, A](e: E[A], global: A, sa: A, va: A, g: A, nCols: A): E[A] = {
     import MatrixIR.{colName, entryName, globalName, rowName}
-    e.fresh
+    e.empty
       .create(AGG)
       .create(SCAN)
       .bind(AGG, FastSeq(globalName -> global, colName -> sa, rowName -> va, entryName -> g))
@@ -247,7 +240,7 @@ object Binds {
   // MatrixMapCols' newCol: agg ranges over this col's entries
   def matrixMapCols[E[_]: Scopes, A](e: E[A], global: A, sa: A, va: A, g: A, nRows: A): E[A] = {
     import MatrixIR.{colName, entryName, globalName, rowName}
-    e.fresh
+    e.empty
       .create(AGG)
       .create(SCAN)
       .bind(AGG, FastSeq(globalName -> global, colName -> sa, rowName -> va, entryName -> g))
@@ -256,14 +249,14 @@ object Binds {
   }
 
   def matrixFilterRows[E[_]: Scopes, A](e: E[A], global: A, va: A): E[A] =
-    e.fresh.bind(EVAL, FastSeq(MatrixIR.globalName -> global, MatrixIR.rowName -> va))
+    e.empty.bind(EVAL, FastSeq(MatrixIR.globalName -> global, MatrixIR.rowName -> va))
 
   def matrixFilterCols[E[_]: Scopes, A](e: E[A], global: A, sa: A): E[A] =
-    e.fresh.bind(EVAL, FastSeq(MatrixIR.globalName -> global, MatrixIR.colName -> sa))
+    e.empty.bind(EVAL, FastSeq(MatrixIR.globalName -> global, MatrixIR.colName -> sa))
 
   def matrixMapEntries[E[_]: Scopes, A](e: E[A], global: A, sa: A, va: A, g: A): E[A] = {
     import MatrixIR.{colName, entryName, globalName, rowName}
-    e.fresh.bind(
+    e.empty.bind(
       EVAL,
       FastSeq(globalName -> global, colName -> sa, rowName -> va, entryName -> g),
     )
@@ -271,20 +264,20 @@ object Binds {
 
   def matrixFilterEntries[E[_]: Scopes, A](e: E[A], global: A, sa: A, va: A, g: A): E[A] = {
     import MatrixIR.{colName, entryName, globalName, rowName}
-    e.fresh.bind(
+    e.empty.bind(
       EVAL,
       FastSeq(globalName -> global, colName -> sa, rowName -> va, entryName -> g),
     )
   }
 
   def matrixMapGlobals[E[_]: Scopes, A](e: E[A], global: A): E[A] =
-    e.fresh.bind(EVAL, FastSeq(MatrixIR.globalName -> global))
+    e.empty.bind(EVAL, FastSeq(MatrixIR.globalName -> global))
 
   // MatrixAggregateRowsByKey's entryExpr: agg over the key's entries in a col
   def matrixAggregateRowsByKeyEntryExpr[E[_]: Scopes, A](e: E[A], global: A, sa: A, va: A, g: A)
     : E[A] = {
     import MatrixIR.{colName, entryName, globalName, rowName}
-    e.fresh
+    e.empty
       .create(AGG)
       .bind(AGG, FastSeq(globalName -> global, colName -> sa, rowName -> va, entryName -> g))
       .bind(EVAL, FastSeq(globalName -> global, colName -> sa))
@@ -293,7 +286,7 @@ object Binds {
   // MatrixAggregateRowsByKey's rowExpr: agg ranges over the key's rows
   def matrixAggregateRowsByKeyRowExpr[E[_]: Scopes, A](e: E[A], global: A, va: A): E[A] = {
     import MatrixIR.{globalName, rowName}
-    e.fresh
+    e.empty
       .create(AGG)
       .bind(AGG, FastSeq(globalName -> global, rowName -> va))
       .bind(EVAL, FastSeq(globalName -> global))
@@ -303,7 +296,7 @@ object Binds {
   def matrixAggregateColsByKeyEntryExpr[E[_]: Scopes, A](e: E[A], global: A, sa: A, va: A, g: A)
     : E[A] = {
     import MatrixIR.{colName, entryName, globalName, rowName}
-    e.fresh
+    e.empty
       .create(AGG)
       .bind(AGG, FastSeq(globalName -> global, colName -> sa, rowName -> va, entryName -> g))
       .bind(EVAL, FastSeq(globalName -> global, rowName -> va))
@@ -312,20 +305,17 @@ object Binds {
   // MatrixAggregateColsByKey's colExpr: agg ranges over the key's cols
   def matrixAggregateColsByKeyColExpr[E[_]: Scopes, A](e: E[A], global: A, sa: A): E[A] = {
     import MatrixIR.{colName, globalName}
-    e.fresh
+    e.empty
       .create(AGG)
       .bind(AGG, FastSeq(globalName -> global, colName -> sa))
       .bind(EVAL, FastSeq(globalName -> global))
   }
 
-  def relationalLetMatrixTable[E[_]: Scopes, A](e: E[A], name: Name, v: A): E[A] =
-    e.fresh.bind(REL, FastSeq(name -> v))
-
   // block matrix nodes
 
   def blockMatrixMap[E[_]: Scopes, A](e: E[A], eltName: Name, elt: A): E[A] =
-    e.fresh.bind(EVAL, FastSeq(eltName -> elt))
+    e.empty.bind(EVAL, FastSeq(eltName -> elt))
 
   def blockMatrixMap2[E[_]: Scopes, A](e: E[A], leftName: Name, rightName: Name, l: A, r: A): E[A] =
-    e.fresh.bind(EVAL, FastSeq(leftName -> l, rightName -> r))
+    e.empty.bind(EVAL, FastSeq(leftName -> l, rightName -> r))
 }

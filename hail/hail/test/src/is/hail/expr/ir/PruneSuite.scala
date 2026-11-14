@@ -15,7 +15,6 @@ import is.hail.types._
 import is.hail.types.virtual._
 
 import scala.collection.immutable.ArraySeq
-import scala.collection.mutable
 
 import org.json4s.JValue
 import org.junit.jupiter.api.Test
@@ -1261,15 +1260,6 @@ class PruneSuite {
       ArraySeq(subsetMatrixTable(mat.typ, "global.g1", "NO_COL_KEY"), null),
     )
 
-  @Test def testPipelineLetMemo(implicit ctx: ExecuteContext): Unit = {
-    val t = TStruct("a" -> TInt32)
-    checkMemo(
-      relationalBindIR(NA(t))(x => x),
-      TStruct.empty,
-      ArraySeq(TStruct.empty, TStruct.empty),
-    )
-  }
-
   @Test def testTableFilterRebuild(implicit ctx: ExecuteContext): Unit = {
     checkRebuild(
       TableFilter(tr, tableRefBoolean(tr.typ, "row.2")),
@@ -1990,43 +1980,6 @@ class PruneSuite {
     )
   }
 
-  @Test def testPipelineLetRebuild(implicit ctx: ExecuteContext): Unit = {
-    val t = TStruct("a" -> TInt32)
-    val foo = freshName()
-    checkRebuild(
-      RelationalLet(foo, NA(t), RelationalRef(foo, t)),
-      TStruct.empty,
-      (_: BaseIR, r: BaseIR) =>
-        r.asInstanceOf[RelationalLet].body == RelationalRef(foo, TStruct.empty),
-    )
-  }
-
-  @Test def testPipelineLetTableRebuild(implicit ctx: ExecuteContext): Unit = {
-    val t = TStruct("a" -> TInt32)
-    val foo = freshName()
-    checkRebuild(
-      RelationalLetTable(foo, NA(t), TableMapGlobals(tab, RelationalRef(foo, t))),
-      tab.typ.copy(globalType = TStruct.empty),
-      (_: BaseIR, r: BaseIR) =>
-        r.asInstanceOf[RelationalLetTable].body.asInstanceOf[
-          TableMapGlobals
-        ].newGlobals == RelationalRef(foo, TStruct.empty),
-    )
-  }
-
-  @Test def testPipelineLetMatrixTableRebuild(implicit ctx: ExecuteContext): Unit = {
-    val t = TStruct("a" -> TInt32)
-    val foo = freshName()
-    checkRebuild(
-      RelationalLetMatrixTable(foo, NA(t), MatrixMapGlobals(mat, RelationalRef(foo, t))),
-      mat.typ.copy(globalType = TStruct.empty),
-      (_: BaseIR, r: BaseIR) =>
-        r.asInstanceOf[RelationalLetMatrixTable].body.asInstanceOf[
-          MatrixMapGlobals
-        ].newGlobals == RelationalRef(foo, TStruct.empty),
-    )
-  }
-
   @Test def testIfUnification(implicit ctx: ExecuteContext): Unit = {
     val pred = False()
     val t = TStruct("a" -> TInt32, "b" -> TInt32)
@@ -2045,7 +1998,7 @@ class PruneSuite {
       ctx,
       ifIR,
       BindingEnv.empty[Type].bindEval(freshName(), t),
-      PruneDeadFields.RebuildMutableState(memo, mutable.HashMap.empty),
+      PruneDeadFields.RebuildMutableState(memo),
     ): Unit
   }
 

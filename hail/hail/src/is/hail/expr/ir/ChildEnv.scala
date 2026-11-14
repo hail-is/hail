@@ -193,7 +193,7 @@ object ChildEnv {
     v: (Name, Type) => A
   ): E[A] =
     (ir.tag.toInt: @switch) match {
-      case Tag.RelationalLet => relationalLet(e, i, ir.asInstanceOf[RelationalLet].name, cs)(v)
+      case Tag.TableAggregate => tableAggregate(e, i, cs)(v)
       case _ => e
     }
 
@@ -206,8 +206,6 @@ object ChildEnv {
     v: (Name, Type) => A
   ): E[A] =
     (ir.tag.toInt: @switch) match {
-      case Tag.TableAggregate =>
-        tableAggregate(e, i, cs)(v)
       case Tag.TableGen =>
         val x = ir.asInstanceOf[TableGen]
         tableGen(e, i, x.cname, x.gname, cs)(v)
@@ -224,17 +222,10 @@ object ChildEnv {
         tableFilter(e, i, cs)(v)
       case Tag.TableMapGlobals =>
         tableMapGlobals(e, i, cs)(v)
-      case Tag.RelationalLetTable =>
-        relationalLetTable(e, i, ir.asInstanceOf[RelationalLetTable].name, cs)(v)
-      case Tag.TableMultiWrite |
-          Tag.TableCollect |
-          Tag.TableCount |
-          Tag.TableWrite |
-          Tag.TableGetGlobals |
-          Tag.TableToValueApply =>
+      case Tag.TableMultiWrite | Tag.TableWrite =>
         e
       case _ =>
-        e.fresh
+        e.empty
     }
 
   private def getMatrix[E[_]: Scopes, A](
@@ -266,15 +257,13 @@ object ChildEnv {
         matrixMapGlobals(e, i, cs)(v)
       case Tag.MatrixFilterEntries =>
         matrixFilterEntries(e, i, cs)(v)
-      case Tag.RelationalLetMatrixTable =>
-        relationalLetMatrixTable(e, i, ir.asInstanceOf[RelationalLetMatrixTable].name, cs)(v)
       case Tag.MatrixMultiWrite |
           Tag.MatrixCount |
           Tag.MatrixWrite |
           Tag.MatrixToValueApply =>
         e
       case _ =>
-        e.fresh
+        e.empty
     }
 
   private def getBlockMatrix[E[_]: Scopes, A](
@@ -290,13 +279,10 @@ object ChildEnv {
       case Tag.BlockMatrixMap2 =>
         val x = ir.asInstanceOf[BlockMatrixMap2]
         blockMatrixMap2(e, i, x.leftName, x.rightName)(v)
-      case Tag.BlockMatrixToValueApply |
-          Tag.BlockMatrixCollect |
-          Tag.BlockMatrixWrite |
-          Tag.BlockMatrixMultiWrite =>
+      case Tag.BlockMatrixWrite | Tag.BlockMatrixMultiWrite =>
         e
       case _ =>
-        e.fresh
+        e.empty
     }
 
   private def typ(c: BaseIR): Type = c.asInstanceOf[IR].typ
@@ -799,7 +785,7 @@ object ChildEnv {
   )(
     v: (Name, Type) => A
   ): E[A] =
-    if (i == 0) e.fresh
+    if (i == 0) e.empty
     else {
       val t = tableType(children(0))
       Binds.tableAggregate(e, tableGlobal(v, t), tableRow(v, t))
@@ -812,7 +798,7 @@ object ChildEnv {
   )(
     v: (Name, Type) => A
   ): E[A] =
-    if (i == 0) e.fresh
+    if (i == 0) e.empty
     else {
       val t = matrixType(children(0))
       Binds.matrixAggregate(e, matrixGlobal(v, t), sa(v, t), va(v, t), g(v, t))
@@ -845,16 +831,6 @@ object ChildEnv {
     else Binds.aggExplode(e, s, name, v(name, eltType(children(0))))
   }
 
-  def relationalLet[E[_]: Scopes, A](
-    e: E[A],
-    i: Int,
-    name: Name,
-    children: IndexedSeq[BaseIR],
-  )(
-    v: (Name, Type) => A
-  ): E[A] =
-    if (i == 0) e.fresh else Binds.relationalLet(e, name, v(name, typ(children(0))))
-
   // table nodes
 
   def tableFilter[E[_]: Scopes, A](
@@ -867,7 +843,7 @@ object ChildEnv {
     if (i == 1) {
       val t = tableType(children(0))
       Binds.tableFilter(e, tableGlobal(v, t), tableRow(v, t))
-    } else e.fresh
+    } else e.empty
 
   def tableGen[E[_]: Scopes, A](
     e: E[A],
@@ -880,7 +856,7 @@ object ChildEnv {
   ): E[A] =
     if (i == 2)
       Binds.tableGen(e, cname, gname, v(cname, eltType(children(0))), v(gname, typ(children(1))))
-    else e.fresh
+    else e.empty
 
   def tableMapGlobals[E[_]: Scopes, A](
     e: E[A],
@@ -889,7 +865,7 @@ object ChildEnv {
   )(
     v: (Name, Type) => A
   ): E[A] =
-    if (i == 1) Binds.tableMapGlobals(e, tableGlobal(v, tableType(children(0)))) else e.fresh
+    if (i == 1) Binds.tableMapGlobals(e, tableGlobal(v, tableType(children(0)))) else e.empty
 
   def tableMapRows[E[_]: Scopes, A](
     e: E[A],
@@ -901,7 +877,7 @@ object ChildEnv {
     if (i == 1) {
       val t = tableType(children(0))
       Binds.tableMapRows(e, tableGlobal(v, t), tableRow(v, t))
-    } else e.fresh
+    } else e.empty
 
   def tableAggregateByKey[E[_]: Scopes, A](
     e: E[A],
@@ -913,7 +889,7 @@ object ChildEnv {
     if (i == 1) {
       val t = tableType(children(0))
       Binds.tableAggregateByKey(e, tableGlobal(v, t), tableRow(v, t))
-    } else e.fresh
+    } else e.empty
 
   def tableKeyByAndAggregate[E[_]: Scopes, A](
     e: E[A],
@@ -928,7 +904,7 @@ object ChildEnv {
     } else if (i == 2) {
       val t = tableType(children(0))
       Binds.tableKeyByAndAggregateNewKey(e, tableGlobal(v, t), tableRow(v, t))
-    } else e.fresh
+    } else e.empty
 
   def tableMapPartitions[E[_]: Scopes, A](
     e: E[A],
@@ -948,17 +924,7 @@ object ChildEnv {
         v(globalName, t.globalType),
         v(partitionStreamName, TStream(t.rowType)),
       )
-    } else e.fresh
-
-  def relationalLetTable[E[_]: Scopes, A](
-    e: E[A],
-    i: Int,
-    name: Name,
-    children: IndexedSeq[BaseIR],
-  )(
-    v: (Name, Type) => A
-  ): E[A] =
-    if (i == 1) Binds.relationalLetTable(e, name, v(name, typ(children(0)))) else e.fresh
+    } else e.empty
 
   // matrix nodes
 
@@ -979,7 +945,7 @@ object ChildEnv {
         g(v, t),
         v(Name("n_cols"), TInt32),
       )
-    } else e.fresh
+    } else e.empty
 
   def matrixFilterRows[E[_]: Scopes, A](
     e: E[A],
@@ -991,7 +957,7 @@ object ChildEnv {
     if (i == 1) {
       val t = matrixType(children(0))
       Binds.matrixFilterRows(e, matrixGlobal(v, t), va(v, t))
-    } else e.fresh
+    } else e.empty
 
   def matrixMapCols[E[_]: Scopes, A](
     e: E[A],
@@ -1010,7 +976,7 @@ object ChildEnv {
         g(v, t),
         v(Name("n_rows"), TInt64),
       )
-    } else e.fresh
+    } else e.empty
 
   def matrixFilterCols[E[_]: Scopes, A](
     e: E[A],
@@ -1022,7 +988,7 @@ object ChildEnv {
     if (i == 1) {
       val t = matrixType(children(0))
       Binds.matrixFilterCols(e, matrixGlobal(v, t), sa(v, t))
-    } else e.fresh
+    } else e.empty
 
   def matrixMapEntries[E[_]: Scopes, A](
     e: E[A],
@@ -1034,7 +1000,7 @@ object ChildEnv {
     if (i == 1) {
       val t = matrixType(children(0))
       Binds.matrixMapEntries(e, matrixGlobal(v, t), sa(v, t), va(v, t), g(v, t))
-    } else e.fresh
+    } else e.empty
 
   def matrixFilterEntries[E[_]: Scopes, A](
     e: E[A],
@@ -1046,7 +1012,7 @@ object ChildEnv {
     if (i == 1) {
       val t = matrixType(children(0))
       Binds.matrixFilterEntries(e, matrixGlobal(v, t), sa(v, t), va(v, t), g(v, t))
-    } else e.fresh
+    } else e.empty
 
   def matrixMapGlobals[E[_]: Scopes, A](
     e: E[A],
@@ -1055,7 +1021,7 @@ object ChildEnv {
   )(
     v: (Name, Type) => A
   ): E[A] =
-    if (i == 1) Binds.matrixMapGlobals(e, matrixGlobal(v, matrixType(children(0)))) else e.fresh
+    if (i == 1) Binds.matrixMapGlobals(e, matrixGlobal(v, matrixType(children(0)))) else e.empty
 
   def matrixAggregateColsByKey[E[_]: Scopes, A](
     e: E[A],
@@ -1070,7 +1036,7 @@ object ChildEnv {
     } else if (i == 2) {
       val t = matrixType(children(0))
       Binds.matrixAggregateColsByKeyColExpr(e, matrixGlobal(v, t), sa(v, t))
-    } else e.fresh
+    } else e.empty
 
   def matrixAggregateRowsByKey[E[_]: Scopes, A](
     e: E[A],
@@ -1085,22 +1051,12 @@ object ChildEnv {
     } else if (i == 2) {
       val t = matrixType(children(0))
       Binds.matrixAggregateRowsByKeyRowExpr(e, matrixGlobal(v, t), va(v, t))
-    } else e.fresh
-
-  def relationalLetMatrixTable[E[_]: Scopes, A](
-    e: E[A],
-    i: Int,
-    name: Name,
-    children: IndexedSeq[BaseIR],
-  )(
-    v: (Name, Type) => A
-  ): E[A] =
-    if (i == 1) Binds.relationalLetMatrixTable(e, name, v(name, typ(children(0)))) else e.fresh
+    } else e.empty
 
   // block matrix nodes
 
   def blockMatrixMap[E[_]: Scopes, A](e: E[A], i: Int, eltName: Name)(v: (Name, Type) => A): E[A] =
-    if (i == 1) Binds.blockMatrixMap(e, eltName, v(eltName, TFloat64)) else e.fresh
+    if (i == 1) Binds.blockMatrixMap(e, eltName, v(eltName, TFloat64)) else e.empty
 
   def blockMatrixMap2[E[_]: Scopes, A](
     e: E[A],
@@ -1112,5 +1068,5 @@ object ChildEnv {
   ): E[A] =
     if (i == 2)
       Binds.blockMatrixMap2(e, leftName, rightName, v(leftName, TFloat64), v(rightName, TFloat64))
-    else e.fresh
+    else e.empty
 }

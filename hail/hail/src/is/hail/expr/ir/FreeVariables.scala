@@ -16,7 +16,7 @@ case class FreeVariableEnv(boundVars: Set[Name], freeVars: mutable.Set[Name]) {
 }
 
 // The free variables of eval, agg and scan.
-// isFresh marks a fresh scope, which sees only relational names, so records no free variable.
+// isFresh marks a fresh scope, which sees no outer name, so records no free variable.
 case class FreeVariableBindingEnv(
   evalVars: Option[FreeVariableEnv],
   aggVars: Option[FreeVariableEnv],
@@ -36,15 +36,13 @@ case class FreeVariableBindingEnv(
 object FreeVariableBindingEnv {
   type E[_] = FreeVariableBindingEnv
 
-  // As BindingEnv's, but binding or promoting a missing scope does nothing, and relational
-  // names aren't tracked
+  // As BindingEnv's, but binding or promoting a missing scope does nothing
   implicit object freeVariableScopes extends Scopes[E] {
-    override def bind[A](e: E[A], s: EnvScope, bs: Seq[(Name, A)]): E[A] =
+    override def bind[A](e: E[A], s: Scope, bs: Seq[(Name, A)]): E[A] =
       s match {
         case Scope.EVAL => e.copy(evalVars = e.evalVars.map(_.bindIterable(bs)))
         case Scope.AGG => e.copy(aggVars = e.aggVars.map(_.bindIterable(bs)))
         case Scope.SCAN => e.copy(scanVars = e.scanVars.map(_.bindIterable(bs)))
-        case Scope.REL => e
       }
 
     override def create[A](e: E[A], s: Scope): E[A] =
@@ -68,7 +66,7 @@ object FreeVariableBindingEnv {
         case Scope.SCAN => e.copy(evalVars = e.scanVars, scanVars = None)
       }
 
-    override def fresh[A](e: E[A]): E[A] =
+    override def empty[A](e: E[A]): E[A] =
       FreeVariableBindingEnv(None, None, None, isFresh = true)
   }
 }

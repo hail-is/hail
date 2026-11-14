@@ -20,9 +20,6 @@ object DistinctlyKeyed {
           | _: TableMapGlobals) =>
         memo.bindIf(memo.contains(t.children.head), t, ())
 
-      case t @ RelationalLetTable(_, _, body) =>
-        memo.bindIf(memo.contains(body), t, ())
-
       case t @ (_: TableHead
           | _: TableTail
           | _: TableRepartition

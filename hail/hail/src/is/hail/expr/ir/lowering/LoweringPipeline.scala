@@ -56,8 +56,7 @@ object LoweringPipeline {
       OptimizePass(s"$context, initial IR"),
       LowerMatrixToTablePass,
       OptimizePass(s"$context, after LowerMatrixToTable"),
-      LiftRelationalValuesToRelationalLets,
-      EvalRelationalLetsPass(withShuffleRewrite),
+      EvalRelationalValuesPass(withShuffleRewrite),
     ) + withShuffleRewrite
   }
 

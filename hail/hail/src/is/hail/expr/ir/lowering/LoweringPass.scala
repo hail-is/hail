@@ -61,17 +61,10 @@ case object LowerMatrixToTablePass extends LoweringPass {
   override def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR = LowerMatrixIR(ctx, ir)
 }
 
-case object LiftRelationalValuesToRelationalLets extends LoweringPass {
-  override val context: String = "LiftRelationalValuesToRelationalLets"
-  override def before: Invariant = LowerableIR and NoMatrixIR
-  override def after: Invariant = before
-  override def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR = LiftRelationalValues(ctx, ir)
-}
-
 case object LegacyInterpretNonCompilablePass extends LoweringPass {
   override val context: String = "InterpretNonCompilable"
   override def before: Invariant = LowerableIR and NoMatrixIR
-  override def after: Invariant = before and NoRelationalLets and CompilableValueIRs
+  override def after: Invariant = before and CompilableValueIRs
 
   override def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR =
     LowerOrInterpretNonCompilable(ctx, ir)
@@ -174,18 +167,18 @@ case object LowerArrayAggsToRunAggsPass extends LoweringPass {
     }
 }
 
-case class EvalRelationalLetsPass(passesBelow: LoweringPipeline) extends LoweringPass {
-  override val context: String = "EvalRelationalLets"
+case class EvalRelationalValuesPass(passesBelow: LoweringPipeline) extends LoweringPass {
+  override val context: String = "EvalRelationalValues"
   override def before: Invariant = LowerableIR and NoMatrixIR
-  override def after: Invariant = before and NoRelationalLets
+  override def after: Invariant = before
 
   override def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR =
-    EvalRelationalLets(ir, ctx, passesBelow)
+    EvalRelationalValues(ir, ctx, passesBelow)
 }
 
 case object LowerTableKeyByAndAggregatePass extends LoweringPass {
   override val context: String = "LowerTableKeyByAndAggregate"
-  override def before: Invariant = LowerableIR and NoRelationalLets and NoMatrixIR
+  override def before: Invariant = LowerableIR and NoMatrixIR
   override def after: Invariant = before and NoTableKeyByAndAggregate
 
   override def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR =
@@ -196,7 +189,7 @@ case object LowerAndExecuteShufflesPass extends LoweringPass {
   override val context: String = "LowerAndExecuteShuffles"
 
   override def before: Invariant =
-    LowerableIR and NoRelationalLets and NoMatrixIR and NoTableKeyByAndAggregate
+    LowerableIR and NoMatrixIR and NoTableKeyByAndAggregate
 
   override def after: Invariant =
     before and LoweredShuffles

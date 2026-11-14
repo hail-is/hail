@@ -172,8 +172,6 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
     }
     node match {
       case Block(bindings, _) => bindings.foreach(b => addBinding(b.name, b.value))
-      case RelationalLet(name, value, _) => addBinding(name, value)
-      case RelationalLetTable(name, value, _) => addBinding(name, value)
       case TailLoop(loopName, params, _, body) =>
         addBinding(loopName, body)
         val argDefs = ArraySeq.fill(params.length)(ArraySeq.newBuilder[IR])
@@ -400,7 +398,6 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
       case TableOrderBy(child, _) => requiredness.unionFrom(lookup(child))
       case TableRename(child, _, _) => requiredness.unionFrom(lookup(child))
       case TableFilterIntervals(child, _, _) => requiredness.unionFrom(lookup(child))
-      case RelationalLetTable(_, _, body) => requiredness.unionFrom(lookup(body))
       case TableGen(_, globals, _, _, body, _, _) =>
         requiredness.unionGlobals(lookupAs[RStruct](globals))
         requiredness.unionRows(lookupAs[RIterable](body).elementType.asInstanceOf[RStruct])
@@ -582,8 +579,6 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         requiredness.unionFrom(lookup(default))
         requiredness.unionFrom(cases.map(lookup))
       case Block(_, body) =>
-        requiredness.unionFrom(lookup(body))
-      case RelationalLet(_, _, body) =>
         requiredness.unionFrom(lookup(body))
       case TailLoop(_, _, _, body) =>
         requiredness.unionFrom(lookup(body))

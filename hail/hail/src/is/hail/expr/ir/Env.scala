@@ -20,12 +20,11 @@ object BindingEnv {
 
   // BindingEnv's own operations, binding each name to its value
   implicit object bindingEnvScopes extends Scopes[BindingEnv] {
-    override def bind[A](e: BindingEnv[A], s: EnvScope, bs: Seq[(Name, A)]): BindingEnv[A] =
+    override def bind[A](e: BindingEnv[A], s: Scope, bs: Seq[(Name, A)]): BindingEnv[A] =
       s match {
         case Scope.EVAL => e.copy(eval = e.eval.bindIterable(bs))
         case Scope.AGG => e.copy(agg = Some(e.agg.get.bindIterable(bs)))
         case Scope.SCAN => e.copy(scan = Some(e.scan.get.bindIterable(bs)))
-        case Scope.REL => e.copy(relational = e.relational.bindIterable(bs))
       }
 
     override def create[A](e: BindingEnv[A], s: Scope): BindingEnv[A] =
@@ -53,8 +52,8 @@ object BindingEnv {
           e.promoteScan
       }
 
-    override def fresh[A](e: BindingEnv[A]): BindingEnv[A] =
-      BindingEnv(relational = e.relational)
+    override def empty[A](e: BindingEnv[A]): BindingEnv[A] =
+      BindingEnv()
   }
 }
 
@@ -62,11 +61,10 @@ case class BindingEnv[V](
   eval: Env[V] = Env.empty[V],
   agg: Option[Env[V]] = None,
   scan: Option[Env[V]] = None,
-  relational: Env[V] = Env.empty[V],
 ) {
 
   def allEmpty: Boolean =
-    eval.isEmpty && agg.forall(_.isEmpty) && scan.forall(_.isEmpty) && relational.isEmpty
+    eval.isEmpty && agg.forall(_.isEmpty) && scan.forall(_.isEmpty)
 
   def promoteAgg: BindingEnv[V] = copy(eval = agg.get, agg = None)
 
@@ -104,17 +102,13 @@ case class BindingEnv[V](
     s"""BindingEnv:
        |  Eval:${eval.m.map { case (k, v) => s"\n    $k -> ${valuePrinter(v)}" }.mkString("")}
        |  Agg: ${agg.map(_.m.map { case (k, v) => s"\n    $k -> ${valuePrinter(v)}" }.mkString("")).getOrElse("None")}
-       |  Scan: ${scan.map(_.m.map { case (k, v) => s"\n    $k -> ${valuePrinter(v)}" }.mkString("")).getOrElse("None")}
-       |  Relational: ${relational.m.map { case (k, v) =>
-        s"\n    $k -> ${valuePrinter(v)}"
-      }.mkString("")}""".stripMargin
+       |  Scan: ${scan.map(_.m.map { case (k, v) => s"\n    $k -> ${valuePrinter(v)}" }.mkString("")).getOrElse("None")}""".stripMargin
 
   def mapValues[T](f: V => T): BindingEnv[T] =
     copy[T](
       eval = eval.mapValues(f),
       agg = agg.map(_.mapValues(f)),
       scan = scan.map(_.mapValues(f)),
-      relational = relational.mapValues(f),
     )
 }
 

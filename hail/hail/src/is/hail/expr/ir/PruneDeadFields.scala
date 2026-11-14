@@ -21,17 +21,11 @@ object PruneDeadFields extends Logging {
   class ComputeMutableState {
     val requestedType: Memo[BaseType] = Memo.empty
 
-    val relationalRefs: mutable.Map[Name, mutable.Builder[Type, IndexedSeq[Type]]] =
-      mutable.HashMap.empty.withDefault((_: Name) => ArraySeq.newBuilder[Type])
-
     def rebuildState: RebuildMutableState =
-      RebuildMutableState(requestedType, mutable.HashMap.empty)
+      RebuildMutableState(requestedType)
   }
 
-  case class RebuildMutableState(
-    requestedType: Memo[BaseType],
-    relationalRefs: mutable.HashMap[Name, Type],
-  )
+  case class RebuildMutableState(requestedType: Memo[BaseType])
 
   object TypeState {
     def apply(origType: Type): TypeState = new TypeState(origType)
@@ -772,10 +766,6 @@ object PruneDeadFields extends Logging {
         memoizeBlockMatrixIR(ctx, bm, bm.typ, memo)
         memoizeValueIR(ctx, aux, aux.typ, memo)
       case BlockMatrixToTable(child) => memoizeBlockMatrixIR(ctx, child, child.typ, memo)
-      case RelationalLetTable(name, value, body) =>
-        memoizeTableIR(ctx, body, requestedType, memo)
-        val usages = memo.relationalRefs(name).result()
-        memoizeValueIR(ctx, value, unifySeq(value.typ, usages), memo)
     }
   }
 
@@ -1141,10 +1131,6 @@ object PruneDeadFields extends Logging {
           entryType = requestedType.entryType.rename(entryMapRev),
         )
         memoizeMatrixIR(ctx, child, childDep, memo)
-      case RelationalLetMatrixTable(name, value, body) =>
-        memoizeMatrixIR(ctx, body, requestedType, memo)
-        val usages = memo.relationalRefs(name).result()
-        memoizeValueIR(ctx, value, unifySeq(value.typ, usages), memo)
     }
   }
 
@@ -1402,14 +1388,6 @@ object PruneDeadFields extends Logging {
       case Ref(name, _) =>
 //        env.eval.lookupOption(name).foreach(_.union(requestedType))
         env.eval(name).union(requestedType): Unit
-
-      case RelationalLet(name, value, _) =>
-        recur(ir, 1, requestedType)
-        val usages = memo.relationalRefs(name).result()
-        recur(ir, 0, unifySeq(value.typ, usages))
-
-      case RelationalRef(name, _) =>
-        memo.relationalRefs(name) += requestedType
 
       case MakeArray(args, _) =>
         val eltType = TIterable.elementType(requestedType)
@@ -1941,10 +1919,6 @@ object PruneDeadFields extends Logging {
           upcastTable(ctx, rebuild(ctx, c, memo), requestedType, upcastGlobals = false)
         }
         TableUnion(rebuilt)
-      case RelationalLetTable(name, value, body) =>
-        val value2 = rebuildIR(ctx, value, BindingEnv.empty, memo)
-        memo.relationalRefs += name -> value2.typ
-        RelationalLetTable(name, value2, rebuild(ctx, body, memo))
       case BlockMatrixToTableApply(bmir, aux, function) =>
         val bmir2 = rebuild(ctx, bmir, memo)
         val aux2 = rebuildIR(ctx, aux, BindingEnv.empty, memo)
@@ -2128,10 +2102,6 @@ object PruneDeadFields extends Logging {
           rowMap.view.filterKeys(child2.typ.rowType.hasField).toMap,
           entryMap.view.filterKeys(child2.typ.entryType.hasField).toMap,
         )
-      case RelationalLetMatrixTable(name, value, body) =>
-        val value2 = rebuildIR(ctx, value, BindingEnv.empty, memo)
-        memo.relationalRefs += name -> value2.typ
-        RelationalLetMatrixTable(name, value2, rebuild(ctx, body, memo))
       case CastTableToMatrix(child, entriesFieldName, colsFieldName, _) =>
         CastTableToMatrix(
           rebuild(ctx, child, memo),
@@ -2216,11 +2186,6 @@ object PruneDeadFields extends Logging {
           Coalesce(values2.map(upcast(ctx, _, requestedType)))
       case Ref(name, t) =>
         Ref(name, env.eval.lookupOption(name).getOrElse(t))
-      case RelationalLet(name, value, body) =>
-        val value2 = rebuildIR(ctx, value, BindingEnv.empty, memo)
-        memo.relationalRefs += name -> value2.typ
-        RelationalLet(name, value2, rebuildIR(ctx, body, env, memo))
-      case RelationalRef(name, _) => RelationalRef(name, memo.relationalRefs(name))
       case MakeArray(args, _) =>
         val dep = requestedType.asInstanceOf[TArray]
         val args2 = args.map(a => rebuildIR(ctx, a, env, memo))

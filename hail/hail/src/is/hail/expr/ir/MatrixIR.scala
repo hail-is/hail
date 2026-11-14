@@ -997,17 +997,3 @@ case class MatrixFilterIntervals(child: MatrixIR, intervals: IndexedSeq[Interval
 
   override def preservesRowsOrColsFrom: BaseIR = child
 }
-
-case class RelationalLetMatrixTable(name: Name, value: IR, body: MatrixIR)
-    extends MatrixIR(new Tag(Tag.RelationalLetMatrixTable)) with PreservesRows {
-  override def typ: MatrixType = body.typ
-
-  override def childrenSeq: IndexedSeq[BaseIR] = ArraySeq(value, body)
-
-  override protected def copyWithNewChildren(newChildren: IndexedSeq[BaseIR]): MatrixIR = {
-    val IndexedSeq(newValue: IR, newBody: MatrixIR) = newChildren
-    RelationalLetMatrixTable(name, newValue, newBody)
-  }
-
-  override def preservesRowsOrColsFrom: BaseIR = body
-}
