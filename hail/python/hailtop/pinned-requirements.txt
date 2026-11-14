@@ -211,13 +211,13 @@ azure-storage-blob==12.31.1 \
     --hash=sha256:0d6e5b860a1357efc602db04cfa7c9950ac86126edcf7db89320cde281555fe5 \
     --hash=sha256:9e012d5f4ab658b7cb8a4581329d7a7aa2bf5f39b4d63baeefaae7f9e90fe6f0
     # via -r hail/python/hailtop/requirements.txt
-boto3==1.43.125 \
-    --hash=sha256:101fe3ee99664e671efb9af65c8e98ec0bceddf6de922ea89685da4adc8c6907 \
-    --hash=sha256:5a635a0fbbd51f319e465b809cf043668705defbb9dddaf26ae66747f70b2a49
+boto3==1.43.126 \
+    --hash=sha256:5fda4a3dd2782c134a01d1678911962c2860dd8de8cd10bef168ba1507b371a9 \
+    --hash=sha256:dd701a973b02a73930e546a6a15d13edbfbedc3180bb3d55b0a88678c284ccd6
     # via -r hail/python/hailtop/requirements.txt
-botocore==1.43.125 \
-    --hash=sha256:e3969c8191d3435440037310187d324f37c00da53987ea31df2eceff19a2795a \
-    --hash=sha256:e3ae5ebbfa8033015958a9cb16cef67a0592902ca8afb46ef06e8ae77475183f
+botocore==1.43.126 \
+    --hash=sha256:2f2239a47025a2fa173cd145ab8803ac02b76114864bf5b66475ff1cb88e6b0a \
+    --hash=sha256:96996af07d8b703c3cdf44863f69c0b4b8b2d1cb6976c641986ced3e38c072f3
     # via
     #   -r hail/python/hailtop/requirements.txt
     #   boto3
@@ -507,9 +507,9 @@ charset-normalizer==3.5.2 \
     --hash=sha256:fd1fbe0f116b6e55da77aca2c6ddcddcfac2186cbf78bdebf40fc156efca389d \
     --hash=sha256:fe9753dfee015c570d73df76f899f18444d41388bffcde097deba51c4fadbb9f
     # via requests
-click==8.5.0 \
-    --hash=sha256:255bc9599cf7748b4b1a446ccc735421bd08a2ae529a8b88597d3de5664ee360 \
-    --hash=sha256:ba0d2089de75ea0310e2dde03160e6ca10009947fb95a182f9b54021bb272e34
+click==8.5.1 \
+    --hash=sha256:8bb5376d2006950386f8c6427613334a2acadc5f559cb80e638d00b4df957e37 \
+    --hash=sha256:9bbfada76703fd1d784b83eea012e3e8c6a001a876543ef104fa56aaaeb072b4
     # via typer
 commonmark==0.9.2 \
     --hash=sha256:194d693e0c1ac49e83c26455bdeeb2483235e6280313c58b11d0b71c19f58ed1 \

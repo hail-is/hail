@@ -915,10 +915,10 @@ steps:
     script: |
       set -ex
       cd /io/
-      
+
       uv venv --python 3.12 --seed _venv
       source _venv/bin/activate
-      
+
       pip install /io/wheel/hail-*-py3-none-any.whl
       cat << EOF | python3
       import hail as hl
@@ -1704,6 +1704,9 @@ steps:
       - merge_code
   - kind: buildImage2
     name: hail_linting_image
+    resources:
+      storage: 10Gi
+      cpu: "2"
     contextPath: /io/repo
     dockerFile:
       inline: |
@@ -2780,13 +2783,13 @@ steps:
       set -ex
       export GOOGLE_APPLICATION_CREDENTIALS=/batch-gsa-key/key.json
       export UPLOAD_RELEASE_JAR=true
-      
+
       {% if deploy %}
       export JAR_PREFIX={{ global.query_storage_uri }}
       {% else %}
       export JAR_PREFIX={{ global.test_storage_uri }}/{{ default_ns.name }}
       {% endif %}
-      
+
       bash /io/upload-qob-jar.sh {{ default_ns.name }} $(cat /io/REVISION) /io/hail.jar
     secrets:
       - name: batch-gsa-key
