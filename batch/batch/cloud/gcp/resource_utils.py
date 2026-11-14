@@ -10,6 +10,11 @@ GCP_MAX_PERSISTENT_SSD_SIZE_GIB = 64 * 1024
 
 GCP_MACHINE_FAMILY = 'n1'
 
+# The share of autoscaled pool instances created as n4 rather than GCP_MACHINE_FAMILY, while n4 is
+# rolled out gradually: n4's CPU and Hyperdisk quotas are too small to move the pools over at once.
+# Jobs are still sized for GCP_MACHINE_FAMILY, which never has more memory per core than n4.
+GCP_POOL_N4_FRACTION = 0.1
+
 MEMORY_PER_CORE_MIB = {
     ('n1', 'standard'): 3840,
     ('n1', 'highmem'): 6656,
@@ -374,6 +379,16 @@ def gcp_machine_type_to_cores_and_memory_bytes(machine_type: str) -> Tuple[int, 
 
 def family_worker_type_cores_to_gcp_machine_type(family: str, worker_type: str, cores: int) -> str:
     return f'{family}-{worker_type}-{cores}'
+
+
+def gcp_pool_rollout_machine_type(worker_type: str, cores: int, draw: float) -> Optional[str]:
+    """The n4 machine type a new autoscaled pool instance is rolled out onto, given a uniform random
+    `draw` in [0, 1): an n4 machine type for a GCP_POOL_N4_FRACTION share of draws, and None for the
+    rest or when n4 has no machine type with this worker type and core count."""
+    n4_machine_type = family_worker_type_cores_to_gcp_machine_type('n4', worker_type, cores)
+    if draw < GCP_POOL_N4_FRACTION and n4_machine_type in MACHINE_TYPE_TO_PARTS:
+        return n4_machine_type
+    return None
 
 
 def gcp_worker_memory_per_core_mib(machine_family: str, worker_type: str) -> int:

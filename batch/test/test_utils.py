@@ -7,6 +7,7 @@ from batch.cloud.gcp.instance_config import GCPSlimInstanceConfig, region_from_l
 from batch.cloud.gcp.resource_utils import (
     GCP_HYPERDISK_BALANCED_FREE_IOPS,
     GCP_HYPERDISK_BALANCED_FREE_THROUGHPUT_MIB_PER_SEC,
+    GCP_POOL_N4_FRACTION,
     gcp_boot_disk_type,
     gcp_data_disk_device_name,
     gcp_data_disk_type,
@@ -14,6 +15,7 @@ from batch.cloud.gcp.resource_utils import (
     gcp_hyperdisk_performance_overrides,
     gcp_local_ssd_count,
     gcp_local_ssd_size,
+    gcp_pool_rollout_machine_type,
     gcp_worker_memory_per_core_mib,
     machine_type_to_gpu_num,
 )
@@ -296,6 +298,27 @@ async def test_gcp_disk_creates_configured_disk_type(disk_type, expected_extra_f
 )
 def test_gcp_local_ssd_size(family, cores, expected):
     assert gcp_local_ssd_size(family, cores) == expected
+
+
+def test_gcp_pool_n4_fraction_is_a_partial_rollout():
+    assert 0 < GCP_POOL_N4_FRACTION < 1
+
+
+@pytest.mark.parametrize(
+    "worker_type,cores,draw,expected",
+    [
+        ('standard', 16, 0.0, 'n4-standard-16'),
+        ('highmem', 16, GCP_POOL_N4_FRACTION / 2, 'n4-highmem-16'),
+        ('highcpu', 16, GCP_POOL_N4_FRACTION / 2, 'n4-highcpu-16'),
+        ('standard', 16, GCP_POOL_N4_FRACTION, None),
+        ('standard', 16, 0.99, None),
+        # n4 has no 1- or 96-core machine types, so those pools never roll out onto n4.
+        ('standard', 1, 0.0, None),
+        ('standard', 96, 0.0, None),
+    ],
+)
+def test_gcp_pool_rollout_machine_type(worker_type, cores, draw, expected):
+    assert gcp_pool_rollout_machine_type(worker_type, cores, draw) == expected
 
 
 @pytest.mark.parametrize(
