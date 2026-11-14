@@ -666,12 +666,13 @@ async def github_callback(request: web.Request):
     return web.Response(status=200)
 
 
-async def remove_namespace_from_db(db: Database, namespace: str):
+async def remove_namespace_from_db(db: Database, namespace: str) -> bool:
     assert namespace != 'default'
-    await db.just_execute(
+    n_deleted = await db.execute_update(
         'DELETE FROM active_namespaces WHERE namespace = %s',
         (namespace,),
     )
+    return n_deleted > 0
 
 
 async def batch_callback_handler(app: web.Application, batch_id: int, username: str):
@@ -731,8 +732,7 @@ async def batch_callback_handler(app: web.Application, batch_id: int, username: 
         assert 'deploy' not in attrs
         assert 'dev' not in attrs
         namespace = attrs['namespace']
-        if DEFAULT_NAMESPACE == 'default':
-            await remove_namespace_from_db(db, namespace)
+        if DEFAULT_NAMESPACE == 'default' and await remove_namespace_from_db(db, namespace):
             await record_event(
                 db,
                 CIEvent.NAMESPACE_DELETED,
@@ -1527,8 +1527,8 @@ async def api_put_namespace(request: web.Request, userdata: UserData) -> web.Res
 async def api_delete_namespace(request: web.Request, userdata: UserData) -> web.Response:
     db = request.app[AppKeys.DB]
     namespace = request.match_info['namespace']
-    await remove_namespace_from_db(db, namespace)
-    await record_event(db, CIEvent.NAMESPACE_DELETED, username=userdata['username'], namespace=namespace)
+    if await remove_namespace_from_db(db, namespace):
+        await record_event(db, CIEvent.NAMESPACE_DELETED, username=userdata['username'], namespace=namespace)
     return web.Response(status=204)
 
 
