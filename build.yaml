@@ -2331,6 +2331,9 @@ steps:
       - name: ci-events
         script: /io/sql/008-ci-events.sql
         online: true
+      - name: ci-events-event-varchar
+        script: /io/sql/009-ci-events-event-varchar.sql
+        online: true
     inputs:
       - from: /repo/ci/sql
         to: /io/sql

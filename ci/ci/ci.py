@@ -666,47 +666,84 @@ async def github_callback(request: web.Request):
     return web.Response(status=200)
 
 
-async def remove_namespace_from_db(db: Database, namespace: str):
+async def remove_namespace_from_db(db: Database, namespace: str) -> bool:
     assert namespace != 'default'
-    await db.just_execute(
+    n_deleted = await db.execute_update(
         'DELETE FROM active_namespaces WHERE namespace = %s',
         (namespace,),
     )
+    return n_deleted > 0
 
 
-async def batch_callback_handler(app: web.Application, batch_id: int):
+async def batch_callback_handler(app: web.Application, batch_id: int, username: str):
     db = app[AppKeys.DB]
     batch_client = app[AppKeys.BATCH_CLIENT]
-    log.info(f'batch callback for batch {batch_id}')
+    log.info(f'batch callback for batch {batch_id} from {username}')
 
     # What to do depends on the batch's attributes, so read them from Batch rather than trusting the caller.
     try:
         batch = await retry_transient_errors(batch_client.get_batch, batch_id)
     except httpx.ClientResponseError as e:
-        if e.status in (403, 404):
-            raise web.HTTPNotFound() from e
+        if e.status not in (403, 404):
+            await record_event(
+                db, CIEvent.BATCH_CALLBACK_FAILED, batch_id=batch_id, username=username, message=describe_exception(e)
+            )
+            raise
+        await record_event(
+            db, CIEvent.BATCH_CALLBACK_FAILED, batch_id=batch_id, username=username, message='batch not found'
+        )
+        raise web.HTTPNotFound() from e
+    except Exception as e:
+        await record_event(
+            db, CIEvent.BATCH_CALLBACK_FAILED, batch_id=batch_id, username=username, message=describe_exception(e)
+        )
         raise
     status = await batch.last_known_status()
     if status['user'] != 'ci':
         log.info(f'ignoring batch callback for batch {batch_id} owned by {status["user"]}')
+        await record_event(
+            db,
+            CIEvent.BATCH_CALLBACK_FAILED,
+            batch_id=batch_id,
+            username=username,
+            message=f'batch is owned by {status["user"]}, not ci',
+        )
         return
 
     attrs = batch.attributes
     target_branch = attrs.get('target_branch')
-    if not target_branch:
+    pr = attrs.get('pr')
+    wb = next((wb for wb in watched_branches if wb.branch.short_str() == target_branch), None)
+    await record_event(
+        db,
+        CIEvent.BATCH_CALLBACK_RECEIVED,
+        batch_id=batch_id,
+        username=username,
+        target_branch=target_branch,
+        pr_number=int(pr) if pr is not None and pr.isdigit() else None,
+        message=f'batch {status["state"]}; '
+        + ('notifying watched branch' if wb is not None else 'no matching watched branch'),
+    )
+    if wb is None:
         return
-    for wb in watched_branches:
-        if wb.branch.short_str() == target_branch:
-            log.info(f'watched_branch {wb.branch.short_str()} notify batch changed')
 
-            if 'test' in attrs and status['complete']:
-                assert 'deploy' not in attrs
-                assert 'dev' not in attrs
-                namespace = attrs['namespace']
-                if DEFAULT_NAMESPACE == 'default':
-                    await remove_namespace_from_db(db, namespace)
+    log.info(f'watched_branch {wb.branch.short_str()} notify batch changed')
+    if 'test' in attrs and status['complete']:
+        assert 'deploy' not in attrs
+        assert 'dev' not in attrs
+        namespace = attrs['namespace']
+        if DEFAULT_NAMESPACE == 'default' and await remove_namespace_from_db(db, namespace):
+            await record_event(
+                db,
+                CIEvent.NAMESPACE_DELETED,
+                batch_id=batch_id,
+                username=username,
+                target_branch=target_branch,
+                namespace=namespace,
+                message='test batch completed',
+            )
 
-            await wb.notify_batch_changed(db, batch_client, app[AppKeys.GH_CLIENT], app[AppKeys.FROZEN_MERGE_DEPLOY])
+    await wb.notify_batch_changed(db, batch_client, app[AppKeys.GH_CLIENT], app[AppKeys.FROZEN_MERGE_DEPLOY])
 
 
 @routes.get('/api/v1alpha/version')
@@ -839,7 +876,7 @@ async def batch_callback(request: web.Request, userdata: UserData) -> web.Respon
     if userdata['username'] != 'batch' and not userdata['system_permissions'].get(SystemPermission.MANAGE_CI, False):
         raise web.HTTPUnauthorized()
     batch_id = int(request.match_info['batch_id'])
-    await asyncio.shield(batch_callback_handler(request.app, batch_id))
+    await asyncio.shield(batch_callback_handler(request.app, batch_id, userdata['username']))
     return web.Response(status=200)
 
 
@@ -1490,8 +1527,8 @@ async def api_put_namespace(request: web.Request, userdata: UserData) -> web.Res
 async def api_delete_namespace(request: web.Request, userdata: UserData) -> web.Response:
     db = request.app[AppKeys.DB]
     namespace = request.match_info['namespace']
-    await remove_namespace_from_db(db, namespace)
-    await record_event(db, CIEvent.NAMESPACE_DELETED, username=userdata['username'], namespace=namespace)
+    if await remove_namespace_from_db(db, namespace):
+        await record_event(db, CIEvent.NAMESPACE_DELETED, username=userdata['username'], namespace=namespace)
     return web.Response(status=204)
 
 

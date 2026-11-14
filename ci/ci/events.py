@@ -11,7 +11,7 @@ MAX_MESSAGE_LENGTH = 10_000
 _CLEANUP_BATCH_SIZE = 1000
 
 
-# Mirrors the ENUM on ci_events.event; adding a value needs a migration.
+# Source of truth for event types. ci_events.event is a plain VARCHAR(64), so adding one needs no migration.
 class CIEvent(Enum):
     MERGE_REQUESTED = 'merge_requested'
     MERGE_PENDING = 'merge_pending'
@@ -47,6 +47,9 @@ class CIEvent(Enum):
     SERVICE_EDITED = 'service_edited'
     SERVICE_DELETED = 'service_deleted'
     NAMESPACE_EXPIRED_CLEANUP = 'namespace_expired_cleanup'
+    BATCH_CALLBACK_RECEIVED = 'batch_callback_received'
+    BATCH_CALLBACK_FAILED = 'batch_callback_failed'
+    BUILD_FINISHED = 'build_finished'
 
 
 def truncate_message(message: str) -> str:
