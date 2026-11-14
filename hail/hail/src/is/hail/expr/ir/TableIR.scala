@@ -76,8 +76,8 @@ final class TableIROps(val tir: TableIR) extends AnyVal {
 
   def getGlobals: IR = TableGetGlobals(tir)
 
-  def mapGlobals(f: Atom => IR): TableIR =
-    TableMapGlobals(tir, f(global))
+  def mapGlobals(f: (Atom, Atom) => IR) =
+    TableMapGlobals(tir, f(global, row))
 
   def mapRows(f: (Atom, Atom) => IR): TableIR =
     TableMapRows(tir, f(global, row))

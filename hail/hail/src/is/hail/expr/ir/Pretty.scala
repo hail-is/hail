@@ -1173,7 +1173,7 @@ class Pretty(
           if (i == 1 || i == 2) tableBlockArgs
           else None
         case _: TableMapGlobals =>
-          if (i == 1) some(TableIR.globalName -> "g")
+          if (i == 1) tableBlockArgs
           else None
         case TableMapPartitions(_, g, p, _, _, _) =>
           if (i == 1) some(g -> "g", p -> "part")

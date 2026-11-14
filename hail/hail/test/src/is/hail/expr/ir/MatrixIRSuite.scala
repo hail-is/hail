@@ -628,6 +628,21 @@ class MatrixIRSuite {
     assertEq(cols.toSeq, (0 until 5).map(i => RowSeq(i, 3L * i)))
   }
 
+  // the second aggregation reads `a`, which the first one computed
+  @Test def testChainedAggsOnCols(implicit ctx: ExecuteContext): Unit = {
+    val mt = rangeMatrix(3, 5, Some(2))
+    def col = Ref(MatrixIR.colName, mt.typ.colType)
+    val mt1 = MatrixMapCols(mt, col.insert("a" -> ApplyAggOp(Sum())(col.get("col_idx").toL)), None)
+
+    def col1 = Ref(MatrixIR.colName, mt1.typ.colType)
+    def row = Ref(MatrixIR.rowName, mt1.typ.rowType)
+    val b = ApplyAggOp(Sum())(col1.get("a") + row.get("row_idx").toL)
+    val cols = getCols(MatrixMapCols(mt1, col1.insert("b" -> b), None))
+
+    // a = 3 rows * col_idx; b = sum over row_idx 0, 1, 2 of (a + row_idx)
+    assertEq(cols.toSeq, (0 until 5).map(i => RowSeq(i, 3L * i, 9L * i + 3)))
+  }
+
   @Test def testAggBlockBindingOnCols(implicit ctx: ExecuteContext): Unit = {
     val mt = rangeMatrix(3, 5, Some(2))
     val col = Ref(MatrixIR.colName, mt.typ.colType)

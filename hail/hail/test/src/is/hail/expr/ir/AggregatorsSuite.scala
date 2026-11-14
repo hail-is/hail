@@ -1323,7 +1323,7 @@ class AggregatorsSuite {
     def getAgg(n: Int, m: Int, knownLength: Option[IR]): IR =
       TableRange(n, 3)
         .mapRows((_, row) => row.insert("aRange" -> rangeIR(m).toArray))
-        .mapGlobals(_.insert("m" -> I32(m)))
+        .mapGlobals((g, _) => g.insert("m" -> I32(m)))
         .filter((_, _) => false)
         .aggregate { (_, row) =>
           row.get("aRange").aggElements(knownLength)((elt, _) => ApplyAggOp(Sum())(elt.toL))

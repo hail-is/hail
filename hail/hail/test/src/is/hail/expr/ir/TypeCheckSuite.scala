@@ -118,4 +118,14 @@ class TypeCheckSuite {
     interceptException[AssertionError]("ApplyScanOp outside a scan scope") {
       TypeCheck(ctx, badIr, BindingEnv.empty.createAgg.createScan)
     }
+
+  // newGlobals can aggregate over the child's rows, as TableAggregate's query does
+  @Test def testTableMapGlobalsAggregatesOverRows(implicit ctx: ExecuteContext): Unit = {
+    val ir =
+      TableRange(5, 1).mapGlobals((_, row) =>
+        makestruct("sum" -> ApplyAggOp(Sum())(row.get("idx").toL))
+      )
+
+    TypeCheck(ctx, ir)
+  }
 }
