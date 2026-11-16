@@ -4,9 +4,14 @@ Fixes #<issue_number> (delete if N/A)
 
 Brief description and justification of what this PR is doing.
 
+<details>
+  <summary>Additional details</summary>
+  A place to put longform (or generated) change descriptions. Delete if unnecessary
+</details>
+
 ## Merge Impact
 
-What's the impact of merging this PR on end users?
+What's the impact of merging this PR on end users? Choose the most impactful option and justify it briefly:
 
 - Immediately active: code that becomes active immediately and changes how actively-used parts of the system work.
   - Example: a change to how the batch driver's scheduler works
