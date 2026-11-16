@@ -29,7 +29,6 @@ from ..instance import Instance
 from ..job import mark_job_errored, schedule_job
 from ..resource_manager import CloudResourceManager
 from .base import InstanceCollection, InstanceCollectionManager
-from .machine_type_rollout import MachineTypeRollout
 
 log = logging.getLogger('pool')
 
@@ -74,18 +73,9 @@ class Pool(InstanceCollection):
         config: PoolConfig,
         async_worker_pool: AsyncWorkerPool,  # BORROWED
         task_manager: aiotools.BackgroundTaskManager,
-        machine_type_rollout: Optional[MachineTypeRollout] = None,
     ) -> 'Pool':
         pool = Pool(
-            app,
-            db,
-            inst_coll_manager,
-            resource_manager,
-            machine_name_prefix,
-            config,
-            async_worker_pool,
-            task_manager,
-            machine_type_rollout or MachineTypeRollout(),
+            app, db, inst_coll_manager, resource_manager, machine_name_prefix, config, async_worker_pool, task_manager
         )
         log.info(f'initializing {pool}')
 
@@ -114,7 +104,6 @@ WHERE removed = 0 AND inst_coll = %s;
         config: PoolConfig,
         async_worker_pool: AsyncWorkerPool,  # BORROWED
         task_manager: aiotools.BackgroundTaskManager,  # BORROWED
-        machine_type_rollout: MachineTypeRollout,
     ):
         super().__init__(
             db,
@@ -137,7 +126,6 @@ WHERE removed = 0 AND inst_coll = %s;
         self.healthy_instances_by_free_cores = sortedcontainers.SortedSet(key=lambda instance: instance.free_cores_mcpu)
 
         self.worker_type = config.worker_type
-        self.machine_type_rollout = machine_type_rollout
         self.worker_cores = config.worker_cores
         self.worker_local_ssd_data_disk = config.worker_local_ssd_data_disk
         self.worker_external_ssd_data_disk_size_gb = config.worker_external_ssd_data_disk_size_gb
@@ -246,23 +234,18 @@ WHERE removed = 0 AND inst_coll = %s;
             boot_disk_size_gb=self.boot_disk_size_gb,
         )
 
-    async def create_autoscaled_instance(
-        self,
-        cores: int,
-        data_disk_size_gb: int,
-        regions: List[str],
-        max_idle_time_msecs: int,
-    ):
-        """Create an instance to meet ready jobs' demand: on the machine type rollout's machine
+    async def create_autoscaled_instance(self, regions: List[str]):
+        """Create an instance to meet ready jobs' demand: on the resource manager's rollout machine
         type when it gives one, and on the pool's own machine type otherwise."""
-        rollout_machine_type = self.machine_type_rollout.machine_type(self.worker_type, cores)
+        max_idle_time_msecs = self.worker_max_idle_time_secs * 1000
+        rollout_machine_type = self.resource_manager.rollout_machine_type(self.worker_cores, self.worker_type)
         if rollout_machine_type is not None:
             try:
                 await self.create_instance(
-                    cores=cores,
+                    cores=self.worker_cores,
                     machine_type=rollout_machine_type,
                     local_ssd_data_disk=False,
-                    data_disk_size_gb=data_disk_size_gb,
+                    data_disk_size_gb=self.data_disk_size_gb,
                     regions=regions,
                     max_idle_time_msecs=max_idle_time_msecs,
                 )
@@ -272,10 +255,12 @@ WHERE removed = 0 AND inst_coll = %s;
                 log.info(f'{rollout_machine_type} is not offered in regions {regions}; using the pool machine type')
 
         await self.create_instance(
-            cores=cores,
-            machine_type=self.resource_manager.machine_type(cores, self.worker_type, self.worker_local_ssd_data_disk),
+            cores=self.worker_cores,
+            machine_type=self.resource_manager.machine_type(
+                self.worker_cores, self.worker_type, self.worker_local_ssd_data_disk
+            ),
             local_ssd_data_disk=self.worker_local_ssd_data_disk,
-            data_disk_size_gb=data_disk_size_gb,
+            data_disk_size_gb=self.data_disk_size_gb,
             regions=regions,
             max_idle_time_msecs=max_idle_time_msecs,
         )
@@ -313,15 +298,7 @@ WHERE removed = 0 AND inst_coll = %s;
             remaining_max_new_instances_per_autoscaler_loop,
         )
 
-        await self._create_instances(
-            instances_needed,
-            lambda: self.create_autoscaled_instance(
-                cores=self.worker_cores,
-                data_disk_size_gb=self.data_disk_size_gb,
-                regions=regions,
-                max_idle_time_msecs=self.worker_max_idle_time_secs * 1000,
-            ),
-        )
+        await self._create_instances(instances_needed, lambda: self.create_autoscaled_instance(regions))
         return instances_needed
 
     async def regions_to_ready_cores_mcpu_from_estimated_job_queue(self) -> List[Tuple[List[str], int]]:

@@ -1,6 +1,7 @@
 import logging
+import random
 import uuid
-from typing import List
+from typing import List, Optional
 
 import aiohttp
 
@@ -25,6 +26,7 @@ from ..resource_utils import (
     GCP_MACHINE_FAMILY,
     family_worker_type_cores_to_gcp_machine_type,
     gcp_machine_type_to_cores_and_memory_bytes,
+    gcp_pool_rollout_machine_type,
 )
 from .billing_manager import GCPBillingManager
 from .create_instance import create_vm_config
@@ -74,6 +76,9 @@ class GCPResourceManager(CloudResourceManager):
 
     def machine_type(self, cores: int, worker_type: str, local_ssd: bool) -> str:  # pylint: disable=unused-argument
         return family_worker_type_cores_to_gcp_machine_type(GCP_MACHINE_FAMILY, worker_type, cores)
+
+    def rollout_machine_type(self, cores: int, worker_type: str) -> Optional[str]:
+        return gcp_pool_rollout_machine_type(worker_type, cores, random.random())
 
     def instance_config(
         self,
