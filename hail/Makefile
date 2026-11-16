@@ -179,17 +179,17 @@ python/hail/docs/_static/hail_version.js:
 python/README.md: ../README.md
 	cp ../README.md python/
 
-$(PYTHON_JAR): $(SHADOW_JAR)
-	cp -f $(SHADOW_JAR) $@
+$(PYTHON_JAR): $(SHADOW_JAR) FORCE
+	cmp -s $(SHADOW_JAR) $@ || cp -f $(SHADOW_JAR) $@
 
-$(FAST_PYTHON_JAR): $(NON_SHADOW_JAR)
-	cp -f $(NON_SHADOW_JAR) $@
+$(FAST_PYTHON_JAR): $(NON_SHADOW_JAR) FORCE
+	cmp -s $(NON_SHADOW_JAR) $@ || cp -f $(NON_SHADOW_JAR) $@
 
 .PHONY: python-jar
 python-jar: $(PYTHON_JAR)
 
-$(FAST_PYTHON_JAR_EXTRA_CLASSPATH): $(EXTRA_CLASSPATH)
-	cp $(EXTRA_CLASSPATH) $@
+$(FAST_PYTHON_JAR_EXTRA_CLASSPATH): $(EXTRA_CLASSPATH) FORCE
+	cmp -s $(EXTRA_CLASSPATH) $@ || cp $(EXTRA_CLASSPATH) $@
 
 .PHONY: pytest
 pytest: install-editable
