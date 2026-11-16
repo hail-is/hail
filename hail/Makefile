@@ -65,6 +65,8 @@ CLOUD_HAIL_DOCTEST_DATA_DIR = $(CLOUD_HAIL_TEST_RESOURCES_PREFIX)/doctest/data/
 
 MILL := bash mill
 MILLOPTS ?=
+# mill writes its output to $MILL_OUTPUT_DIR, which defaults to out.
+MILL_OUTPUT_DIR ?= out
 
 .PHONY: mill-clean
 mill-clean:
@@ -76,7 +78,7 @@ mill-clean:
 # be recomputed.
 FORCE:
 
-SHADOW_JAR := out/hail/assembly.dest/out.jar
+SHADOW_JAR := $(MILL_OUTPUT_DIR)/hail/assembly.dest/out.jar
 ifdef HAIL_COMPILE_NATIVES
 $(SHADOW_JAR): native-lib-prebuilt
 endif
@@ -86,14 +88,14 @@ $(SHADOW_JAR): FORCE
 .PHONY: shadowJar
 shadowJar: $(SHADOW_JAR)
 
-NON_SHADOW_JAR := out/hail/jar.dest/out.jar
+NON_SHADOW_JAR := $(MILL_OUTPUT_DIR)/hail/jar.dest/out.jar
 ifdef HAIL_COMPILE_NATIVES
 $(NON_SHADOW_JAR): native-lib-prebuilt
 endif
 $(NON_SHADOW_JAR): FORCE
 	$(MILL) $(MILLOPTS) hail.jar
 
-SHADOW_TEST_JAR := out/hail/test/assembly.dest/out.jar
+SHADOW_TEST_JAR := $(MILL_OUTPUT_DIR)/hail/test/assembly.dest/out.jar
 ifdef HAIL_COMPILE_NATIVES
 $(SHADOW_TEST_JAR): native-lib-prebuilt
 endif
@@ -103,7 +105,7 @@ $(SHADOW_TEST_JAR): FORCE
 .PHONY: shadowTestJar
 shadowTestJar: $(SHADOW_TEST_JAR)
 
-EXTRA_CLASSPATH := out/hail/writeRunClasspath.dest/runClasspath
+EXTRA_CLASSPATH := $(MILL_OUTPUT_DIR)/hail/writeRunClasspath.dest/runClasspath
 $(EXTRA_CLASSPATH): FORCE
 	$(MILL) $(MILLOPTS) hail.writeRunClasspath
 
@@ -177,17 +179,17 @@ python/hail/docs/_static/hail_version.js:
 python/README.md: ../README.md
 	cp ../README.md python/
 
-$(PYTHON_JAR): $(SHADOW_JAR)
-	cp -f $(SHADOW_JAR) $@
+$(PYTHON_JAR): $(SHADOW_JAR) FORCE
+	cmp -s $(SHADOW_JAR) $@ || cp -f $(SHADOW_JAR) $@
 
-$(FAST_PYTHON_JAR): $(NON_SHADOW_JAR)
-	cp -f $(NON_SHADOW_JAR) $@
+$(FAST_PYTHON_JAR): $(NON_SHADOW_JAR) FORCE
+	cmp -s $(NON_SHADOW_JAR) $@ || cp -f $(NON_SHADOW_JAR) $@
 
 .PHONY: python-jar
 python-jar: $(PYTHON_JAR)
 
-$(FAST_PYTHON_JAR_EXTRA_CLASSPATH): $(EXTRA_CLASSPATH)
-	cp $(EXTRA_CLASSPATH) $@
+$(FAST_PYTHON_JAR_EXTRA_CLASSPATH): $(EXTRA_CLASSPATH) FORCE
+	cmp -s $(EXTRA_CLASSPATH) $@ || cp $(EXTRA_CLASSPATH) $@
 
 .PHONY: pytest
 pytest: install-editable
