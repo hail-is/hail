@@ -65,8 +65,8 @@ CLOUD_HAIL_DOCTEST_DATA_DIR = $(CLOUD_HAIL_TEST_RESOURCES_PREFIX)/doctest/data/
 
 MILL := bash mill
 MILLOPTS ?=
-# mill writes its output to $MILL_OUTPUT_DIR instead of out/ when that is set.
-MILL_OUT := $(or $(MILL_OUTPUT_DIR),out)
+# mill writes its output to $MILL_OUTPUT_DIR, which defaults to out.
+MILL_OUTPUT_DIR ?= out
 
 .PHONY: mill-clean
 mill-clean:
@@ -78,7 +78,7 @@ mill-clean:
 # be recomputed.
 FORCE:
 
-SHADOW_JAR := $(MILL_OUT)/hail/assembly.dest/out.jar
+SHADOW_JAR := $(MILL_OUTPUT_DIR)/hail/assembly.dest/out.jar
 ifdef HAIL_COMPILE_NATIVES
 $(SHADOW_JAR): native-lib-prebuilt
 endif
@@ -88,14 +88,14 @@ $(SHADOW_JAR): FORCE
 .PHONY: shadowJar
 shadowJar: $(SHADOW_JAR)
 
-NON_SHADOW_JAR := $(MILL_OUT)/hail/jar.dest/out.jar
+NON_SHADOW_JAR := $(MILL_OUTPUT_DIR)/hail/jar.dest/out.jar
 ifdef HAIL_COMPILE_NATIVES
 $(NON_SHADOW_JAR): native-lib-prebuilt
 endif
 $(NON_SHADOW_JAR): FORCE
 	$(MILL) $(MILLOPTS) hail.jar
 
-SHADOW_TEST_JAR := $(MILL_OUT)/hail/test/assembly.dest/out.jar
+SHADOW_TEST_JAR := $(MILL_OUTPUT_DIR)/hail/test/assembly.dest/out.jar
 ifdef HAIL_COMPILE_NATIVES
 $(SHADOW_TEST_JAR): native-lib-prebuilt
 endif
@@ -105,7 +105,7 @@ $(SHADOW_TEST_JAR): FORCE
 .PHONY: shadowTestJar
 shadowTestJar: $(SHADOW_TEST_JAR)
 
-EXTRA_CLASSPATH := $(MILL_OUT)/hail/writeRunClasspath.dest/runClasspath
+EXTRA_CLASSPATH := $(MILL_OUTPUT_DIR)/hail/writeRunClasspath.dest/runClasspath
 $(EXTRA_CLASSPATH): FORCE
 	$(MILL) $(MILLOPTS) hail.writeRunClasspath
 
