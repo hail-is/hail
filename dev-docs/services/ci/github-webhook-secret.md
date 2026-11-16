@@ -19,10 +19,6 @@ slower to react.
 > GitHub must never have a secret that CI doesn't. Never set the secret on the webhook by hand: use the script, which
 > updates CI first and GitHub second (and the reverse with `--unset`).
 
-## When to rotate
-
-Only when needed: if the secret may have leaked, or someone who had access to it (k8s secrets in `default`, or repo
-admin on GitHub) leaves. There's no scheduled rotation.
 
 ## Setting or rotating the secret
 
@@ -37,9 +33,9 @@ The script:
 1. Shows your `gh` user and kubectl context.
 2. Finds CI's webhooks: the repos in CI's watched branches (`ci-config` secret), and in each repo the hooks whose URL
    is exactly `https://ci.<domain>/github_callback`. It lists them and stops if there are none.
-3. Generates a new secret and writes it to `ci-github-webhook-secret`.
+3. Generates a new secret and writes it to kubernetes as `ci-github-webhook-secret`.
 4. Restarts CI and waits for the rollout.
-5. Sets the secret on every matched hook and checks that GitHub now reports a secret.
+5. Sets the secret on every matched hook in github and checks that GitHub now reports a secret.
 6. Pings every hook and prints the status of the latest ping delivery. Expect 200.
 
 It asks before each step that changes anything, and never prints or saves the secret. Between steps 4 and 5 GitHub's
@@ -58,6 +54,11 @@ python3 devbin/refresh-ci-webhook-secret.py --unset
 
 This clears the secret on every matched hook first, then deletes the k8s secret, restarts CI and pings each hook.
 Expect 200. CI is then back to accepting unsigned deliveries.
+
+In case the --unset command has issues, the same effect can be achieved manually: 
+- Delete the github webhook secret for the CI webhook
+- Delete the kubernetes secret
+- Restart CI
 
 | Situation | Action |
 |---|---|
