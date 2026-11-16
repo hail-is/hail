@@ -4,26 +4,25 @@ from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import gidgethub
+import yaml
 
 from ci.events import MAX_MESSAGE_LENGTH, CIEvent, record_event, truncate_message
 from ci.github import PR, describe_exception
 from hailtop.utils import CalledProcessError
 
 SQL_DIR = Path(__file__).parent.parent / 'sql'
+OPENAPI_PATH = Path(__file__).parent.parent / 'ci' / 'templates' / 'openapi.yaml'
 
 
-def _sql_enum_values(sql: str) -> list:
-    m = re.search(r'CREATE TABLE (?:IF NOT EXISTS )?`?ci_events`?.*?event ENUM\((.*?)\) NOT NULL', sql, re.DOTALL)
+def test_event_values_fit_the_column():
+    m = re.search(r'event VARCHAR\((\d+)\) NOT NULL', (SQL_DIR / 'estimated-current.sql').read_text())
     assert m is not None
-    return re.findall(r"'([a-z_]+)'", m.group(1))
+    assert all(len(e.value) <= int(m.group(1)) for e in CIEvent)
 
 
-def test_python_enum_matches_migration():
-    assert _sql_enum_values((SQL_DIR / '008-ci-events.sql').read_text()) == [e.value for e in CIEvent]
-
-
-def test_python_enum_matches_estimated_current():
-    assert _sql_enum_values((SQL_DIR / 'estimated-current.sql').read_text()) == [e.value for e in CIEvent]
+def test_openapi_event_enum_matches_python_enum():
+    spec = yaml.safe_load(OPENAPI_PATH.read_text())
+    assert spec['components']['schemas']['CIEvent']['properties']['event']['enum'] == [e.value for e in CIEvent]
 
 
 def test_truncate_message_keeps_short_messages():
@@ -124,3 +123,52 @@ async def test_merge_pending_records_only_requested():
     with patch('ci.github.record_event', new_callable=AsyncMock) as record:
         assert await pr.merge(MagicMock(), gh) == ('pending', 'u1')
     assert [c.args[1] for c in record.await_args_list] == [CIEvent.MERGE_REQUESTED]
+
+
+def _finished_batch(batch_id: int, state: str):
+    batch = MagicMock()
+    batch.id = batch_id
+    batch.attributes = {'target_sha': 'cafef00d'}
+    batch.status = AsyncMock(return_value={'state': state, 'complete': True, 'time_completed': '2026-11-12T10:00:00Z'})
+    return batch
+
+
+def _batch_client(*batches):
+    async def list_batches(_query):
+        for b in batches:
+            yield b
+
+    client = MagicMock()
+    client.list_batches = list_batches
+    return client
+
+
+async def test_update_batch_records_build_finished_once():
+    pr = _make_pr()
+    db = MagicMock()
+    db.select_and_fetchone = AsyncMock(return_value=None)
+    client = _batch_client(_finished_batch(7, 'success'))
+    with (
+        patch.object(pr, 'is_invalidated_batch', AsyncMock(return_value=False)),
+        patch('ci.github.record_event', new_callable=AsyncMock) as record,
+    ):
+        await pr._update_batch(client, db)
+        await pr._update_batch(client, db)
+    assert pr.build_state == 'success'
+    assert [c.args[1] for c in record.await_args_list] == [CIEvent.BUILD_FINISHED]
+    assert record.await_args_list[0].kwargs['batch_id'] == 7
+    assert record.await_args_list[0].kwargs['message'].startswith('success')
+
+
+async def test_update_batch_skips_build_finished_already_recorded():
+    # e.g. CI restarted after the build finished
+    pr = _make_pr()
+    db = MagicMock()
+    db.select_and_fetchone = AsyncMock(return_value={'1': 1})
+    with (
+        patch.object(pr, 'is_invalidated_batch', AsyncMock(return_value=False)),
+        patch('ci.github.record_event', new_callable=AsyncMock) as record,
+    ):
+        await pr._update_batch(_batch_client(_finished_batch(7, 'failure')), db)
+    assert pr.build_state == 'failure'
+    record.assert_not_awaited()
