@@ -4,6 +4,7 @@ import json
 import logging
 import os
 import re
+import time
 import traceback
 from collections import defaultdict
 from contextlib import AsyncExitStack
@@ -54,7 +55,7 @@ from web_common import (
 )
 
 from .constants import AUTHORIZED_USERS, TEAMS, User
-from .environment import CLOUD, DEFAULT_NAMESPACE, DOMAIN, STORAGE_URI
+from .environment import CLOUD, DEFAULT_NAMESPACE, DOMAIN, GITHUB_WEBHOOK_SECRET, STORAGE_URI
 from .envoy import Service, create_cds_response, create_rds_response
 from .events import CIEvent, cleanup_old_events, record_event
 from .github import (
@@ -654,15 +655,53 @@ async def pull_request_review_callback(event):
             )
 
 
-async def github_callback_handler(request: web.Request):
-    event = gh_sansio.Event.from_http(request.headers, await request.read())
-    event.app = request.app  # type: ignore
+GITHUB_WEBHOOK_REJECTION_EVENT_INTERVAL_SECS = 600
+_last_github_webhook_rejection_event: Optional[float] = None
+
+
+async def record_github_webhook_rejection(db: Database, message: str):
+    # Rate limited: rejected deliveries are unauthenticated, so they mustn't be able to flood ci_events.
+    global _last_github_webhook_rejection_event
+    now = time.monotonic()
+    if (
+        _last_github_webhook_rejection_event is not None
+        and now - _last_github_webhook_rejection_event < GITHUB_WEBHOOK_REJECTION_EVENT_INTERVAL_SECS
+    ):
+        return
+    _last_github_webhook_rejection_event = now
+    await record_event(db, CIEvent.GITHUB_WEBHOOK_REJECTED, message=message)
+
+
+async def dispatch_github_event(app: web.Application, event: gh_sansio.Event):
+    event.app = app  # type: ignore
     await gh_router.dispatch(event)
 
 
 @routes.post('/github_callback')
 async def github_callback(request: web.Request):
-    await asyncio.shield(github_callback_handler(request))
+    headers = request.headers
+    body = await request.read()
+    delivery_id = headers.get('X-GitHub-Delivery', '<none>')[:64]
+    event_type = headers.get('X-GitHub-Event', '<none>')[:64]
+    delivery = f'delivery {delivery_id!r}, event {event_type!r}'
+
+    # Require SHA-256 explicitly: gidgethub would otherwise fall back to the legacy SHA-1 header.
+    if GITHUB_WEBHOOK_SECRET is not None and 'X-Hub-Signature-256' not in headers:
+        log.warning(f'rejected github webhook ({delivery}): missing X-Hub-Signature-256')
+        raise web.HTTPUnauthorized()
+
+    try:
+        event = gh_sansio.Event.from_http(headers, body, secret=GITHUB_WEBHOOK_SECRET)
+    except gidgethub.ValidationFailure as e:
+        log.warning(f'rejected github webhook ({delivery}): {e}')
+        if 'X-Hub-Signature-256' in headers or 'X-Hub-Signature' in headers:
+            await record_github_webhook_rejection(request.app[AppKeys.DB], f'{delivery}: {e}')
+        raise web.HTTPUnauthorized()
+    except (gidgethub.BadRequest, KeyError) as e:
+        log.warning(f'rejected github webhook ({delivery}): malformed: {e!r}')
+        raise web.HTTPBadRequest()
+
+    request.app[AppKeys.TASK_MANAGER].ensure_future(dispatch_github_event(request.app, event))
     return web.Response(status=200)
 
 
@@ -1730,6 +1769,18 @@ SELECT frozen_merge_deploy FROM globals;
         message=f'version: {os.environ.get("HAIL_SHA")}\npod: {os.environ.get("HOSTNAME")}',
     )
     app[AppKeys.TASK_MANAGER].ensure_future(periodically_call(3600, cleanup_old_events, app[AppKeys.DB]))
+
+    if GITHUB_WEBHOOK_SECRET is not None:
+        log.info('github webhook signature verification: enabled')
+    elif DEFAULT_NAMESPACE == 'default':
+        log.error('github webhook signature verification: DISABLED')
+        await record_event(
+            app[AppKeys.DB],
+            CIEvent.GITHUB_WEBHOOK_VERIFICATION_DISABLED,
+            message='no webhook secret configured; see dev-docs/services/ci/github-webhook-secret.md',
+        )
+    else:
+        log.warning('github webhook signature verification: DISABLED')
 
     if DEFAULT_NAMESPACE == 'default':
         kubernetes_asyncio.config.load_incluster_config()

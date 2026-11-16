@@ -75,6 +75,12 @@ spec:
                secretKeyRef:
                  name: global-config
                  key: cloud
+           - name: HAIL_CI_GITHUB_WEBHOOK_SECRET
+             valueFrom:
+               secretKeyRef:
+                 name: ci-github-webhook-secret
+                 key: secret
+                 optional: true
            - name: HAIL_SHA
              value: "{{ code.sha }}"
 {% if scope != "test" %}

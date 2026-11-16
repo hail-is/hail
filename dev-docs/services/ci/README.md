@@ -78,6 +78,9 @@ the state of the branch in question.
 
 The webhooks themselves are configured manually within the github repository itself and not managed by terraform or deploy scripts.
 
+If CI has a webhook secret, it rejects any delivery without a valid signature. The secret is set and rotated with a
+script: see [github-webhook-secret.md](github-webhook-secret.md).
+
 > [!NOTE]  
 > - For `hail-is/hail`, the webhook target is: `ci.hail.is/github_callback`
 > - For `hail-is/hail`, webhook callbacks are configured to happen on changes to the following:

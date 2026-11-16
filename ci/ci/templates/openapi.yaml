@@ -322,6 +322,8 @@ components:
             - batch_callback_received
             - batch_callback_failed
             - build_finished
+            - github_webhook_rejected
+            - github_webhook_verification_disabled
         target_branch:
           type: string
           nullable: true
@@ -846,11 +848,17 @@ paths:
   /github_callback:
     post:
       summary: GitHub webhook callback
-      description: Callback endpoint for GitHub events
+      description: |
+        Callback endpoint for GitHub events. When CI has a webhook secret, every delivery must carry a
+        valid X-Hub-Signature-256 header. Verified events are handled in the background.
       tags: [GitHub Integration]
       responses:
         '200':
-          description: GitHub event processed successfully
+          description: GitHub event accepted
+        '400':
+          description: Malformed delivery
+        '401':
+          description: Missing or invalid webhook signature
 
   /envoy-config/{proxy}:
     get:
