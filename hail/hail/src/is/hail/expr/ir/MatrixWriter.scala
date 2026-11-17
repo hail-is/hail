@@ -2074,10 +2074,11 @@ case class MatrixBlockMatrixWriter(
     entriesFieldName: String,
     colKey: IndexedSeq[String],
     ctx: ExecuteContext,
-    ts: TableStage,
+    ts0: TableStage,
     r: RTable,
   ): IR = {
 
+    val ts = ts0.evalLets(ctx)
     val tm = MatrixType.fromTableType(ts.tableType, colsFieldName, entriesFieldName, colKey)
     val rm = r.asMatrixType(colsFieldName, entriesFieldName)
 

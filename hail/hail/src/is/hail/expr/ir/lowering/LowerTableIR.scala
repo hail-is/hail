@@ -263,20 +263,52 @@ class TableStage(
     )
   }
 
-  def mapGlobals(lctx: LoweringContext, newGlobals: IR): TableStage = {
+  def mapGlobals(lctx: LoweringContext, body: IR): TableStage = {
     val value =
-      if (ContainsAgg(newGlobals))
+      if (ContainsAgg(body))
         // this stage's lets are already in scope here, so the copy must not bind them again
-        copy(letBindings = ArraySeq.empty).deepCopy.aggregate(lctx, newGlobals)
-      else Let(FastSeq(TableIR.globalName -> globals), newGlobals)
+        copy(letBindings = FastSeq.empty).deepCopy.aggregate(lctx, body)
+      else body
 
-    val global = Ref(freshName(), value.typ)
+    val newGlobals = Ref(freshName(), value.typ)
 
     copy(
-      letBindings = letBindings :+ global.name -> value,
-      broadcastVals = broadcastVals :+ global.name -> global.ir,
-      globals = global.ir,
+      letBindings =
+        letBindings :+ (TableIR.globalName -> globals.ir) :+ (newGlobals.name -> value),
+      broadcastVals = broadcastVals :+ newGlobals.name -> newGlobals.ir,
+      globals = newGlobals.ir,
     )
+  }
+
+  def evalLets(ctx: ExecuteContext): TableStage = {
+    def isCheap(v: IR): Boolean =
+      v match {
+        case _: Atom |
+            GetField(_: Atom, _) |
+            GetTupleElement(_: Atom, _) |
+            CastRename(_: Atom, _) =>
+          true
+        case _ => IsConstant(v)
+      }
+
+    val todo = letBindings.filterNot { case (_, v) => isCheap(v) }
+
+    if (todo.isEmpty) this
+    else {
+      val values =
+        Let(letBindings, MakeStruct(todo.map { case (n, v) => n.str -> Ref(n, v.typ) }))
+
+      val container = Ref(freshName(), values.typ)
+
+      copy(
+        letBindings =
+          (container.name -> CompileAndEvaluate.evalToIR(ctx, values)) +:
+            letBindings.map {
+              case b @ (_, v) if isCheap(v) => b
+              case (n, _) => n -> container.ir.get(n.str)
+            }
+      )
+    }
   }
 
   def mapCollect(staticID: String, dynamicID: IR = NA(TString))(f: Atom => IR): IR =
@@ -1203,7 +1235,7 @@ object LowerTableIR extends Logging {
         )
 
       case TableHead(child, targetNumRows) =>
-        val loweredChild = lower(child)
+        val loweredChild = lower(child).evalLets(ctx)
 
         val newContexts =
           M.eval {
@@ -1254,7 +1286,7 @@ object LowerTableIR extends Logging {
         )
 
       case TableTail(child, targetNumRows) =>
-        val loweredChild = lower(child)
+        val loweredChild = lower(child).evalLets(ctx)
 
         val newContexts =
           M.eval {
