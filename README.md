@@ -61,10 +61,13 @@ We are grateful for generous support from:
 - The Chan Zuckerberg Initiative
 
 We would like to thank <a href="https://zulipchat.com/">Zulip</a> for supporting
-open-source by providing free hosting, and YourKit, LLC for generously providing
+open-source by providing free hosting, YourKit, LLC for generously providing
 free licenses for <a href="https://www.yourkit.com/java/profiler/">YourKit Java
-Profiler</a> for open-source development.
+Profiler</a> for open-source development, and <a href="https://www.greptile.com">Greptile</a>
+for providing free reviews for open-source projects.
 
 <a href="https://www.yourkit.com" target="_blank" rel="noopener noreferrer">
   <img src="https://www.yourkit.com/images/yklogo.png" align="right" alt="YourKit Logo" />
 </a>
+
+[![Greptile: The War on Bugs](https://www.greptile.com/badge.svg)](https://www.greptile.com/?utm_source=oss_badge&utm_medium=readme&utm_campaign=greptile_for_open_source)
