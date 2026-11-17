@@ -299,6 +299,21 @@ class AggregatorsSuite {
     )
   }
 
+  // An agg binding that reads the index but not the element must stay inside Extract's
+  // per-element loop. Each element sums its own index over the two rows.
+  @Test
+  def arrayAggBindingReadsIndex(implicit ctx: ExecuteContext): Unit =
+    assertEvalsTo(
+      aggArrayPerElement(Ref(Name("foo"), TArray(TInt64))) { (_, idx) =>
+        aggBindIR(idx.toL)(i => ApplyAggOp(FastSeq(), FastSeq(i), Sum()))
+      },
+      (
+        FastSeq(RowSeq(FastSeq(1L, 2L)), RowSeq(FastSeq(10L, 20L))),
+        TStruct("foo" -> TArray(TInt64)),
+      ),
+      FastSeq(0L, 2L),
+    )
+
   @Test
   def arraySumFloat64OnEmpty(implicit ctx: ExecuteContext): Unit =
     assertArraySumEvalsTo[Double](
