@@ -95,8 +95,8 @@ object LowerMatrixIR extends Logging {
   private def unwrapStruct(bindings: IndexedSeq[(Name, _)], struct: Atom): IndexedSeq[Binding] =
     bindings.map { case (name, _) => Binding(name, struct.get(name.str)) }
 
-  private def unwrapM[S](bindings: IndexedSeq[(Name, _)], struct: Atom): M[S] =
-    bindings.foldLeft(M.unit[S]) { case (m, (name, _)) => m >> (name -> struct.get(name.str)) }
+  private def unwrapM(bindings: IndexedSeq[(Name, _)], struct: Atom): M =
+    bindings.foldLeft(M.unit) { case (m, (name, _)) => m >> (name -> struct.get(name.str)) }
 
   private def lower(ctx: ExecuteContext, mir: MatrixIR): TableIR = {
     val lowered = mir match {
@@ -256,8 +256,8 @@ object LowerMatrixIR extends Logging {
         }
 
       case MatrixMapRows(child, newRow) =>
-        def liftScans(ir: IR): (IR, M[EVAL.type]) = {
-          var top: M[EVAL.type] = M.unit
+        def liftScans(ir: IR): (IR, M) = {
+          var top: M = M.unit
           val moved = mutable.Set.empty[Name]
           // Names of lifted ops' results. They aren't in the env, so `hoist` checks them here.
           val lifted = mutable.Set.empty[Name]
@@ -354,7 +354,7 @@ object LowerMatrixIR extends Logging {
                 })
 
               case Block(bindings, body) =>
-                def go(i: Int, env: LiftEnv, builder: mutable.Growable[(Name, IR)]): M[EVAL.type] =
+                def go(i: Int, env: LiftEnv, builder: mutable.Growable[(Name, IR)]): M =
                   if (i == bindings.length) lift(body, env, builder)
                   else bindings(i) match {
                     case b @ Binding(name, _, SCAN) =>
@@ -370,7 +370,7 @@ object LowerMatrixIR extends Logging {
                       val e = env.bind(scope, FastSeq(name -> Option.when(scope == EVAL)(v)))
                       val liftedBody = go(i + 1, e, builder)
                       if (moved.contains(name)) liftedBody
-                      else M.defer[EVAL.type](_.strictMemoize(v, name, scope)) >> liftedBody
+                      else M.interleave(scope)(name -> v) >> liftedBody
                   }
 
                 M.eval(go(0, env, builder))
@@ -391,7 +391,7 @@ object LowerMatrixIR extends Logging {
           val builder = ArraySeq.newBuilder[(Name, IR)]
           val env = LiftEnv(FastSeq(rowName), FastSeq(rowName, colName, entryName))
           val body = lift(ir, env, builder)
-          (body, builder.result().foldLeft(top)(_ >> M.let[EVAL.type](_)))
+          (body, builder.result().foldLeft(top)(_ >> M.let(_)))
         }
 
         lower(ctx, child).mapRows { (global, row) =>
@@ -408,7 +408,7 @@ object LowerMatrixIR extends Logging {
 
               /* emit scan bindings, even if there are no scans; the optimiser will remove them if
                * unused. */
-              _ <- M.lift[SCAN.type] {
+              _ <- M.interleave(SCAN) {
                 M.sequence(
                   globalName -> global.select(child.typ.globalType.fieldNames),
                   rowName -> row.select(child.typ.rowType.fieldNames),
@@ -441,8 +441,8 @@ object LowerMatrixIR extends Logging {
       case MatrixMapCols(child, newCol, _) =>
         val lc = lower(ctx, child)
 
-        var scanTop: M[EVAL.type] = M.unit
-        var aggTop: M[EVAL.type] = M.unit
+        var scanTop: M = M.unit
+        var aggTop: M = M.unit
         val movedScan = mutable.Set.empty[Name]
         val copiedAgg = mutable.Set.empty[Name]
         // Names of lifted ops' results, and whether each is a scan. They aren't in the env, so
@@ -580,7 +580,7 @@ object LowerMatrixIR extends Logging {
               env: LiftEnv,
               scanBindings: mutable.Growable[(Name, IR)],
               aggBindings: mutable.Growable[(Name, IR)],
-            ): M[EVAL.type] =
+            ): M =
               if (i == bindings.length) lift(body, env, scanBindings, aggBindings)
               else bindings(i) match {
                 case Binding(name, value, EVAL) =>
@@ -635,8 +635,8 @@ object LowerMatrixIR extends Logging {
         def colIdx = Ref(Name("__col_idx"), TInt32)
 
         val (
-          setupOuterAggContext: M[EVAL.type],
-          setupInnerAggContext: M[EVAL.type],
+          setupOuterAggContext: M,
+          setupInnerAggContext: M,
         ) =
           if (aggs.isEmpty) (M.unit, M.unit)
           else {
@@ -644,8 +644,8 @@ object LowerMatrixIR extends Logging {
               lc.deepCopy.aggregate { (global, row) =>
                 M.agg {
                   for {
-                    _ <- M.lift[EVAL.type] {
-                      M.sequence[EVAL.type](
+                    _ <- M.interleave(EVAL) {
+                      M.sequence(
                         cols.name -> global.get(colsFieldName),
                         globalName -> global.select(child.typ.globalType.fieldNames),
                         aggTop,
@@ -676,7 +676,7 @@ object LowerMatrixIR extends Logging {
             val arrayAggs = Ref(Name("__array_aggs"), RunAgg.get("__array_aggs").typ)
 
             // EvalRelationalValues replaces RunAgg with its value before the table is lowered
-            val bindResult: M[EVAL.type] =
+            val bindResult: M =
               for {
                 result <- RunAgg
                 _ <- arrayAggs.name -> result.get("__array_aggs")
@@ -684,25 +684,25 @@ object LowerMatrixIR extends Logging {
                 unit <- M.unit
               } yield unit
 
-            val bindBody: M[EVAL.type] =
+            val bindBody: M =
               arrayAggs.at(colIdx).flatMap(elem => unwrapM(aggs, elem))
 
             (bindResult, bindBody)
           }
 
         val (
-          setupOuterScanContext: M[EVAL.type],
-          setupInnerScanContext: M[EVAL.type],
+          setupOuterScanContext: M,
+          setupInnerScanContext: M,
         ) =
           if (scans.isEmpty) (M.unit, M.unit)
           else {
             val RunScan = StreamAggScan(cols.stream, colName, bindingsToStruct(scans)).toArray
             val result = Ref(Name("__scan_result"), RunScan.typ)
 
-            val bindResult: M[EVAL.type] =
+            val bindResult: M =
               scanTop >> M.let(result.name -> RunScan)
 
-            val bindBody: M[EVAL.type] =
+            val bindBody: M =
               result.at(colIdx).flatMap(elem => unwrapM(scans, elem))
 
             (bindResult, bindBody)
@@ -894,7 +894,7 @@ object LowerMatrixIR extends Logging {
             for {
               evalCols <- global.get(colsFieldName)
               _ <- globalName -> global.select(child.typ.globalType.fieldNames)
-              newRow <- M.lift[AGG.type] {
+              newRow <- M.interleave(AGG) {
                 for {
                   aggCols <- global.get(colsFieldName)
                   entries <- row.get(entriesFieldName)
@@ -907,7 +907,7 @@ object LowerMatrixIR extends Logging {
                         for {
                           _ <- colName -> aggCols.at(elem)
                           g <- entryName -> entries.at(elem)
-                          _ <- M.lift[EVAL.type]((colName -> evalCols.at(idx)) >> M.unit)
+                          _ <- M.interleave(EVAL)((colName -> evalCols.at(idx)) >> M.unit)
                           aggEntry = lower(ctx, entryExpr)
                         } yield AggFilter(!g.isNA, aggEntry, isScan = false)
                       }
@@ -1259,7 +1259,7 @@ object LowerMatrixIR extends Logging {
               entries <- row.get(entriesFieldName)
               _ <- globalName -> global.select(child.typ.globalType.fieldNames)
               _ <- rowName -> row.select(child.typ.rowType.fieldNames)
-              _ <- M.lift[EVAL.type] {
+              _ <- M.interleave(EVAL) {
                 (globalName -> global.select(child.typ.globalType.fieldNames)) >>
                   M.unit
               }

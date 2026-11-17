@@ -1352,7 +1352,7 @@ object LowerBlockMatrixIR {
           )
         }
 
-        def sliceLen(slice: Atom): M[EVAL.type] =
+        def sliceLen(slice: Atom): M =
           for {
             start <- GetTupleElement(slice, 0)
             stop <- GetTupleElement(slice, 1)
