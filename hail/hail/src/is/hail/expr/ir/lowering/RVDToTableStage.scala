@@ -6,7 +6,7 @@ import is.hail.backend.{BroadcastValue, ExecuteContext}
 import is.hail.backend.spark.{AnonymousDependency, SparkTaskContext}
 import is.hail.collection.FastSeq
 import is.hail.expr.ir._
-import is.hail.expr.ir.defs.{Atom, In, Let, MakeStruct, ReadPartition, StreamRange, ToArray}
+import is.hail.expr.ir.defs.{Atom, In, Let, MakeStruct, ReadPartition, Ref, StreamRange, ToArray}
 import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.io.fs.FS
 import is.hail.rvd.{RVD, RVDType}
@@ -114,9 +114,15 @@ object RVDToTableStage {
 object TableStageToRVD {
   def apply(ctx: ExecuteContext, _ts: TableStage): (BroadcastRow, RVD) = {
 
+    val Ref(globalsName, _) = _ts.globals
+    val usedInPartition =
+      FreeVariables(_ts.partitionIR, supportsAgg = false, supportsScan = false).eval
+
     val ts = TableStage(
       letBindings = _ts.letBindings,
-      broadcastVals = _ts.broadcastVals,
+      broadcastVals = _ts.broadcastVals.filter { case (name, _) =>
+        name == globalsName || usedInPartition.contains(name)
+      },
       globals = _ts.globals,
       partitioner = _ts.partitioner,
       dependency = _ts.dependency,

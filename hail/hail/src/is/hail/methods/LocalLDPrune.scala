@@ -333,8 +333,9 @@ case class LocalLDPrune(
     val tableType = typ(mv.typ)
     val ts = TableExecuteIntermediate(mv.toTableValue).asTableStage(ctx).mapPartition(Some(
       tableType.key
-    ))(rows => makeStream(rows, MatrixType.entriesIdentifier, nSamples)).mapGlobals(_ =>
-      makestruct()
+    ))(rows => makeStream(rows, MatrixType.entriesIdentifier, nSamples)).mapGlobals(
+      ctx,
+      makestruct(),
     )
     TableExecuteIntermediate(ts).asTableValue(ctx)
   }

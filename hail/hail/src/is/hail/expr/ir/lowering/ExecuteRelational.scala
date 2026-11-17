@@ -2,8 +2,10 @@ package is.hail.expr.ir.lowering
 
 import is.hail.annotations.{BroadcastRow, RegionValue}
 import is.hail.backend.ExecuteContext
+import is.hail.collection.FastSeq
 import is.hail.expr.ir._
 import is.hail.expr.ir.analyses.PartitionCounts
+import is.hail.expr.ir.defs.{Coalesce, Die}
 import is.hail.rvd.{RVD, RVDPartitioner}
 import is.hail.types.physical.PStruct
 import is.hail.utils.{fatal, ArrayOfByteArrayInputStream, TimedBlock}
@@ -89,8 +91,33 @@ object ExecuteRelational {
         val globalOffset = dec.apply(bais, ctx.theHailClassLoader).readRegionValue(ctx.r)
         val globals = BroadcastRow(ctx, RegionValue(ctx.r, globalOffset), globalPType)
         TableValueIntermediate(TableValue(ctx, typ, globals, rvd))
-      case TableMapGlobals(child, newGlobals) =>
-        TableValueIntermediate(execute(ctx, child).asTableValue(ctx).mapGlobals(newGlobals))
+      case ir @ TableMapGlobals(child, newGlobals) =>
+        val definedGlobals =
+          Coalesce(FastSeq(
+            newGlobals,
+            Die("Internal error: TableMapGlobals: globals missing", newGlobals.typ),
+          ))
+
+        execute(ctx, child) match {
+          case prev @ TableValueIntermediate(tv) =>
+            val ts = prev.asTableStage(ctx).mapGlobals(ctx, definedGlobals)
+            val Right((pt, offset)) = CompileAndEvaluate._apply(ctx, ts.getGlobals())
+
+            val globals =
+              BroadcastRow(
+                ctx,
+                RegionValue(ctx.r, pt.loadField(offset, 0)),
+                pt.types(0).asInstanceOf[PStruct],
+              )
+
+            TableValueIntermediate(tv.copy(typ = ir.typ, globals = globals))
+          case TableStageIntermediate(ts) =>
+            // ts is keyed by the RVD's key, which can be longer than child's key
+            TableStageIntermediate(
+              ts.changePartitionerNoRepartition(ts.partitioner.coarsen(child.typ.key.length))
+                .mapGlobals(ctx, definedGlobals)
+            )
+        }
       case TableMapRows(child, newRow) =>
         val extracted =
           agg.Extract(ctx, newRow, ctx.analyses.requirednessAnalysis, isScan = true).independent

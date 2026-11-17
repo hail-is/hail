@@ -200,7 +200,7 @@ abstract class MatrixHybridReader extends TableReaderWithExtraUID with MatrixRea
     val tr = TableRead(matrixToTableType(requestedType), dropRows, this)
     if (!dropCols) tr
     else tr // this lowering preserves dropCols using pruning
-      .mapGlobals(_.insert(colsFieldName -> MakeArray.empty(requestedType.colType)))
+      .mapGlobals((g, _) => g.insert(colsFieldName -> MakeArray.empty(requestedType.colType)))
       .mapRows((_, row) => row.insert(entriesFieldName -> MakeArray.empty(requestedType.entryType)))
   }
 }
@@ -288,10 +288,8 @@ class MatrixNativeReader(
       val trdr: TableReader =
         new TableNativeReader(TableNativeReaderParameters(rowsPath, params.options), spec.rowsSpec)
       TableRead(tt, dropRows, trdr)
-        .mapGlobals(_.insert(colsFieldName -> MakeArray.empty(requestedType.colType)))
-        .mapRows((_, row) =>
-          row.insert(entriesFieldName -> MakeArray.empty(requestedType.entryType))
-        )
+        .mapGlobals((g, _) => g.insert(colsFieldName -> MakeArray.empty(requestedType.colType)))
+        .mapRows((_, r) => r.insert(entriesFieldName -> MakeArray.empty(requestedType.entryType)))
     } else {
       val tt = matrixToTableType(requestedType, includeColsArray = false)
       val trdr = TableNativeZippedReader(
@@ -317,7 +315,7 @@ class MatrixNativeReader(
         if (partFiles.length == 1) readCols(Str(partFiles.head), 0)
         else flatten(Literal(TArray(TString), partFiles).stream.enumerate(readCols(_, _)))
 
-      TableRead(tt, dropRows, trdr).mapGlobals(_.insert(colsFieldName -> ToArray(cols)))
+      TableRead(tt, dropRows, trdr).mapGlobals((g, _) => g.insert(colsFieldName -> ToArray(cols)))
     }
   }
 
@@ -392,21 +390,21 @@ case class MatrixRangeReader(
         .rename(Map("idx" -> "row_idx"))
 
     ht = if (requestedType.colType.hasField(colUIDFieldName))
-      ht.mapGlobals { _ =>
+      ht.mapGlobals((_, _) =>
         makestruct(
           colsFieldName ->
             ToArray(rangeIR(nColsAdj).streamMap { i =>
               makestruct("col_idx" -> i, colUIDFieldName -> i.toL)
             })
         )
-      }
+      )
     else
-      ht.mapGlobals { _ =>
+      ht.mapGlobals((_, _) =>
         makestruct(
           colsFieldName ->
             rangeIR(nColsAdj).streamMap(i => makestruct("col_idx" -> i)).toArray
         )
-      }
+      )
 
     if (requestedType.rowType.hasField(rowUIDFieldName))
       ht.mapRows { (_, row) =>
