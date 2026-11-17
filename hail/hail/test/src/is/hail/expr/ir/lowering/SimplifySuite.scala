@@ -750,6 +750,38 @@ class SimplifySuite {
   def testTableTailPushThrough(ir: TableIR, expected: BaseIR)(implicit ctx: ExecuteContext): Unit =
     ir should simplifyTo(expected)
 
+  // an aggregating newGlobals reads the rows, so nothing that drops rows may move below it
+  def testAggregatingTableMapGlobalsStaysAboveRowFilters(): ArraySeq[TableIR] = {
+    val mapped = TableRange(10, 3).mapGlobals((_, _) => makestruct("n" -> ApplyAggOp(Count())()))
+    ArraySeq(
+      TableHead(mapped, 3L),
+      TableTail(mapped, 3L),
+      TableFilterIntervals(mapped, FastSeq(Interval(RowSeq(0), RowSeq(1), true, false)), true),
+    )
+  }
+
+  @ParameterizedTest
+  def testAggregatingTableMapGlobalsStaysAboveRowFilters(
+    ir: TableIR
+  )(implicit ctx: ExecuteContext
+  ): Unit =
+    ir should simplifyTo(ir)
+
+  // the outer aggregation reads `global`, which is the inner newGlobals' value
+  @Test def testAggregatingTableMapGlobalsDoesNotMerge(implicit ctx: ExecuteContext): Unit = {
+    val inner = TableRange(10, 3).mapGlobals((_, _) => makestruct("a" -> I64(1)))
+    val outer = inner.mapGlobals((g, _) => makestruct("b" -> ApplyAggOp(Sum())(g.get("a"))))
+    outer should simplifyTo(outer)
+  }
+
+  @Test def testTableGetGlobalsOfAggregatingTableMapGlobals(implicit ctx: ExecuteContext): Unit = {
+    val table = TableRange(10, 3)
+    def newGlobals = makestruct("n" -> ApplyAggOp(Count())())
+    // Simplify also drops the key under a TableAggregate
+    table.mapGlobals((_, _) => newGlobals).getGlobals should
+      simplifyTo(table.keyBy(FastSeq()).aggregate((_, _) => newGlobals))
+  }
+
   @Test def testNestedFilterIntervals(implicit ctx: ExecuteContext): Unit = {
     var tir: TableIR = TableRange(10, 5)
     def r = Ref(TableIR.rowName, tir.typ.rowType)
