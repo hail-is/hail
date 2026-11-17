@@ -154,7 +154,10 @@ class TableStage(
     if (newRowType == rowType && newGlobalType == globalType) this
     else changePartitionerNoRepartition(partitioner.coarsen(newType.key.length))
       .mapPartition(None)(PruneDeadFields.upcast(ctx, _, TStream(newRowType)))
-      .mapGlobals(PruneDeadFields.upcast(ctx, _, newGlobalType))
+      .mapGlobals(
+        ctx,
+        PruneDeadFields.upcast(ctx, Ref(TableIR.globalName, globalType), newGlobalType),
+      )
   }
 
   def ctxType: Type = contexts.typ.asInstanceOf[TStream].elementType
@@ -259,12 +262,17 @@ class TableStage(
     )
   }
 
-  def mapGlobals(f: Atom => IR): TableStage = {
-    val newGlobals = f(globals)
-    val global = Ref(freshName(), newGlobals.typ)
+  def mapGlobals(ctx: ExecuteContext, newGlobals: IR): TableStage = {
+    val value =
+      if (ContainsAgg(newGlobals))
+        // this stage's lets are already in scope here, so the copy must not bind them again
+        copy(letBindings = ArraySeq.empty).deepCopy.aggregate(ctx, newGlobals)
+      else Let(FastSeq(TableIR.globalName -> globals), newGlobals)
+
+    val global = Ref(freshName(), value.typ)
 
     copy(
-      letBindings = letBindings :+ global.name -> newGlobals,
+      letBindings = letBindings :+ global.name -> value,
       broadcastVals = broadcastVals :+ global.name -> global.ir,
       globals = global.ir,
     )
@@ -323,6 +331,134 @@ class TableStage(
 
   def countPerPartition(): IR =
     mapCollect("count_per_partition")(_.len.toL)
+
+  // The value of `query`, aggregated over this stage's rows, with `global` bound to its globals
+  def aggregate(ctx: ExecuteContext, query: IR): IR = {
+    assert(ctx.analyses != null, "aggregate needs ctx.analyses; call it inside a lowering pass")
+    val aggs = Extract(ctx, query, ctx.analyses.requirednessAnalysis).independent
+    val aggSigs = aggs.sigs
+
+    val initState = Let(
+      FastSeq(TableIR.globalName -> globals),
+      RunAgg(aggs.init, aggSigs.valuesOp, aggSigs.states),
+    )
+
+    val initStateRef = Ref(freshName(), initState.typ)
+    val withInitState = copy(
+      letBindings = letBindings ++ FastSeq(initStateRef.name -> initState),
+      broadcastVals = broadcastVals ++ FastSeq(initStateRef.name -> initStateRef.ir),
+    )
+
+    def initFromSerializedStates = aggSigs.initFromSerializedValueOp(initStateRef.ir)
+
+    val branchFactor = ctx.branchingFactor
+    val useTreeAggregate = aggSigs.shouldTreeAggregate && branchFactor < numPartitions
+    val isCommutative = aggSigs.isCommutative
+    logger.info(s"Aggregate: useTreeAggregate=$useTreeAggregate")
+    logger.info(s"Aggregate: commutative=$isCommutative")
+
+    if (useTreeAggregate) {
+      val tmpDir = ctx.createTmpPath("aggregate_intermediates/")
+
+      val codecSpec = TypedCodecSpec(
+        ctx,
+        PCanonicalTuple(true, Seq.fill(aggSigs.nAggs)(PCanonicalBinary(true)): _*),
+        BufferSpec.wireSpec,
+      )
+      val writer = ETypeValueWriter(codecSpec)
+      val reader = ETypeValueReader(codecSpec)
+      withInitState.mapCollectWithGlobals("table_aggregate") { part =>
+        Let(
+          FastSeq(TableIR.globalName -> globals),
+          RunAgg(
+            Begin(FastSeq(
+              initFromSerializedStates,
+              StreamFor(part, TableIR.rowName, aggs.seqPerElt),
+            )),
+            WriteValue(aggSigs.valuesOp, Str(tmpDir) + UUID4(), writer),
+            aggSigs.states,
+          ),
+        )
+      } { case (collected, globals) =>
+        def combineGroup(partArrayRef: Atom, useInitStates: Boolean): IR =
+          Begin(FastSeq(
+            if (useInitStates) initFromSerializedStates
+            else ReadValue(partArrayRef.at(0), reader, reader.spec.encodedVirtualType)
+              .bind(aggSigs.initFromSerializedValueOp),
+            StreamRange(if (useInitStates) 0 else 1, partArrayRef.len, 1, true)
+              .streamFor { idx =>
+                ReadValue(partArrayRef.at(idx), reader, reader.spec.encodedVirtualType)
+                  .bind(aggSigs.combOpValues)
+              },
+          ))
+
+        val treeAggregation =
+          tailLoop(TArray(TString), collected, 0) {
+            case (recur, Seq(currentAggStates, iterNumber)) =>
+              If(
+                currentAggStates.len <= branchFactor,
+                currentAggStates,
+                recur(
+                  FastSeq(
+                    cdaIR(
+                      currentAggStates.stream.grouped(branchFactor).streamMap(ToArray(_)),
+                      makestruct(),
+                      "table_tree_aggregate",
+                      strConcat("iteration=", iterNumber, ", n_states=", currentAggStates.len),
+                    ) { (context, _) =>
+                      RunAgg(
+                        combineGroup(context, false),
+                        WriteValue(aggSigs.valuesOp, Str(tmpDir) + UUID4(), writer),
+                        aggSigs.states,
+                      )
+                    },
+                    iterNumber + 1,
+                  )
+                ),
+              )
+          }
+
+        bindIR(treeAggregation) { finalParts =>
+          RunAgg(
+            combineGroup(finalParts, true),
+            Let(
+              FastSeq(TableIR.globalName -> globals),
+              aggs.result,
+            ),
+            aggSigs.states,
+          )
+        }
+      }
+    } else {
+      withInitState.mapCollectWithGlobals("table_aggregate_singlestage") { part =>
+        Let(
+          FastSeq(TableIR.globalName -> globals),
+          RunAgg(
+            Begin(FastSeq(
+              initFromSerializedStates,
+              StreamFor(part, TableIR.rowName, aggs.seqPerElt),
+            )),
+            aggSigs.valuesOp,
+            aggSigs.states,
+          ),
+        )
+      } { case (collected, globals) =>
+        Let(
+          FastSeq(TableIR.globalName -> globals),
+          RunAgg(
+            Begin(FastSeq(
+              initFromSerializedStates,
+              forIR(ToStream(collected, requiresMemoryManagementPerElement = true))(
+                aggSigs.combOpValues
+              ),
+            )),
+            aggs.result,
+            aggSigs.states,
+          ),
+        )
+      }
+    }
+  }
 
   def getGlobals(): IR =
     Let(letBindings, globals)
@@ -742,131 +878,7 @@ object LowerTableIR extends Logging {
         lower(child).collectWithGlobals("table_collect")
 
       case TableAggregate(child, query) =>
-        val aggs = Extract(ctx, query, ctx.analyses.requirednessAnalysis).independent
-        val aggSigs = aggs.sigs
-
-        val lc = lower(child)
-
-        val initState = Let(
-          FastSeq(TableIR.globalName -> lc.globals),
-          RunAgg(aggs.init, aggSigs.valuesOp, aggSigs.states),
-        )
-
-        val initStateRef = Ref(freshName(), initState.typ)
-        val lcWithInitBinding = lc.copy(
-          letBindings = lc.letBindings ++ FastSeq(initStateRef.name -> initState),
-          broadcastVals = lc.broadcastVals ++ FastSeq(initStateRef.name -> initStateRef.ir),
-        )
-
-        def initFromSerializedStates = aggSigs.initFromSerializedValueOp(initStateRef.ir)
-
-        val branchFactor = ctx.branchingFactor
-        val useTreeAggregate = aggSigs.shouldTreeAggregate && branchFactor < lc.numPartitions
-        val isCommutative = aggSigs.isCommutative
-        logger.info(s"Aggregate: useTreeAggregate=$useTreeAggregate")
-        logger.info(s"Aggregate: commutative=$isCommutative")
-
-        if (useTreeAggregate) {
-          val tmpDir = ctx.createTmpPath("aggregate_intermediates/")
-
-          val codecSpec = TypedCodecSpec(
-            ctx,
-            PCanonicalTuple(true, Seq.fill(aggSigs.nAggs)(PCanonicalBinary(true)): _*),
-            BufferSpec.wireSpec,
-          )
-          val writer = ETypeValueWriter(codecSpec)
-          val reader = ETypeValueReader(codecSpec)
-          lcWithInitBinding.mapCollectWithGlobals("table_aggregate") { part =>
-            Let(
-              FastSeq(TableIR.globalName -> lc.globals),
-              RunAgg(
-                Begin(FastSeq(
-                  initFromSerializedStates,
-                  StreamFor(part, TableIR.rowName, aggs.seqPerElt),
-                )),
-                WriteValue(aggSigs.valuesOp, Str(tmpDir) + UUID4(), writer),
-                aggSigs.states,
-              ),
-            )
-          } { case (collected, globals) =>
-            def combineGroup(partArrayRef: Atom, useInitStates: Boolean): IR =
-              Begin(FastSeq(
-                if (useInitStates) initFromSerializedStates
-                else ReadValue(partArrayRef.at(0), reader, reader.spec.encodedVirtualType)
-                  .bind(aggSigs.initFromSerializedValueOp),
-                StreamRange(if (useInitStates) 0 else 1, partArrayRef.len, 1, true)
-                  .streamFor { idx =>
-                    ReadValue(partArrayRef.at(idx), reader, reader.spec.encodedVirtualType)
-                      .bind(aggSigs.combOpValues)
-                  },
-              ))
-
-            val treeAggregation =
-              tailLoop(TArray(TString), collected, 0) {
-                case (recur, Seq(currentAggStates, iterNumber)) =>
-                  If(
-                    currentAggStates.len <= branchFactor,
-                    currentAggStates,
-                    recur(
-                      FastSeq(
-                        cdaIR(
-                          currentAggStates.stream.grouped(branchFactor).streamMap(ToArray(_)),
-                          makestruct(),
-                          "table_tree_aggregate",
-                          strConcat("iteration=", iterNumber, ", n_states=", currentAggStates.len),
-                        ) { (context, _) =>
-                          RunAgg(
-                            combineGroup(context, false),
-                            WriteValue(aggSigs.valuesOp, Str(tmpDir) + UUID4(), writer),
-                            aggSigs.states,
-                          )
-                        },
-                        iterNumber + 1,
-                      )
-                    ),
-                  )
-              }
-
-            bindIR(treeAggregation) { finalParts =>
-              RunAgg(
-                combineGroup(finalParts, true),
-                Let(
-                  FastSeq(TableIR.globalName -> globals),
-                  aggs.result,
-                ),
-                aggSigs.states,
-              )
-            }
-          }
-        } else {
-          lcWithInitBinding.mapCollectWithGlobals("table_aggregate_singlestage") { part =>
-            Let(
-              FastSeq(TableIR.globalName -> lc.globals),
-              RunAgg(
-                Begin(FastSeq(
-                  initFromSerializedStates,
-                  StreamFor(part, TableIR.rowName, aggs.seqPerElt),
-                )),
-                aggSigs.valuesOp,
-                aggSigs.states,
-              ),
-            )
-          } { case (collected, globals) =>
-            Let(
-              FastSeq(TableIR.globalName -> globals),
-              RunAgg(
-                Begin(FastSeq(
-                  initFromSerializedStates,
-                  forIR(ToStream(collected, requiresMemoryManagementPerElement = true))(
-                    aggSigs.combOpValues
-                  ),
-                )),
-                aggs.result,
-                aggSigs.states,
-              ),
-            )
-          }
-        }
+        lower(child).aggregate(ctx, query)
 
       case TableToValueApply(child, NPartitionsTable()) =>
         lower(child).getNumPartitions()
@@ -1050,7 +1062,7 @@ object LowerTableIR extends Logging {
         )
 
       case TableMapGlobals(child, newGlobals) =>
-        lower(child).mapGlobals(old => Let(FastSeq(TableIR.globalName -> old), newGlobals))
+        lower(child).mapGlobals(ctx, newGlobals)
 
       case TableAggregateByKey(child, expr) =>
         val loweredChild = lower(child)
@@ -1819,7 +1831,7 @@ object LowerTableIR extends Logging {
             entriesFieldName,
             ArrayLen(GetField(lc.globals, colsFieldName)),
           )
-        }.mapGlobals(_ => makestruct())
+        }.mapGlobals(ctx, makestruct())
 
       case BlockMatrixToTable(bmir) =>
         val ts = LowerBlockMatrixIR.lowerToTableStage(bmir, typesToLower, ctx)

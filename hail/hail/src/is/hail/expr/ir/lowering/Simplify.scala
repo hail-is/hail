@@ -1412,6 +1412,10 @@ object Simplify {
           case TableMapRows(c, _) =>
             Some(TableGetGlobals(c))
 
+          // newGlobals has the env of TableAggregate's query
+          case TableMapGlobals(c, newGlobals) if ContainsAgg(newGlobals) =>
+            Some(TableAggregate(c, newGlobals))
+
           case TableMapGlobals(c, newGlobals) =>
             Some(bindIR(TableGetGlobals(c)) { ref =>
               Subst(newGlobals, BindingEnv.eval(TableIR.globalName -> ref))
@@ -1703,7 +1707,8 @@ object Simplify {
 
           case _ =>
             child match {
-              case TableMapGlobals(inner, ng1) =>
+              // an aggregation in newGlobals reads `global` in its agg scope too
+              case TableMapGlobals(inner, ng1) if !ContainsAgg(newGlobals) =>
                 Some(TableMapGlobals(
                   inner,
                   bindIR(ng1)(uid =>
@@ -1851,7 +1856,8 @@ object Simplify {
               else child
             )
 
-          case TableMapGlobals(c, newGlobals) =>
+          // an aggregation in newGlobals reads the rows a head would drop
+          case TableMapGlobals(c, newGlobals) if !ContainsAgg(newGlobals) =>
             Some(TableMapGlobals(TableHead(c, n), newGlobals))
 
           case TableOrderBy(c, sortFields) // FIXME: https://github.com/hail-is/hail/issues/6234
@@ -1892,7 +1898,8 @@ object Simplify {
           case TableRepartition(c, nPar, shuffle) =>
             Some(TableRepartition(TableTail(c, n), nPar, shuffle))
 
-          case TableMapGlobals(c, newGlobals) =>
+          // an aggregation in newGlobals reads the rows a tail would drop
+          case TableMapGlobals(c, newGlobals) if !ContainsAgg(newGlobals) =>
             Some(TableMapGlobals(TableTail(c, n), newGlobals))
 
           case _ => None
@@ -1989,10 +1996,10 @@ object Simplify {
                 newRow,
               ))
 
-            case TableMapGlobals(c, newRow) =>
+            case TableMapGlobals(c, newGlobals) if !ContainsAgg(newGlobals) =>
               Some(TableMapGlobals(
                 TableFilterIntervals(c, intervals, keep),
-                newRow,
+                newGlobals,
               ))
 
             case TableRename(c, rowMap, globalMap) =>
