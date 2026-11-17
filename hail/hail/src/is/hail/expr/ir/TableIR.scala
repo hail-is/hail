@@ -229,7 +229,7 @@ object LoweredTableReader extends Logging {
         .streamAgg { x =>
           M.eval {
             ApplyAggOp(Count())().flatMap { n =>
-              M.lift[AGG.type] {
+              M.interleave(AGG) {
                 def aggOrderedCount(a: Atom, b: Atom): IR =
                   ApplyAggOp(Sum())((a.isNA || (a <= b)).invoke("toInt64", TInt64))
 

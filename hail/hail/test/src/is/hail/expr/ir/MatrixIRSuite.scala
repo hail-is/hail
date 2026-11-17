@@ -242,7 +242,7 @@ class MatrixIRSuite {
   def scanSumAndMax(idx: IR): IR =
     M.eval {
       for {
-        x <- M.lift[SCAN.type](for { x <- idx } yield x)
+        x <- M.interleave(SCAN)(for { x <- idx } yield x)
         sum <- ApplyScanOp(Sum())(x.toL)
         max <- ApplyScanOp(Max())(x.toL)
       } yield maketuple(sum, max)
@@ -634,7 +634,7 @@ class MatrixIRSuite {
     val row = Ref(MatrixIR.rowName, mt.typ.rowType)
     val v = M.eval {
       for {
-        x <- M.lift[AGG.type](for { x <- row.get("row_idx") } yield x)
+        x <- M.interleave(AGG)(for { x <- row.get("row_idx") } yield x)
         sum <- ApplyAggOp(Sum())(x.toL)
         count <- ApplyScanOp(Count())()
       } yield maketuple(sum, count)
