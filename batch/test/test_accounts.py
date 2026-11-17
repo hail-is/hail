@@ -9,7 +9,7 @@ import pytest
 
 from hailtop import httpx
 from hailtop.auth import async_get_user, session_id_encode_to_str
-from hailtop.batch_client.aioclient import Batch, BatchClient, SpecBytes, SpecType
+from hailtop.batch_client.aioclient import Batch, BatchClient, BatchNotAuthenticatedError, SpecBytes, SpecType
 from hailtop.utils import secret_alnum_string
 from hailtop.utils.rich_progress_bar import BatchProgressBar
 
@@ -80,8 +80,8 @@ async def test_bad_token():
         b.create_job(DOCKER_ROOT_IMAGE, ['false'])
         await b.submit()
         assert False, str(await b.debug_info())
-    except httpx.ClientResponseError as e:
-        assert e.status == 401
+    except BatchNotAuthenticatedError:
+        pass
     finally:
         await bc.close()
 
@@ -112,36 +112,36 @@ async def test_unauthorized_billing_project_modification(
     client = await make_client('billing-project-not-needed-but-required-by-BatchClient')
     try:
         await client.create_billing_project(project)
-    except httpx.ClientResponseError as e:
-        assert e.status == 401, e
+    except BatchNotAuthenticatedError:
+        pass
     else:
         assert False, 'expected error'
 
     try:
         await client.add_user('test', project)
-    except httpx.ClientResponseError as e:
-        assert e.status == 401, e
+    except BatchNotAuthenticatedError:
+        pass
     else:
         assert False, 'expected error'
 
     try:
         await client.remove_user('test', project)
-    except httpx.ClientResponseError as e:
-        assert e.status == 401, e
+    except BatchNotAuthenticatedError:
+        pass
     else:
         assert False, 'expected error'
 
     try:
         await client.close_billing_project(project)
-    except httpx.ClientResponseError as e:
-        assert e.status == 401, e
+    except BatchNotAuthenticatedError:
+        pass
     else:
         assert False, 'expected error'
 
     try:
         await client.reopen_billing_project(project)
-    except httpx.ClientResponseError as e:
-        assert e.status == 401, e
+    except BatchNotAuthenticatedError:
+        pass
     else:
         assert False, 'expected error'
 
@@ -339,8 +339,8 @@ async def test_edit_billing_limit_nondev(
     try:
         limit = 5
         await client.edit_billing_limit(project, limit)
-    except httpx.ClientResponseError as e:
-        assert e.status == 401, e
+    except BatchNotAuthenticatedError:
+        pass
     else:
         r = await client.get_billing_project(project)
         assert r['limit'] is None, r
