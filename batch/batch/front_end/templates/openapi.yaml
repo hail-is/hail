@@ -1086,8 +1086,9 @@ paths:
       summary: "Get billing breakdown"
       description: >
         Return per-(billing_project, user, resource) cost records for a date range.
-        Billing managers (READ_ALL_BILLING_PROJECTS) see all records; other users see only
-        rows where the user matches their own username. Costs are plain floats in USD.
+        Billing managers (READ_ALL_BILLING_PROJECTS) see all records. Quote managers see all
+        records for billing projects under quotes they manage, plus their own rows elsewhere.
+        Other users see only rows where the user matches their own username. Costs are plain floats in USD.
         Rows with zero cost are excluded. The `resource` field uses internal resource names
         such as `"service-fee"`, `"compute/n1-standard/preemptible/us-central1"`, etc.
       operationId: getBillingBreakdown
@@ -1558,6 +1559,13 @@ paths:
                 pm_designee:
                   type: string
                   nullable: true
+                description:
+                  type: string
+                  nullable: true
+                  maxLength: 1000
+                quote_number:
+                  type: string
+                  nullable: true
                 comment:
                   type: string
                   nullable: true
@@ -1610,7 +1618,7 @@ paths:
       summary: Edit a quote
       description: >
         Update mutable fields on a quote (cost_object, pi_name, pm_designee,
-        authorized_amount). Requires EDIT_QUOTE billing permission. Only the INTERNAL
+        description, quote_number, authorized_amount). Requires EDIT_QUOTE billing permission. Only the INTERNAL
         quote may have an unlimited authorized_amount, and only global billing managers
         may set it.
       tags: [Billing]
@@ -1622,7 +1630,7 @@ paths:
             type: string
           description: Quote name (case-sensitive)
       requestBody:
-        required: false
+        required: true
         content:
           application/json:
             schema:
@@ -1634,6 +1642,13 @@ paths:
                   type: string
                   nullable: true
                 pm_designee:
+                  type: string
+                  nullable: true
+                description:
+                  type: string
+                  nullable: true
+                  maxLength: 1000
+                quote_number:
                   type: string
                   nullable: true
                 authorized_amount:

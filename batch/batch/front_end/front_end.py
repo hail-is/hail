@@ -326,7 +326,7 @@ async def _json_body(request: web.Request, *, required: bool = True) -> Dict[str
         return {}
     try:
         body = await request.json()
-    except json.JSONDecodeError as e:
+    except ValueError as e:  # covers JSONDecodeError, UnicodeDecodeError and oversized ints
         raise web.HTTPBadRequest(reason='Request body must be valid JSON.') from e
     if not isinstance(body, dict):
         raise web.HTTPBadRequest(reason='Request body must be a JSON object.')
@@ -352,7 +352,7 @@ def _parse_authorized_amount(value: Any) -> float:
         raise web.HTTPBadRequest(reason=f'Invalid authorized_amount: {value!r}.')
     try:
         amount = float(value)
-    except ValueError as exc:
+    except (ValueError, OverflowError) as exc:
         raise web.HTTPBadRequest(reason=f'Invalid authorized_amount: {value!r}.') from exc
     if not math.isfinite(amount) or amount < 0:
         raise web.HTTPBadRequest(reason=f'Invalid authorized_amount: {value!r}.')
@@ -3927,6 +3927,7 @@ async def add_quote_manager(request: web.Request, _: UserData) -> web.Response:
     if role not in ('owner', 'manager'):
         raise web.HTTPBadRequest(reason="'role' must be 'owner' or 'manager'.")
 
+    await _handle_api_error(_verify_user_exists, request, target_user)
     await _handle_api_error(
         billing_dao.add_quote_manager, db, quote_name, target_user, role, request['billing_grant'], comment
     )

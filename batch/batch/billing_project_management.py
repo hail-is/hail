@@ -49,7 +49,7 @@ def _parse_billing_limit(limit: Any) -> Optional[float]:
         raise InvalidBillingLimitError(limit)
     try:
         parsed_limit = float(limit)
-    except ValueError as e:
+    except (ValueError, OverflowError) as e:
         raise InvalidBillingLimitError(limit) from e
     if not math.isfinite(parsed_limit) or parsed_limit < 0:
         raise InvalidBillingLimitError(limit)
