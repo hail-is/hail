@@ -26,6 +26,8 @@ import sys
 import threading
 import time
 
+# GitHub webhooks only ever point at the default namespace's CI.
+NAMESPACE = 'default'
 K8S_SECRET = 'ci-github-webhook-secret'
 K8S_SECRET_KEY = 'secret'
 
@@ -197,29 +199,38 @@ def set_hook_secret(matched, secret):
             fail(f'Updating {repo} hook {hook["id"]} failed: {e}\nRerun this script, or run it with --unset.')
 
 
+def latest_ping(repo, hook):
+    deliveries = gh_api(f'repos/{repo}/hooks/{hook["id"]}/deliveries?per_page=30')
+    return next((d for d in deliveries if d['event'] == 'ping'), None)
+
+
 def ping_hooks(matched, expected_status):
+    all_ok = True
+    sent = []
     for repo, hook in matched:
         try:
+            # Remember the previous ping so an old one can't pass for this run's.
+            previous = latest_ping(repo, hook)
             gh_api(f'repos/{repo}/hooks/{hook["id"]}/pings', method='POST')
         except RuntimeError as e:
             print(f'  {repo} hook {hook["id"]}: ping failed to send: {e}')
+            all_ok = False
+            continue
+        sent.append((repo, hook, previous['id'] if previous else None))
     # Deliveries show up asynchronously; one short wait, no polling.
     time.sleep(5)
 
-    all_ok = True
-    for repo, hook in matched:
+    for repo, hook, previous_id in sent:
         try:
-            deliveries = gh_api(f'repos/{repo}/hooks/{hook["id"]}/deliveries?per_page=30')
+            latest = latest_ping(repo, hook)
         except RuntimeError as e:
             print(f'  {repo} hook {hook["id"]}: could not list deliveries: {e}')
             all_ok = False
             continue
-        pings = [d for d in deliveries if d['event'] == 'ping']
-        if not pings:
-            print(f'  {repo} hook {hook["id"]}: no ping delivery found yet')
+        if latest is None or latest['id'] == previous_id:
+            print(f'  {repo} hook {hook["id"]}: no new ping delivery found yet')
             all_ok = False
             continue
-        latest = pings[0]
         ok = latest['status_code'] == expected_status
         all_ok = all_ok and ok
         print(
@@ -253,7 +264,14 @@ def set_or_rotate(namespace):
             'json',
             input=secret,
         )
-        kubectl(namespace, 'apply', '-f', '-', input=manifest)
+        try:
+            kubectl(namespace, 'apply', '-f', '-', input=manifest)
+        except RuntimeError as e:
+            # kubectl apply errors can echo the patch body, which holds the secret.
+            message = str(e)
+            for s in (secret, base64.b64encode(secret.encode()).decode()):
+                message = message.replace(s, '<redacted>')
+            raise RuntimeError(message) from None
         return 'done'
 
     try:
@@ -314,17 +332,16 @@ def unset(namespace):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument('--namespace', default='default', help="CI's namespace (default: default)")
     parser.add_argument('--unset', action='store_true', help='remove the secret: back to unverified deliveries')
     args = parser.parse_args()
 
     print(f'CI GitHub webhook secret: {"unset" if args.unset else "set / rotate"}')
     print()
-    check_prereqs(args.namespace)
+    check_prereqs(NAMESPACE)
     if args.unset:
-        unset(args.namespace)
+        unset(NAMESPACE)
     else:
-        set_or_rotate(args.namespace)
+        set_or_rotate(NAMESPACE)
 
 
 if __name__ == '__main__':

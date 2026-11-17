@@ -41,8 +41,6 @@ The script:
 It asks before each step that changes anything, and never prints or saves the secret. Between steps 4 and 5 GitHub's
 deliveries are unsigned and get 401: expected, and covered by polling.
 
-Use `--namespace` for a CI that isn't in `default`.
-
 If the ping check fails, look for `github_webhook_rejected` on CI's events page and at the hook's
 *Recent Deliveries* tab on GitHub (*Settings → Webhooks*).
 
@@ -55,8 +53,8 @@ python3 devbin/refresh-ci-webhook-secret.py --unset
 This clears the secret on every matched hook first, then deletes the k8s secret, restarts CI and pings each hook.
 Expect 200. CI is then back to accepting unsigned deliveries.
 
-In case the --unset command has issues, the same effect can be achieved manually: 
-- Delete the github webhook secret for the CI webhook
+In case the --unset command has issues, the same effect can be achieved manually, in this order:
+- Clear the secret on every GitHub webhook pointing at CI's `/github_callback`, in every repo CI watches
 - Delete the kubernetes secret
 - Restart CI
 
