@@ -1413,9 +1413,12 @@ object Simplify {
             Some(TableGetGlobals(c))
 
           case TableMapGlobals(c, newGlobals) =>
-            Some(bindIR(TableGetGlobals(c)) { ref =>
-              Subst(newGlobals, BindingEnv.eval(TableIR.globalName -> ref))
-            })
+            Some(
+              if (ContainsAgg(newGlobals)) TableAggregate(c, newGlobals)
+              else bindIR(TableGetGlobals(c)) { ref =>
+                Subst(newGlobals, BindingEnv.eval(TableIR.globalName -> ref))
+              }
+            )
 
           case TableExplode(c, _) =>
             Some(TableGetGlobals(c))
@@ -1703,7 +1706,7 @@ object Simplify {
 
           case _ =>
             child match {
-              case TableMapGlobals(inner, ng1) =>
+              case TableMapGlobals(inner, ng1) if !ContainsAgg(newGlobals) =>
                 Some(TableMapGlobals(
                   inner,
                   bindIR(ng1)(uid =>
@@ -1851,7 +1854,7 @@ object Simplify {
               else child
             )
 
-          case TableMapGlobals(c, newGlobals) =>
+          case TableMapGlobals(c, newGlobals) if !ContainsAgg(newGlobals) =>
             Some(TableMapGlobals(TableHead(c, n), newGlobals))
 
           case TableOrderBy(c, sortFields) // FIXME: https://github.com/hail-is/hail/issues/6234
@@ -1892,7 +1895,7 @@ object Simplify {
           case TableRepartition(c, nPar, shuffle) =>
             Some(TableRepartition(TableTail(c, n), nPar, shuffle))
 
-          case TableMapGlobals(c, newGlobals) =>
+          case TableMapGlobals(c, newGlobals) if !ContainsAgg(newGlobals) =>
             Some(TableMapGlobals(TableTail(c, n), newGlobals))
 
           case _ => None
@@ -1989,10 +1992,10 @@ object Simplify {
                 newRow,
               ))
 
-            case TableMapGlobals(c, newRow) =>
+            case TableMapGlobals(c, newGlobals) if !ContainsAgg(newGlobals) =>
               Some(TableMapGlobals(
                 TableFilterIntervals(c, intervals, keep),
-                newRow,
+                newGlobals,
               ))
 
             case TableRename(c, rowMap, globalMap) =>

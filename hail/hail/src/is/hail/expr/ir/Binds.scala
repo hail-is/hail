@@ -184,8 +184,8 @@ object Binds {
   def tableGen[E[_]: Scopes, A](e: E[A], cname: Name, gname: Name, ctx: A, globals: A): E[A] =
     e.empty.bind(EVAL, FastSeq(cname -> ctx, gname -> globals))
 
-  def tableMapGlobals[E[_]: Scopes, A](e: E[A], global: A): E[A] =
-    e.empty.bind(EVAL, FastSeq(TableIR.globalName -> global))
+  def tableMapGlobals[E[_]: Scopes, A](e: E[A], global: A, row: A): E[A] =
+    tableAggregate(e, global, row)
 
   // TableMapRows' newRow
   def tableMapRows[E[_]: Scopes, A](e: E[A], global: A, row: A): E[A] = {
