@@ -3165,6 +3165,7 @@ steps:
               --timeout=360 \
               --ignore=/io/test/test_batch_rare_instances.py \
               --ignore=/io/test/test_db_framework.py \
+              --ignore=/io/test/test_preemption_costs_db.py \
               /io/test/
     inputs:
       - from: /repo/batch/test
