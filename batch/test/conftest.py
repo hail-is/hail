@@ -1,6 +1,7 @@
 import hashlib
 import logging
 import os
+import secrets
 import sys
 import warnings
 
@@ -22,7 +23,11 @@ log = logging.getLogger(__name__)
 
 @pytest_asyncio.fixture(scope='session')
 async def db():
-    """Spin up a real migrated batch DB and yield it; drop it on teardown."""
+    """Spin up a real migrated batch DB and yield it; drop it on teardown.
+
+    Every test in the session shares it: add rows rather than wiping tables, and don't assume a table holds only
+    your own rows.
+    """
     # Other test steps share this conftest in images without these packages.
     import aiomysql  # pylint: disable=import-outside-toplevel
 
@@ -64,6 +69,13 @@ async def db():
         await conn.commit()
     finally:
         conn.close()
+
+
+@pytest.fixture
+def unique_name():
+    """Names rows so they can't collide with other tests' rows in the shared db; stable within a test."""
+    suffix = secrets.token_hex(4)
+    return lambda prefix: f'{prefix}-{suffix}'
 
 
 NOISE_BATCH_N_JOBS = 2000
