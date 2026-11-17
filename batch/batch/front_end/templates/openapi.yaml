@@ -1049,7 +1049,9 @@ paths:
       summary: "Get billing records"
       description: >
         Return per-(billing_project, user) cost records for a date range.
-        Non-developers see only their own records; developers see all.
+        Global billing managers see all records. Quote managers see all
+        records for billing projects under quotes they manage, plus their own rows elsewhere.
+        Other users see only their own records.
         Costs are plain floats in USD. Omitting `end` includes currently-running batches;
         supplying `end` excludes them.
       operationId: getBilling
@@ -1086,7 +1088,7 @@ paths:
       summary: "Get billing breakdown"
       description: >
         Return per-(billing_project, user, resource) cost records for a date range.
-        Billing managers (READ_ALL_BILLING_PROJECTS) see all records. Quote managers see all
+        Global billing managers see all records. Quote managers see all
         records for billing projects under quotes they manage, plus their own rows elsewhere.
         Other users see only rows where the user matches their own username. Costs are plain floats in USD.
         Rows with zero cost are excluded. The `resource` field uses internal resource names
