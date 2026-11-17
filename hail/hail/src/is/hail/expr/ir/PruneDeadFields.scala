@@ -619,16 +619,23 @@ object PruneDeadFields extends Logging {
           globalType = unify(child.typ.globalType, requestedType.globalType, rowDep.globalType),
         )
         memoizeTableIR(ctx, child, dep, memo)
-      case TableMapGlobals(child, _) =>
-        val globalState =
-          createTypeStatesAndMemoize(ctx, tir, 1, requestedType.globalType, memo)(
-            TableIR.globalName
-          )
+      case TableMapGlobals(child, newGlobals) =>
+        // newGlobals may aggregate over the rows, so the child keeps the row fields it reads,
+        // and its key, which fixes the row order an aggregation like Collect sees
+        val reqKey = if (ContainsAgg(newGlobals)) child.typ.key else requestedType.key
+        val states = createTypeStatesAndMemoize(ctx, tir, 1, requestedType.globalType, memo)
         memoizeTableIR(
           ctx,
           child,
-          requestedType.copy(
-            globalType = globalState.newStructType
+          TableType(
+            key = reqKey,
+            rowType = unify(
+              child.typ.rowType,
+              requestedType.rowType,
+              selectKey(child.typ.rowType, reqKey),
+              states(TableIR.rowName).newStructType,
+            ),
+            globalType = states(TableIR.globalName).newStructType,
           ),
           memo,
         )
@@ -1838,7 +1845,15 @@ object PruneDeadFields extends Logging {
         TableMapRows(child2Keyed, newRow2)
       case TableMapGlobals(child, newGlobals) =>
         val child2 = rebuild(ctx, child, memo)
-        TableMapGlobals(child2, rebuildIR(ctx, newGlobals, BindingEnv(child2.typ.globalEnv), memo))
+        TableMapGlobals(
+          child2,
+          rebuildIR(
+            ctx,
+            newGlobals,
+            BindingEnv(child2.typ.globalEnv, agg = Some(child2.typ.rowEnv)),
+            memo,
+          ),
+        )
       case TableKeyBy(child, _, isSorted, nPartitions) =>
         var child2 = rebuild(ctx, child, memo)
         val keys2 = requestedType.key

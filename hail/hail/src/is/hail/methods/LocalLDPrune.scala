@@ -5,6 +5,7 @@ import is.hail.collection.LongArrayBuilder
 import is.hail.expr.ir._
 import is.hail.expr.ir.defs.{GetField, StreamLocalLDPrune, ToArray, ToStream}
 import is.hail.expr.ir.functions.MatrixToTableFunction
+import is.hail.expr.ir.lowering.LoweringContext
 import is.hail.methods.BitPackedVector._
 import is.hail.types.virtual._
 import is.hail.utils._
@@ -331,10 +332,12 @@ case class LocalLDPrune(
   override def execute(ctx: ExecuteContext, mv: MatrixValue): TableValue = {
     val nSamples = mv.nCols
     val tableType = typ(mv.typ)
+    val newGlobals = makestruct()
     val ts = TableExecuteIntermediate(mv.toTableValue).asTableStage(ctx).mapPartition(Some(
       tableType.key
-    ))(rows => makeStream(rows, MatrixType.entriesIdentifier, nSamples)).mapGlobals(_ =>
-      makestruct()
+    ))(rows => makeStream(rows, MatrixType.entriesIdentifier, nSamples)).mapGlobals(
+      LoweringContext(ctx, newGlobals),
+      newGlobals,
     )
     TableExecuteIntermediate(ts).asTableValue(ctx)
   }

@@ -452,6 +452,12 @@ class RequirednessSuite {
     ))
 
     nodes += ((
+      table.mapGlobals((g, r) => insertIR(g, "a2" -> ApplyAggOp(Collect())(r.get("a")))),
+      rowType,
+      globalType.insertFields(FastSeq("a2" -> PCanonicalArray(rowType.fieldType("a"), required))),
+    ))
+
+    nodes += ((
       TableExplode(
         TableMapRows(
           table,
