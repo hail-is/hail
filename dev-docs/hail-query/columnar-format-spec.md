@@ -488,8 +488,7 @@ it only through `hail.ir.TableColumnarWriter`, for tests.
 
 For tables whose fields have the types listed in section 7.2.2:
 
-- the directory layout, file naming and commit protocol (sections 2 and 2.1),
-  except when replacing a dataset (section 7.2.5);
+- the directory layout, file naming and commit protocol (sections 2 and 2.1);
 - the manifest root for `"kind": "table"` (section 3), including the base64 IPC
   schemas, `distinctly_keyed`, a `null` `globals.file` for empty globals, and
   collision-free internal field names;
@@ -549,10 +548,3 @@ Section 6 lists fixtures that don't exist yet:
   there is no nullable top-level array or struct, and no array with required
   elements;
 - a non-builtin reference genome.
-
-#### 7.2.5 Replacing a dataset
-
-With `overwrite` set, the writer deletes `<path>` recursively before the write
-runs, in whatever order the filesystem deletes files, without first deleting
-`manifest.json` (section 2.1). If that delete fails partway, the old
-`manifest.json` can survive while files it references are gone.

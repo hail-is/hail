@@ -241,9 +241,16 @@ case class ColumnarTableCommit(
     region: Value[Region],
   ): Unit = {
     val fs = cb.emb.getFS
-    if (overwrite)
+    if (overwrite) {
+      // Uncommit any existing dataset first, so a delete that fails partway never leaves a
+      // manifest whose files are gone (spec section 2.1).
+      cb += fs.invoke[String, Boolean, Unit](
+        "delete",
+        s"$path/${TableColumnarWriter.ManifestFile}",
+        false,
+      )
       cb += fs.invoke[String, Boolean, Unit]("delete", path, true)
-    else
+    } else
       cb.if_(
         fs.invoke[String, Boolean]("exists", path),
         cb._fatal(s"columnar writer: file already exists: $path"),
