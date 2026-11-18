@@ -27,8 +27,8 @@ object ColumnarSchema {
   val FieldIdKey: String = "PARQUET:field_id"
 
   /** Fails unless every field of `t`, at any depth, has a type the columnar writer supports yet.
-    * The top-level struct may be empty; a nested struct may not, since Parquet can't store a group
-    * with no fields.
+    * The top-level struct may be empty; a nested struct may not, until the writer implements the
+    * `hail.empty_struct` encoding (spec section 5.5).
     */
   def checkSupported(what: String, t: TStruct): Unit = {
     def check(path: String, t: Type): Unit = t match {
@@ -37,7 +37,7 @@ object ColumnarSchema {
       case t: TStruct =>
         if (t.size == 0)
           fatal(
-            s"$what field '$path' is an empty struct, which the columnar format can't store yet"
+            s"$what field '$path' is an empty struct, which the columnar writer doesn't support yet"
           )
         t.fields.foreach(f => check(s"$path.${f.name}", f.typ))
       case t =>
