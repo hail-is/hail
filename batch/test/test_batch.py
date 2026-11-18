@@ -2540,9 +2540,9 @@ async def test_job_list_filter_fits_the_request_line(async_client: AioBatchClien
     await b.submit()
 
     def filter_of(n_bytes: int) -> str:
-        # characters that each percent-encode to three bytes, as badly as JSON can encode
+        # a character that percent-encodes to three bytes, as badly as JSON can encode
         prefix, suffix = '{"field":"name","op":"contains","value":"', '"}'
-        pad = '[]{},:' * n_bytes
+        pad = '%' * n_bytes
         s = prefix + pad[: n_bytes - len(prefix) - len(suffix)] + suffix
         assert len(s.encode('utf-8')) == n_bytes
         return s

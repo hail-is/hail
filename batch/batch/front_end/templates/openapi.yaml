@@ -880,8 +880,8 @@ paths:
 
         Results are always in ascending job id order. A page can be short, or even empty, and
         still have a link onward when the window ran out (`page_end_reason` says why the page
-        ended): keep following `next_page`/`previous_page`, which are ready-made requests, until
-        the link in your direction is null. Every response key is always present; a field that
+        ended): keep following `next_page`/`previous_page` (swap their two values into your
+        original query) until the link in your direction is null. Every response key is always present; a field that
         wasn't requested is null, and the top-level `include` echoes what was.
 
 
@@ -925,7 +925,8 @@ paths:
           in: query
           description: >
             A URL-encoded JSON filter: a leaf {"field", "op", "value"} (plus "key" for
-            attribute), or {"and": [...]} / {"or": [...]} of filters. null values never match,
+            attribute; attribute exists takes only "field", "op" and "key"), or
+            {"and": [...]} / {"or": [...]} of filters. null values never match,
             for any operator. Times are epoch milliseconds or ISO-8601 strings with Z or an
             offset; durations are milliseconds; cost is US dollars. Fields and operators:
             job_id (=, in, <, <=, >, >=; top-level and leaves also narrow scan_range);
@@ -2692,7 +2693,9 @@ components:
 
     JobListPageLink:
       type: object
-      description: "A ready-made request for the next page in one direction: send these two parameters as-is."
+      description: >
+        The next page in one direction: replace scan_start_job_id and scan_direction in the
+        original query with these, keeping its other parameters (filter, recursive, ...).
       properties:
         scan_start_job_id:
           type: integer
