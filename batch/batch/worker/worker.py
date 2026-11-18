@@ -2624,6 +2624,8 @@ class JVMContainer:
             '-XX:+UseSerialGC',
             # size the JVM's thread pools for the job's cores
             f'-XX:ActiveProcessorCount={n_cores}',
+            # disable the Base64 decoder intrinsic
+            '-XX:-UseBASE64Intrinsics',
             '-cp',
             '/jvm-entryway/jvm-entryway.jar',
             'is.hail.JVMEntryway',
