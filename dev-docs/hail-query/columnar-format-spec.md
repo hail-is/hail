@@ -129,6 +129,10 @@ type from the Arrow schema alone. The manifest stores no Hail type strings.
 `manifest.json` MUST be the last file written. A dataset is committed if and only
 if `manifest.json` exists. Writers MUST NOT write `_SUCCESS` files.
 
+A writer that replaces a committed dataset MUST delete its `manifest.json` before
+deleting or replacing any other file. A failed replacement then leaves `<path>`
+uncommitted, never committed with missing files.
+
 ## 3. Manifest root (`manifest.json`)
 
 UTF-8 JSON. Fields not listed here MUST be rejected by `0.x` readers.
@@ -196,7 +200,10 @@ Field rules:
   this, and MUST reject the dataset if they find a mismatch.
 - **`key`**: the names of the key fields, in key order. An empty list means the
   table is unkeyed.
-- **`distinctly_keyed`**: `true` if no two rows share a key.
+- **`distinctly_keyed`**: `true` if no two rows share a key. It is always `false`
+  when `key` is empty, even for a table with zero or one rows, where no two rows
+  share the (empty) key. This matches Hail's native format, which never marks an
+  unkeyed table distinctly keyed.
 - **`globals.file`**: `null` if the global struct has no fields. Parquet can't
   represent a file with no fields. `globals.schema` is always present, and is the
   empty schema in that case.
@@ -239,20 +246,24 @@ The order of `contigs` is the genome's contig order.
 
 One row per row partition, ordered by `partition_index`.
 
-| Field | Arrow type | Notes |
-|---|---|---|
-| `partition_index` | `int32`, non-null | 0, 1, 2, ... |
-| `start` | struct of the key fields, nullable | key of the partition's first row; keyed tables only |
-| `end` | struct of the key fields, nullable | key of the partition's last row; keyed tables only |
-| `row_count` | `int64`, non-null | |
-| `row_file` | `struct<path: utf8, container: utf8>`, non-null | |
-| `entry_files` | `list<struct<path: utf8, container: utf8>>`, nullable | matrix tables only; index *c* is column block *c* |
+| Field | Arrow type | Present when | Notes |
+|---|---|---|---|
+| `partition_index` | `int32`, non-null | always | 0, 1, 2, ... |
+| `start` | struct of the key fields, nullable | `rows.key` is non-empty | key of the partition's first row |
+| `end` | struct of the key fields, nullable | `rows.key` is non-empty | key of the partition's last row |
+| `row_count` | `int64`, non-null | always | |
+| `row_file` | `struct<path: utf8, container: utf8>`, non-null | always | |
+| `entry_files` | `list<struct<path: utf8, container: utf8>>`, non-null | `kind` is `"matrix_table"` | index *c* is column block *c* |
+
+Writers MUST write exactly the fields whose condition holds. Readers MUST reject a
+partitions table that has a field whose condition doesn't hold, lacks a field
+whose condition holds, or has a field not listed here. `start` and `end` are
+absent for an unkeyed table, rather than empty, because Parquet can't store a
+struct with no fields.
 
 The `start` and `end` structs use exactly the Arrow types of the key fields in the
 row schema, including extension types. Bounds are therefore stored in the same
 value encoding as the data. Both are `null` for partitions with `row_count = 0`.
-The partitions table of an unkeyed table has no `start` or `end` field, because
-Parquet can't store a struct with no fields.
 
 **Key invariants** (keyed tables):
 
@@ -353,7 +364,9 @@ These apply to every data file:
 ## 5. Type mapping
 
 Nullability: a Hail field or element is non-null in Arrow if and only if it is
-required in Hail.
+required in Hail. Note that 'required in Hail' refers to the PType/EmitType
+level, not the virtual types/python types where there is no notion of true
+nullability and, to the user, everything appears nullable.
 
 Extension types use the standard Arrow keys `ARROW:extension:name` and
 `ARROW:extension:metadata`. Extension metadata is a UTF-8 JSON object, and is `{}`
@@ -369,7 +382,9 @@ when there are no parameters.
 | `str` | `utf8` | | |
 | `binary` | `binary` | | |
 | `struct{...}` | `struct<...>` | | |
+| `struct{}` | `bool` | `hail.empty_struct` | `{"tuple": false}` |
 | `tuple(...)` | `struct<"0": ..., "1": ..., ...>` | `hail.tuple` | `{}` |
+| `tuple()` | `bool` | `hail.empty_struct` | `{"tuple": true}` |
 | `array<T>` | `list<T>` | | |
 | `set<T>` | `list<T>`, sorted, distinct | `hail.set` | `{}` |
 | `dict<K, V>` | `map<K, V>`, `keysSorted = true`, non-null keys | | |
@@ -420,6 +435,30 @@ The allele representation depends on ploidy:
 
 Data is stored row-major. `shape` has length *N*, the number of dimensions.
 
+### 5.5 Empty structs and tuples
+
+Parquet records whether a value is missing only in the definition levels of leaf
+columns, so it can't store a group with no fields. A struct or tuple with no
+fields is therefore stored as `hail.empty_struct`, with `bool` storage:
+
+- A present value is `true`, and a missing value is `null`. Writers MUST write
+  only `true`, and `0.x` readers MUST reject `false`.
+- Nullability follows the rule at the start of section 5, so a required empty
+  struct is a non-null field that is always `true`.
+- `tuple` is `true` for an empty tuple and `false` for an empty struct. It is
+  required.
+
+Storing missing values as `null` means engines that don't know the extension
+still evaluate `IS NULL` as Hail does.
+
+This applies to every empty struct or tuple nested in a component's schema: as a
+field of a struct or tuple, as an element of an array or set, as a dict key or
+value, or as an interval's point type. It doesn't apply to the top-level struct
+of a component, which never needs it: empty globals have no file (section 3),
+row and entry files always have a Row ID field (sections 4.2 and 4.3), the
+columns file always has its column index field (section 4.4), and an unkeyed
+table has no partition bounds (section 4.1).
+
 ## 6. Conformance
 
 A set of fixture datasets is kept with Hail's tests. They are compared by value,
@@ -435,3 +474,85 @@ not by bytes. At minimum the fixtures cover:
 Hail 2's tests MUST read every fixture. Hail 2's writer output MUST pass the
 pyarrow conformance tests: schema, extension metadata, field IDs, and reading each
 row group whole.
+
+## 7. Implementation status
+
+This section is informative. It records where Hail 2's implementation falls short
+of this spec. Update it as the gaps close.
+
+Hail 2 has a table writer, `TableColumnarWriter` (`is.hail.io.columnar`). It is a
+lowered `TableWriter`, so it runs on every backend. It is private: Python reaches
+it only through `hail.ir.TableColumnarWriter`, for tests.
+
+### 7.1 Implemented
+
+For tables whose fields have the types listed in section 7.2.2:
+
+- the directory layout, file naming and commit protocol (sections 2 and 2.1),
+  except when replacing a dataset (section 7.2.5);
+- the manifest root for `"kind": "table"` (section 3), including the base64 IPC
+  schemas, `distinctly_keyed`, a `null` `globals.file` for empty globals, and
+  collision-free internal field names;
+- the partitions table (section 4.1). Partitioners that aren't strict for the
+  table key are strictified before the write, so the key invariants hold;
+- row files with Row IDs (section 4.2), and the globals file (section 4.5);
+- the Parquet requirements (section 4.6): three-level `LIST` encoding, `STRING`
+  annotation, field IDs on both the Arrow fields and the Parquet nodes,
+  `ARROW:schema` in the footer, statistics, the page index, and zstd;
+- fixtures for a keyed table, an unkeyed table and a table with no globals,
+  generated from this spec with pyarrow alone, and pyarrow conformance tests that
+  read Hail's output without Hail.
+
+### 7.2 Gaps
+
+#### 7.2.1 Matrix tables
+
+Not implemented. Nothing writes `"kind": "matrix_table"`: no columns file, entry
+files, column blocks, `entry_valid` or `col_idx` fields, `entry_files` in the
+partitions table, or row-group alignment and leaf cap (section 4.6.1). Row groups
+use parquet-java's default target size (128 MiB), which section 4.6.1 allows for
+row files.
+
+#### 7.2.2 Types
+
+The writer supports `bool`, `int32`, `int64`, `float32`, `float64`, `str`,
+`binary`, `struct` and `array`, except nested empty structs. It rejects every
+other type with an error naming the field: `tuple`, `set`, `dict`, `locus`,
+`interval`, `call` and `ndarray`, and nested empty structs. So:
+
+- `reference_genomes` is always `[]` (section 3.1);
+- the missing dict key check (section 5.1) and the locus, call, ndarray and empty
+  struct encodings (sections 5.2 to 5.5) are not implemented.
+
+The Hail-to-Arrow schema conversion (`is.hail.types.arrow.ArrowSchemaConversion`)
+already maps every type in section 5 except empty structs and tuples, which it
+maps to an Arrow `struct` with no fields instead of `hail.empty_struct`. Also
+missing are the Arrow-to-Parquet translation of `map`, `fixed_size_list` and
+extension types (through their storage types) in `ColumnarSchema.toParquet`, and
+value emission for those types in `ColumnarPartitionWriter`.
+
+#### 7.2.3 Reading
+
+Not implemented. `TableIR.read` fails on a directory that has a `manifest.json`.
+So section 6's requirement that Hail 2's tests read every fixture is not met, and
+none of the reader requirements (rejecting unknown manifest fields, partitions
+table fields that don't match `kind` and `rows.key`, the `"long"` layout and
+schema mismatches) are exercised by Hail.
+
+#### 7.2.4 Conformance fixtures
+
+Section 6 lists fixtures that don't exist yet:
+
+- a matrix table with missing entries and present entries with missing fields;
+- every type in section 5. The existing fixtures cover only the types in section
+  7.2.2, and not every required and nullable combination of them: for example,
+  there is no nullable top-level array or struct, and no array with required
+  elements;
+- a non-builtin reference genome.
+
+#### 7.2.5 Replacing a dataset
+
+With `overwrite` set, the writer deletes `<path>` recursively before the write
+runs, in whatever order the filesystem deletes files, without first deleting
+`manifest.json` (section 2.1). If that delete fails partway, the old
+`manifest.json` can survive while files it references are gone.
