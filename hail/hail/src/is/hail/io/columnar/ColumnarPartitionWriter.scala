@@ -9,8 +9,8 @@ import is.hail.expr.ir.defs.PartitionWriter
 import is.hail.expr.ir.orderings.CodeOrdering
 import is.hail.expr.ir.streams.StreamProducer
 import is.hail.io.fs.FS
-import is.hail.types.arrow.ArrowSchemaConversion
 import is.hail.types.{BaseTypeWithRequiredness, RIterable, RStruct, TypeWithRequiredness}
+import is.hail.types.arrow.ArrowSchemaConversion
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.{EmitType, SType, SValue}
 import is.hail.types.physical.stypes.concrete.SJavaString
