@@ -16,6 +16,7 @@ import is.hail.expr.ir.lowering._
 import is.hail.expr.ir.streams.StreamProducer
 import is.hail.io._
 import is.hail.io.avro.AvroTableReader
+import is.hail.io.columnar.TableColumnarReader
 import is.hail.io.fs.FS
 import is.hail.io.index.StagedIndexReader
 import is.hail.linalg.{BlockMatrix, BlockMatrixMetadata, BlockMatrixReadRowBlockedRDD}
@@ -175,6 +176,7 @@ object TableReader {
         TableFromBlockMatrixNativeReader.fromJValue(fs, rgs, jv)
       case "StringTableReader" => StringTableReader.fromJValue(fs, rgs, jv)
       case "AvroTableReader" => AvroTableReader.fromJValue(jv, rgs)
+      case "TableColumnarReader" => TableColumnarReader.fromJValue(fs, rgs, jv)
       case _ => jv.extract[TableReader]
     }
   }

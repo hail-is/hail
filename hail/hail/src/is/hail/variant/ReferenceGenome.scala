@@ -7,6 +7,7 @@ import is.hail.expr.{
   JSONExtractContig, JSONExtractIntervalLocus, JSONExtractReferenceGenome, Parser,
 }
 import is.hail.expr.ir.RelationalSpec
+import is.hail.io.columnar.{ColumnarManifest, TableColumnarWriter}
 import is.hail.io.fs.FS
 import is.hail.io.reference.FastaSequenceIndex
 import is.hail.types._
@@ -491,8 +492,14 @@ object ReferenceGenome {
   def fromFile(fs: FS, file: String): ReferenceGenome =
     using(fs.open(file))(read)
 
+  /** The reference genomes stored with the native or columnar dataset at `path`. A columnar dataset
+    * lists only those that aren't builtin.
+    */
   def fromHailDataset(fs: FS, path: String): Array[ReferenceGenome] =
-    RelationalSpec.readReferences(fs, path)
+    if (fs.isFile(s"$path/${TableColumnarWriter.ManifestFile}"))
+      ColumnarManifest.read(fs, path).referenceGenomes.toArray
+    else
+      RelationalSpec.readReferences(fs, path)
 
   def fromJSON(config: String): ReferenceGenome =
     parse(config)
