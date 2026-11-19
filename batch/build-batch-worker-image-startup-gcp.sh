@@ -79,6 +79,9 @@ export HOME=/root
 docker-credential-gcr configure-docker --include-artifact-registry
 docker pull {{ global.docker_root_image }}
 
+echo "install sctp /bin/false" > /etc/modprobe.d/disable-sctp.conf
+rmmod sctp 2>/dev/null || true
+
 echo "=== Enabling Docker debug logging ==="
 jq '.debug = true' /etc/docker/daemon.json > daemon.json.tmp
 mv daemon.json.tmp /etc/docker/daemon.json
