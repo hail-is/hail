@@ -100,12 +100,15 @@ async def patch_billing_project(db, bp_name, updates, actor, billing_role, comme
     )
 
 
-async def change_billing_project_quote(db, bp_name, dest_quote_id, actor, comment=None):
+async def change_billing_project_quote(db, bp_name, dest_quote_id, actor, comment=None, src_quote_id=None):
+    # By default, grant on the billing project's current quote; pass src_quote_id to grant on another one.
+    if src_quote_id is None:
+        src_quote_id = await bpm.get_billing_project_quote_id(db, bp_name)
     return await bpm.change_billing_project_quote(
         db,
         bp_name,
         dest_quote_id,
-        issue_grant(actor, P.CHANGE_BP_QUOTE, BillingProjectTarget(bp_name)),
+        issue_grant(actor, P.CHANGE_BP_QUOTE, QuoteTarget(src_quote_id if src_quote_id is not None else -1)),
         issue_grant(actor, P.CHANGE_BP_QUOTE, QuoteTarget(dest_quote_id)),
         comment,
     )

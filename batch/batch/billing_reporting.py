@@ -117,15 +117,11 @@ async def query_billing_history(
     start: datetime.datetime,
     end: Optional[datetime.datetime],
     user: Optional[str] = None,
-    quote_manager_user: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
     """Return per-(billing_project, user) spend for the given date range.
 
-    Access control:
-      user=None, quote_manager_user=None  — global_bm, no filter
-      user=X, quote_manager_user=X        — quote manager: own spend + all
-                                            spend in managed quotes
-      user=X, quote_manager_user=None     — regular user: own spend only
+    With user=None, all spend (for global billing managers). Otherwise the user's own spend plus all spend in
+    billing projects under quotes they manage.
     """
     where_conditions = [
         "billing_projects.`status` != 'deleted'",
@@ -138,14 +134,10 @@ async def query_billing_history(
         args.append(end)
 
     if user is not None:
-        if quote_manager_user is not None:
-            where_conditions.append(
-                "(`user` = %s OR billing_projects.quote_id IN (SELECT quote_id FROM quote_managers WHERE `user` = %s))"
-            )
-            args.extend([user, quote_manager_user])
-        else:
-            where_conditions.append("`user` = %s")
-            args.append(user)
+        where_conditions.append(
+            "(`user` = %s OR billing_projects.quote_id IN (SELECT quote_id FROM quote_managers WHERE `user` = %s))"
+        )
+        args.extend([user, user])
 
     sql = f"""
 SELECT
@@ -174,7 +166,6 @@ async def query_billing_breakdown(
     start: datetime.datetime,
     end: datetime.datetime,
     user: Optional[str] = None,
-    quote_manager_user: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
     """Return per-(billing_project, user, resource) spend for the given date range.
 
@@ -188,14 +179,10 @@ async def query_billing_breakdown(
     args: List[Any] = [start, end]
 
     if user is not None:
-        if quote_manager_user is not None:
-            where_conditions.append(
-                "(`user` = %s OR billing_projects.quote_id IN (SELECT quote_id FROM quote_managers WHERE `user` = %s))"
-            )
-            args.extend([user, quote_manager_user])
-        else:
-            where_conditions.append("`user` = %s")
-            args.append(user)
+        where_conditions.append(
+            "(`user` = %s OR billing_projects.quote_id IN (SELECT quote_id FROM quote_managers WHERE `user` = %s))"
+        )
+        args.extend([user, user])
 
     sql = f"""
 SELECT billing_project, `user`, resources.resource, COALESCE(SUM(`usage` * rate), 0) AS cost

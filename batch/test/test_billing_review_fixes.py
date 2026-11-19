@@ -12,7 +12,7 @@ from batch.billing_project_management import (
     get_billing_project_events,
     get_quote_events,
 )
-from batch.exceptions import BatchOperationAlreadyCompletedError, BillingValidationError
+from batch.exceptions import BatchOperationAlreadyCompletedError, BillingConflictError, BillingValidationError
 
 from .billing_writes import (
     change_billing_project_quote,
@@ -57,6 +57,23 @@ async def test_change_quote_to_current_quote_is_noop(db, unique_name):
     assert events is not None
     actions = [e['action'] for e in events]
     assert 'bp_assigned' not in actions and 'bp_unassigned' not in actions
+
+
+async def test_change_quote_rejects_grant_on_previous_source_quote(db, unique_name):
+    """A grant checked while the BP was under quote A can't move it once it has been moved to B."""
+    q_a, q_b, q_c, bp = (
+        unique_name('q-race-a'),
+        unique_name('q-race-b'),
+        unique_name('q-race-c'),
+        unique_name('bp-race'),
+    )
+    a_id, b_id, c_id = await _quote(db, q_a), await _quote(db, q_b), await _quote(db, q_c)
+    await create_billing_project(db, bp, a_id, 10.0, 'admin', 'global_bm')
+    await change_billing_project_quote(db, bp, b_id, 'admin')
+    with pytest.raises(BillingConflictError, match='moved to another quote'):
+        await change_billing_project_quote(db, bp, c_id, 'mallory', src_quote_id=a_id)
+    row = await db.select_and_fetchone('SELECT quote_id FROM billing_projects WHERE name = %s', (bp,))
+    assert row['quote_id'] == b_id
 
 
 async def test_delete_writes_audit_events(db, unique_name):

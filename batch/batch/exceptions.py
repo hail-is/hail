@@ -39,6 +39,16 @@ class BillingValidationError(BatchUserError):
         return web.HTTPBadRequest(reason=self.message)
 
 
+class BillingConflictError(BatchUserError):
+    """The request conflicts with the current state, e.g. creating something that already exists with other values."""
+
+    def __init__(self, message: str):
+        super().__init__(message, 'error')
+
+    def http_response(self):
+        return web.HTTPConflict(reason=self.message)
+
+
 class ClosedBillingProjectError(BatchUserError):
     def __init__(self, billing_project: str):
         super().__init__(f'Billing project {billing_project} is closed and cannot be modified.', 'error')

@@ -93,16 +93,26 @@ def grant_from_system_permission(
     return issue_grant(userdata['username'], permission, target)
 
 
-async def _route_target(db: Database, userdata: UserData, request: web.Request) -> BillingTarget:
+async def quote_target(db: Database, userdata: UserData, quote_name: str, permission: BillingPermission) -> QuoteTarget:
+    """The named quote as a target for checking permission on.
+
+    Only global billing managers may learn that a quote doesn't exist (404). Everyone else gets the same 403 as for a
+    quote they lack permission on.
+    """
+    quote_id = await billing_dao.get_quote_id(db, quote_name)
+    if quote_id is None:
+        if is_global_billing_manager(userdata):
+            raise web.HTTPNotFound(reason=f'Unknown quote {quote_name}.')
+        raise _forbidden(permission)
+    return QuoteTarget(quote_id)
+
+
+async def _route_target(
+    db: Database, userdata: UserData, request: web.Request, permission: BillingPermission
+) -> BillingTarget:
     quote_name = request.match_info.get('name')
     if quote_name:
-        quote_id = await billing_dao.get_quote_id(db, quote_name)
-        if quote_id is None:
-            # Only global billing managers may learn that a quote doesn't exist.
-            if is_global_billing_manager(userdata):
-                raise web.HTTPNotFound(reason=f'Unknown quote {quote_name}.')
-            raise web.HTTPForbidden(reason='Insufficient billing permissions')
-        return QuoteTarget(quote_id)
+        return await quote_target(db, userdata, quote_name, permission)
     billing_project = request.match_info.get('billing_project')
     if billing_project:
         return BillingProjectTarget(billing_project)
@@ -121,7 +131,7 @@ def billing_permission_required(
         @wraps(handler)
         async def inner(request: web.Request, userdata: UserData) -> web.StreamResponse:
             db: Database = request.app['db']
-            target = await _route_target(db, userdata, request)
+            target = await _route_target(db, userdata, request, permission)
             role = await billing_role_on(db, userdata, target)
             if role is None or permission not in BILLING_ROLE_PERMISSIONS.get(role, set()):
                 raise _forbidden(permission)

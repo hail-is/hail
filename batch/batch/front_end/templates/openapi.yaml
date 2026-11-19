@@ -715,7 +715,8 @@ paths:
       description: |
         Returns a time-limited GCS signed URL for direct download of a job's container log.
         The URL is valid for 15 minutes from the time of issue. Range requests are supported,
-        so parallel download tools such as `gcloud storage cp` work correctly.
+        so parallel download tools work correctly as long as all streams are initiated within
+        the validity window.
         Only available for completed jobs (or a specific past attempt via attempt_id).
         Only available for GCP deployments using GCS logs.
         The signed URL is returned without first verifying the log file exists in GCS;
@@ -1188,6 +1189,7 @@ paths:
           application/json:
             schema:
               type: object
+              additionalProperties: false
               properties:
                 limit:
                   type: number
@@ -1216,8 +1218,8 @@ paths:
                     type: string
         '400':
           description: >
-            Bad request (invalid limit, limit would exceed the quote's authorized_amount, unlimited limit outside
-            the INTERNAL quote, text too long, etc.)
+            Bad request (unknown field, invalid limit, limit would exceed the quote's authorized_amount, unlimited
+            limit outside the INTERNAL quote, text too long, etc.)
         '401':
           description: Unauthorized
         '403':
@@ -1229,6 +1231,7 @@ paths:
       summary: Create billing project
       description: >
         Create a new billing project under a quote. Requires CREATE_BP billing permission on the quote.
+        If the billing project already exists, nothing is changed and 200 is returned.
         quote_name is required, except for legacy callers with the create_billing_projects system
         permission (global billing managers and trial project creation), whose billing projects are
         created under the INTERNAL quote when quote_name is omitted.
@@ -1246,6 +1249,7 @@ paths:
           application/json:
             schema:
               type: object
+              additionalProperties: false
               properties:
                 quote_name:
                   type: string
@@ -1280,16 +1284,17 @@ paths:
                 description: Created billing project identifier
         '400':
           description: >
-            Bad request (missing quote_name, unknown quote, invalid limit, duplicate initial_users, closed quote,
+            Bad request (unknown field, missing quote_name, invalid limit, duplicate initial_users, closed quote,
             limit would exceed the quote's authorized_amount, unlimited limit outside the INTERNAL quote, etc.)
         '401':
           description: Unauthorized
         '403':
           description: >
             Forbidden - insufficient billing permissions (including ADD_BP_MEMBER when initial_users is given),
-            or an initial user does not exist
-        '409':
-          description: Billing project already exists
+            an initial user does not exist, or the quote does not exist and the caller is not a global billing
+            manager
+        '404':
+          description: Quote not found (global billing managers only)
   '/api/v1alpha/billing_projects/{billing_project}/users/{user}/add':
     post:
       summary: "Add a user to a billing project"
@@ -1419,7 +1424,7 @@ paths:
       summary: Move billing project to a different quote
       description: >
         Move a billing project to a different quote. The caller must have CHANGE_BP_QUOTE
-        permission on the source billing project's quote, and must also be a manager of
+        permission on the billing project's current quote, and must also be a manager of
         the destination quote.
       tags: [Billing]
       parameters:
@@ -1435,6 +1440,7 @@ paths:
           application/json:
             schema:
               type: object
+              additionalProperties: false
               required: [quote_name]
               properties:
                 quote_name:
@@ -1456,13 +1462,17 @@ paths:
                   quote_name:
                     type: string
         '400':
-          description: Bad request (unknown quote, limit would exceed destination quota, etc.)
+          description: Bad request (unknown field, limit would exceed destination quota, etc.)
         '401':
           description: Unauthorized
         '403':
-          description: Forbidden - insufficient billing permissions
+          description: >
+            Forbidden - insufficient billing permissions, or the destination quote does not exist and the caller
+            is not a global billing manager
         '404':
-          description: Billing project not found
+          description: Billing project not found, or destination quote not found (global billing managers only)
+        '409':
+          description: The billing project was moved to another quote while the request was in progress; retry
   '/api/v1alpha/billing_projects/{billing_project}/events':
     get:
       summary: Get billing project event log
@@ -1509,6 +1519,8 @@ paths:
           description: Unauthorized
         '403':
           description: Forbidden - insufficient billing permissions
+        '404':
+          description: Billing project has never existed (global billing managers only)
   '/api/v1alpha/quotes':
     get:
       summary: List quotes
@@ -1530,7 +1542,10 @@ paths:
   '/api/v1alpha/quotes/{name}':
     post:
       summary: Create a quote
-      description: Create a new billing quote. Requires the create_quotes system permission.
+      description: >
+        Create a new billing quote. Requires the create_quotes system permission. Repeating a create with
+        identical details for an open quote changes nothing and returns 200; a create whose name is taken by a
+        quote with different details (or a closed one) returns 409.
       tags: [Billing]
       parameters:
         - name: name
@@ -1538,17 +1553,19 @@ paths:
           required: true
           schema:
             type: string
-          description: Quote name (case-sensitive)
+          description: Quote name (case-sensitive, at most 100 characters)
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
+              additionalProperties: false
               required: [cost_object, authorized_amount]
               properties:
                 cost_object:
                   type: string
+                  maxLength: 255
                   description: Cost object / account code for this quote
                 authorized_amount:
                   type: number
@@ -1558,9 +1575,11 @@ paths:
                 pi_name:
                   type: string
                   nullable: true
+                  maxLength: 255
                 pm_designee:
                   type: string
                   nullable: true
+                  maxLength: 255
                 description:
                   type: string
                   nullable: true
@@ -1568,9 +1587,11 @@ paths:
                 quote_number:
                   type: string
                   nullable: true
+                  maxLength: 100
                 comment:
                   type: string
                   nullable: true
+                  maxLength: 1000
                   description: Optional audit comment
       responses:
         '200':
@@ -1583,13 +1604,15 @@ paths:
                   name:
                     type: string
         '400':
-          description: Bad request (missing cost_object, missing or invalid authorized_amount)
+          description: >
+            Bad request (unknown field, missing cost_object, missing or invalid authorized_amount, name or text
+            too long)
         '401':
           description: Unauthorized
         '403':
           description: Forbidden - requires create_quotes permission
         '409':
-          description: Quote already exists
+          description: A quote with this name already exists with different details, or is closed
     get:
       summary: Get a quote
       description: >
@@ -1637,15 +1660,19 @@ paths:
           application/json:
             schema:
               type: object
+              additionalProperties: false
               properties:
                 cost_object:
                   type: string
+                  maxLength: 255
                 pi_name:
                   type: string
                   nullable: true
+                  maxLength: 255
                 pm_designee:
                   type: string
                   nullable: true
+                  maxLength: 255
                 description:
                   type: string
                   nullable: true
@@ -1653,6 +1680,7 @@ paths:
                 quote_number:
                   type: string
                   nullable: true
+                  maxLength: 100
                 authorized_amount:
                   oneOf:
                     - type: number
@@ -1673,7 +1701,7 @@ paths:
                   name:
                     type: string
         '400':
-          description: Bad request (e.g. new amount less than sum of BP limits)
+          description: Bad request (e.g. unknown field, text too long, new amount less than sum of BP limits)
         '401':
           description: Unauthorized
         '403':
@@ -1702,6 +1730,7 @@ paths:
           application/json:
             schema:
               type: object
+              additionalProperties: false
               required: [user]
               properties:
                 user:
@@ -1730,7 +1759,7 @@ paths:
                   role:
                     type: string
         '400':
-          description: Bad request (missing user, invalid role, or the quote is INTERNAL)
+          description: Bad request (unknown field, missing user, invalid role, or the quote is INTERNAL)
         '401':
           description: Unauthorized
         '403':
@@ -1738,7 +1767,9 @@ paths:
         '404':
           description: Quote not found
         '409':
-          description: User is already a manager of this quote
+          description: >
+            User already has the other role on this quote. Repeating an add with the role the user already has
+            changes nothing and returns 200.
   '/api/v1alpha/quotes/{name}/managers/{user}':
     delete:
       summary: Remove a quote manager

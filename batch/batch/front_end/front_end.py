@@ -14,7 +14,7 @@ import traceback
 from contextlib import AsyncExitStack
 from functools import wraps
 from numbers import Number
-from typing import Any, Awaitable, Callable, Dict, List, NoReturn, Optional, Tuple, TypeVar, cast
+from typing import Any, Awaitable, Callable, Collection, Dict, List, NoReturn, Optional, Tuple, TypeVar, cast
 
 import aiohttp
 import aiohttp.web_exceptions
@@ -98,10 +98,11 @@ from ..billing_auth import (
     billing_permission_required,
     grant_from_system_permission,
     is_global_billing_manager,
+    quote_target,
     require,
 )
 from ..billing_grants import BillingGrant, BillingProjectTarget, GlobalTarget, QuoteTarget
-from ..billing_project_management import INTERNAL_QUOTE_ID, _parse_billing_limit, invariant_violations_as_user_errors
+from ..billing_project_management import INTERNAL_QUOTE_ID, invariant_violations_as_user_errors, parse_billing_limit
 from ..billing_reporting import (
     query_billing_breakdown,
     query_billing_history,
@@ -320,9 +321,9 @@ async def _handle_api_error(f: Callable[P, Awaitable[T]], *args: P.args, **kwarg
 async def _json_body(request: web.Request, *, required: bool = True) -> Dict[str, Any]:
     """Read a JSON object request body, rejecting malformed input with a 400 rather than a 500.
 
-    If not required, a request without a JSON content type is treated as an empty body.
+    If not required, a request with no body is treated as an empty object.
     """
-    if not required and request.content_type != 'application/json':
+    if not required and not request.body_exists:
         return {}
     try:
         body = await request.json()
@@ -334,7 +335,22 @@ async def _json_body(request: web.Request, *, required: bool = True) -> Dict[str
 
 
 # Column widths for the free-text fields accepted by the billing API (see batch/sql/122-billing-quotes.sql).
-_MAX_TEXT_FIELD_LENGTHS = {'comment': 1000, 'description': 1000}
+_MAX_TEXT_FIELD_LENGTHS = {
+    'comment': 1000,
+    'description': 1000,
+    'quote_number': 100,
+    'cost_object': 255,
+    'pi_name': 255,
+    'pm_designee': 255,
+}
+_MAX_QUOTE_NAME_LENGTH = 100
+
+
+def _reject_unknown_keys(body: Dict[str, Any], allowed: Collection[str]) -> None:
+    # A misspelled key would otherwise be ignored and the request would report success without changing anything.
+    unknown = sorted(set(body) - set(allowed))
+    if unknown:
+        raise web.HTTPBadRequest(reason=f'Unknown fields: {", ".join(unknown)}.')
 
 
 def _optional_str(body: Dict[str, Any], key: str) -> Optional[str]:
@@ -345,6 +361,11 @@ def _optional_str(body: Dict[str, Any], key: str) -> Optional[str]:
     if value is not None and max_length is not None and len(value) > max_length:
         raise web.HTTPBadRequest(reason=f"'{key}' must be at most {max_length} characters.")
     return value
+
+
+def _comment_only_body(body: Dict[str, Any]) -> Optional[str]:
+    _reject_unknown_keys(body, ('comment',))
+    return _optional_str(body, 'comment')
 
 
 def _parse_authorized_amount(value: Any) -> float:
@@ -359,9 +380,9 @@ def _parse_authorized_amount(value: Any) -> float:
     return amount
 
 
-def _parse_billing_limit_or_400(value: Any) -> Optional[float]:
+def parse_billing_limit_or_400(value: Any) -> Optional[float]:
     try:
-        return _parse_billing_limit(value)
+        return parse_billing_limit(value)
     except InvalidBillingLimitError as e:
         raise e.http_response() from e
 
@@ -3202,9 +3223,7 @@ async def post_edit_billing_limits_ui(request: web.Request, userdata: UserData) 
         raise web.HTTPFound(deploy_config.external_url('batch', '/billing_limits'))  # pylint: disable=lost-exception
 
 
-async def _query_billing(
-    request: web.Request, user: Optional[str] = None, quote_manager_user: Optional[str] = None
-) -> Tuple[list, str, Optional[str]]:
+async def _query_billing(request: web.Request, user: Optional[str] = None) -> Tuple[list, str, Optional[str]]:
     db: Database = request.app['db']
 
     date_format = '%m/%d/%Y'
@@ -3237,7 +3256,7 @@ async def _query_billing(
     if end is not None and start > end:
         return await parse_error('Invalid search; start must be earlier than end.')
 
-    billing = await query_billing_history(db, start, end, user=user, quote_manager_user=quote_manager_user)
+    billing = await query_billing_history(db, start, end, user=user)
     return (billing, start_query, end_query)
 
 
@@ -3248,11 +3267,9 @@ async def _query_billing(
 async def ui_get_billing(request, userdata):
     if not userdata['system_permissions'].get(SystemPermission.READ_ALL_BILLING_PROJECTS, False):
         user = userdata['username']
-        quote_manager_user = user
     else:
         user = None
-        quote_manager_user = None
-    billing, start, end = await _query_billing(request, user=user, quote_manager_user=quote_manager_user)
+    billing, start, end = await _query_billing(request, user=user)
 
     billing_by_user: Dict[str, int] = {}
     billing_by_project: Dict[str, int] = {}
@@ -3298,11 +3315,9 @@ async def ui_get_billing(request, userdata):
 async def api_get_billing(request, userdata):
     if not userdata['system_permissions'].get(SystemPermission.READ_ALL_BILLING_PROJECTS, False):
         user = userdata['username']
-        quote_manager_user = user
     else:
         user = None
-        quote_manager_user = None
-    billing, _, _ = await _query_billing(request, user=user, quote_manager_user=quote_manager_user)
+    billing, _, _ = await _query_billing(request, user=user)
     return json_response([
         {
             'billing_project': r['billing_project'],
@@ -3341,15 +3356,11 @@ async def api_get_billing_breakdown(request: web.Request, userdata) -> web.Respo
     if start > end:
         raise web.HTTPBadRequest(reason="start must be earlier than or equal to end.")
 
+    user: Optional[str] = None
     if not userdata['system_permissions'].get(SystemPermission.READ_ALL_BILLING_PROJECTS, False):
-        username = userdata['username']
-        user: Optional[str] = username
-        quote_manager_user: Optional[str] = username
-    else:
-        user = None
-        quote_manager_user = None
+        user = userdata['username']
 
-    rows = await query_billing_breakdown(db, start, end, user=user, quote_manager_user=quote_manager_user)
+    rows = await query_billing_breakdown(db, start, end, user=user)
     return json_response(rows)
 
 
@@ -3397,7 +3408,7 @@ async def get_billing_project(request, userdata):
     db: Database = request.app['db']
     billing_project = request.match_info['billing_project']
     username = userdata['username']
-    is_global_bm = userdata['system_permissions'].get(SystemPermission.UPDATE_ALL_BILLING_PROJECTS, False)
+    is_global_bm = is_global_billing_manager(userdata)
 
     billing_projects = await query_billing_projects_with_cost(
         db,
@@ -3450,7 +3461,7 @@ async def api_get_billing_projects_remove_user(request: web.Request, userdata: U
     grant = request['billing_grant']
     if user != userdata['username']:
         grant = await require(db, userdata, BillingPermission.MANAGE_BP_MEMBERS, BillingProjectTarget(billing_project))
-    comment = _optional_str(await _json_body(request, required=False), 'comment')
+    comment = _comment_only_body(await _json_body(request, required=False))
     await _handle_api_error(billing_dao.remove_billing_project_user, db, billing_project, user, grant, comment)
     return json_response({'billing_project': billing_project, 'user': user})
 
@@ -3512,7 +3523,7 @@ async def api_billing_projects_add_user(request: web.Request, _: UserData) -> we
     db: Database = request.app['db']
     user = request.match_info['user']
     billing_project = request.match_info['billing_project']
-    comment = _optional_str(await _json_body(request, required=False), 'comment')
+    comment = _comment_only_body(await _json_body(request, required=False))
     await _handle_api_error(
         _add_user_to_billing_project, request, db, billing_project, user, request['billing_grant'], comment
     )
@@ -3559,6 +3570,7 @@ async def api_get_create_billing_projects(request: web.Request, userdata: UserDa
     billing_project = request.match_info['billing_project']
 
     body = await _json_body(request, required=False)
+    _reject_unknown_keys(body, ('quote_name', 'limit', 'description', 'initial_users', 'comment'))
 
     quote_name = _optional_str(body, 'quote_name')
     if quote_name is None:
@@ -3567,7 +3579,7 @@ async def api_get_create_billing_projects(request: web.Request, userdata: UserDa
         if not userdata['system_permissions'].get(SystemPermission.CREATE_BILLING_PROJECTS, False):
             raise web.HTTPBadRequest(reason="'quote_name' is required.")
         quote_name = 'INTERNAL'
-    limit = _parse_billing_limit_or_400(body.get('limit'))
+    limit = parse_billing_limit_or_400(body.get('limit'))
     description = _optional_str(body, 'description')
     initial_users = body.get('initial_users', [])
     if not isinstance(initial_users, list) or not all(isinstance(u, str) for u in initial_users):
@@ -3577,12 +3589,10 @@ async def api_get_create_billing_projects(request: web.Request, userdata: UserDa
         raise web.HTTPBadRequest(reason="'initial_users' must not contain duplicates.")
     comment = _optional_str(body, 'comment')
 
-    quote_row = await db.select_and_fetchone('SELECT id FROM quotes WHERE name_cs = %s', (quote_name,))
-    if quote_row is None:
-        raise web.HTTPBadRequest(reason=f'Unknown quote {quote_name}.')
-    quote_id = quote_row['id']
+    target_quote = await quote_target(db, userdata, quote_name, BillingPermission.CREATE_BP)
+    quote_id = target_quote.quote_id
 
-    grant = await require(db, userdata, BillingPermission.CREATE_BP, QuoteTarget(quote_id))
+    grant = await require(db, userdata, BillingPermission.CREATE_BP, target_quote)
     unlimited_grant = None
     if limit is None:
         unlimited_grant = await require(db, userdata, BillingPermission.SET_UNLIMITED, GlobalTarget())
@@ -3641,7 +3651,7 @@ async def post_close_billing_projects(request: web.Request, userdata: UserData) 
 async def api_close_billing_projects(request: web.Request, _: UserData) -> web.Response:
     db: Database = request.app['db']
     billing_project = request.match_info['billing_project']
-    comment = _optional_str(await _json_body(request, required=False), 'comment')
+    comment = _comment_only_body(await _json_body(request, required=False))
     await _handle_api_error(billing_dao.close_billing_project, db, billing_project, request['billing_grant'], comment)
     return json_response(billing_project)
 
@@ -3674,7 +3684,7 @@ async def post_reopen_billing_projects(request: web.Request, userdata: UserData)
 async def api_reopen_billing_projects(request: web.Request, _: UserData) -> web.Response:
     db: Database = request.app['db']
     billing_project = request.match_info['billing_project']
-    comment = _optional_str(await _json_body(request, required=False), 'comment')
+    comment = _comment_only_body(await _json_body(request, required=False))
     await _handle_api_error(billing_dao.reopen_billing_project, db, billing_project, request['billing_grant'], comment)
     return json_response(billing_project)
 
@@ -3704,6 +3714,7 @@ async def api_patch_billing_project(request: web.Request, userdata: UserData) ->
     target = BillingProjectTarget(billing_project)
 
     body = await _json_body(request)
+    _reject_unknown_keys(body, ('limit', 'description', 'comment'))
     comment = _optional_str(body, 'comment')
 
     updates: dict = {}
@@ -3711,7 +3722,7 @@ async def api_patch_billing_project(request: web.Request, userdata: UserData) ->
     unlimited_grant = None
     if 'limit' in body:
         limit_grant = await require(db, userdata, BillingPermission.EDIT_BP_LIMIT, target)
-        updates['limit'] = _parse_billing_limit_or_400(body['limit'])
+        updates['limit'] = parse_billing_limit_or_400(body['limit'])
         if updates['limit'] is None:
             unlimited_grant = await require(db, userdata, BillingPermission.SET_UNLIMITED, GlobalTarget())
     if 'description' in body:
@@ -3737,29 +3748,33 @@ async def api_change_billing_project_quote(request: web.Request, userdata: UserD
     db: Database = request.app['db']
     billing_project = request.match_info['billing_project']
     body = await _json_body(request)
+    _reject_unknown_keys(body, ('quote_name', 'comment'))
     dest_quote_name = _optional_str(body, 'quote_name')
     comment = _optional_str(body, 'comment')
     if not dest_quote_name:
         raise web.HTTPBadRequest(reason="'quote_name' is required.")
 
-    dest_quote_row = await db.select_and_fetchone('SELECT id FROM quotes WHERE name_cs = %s', (dest_quote_name,))
-    if not dest_quote_row:
-        raise web.HTTPBadRequest(reason=f'Unknown quote {dest_quote_name}.')
-    dest_quote_id = dest_quote_row['id']
-
     try:
-        dest_grant = await require(db, userdata, BillingPermission.CHANGE_BP_QUOTE, QuoteTarget(dest_quote_id))
+        dest_target = await quote_target(db, userdata, dest_quote_name, BillingPermission.CHANGE_BP_QUOTE)
+        dest_grant = await require(db, userdata, BillingPermission.CHANGE_BP_QUOTE, dest_target)
     except web.HTTPForbidden as e:
         raise web.HTTPForbidden(
             reason='You must be a manager of the destination quote to move a billing project there.'
         ) from e
 
+    # Authorize against the source quote itself, so the move fails if the billing project changes quote before the
+    # write rather than being authorized by the caller's role on the quote it used to be under.
+    src_quote_id = await billing_dao.get_billing_project_quote_id(db, billing_project)
+    if src_quote_id is None:
+        raise web.HTTPNotFound(reason=f'Billing project {billing_project} does not exist.')
+    src_grant = await require(db, userdata, BillingPermission.CHANGE_BP_QUOTE, QuoteTarget(src_quote_id))
+
     await _handle_api_error(
         billing_dao.change_billing_project_quote,
         db,
         billing_project,
-        dest_quote_id,
-        request['billing_grant'],
+        dest_target.quote_id,
+        src_grant,
         dest_grant,
         comment,
     )
@@ -3772,6 +3787,12 @@ async def api_change_billing_project_quote(request: web.Request, userdata: UserD
 async def api_get_billing_project_events(request: web.Request, _: UserData) -> web.Response:
     db: Database = request.app['db']
     billing_project = request.match_info['billing_project']
+    # Global billing managers are granted every billing project, including ones that don't exist. Deleted billing
+    # projects keep their events.
+    if request['billing_role'] == 'global_bm' and not await billing_dao.billing_project_ever_existed(
+        db, billing_project
+    ):
+        raise web.HTTPNotFound(reason=f'Billing project {billing_project} does not exist.')
     events = await billing_dao.get_billing_project_events(db, billing_project)
     return json_response(events)
 
@@ -3785,9 +3806,7 @@ async def api_get_billing_project_events(request: web.Request, _: UserData) -> w
 @auth.authenticated_users_only()
 async def list_quotes(request: web.Request, userdata) -> web.Response:
     db: Database = request.app['db']
-    username = userdata['username']
-    is_global_bm = userdata['system_permissions'].get(SystemPermission.UPDATE_ALL_BILLING_PROJECTS, False)
-    quotes = await billing_dao.list_quotes_for_user(db, username, is_global_bm)
+    quotes = await billing_dao.list_quotes_for_user(db, userdata['username'], is_global_billing_manager(userdata))
     return json_response(quotes)
 
 
@@ -3799,7 +3818,13 @@ async def create_quote(request: web.Request, userdata: UserData) -> web.Response
     grant = grant_from_system_permission(
         userdata, SystemPermission.CREATE_QUOTES, BillingPermission.CREATE_QUOTE, GlobalTarget()
     )
+    if len(quote_name) > _MAX_QUOTE_NAME_LENGTH:
+        raise web.HTTPBadRequest(reason=f'Quote names must be at most {_MAX_QUOTE_NAME_LENGTH} characters.')
     body = await _json_body(request)
+    _reject_unknown_keys(
+        body,
+        ('cost_object', 'authorized_amount', 'pi_name', 'pm_designee', 'description', 'quote_number', 'comment'),
+    )
 
     cost_object = _optional_str(body, 'cost_object')
     if not cost_object:
@@ -3853,6 +3878,10 @@ async def edit_quote(request: web.Request, userdata: UserData) -> web.Response:
     quote_name = request.match_info['name']
     grant = request['billing_grant']
     body = await _json_body(request)
+    _reject_unknown_keys(
+        body,
+        ('cost_object', 'authorized_amount', 'pi_name', 'pm_designee', 'description', 'quote_number', 'comment'),
+    )
     comment = _optional_str(body, 'comment')
 
     updates: dict = {}
@@ -3894,7 +3923,7 @@ async def edit_quote(request: web.Request, userdata: UserData) -> web.Response:
 async def close_quote(request: web.Request, _: UserData) -> web.Response:
     db: Database = request.app['db']
     quote_name = request.match_info['name']
-    comment = _optional_str(await _json_body(request, required=False), 'comment')
+    comment = _comment_only_body(await _json_body(request, required=False))
 
     await _handle_api_error(billing_dao.close_quote, db, quote_name, request['billing_grant'], comment)
     return json_response({'name': quote_name})
@@ -3906,7 +3935,7 @@ async def close_quote(request: web.Request, _: UserData) -> web.Response:
 async def reopen_quote(request: web.Request, _: UserData) -> web.Response:
     db: Database = request.app['db']
     quote_name = request.match_info['name']
-    comment = _optional_str(await _json_body(request, required=False), 'comment')
+    comment = _comment_only_body(await _json_body(request, required=False))
 
     await _handle_api_error(billing_dao.reopen_quote, db, quote_name, request['billing_grant'], comment)
     return json_response({'name': quote_name})
@@ -3919,6 +3948,7 @@ async def add_quote_manager(request: web.Request, _: UserData) -> web.Response:
     db: Database = request.app['db']
     quote_name = request.match_info['name']
     body = await _json_body(request)
+    _reject_unknown_keys(body, ('user', 'role', 'comment'))
     target_user = _optional_str(body, 'user')
     role = body.get('role', 'manager')
     comment = _optional_str(body, 'comment')
@@ -3941,7 +3971,7 @@ async def remove_quote_manager(request: web.Request, _: UserData) -> web.Respons
     db: Database = request.app['db']
     quote_name = request.match_info['name']
     target_user = request.match_info['user']
-    comment = _optional_str(await _json_body(request, required=False), 'comment')
+    comment = _comment_only_body(await _json_body(request, required=False))
 
     await _handle_api_error(
         billing_dao.remove_quote_manager, db, quote_name, target_user, request['billing_grant'], comment
