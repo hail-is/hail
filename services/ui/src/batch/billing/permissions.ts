@@ -27,12 +27,12 @@ const ROLE_PERMISSIONS: Record<BillingRole, Set<Permission>> = {
   quote_owner: new Set([
     'view_quote', 'edit_quote', 'edit_quote_amount', 'close_quote', 'manage_managers',
     'view_bp', 'create_bp', 'edit_bp_limit', 'edit_bp_metadata',
-    'close_reopen_bp', 'change_bp_quote', 'view_events',
+    'close_reopen_bp', 'view_events',
   ]),
   quote_manager: new Set([
     'view_quote', 'edit_quote',
     'view_bp', 'create_bp', 'edit_bp_limit', 'edit_bp_metadata',
-    'close_reopen_bp', 'change_bp_quote', 'view_events',
+    'close_reopen_bp', 'view_events',
   ]),
   bp_member: new Set([
     'view_bp', 'edit_bp_metadata', 'view_events',

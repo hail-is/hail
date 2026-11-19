@@ -5,15 +5,17 @@ import { fmtDollars, fmtTimestamp } from './fmt';
 import { can } from './permissions';
 import { SectionHeader, ErrorBanner, EditableRow, EventLog, ConfirmModal, BudgetBar } from './shared';
 
-function MoveQuoteModal({ basePath, bpName, currentQuoteName, onClose, onMoved }: {
+function MoveQuoteModal({ basePath, bpName, currentQuoteName, accruedCost, onClose, onMoved }: {
   basePath: string;
   bpName: string;
   currentQuoteName: string;
+  accruedCost: number;
   onClose: () => void;
   onMoved: () => void;
 }) {
   const [quotes, setQuotes] = useState<Quote[] | null>(null);
   const [destQuote, setDestQuote] = useState('');
+  const [acknowledged, setAcknowledged] = useState(false);
   const [comment, setComment] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -35,6 +37,7 @@ function MoveQuoteModal({ basePath, bpName, currentQuoteName, onClose, onMoved }
     try {
       await apiCall('POST', `${basePath}/api/v1alpha/billing_projects/${encodeURIComponent(bpName)}/change_quote`, {
         quote_name: destQuote,
+        acknowledge_history_move: true,
         comment: comment || undefined,
       });
       onMoved();
@@ -60,13 +63,34 @@ function MoveQuoteModal({ basePath, bpName, currentQuoteName, onClose, onMoved }
             ) : (
               <select
                 value={destQuote}
-                onChange={(e) => setDestQuote(e.target.value)}
+                onChange={(e) => { setDestQuote(e.target.value); setAcknowledged(false); }}
                 className="border rounded px-2 py-1 w-full"
               >
                 {quotes.map((q) => <option key={q.id} value={q.name}>{q.name}</option>)}
               </select>
             )}
           </div>
+          {destQuote && (
+            <div className="border border-red-300 bg-red-50 text-red-800 rounded p-3 space-y-2">
+              <p className="font-medium">
+                {bpName}&apos;s whole spend history ({fmtDollars(accruedCost)} so far) moves with it.
+              </p>
+              <ul className="list-disc pl-5 space-y-1">
+                <li>{destQuote}&apos;s owners and managers will see all of it, including spend {currentQuoteName} paid for.</li>
+                <li>{currentQuoteName}&apos;s owners and managers will no longer see any of it.</li>
+                <li>Its limit is still checked against all-time spend, so it must cover past spend for jobs to keep running.</li>
+              </ul>
+              <label className="flex items-start gap-2">
+                <input
+                  type="checkbox"
+                  checked={acknowledged}
+                  onChange={(e) => setAcknowledged(e.target.checked)}
+                  className="mt-0.5"
+                />
+                <span>I understand that this billing project&apos;s spend history moves to {destQuote}.</span>
+              </label>
+            </div>
+          )}
           <div>
             <label className="block mb-1 text-slate-600">Comment <span className="text-slate-400">(optional)</span></label>
             <textarea
@@ -83,8 +107,8 @@ function MoveQuoteModal({ basePath, bpName, currentQuoteName, onClose, onMoved }
           </button>
           <button
             onClick={() => void handleSubmit()}
-            disabled={saving || !destQuote || (quotes !== null && quotes.length === 0)}
-            className="bg-blue-600 text-white px-4 py-1.5 rounded text-sm hover:bg-blue-700 disabled:opacity-50"
+            disabled={saving || !destQuote || !acknowledged || (quotes !== null && quotes.length === 0)}
+            className="bg-red-600 text-white px-4 py-1.5 rounded text-sm hover:bg-red-700 disabled:opacity-50"
           >
             Move
           </button>
@@ -407,6 +431,7 @@ export function BillingProjectPage({ basePath, bpName, username }: Props) {
           basePath={basePath}
           bpName={bpName}
           currentQuoteName={bp.quote_name}
+          accruedCost={bp.accrued_cost}
           onClose={() => setModal(null)}
           onMoved={() => void fetchData()}
         />
