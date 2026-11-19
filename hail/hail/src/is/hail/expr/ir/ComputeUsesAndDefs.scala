@@ -1,6 +1,6 @@
 package is.hail.expr.ir
 
-import is.hail.expr.ir.defs.{BaseRef, Recur, Ref, RelationalRef}
+import is.hail.expr.ir.defs.{BaseRef, Recur, Ref}
 
 import scala.collection.mutable
 
@@ -24,7 +24,6 @@ object ComputeUsesAndDefs {
           val e = r match {
             case _: Ref => env.eval
             case _: Recur => env.eval
-            case _: RelationalRef => env.relational
           }
           e.lookupOption(r.name) match {
             case Some(decl) =>

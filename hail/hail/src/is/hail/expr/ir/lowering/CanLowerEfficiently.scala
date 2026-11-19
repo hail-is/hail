@@ -97,8 +97,6 @@ object CanLowerEfficiently {
             fail(s"writer has no efficient lowering: ${writer.getClass.getSimpleName}")
         case TableMultiWrite(_, _) =>
 
-        case RelationalRef(_, _) => throw new RuntimeException(s"unexpected relational ref")
-
         case x: IR =>
           // nodes with relational children should be enumerated above explicitly
           if (!x.children.forall(_.isInstanceOf[IR])) {

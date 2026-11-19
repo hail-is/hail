@@ -23,8 +23,7 @@ object NormalizeNames {
             val env = FreeVariables(ir, true, true)
             env.eval.m.keySet union
               env.agg.map(_.m.keySet).getOrElse(Set.empty) union
-              env.scan.map(_.m.keySet).getOrElse(Set.empty) union
-              env.relational.m.keySet
+              env.scan.map(_.m.keySet).getOrElse(Set.empty)
           } else {
             Set.empty
           }
@@ -40,7 +39,7 @@ object NormalizeNames {
     }
 
   def needsRenaming(ir: BaseIR): Boolean = ir match {
-    case _: RelationalLetMatrixTable | _: TableGen | _: TableMapPartitions | _: RelationalLetTable =>
+    case _: TableGen | _: TableMapPartitions =>
       true
     case _: MatrixIR | _: TableIR =>
       false
@@ -85,14 +84,6 @@ class NormalizeNames(freeVariables: Set[Name]) {
         else name
       }
       done(Ref(newName, typ))
-    case RelationalRef(name, typ) =>
-      val newName = env.relational.lookupOption(name).getOrElse(
-        if (!freeVariables.contains(name)) throw new RuntimeException(
-          s"found free variable in normalize: $name; ${env.pretty(x => x.str)}"
-        )
-        else name
-      )
-      done(RelationalRef(newName, typ))
     case Recur(name, args, typ) =>
       val newName = env.eval.lookupOption(name) match {
         case Some(n) => n
@@ -151,9 +142,6 @@ class NormalizeNames(freeVariables: Set[Name]) {
       case x: NDArrayMap2 => x.copy(lName = rename(x.lName), rName = rename(x.rName))
       case x: CollectDistributedArray => x.copy(cname = rename(x.cname), gname = rename(x.gname))
       case x: AggExplode => x.copy(name = rename(x.name))
-      case x: RelationalLet => x.copy(name = rename(x.name))
-      case x: RelationalLetTable => x.copy(name = rename(x.name))
-      case x: RelationalLetMatrixTable => x.copy(name = rename(x.name))
       case x: TableMapPartitions => x.copy(
           globalName = rename(x.globalName),
           partitionStreamName = rename(x.partitionStreamName),

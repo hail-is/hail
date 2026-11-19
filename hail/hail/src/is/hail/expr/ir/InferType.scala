@@ -25,8 +25,6 @@ object InferType {
       case Coalesce(values) => values.head.typ
       case Consume(_) => TInt64
       case Ref(_, t) => t
-      case RelationalRef(_, t) => t
-      case RelationalLet(_, _, body) => body.typ
       case In(_, t) => t.virtualType
       case MakeArray(_, t) => t
       case MakeStream(_, t, _) => t
