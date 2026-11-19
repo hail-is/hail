@@ -331,6 +331,7 @@ Resources:
       InternetGatewayId: !Ref VdcInternetGateway
   VdcOutboundNat:
     Type: "AWS::EC2::NatGateway"
+    DependsOn: VdcInternetGatewayAttachment
     Properties:
       AvailabilityMode: "regional"
       ConnectivityType: "public"
@@ -344,7 +345,6 @@ Resources:
       VpcId: !Ref VdcVpc
   VdcInternetAccessRoute:
     Type: "AWS::EC2::Route"
-    DependsOn: VdcInternetGatewayAttachment
     Properties:
       RouteTableId: !Ref VdcRouteTable
       DestinationCidrBlock: "0.0.0.0/0"
