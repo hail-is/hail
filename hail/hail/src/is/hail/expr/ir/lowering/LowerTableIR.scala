@@ -481,7 +481,11 @@ class TableStage(
       )
 
       val table = TableRead(newTableType, dropRows = false, tr = reader)
-      LowerTableIR.applyTable(table, DArrayLowering.All, ec, LoweringAnalyses.apply(table, ec))
+      ec.local(analyses = LoweringAnalyses(table, ec))(LowerTableIR.applyTable(
+        table,
+        DArrayLowering.All,
+        _,
+      ))
     }
 
     assert(
@@ -662,10 +666,9 @@ object LowerTableIR extends Logging {
     ir: IR,
     typesToLower: DArrayLowering.Type,
     ctx: ExecuteContext,
-    analyses: LoweringAnalyses,
   ): IR = {
     def lower(tir: TableIR): TableStage =
-      this.applyTable(tir, typesToLower, ctx, analyses)
+      this.applyTable(tir, typesToLower, ctx)
 
     val lowered = ir match {
       case TableCount(tableIR) =>
@@ -739,7 +742,7 @@ object LowerTableIR extends Logging {
         lower(child).collectWithGlobals("table_collect")
 
       case TableAggregate(child, query) =>
-        val aggs = Extract(ctx, query, analyses.requirednessAnalysis).independent
+        val aggs = Extract(ctx, query, ctx.analyses.requirednessAnalysis).independent
         val aggSigs = aggs.sigs
 
         val lc = lower(child)
@@ -872,14 +875,14 @@ object LowerTableIR extends Logging {
         writer.lower(
           ctx,
           lower(child),
-          tcoerce[RTable](analyses.requirednessAnalysis.lookup(child)),
+          tcoerce[RTable](ctx.analyses.requirednessAnalysis.lookup(child)),
         )
 
       case TableMultiWrite(children, writer) =>
         writer.lower(
           ctx,
           children.map(child =>
-            (lower(child), tcoerce[RTable](analyses.requirednessAnalysis.lookup(child)))
+            (lower(child), tcoerce[RTable](ctx.analyses.requirednessAnalysis.lookup(child)))
           ),
         )
 
@@ -897,13 +900,12 @@ object LowerTableIR extends Logging {
     tir: TableIR,
     typesToLower: DArrayLowering.Type,
     ctx: ExecuteContext,
-    analyses: LoweringAnalyses,
   ): TableStage = {
     def lowerIR(ir: IR): IR =
-      LowerToCDA.lower(ir, typesToLower, ctx, analyses)
+      LowerToCDA.lower(ir, typesToLower, ctx)
 
     def lower(tir: TableIR): TableStage =
-      this.applyTable(tir, typesToLower, ctx, analyses)
+      this.applyTable(tir, typesToLower, ctx)
 
     if (typesToLower == DArrayLowering.BMOnly)
       throw new LowererUnsupportedOperation(
@@ -1079,7 +1081,7 @@ object LowerTableIR extends Logging {
       case TableDistinct(child) =>
         val loweredChild = lower(child)
 
-        if (analyses.distinctKeyedAnalysis.contains(child)) loweredChild
+        if (ctx.analyses.distinctKeyedAnalysis.contains(child)) loweredChild
         else loweredChild
           .repartitionNoShuffle(
             ctx,
@@ -1296,7 +1298,8 @@ object LowerTableIR extends Logging {
           }
         } else {
 
-          val aggs = Extract(ctx, newRow, analyses.requirednessAnalysis, isScan = true).independent
+          val aggs =
+            Extract(ctx, newRow, ctx.analyses.requirednessAnalysis, isScan = true).independent
           val aggSigs = aggs.sigs
 
           val initState = RunAgg(
@@ -1597,7 +1600,7 @@ object LowerTableIR extends Logging {
         lower(left).intervalAlignAndZipPartitions(
           ctx,
           lower(right),
-          analyses.requirednessAnalysis.lookup(right).asInstanceOf[RTable].rowType,
+          ctx.analyses.requirednessAnalysis.lookup(right).asInstanceOf[RTable].rowType,
           (lGlobals, _) => lGlobals,
           { (lstream, rstream) =>
             if (product)
@@ -1617,7 +1620,7 @@ object LowerTableIR extends Logging {
       case tj @ TableJoin(left, right, _, _) =>
         val loweredLeft = lower(left)
         val loweredRight = lower(right)
-        LowerTableIRHelpers.lowerTableJoin(ctx, analyses, tj, loweredLeft, loweredRight)
+        LowerTableIRHelpers.lowerTableJoin(ctx, tj, loweredLeft, loweredRight)
 
       case x @ TableUnion(children) =>
         val lowered = children.map(lower)
@@ -1819,7 +1822,7 @@ object LowerTableIR extends Logging {
         }.mapGlobals(_ => makestruct())
 
       case BlockMatrixToTable(bmir) =>
-        val ts = LowerBlockMatrixIR.lowerToTableStage(bmir, typesToLower, ctx, analyses)
+        val ts = LowerBlockMatrixIR.lowerToTableStage(bmir, typesToLower, ctx)
         // I now have an unkeyed table of (blockRow, blockCol, block).
         ts.mapPartitionWithContext { (partition, _) =>
           flatMapIR(partition) { row =>

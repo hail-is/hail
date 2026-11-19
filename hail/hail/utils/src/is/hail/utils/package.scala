@@ -70,7 +70,7 @@ package utils {
     }
   }
 
-  class Lazy[A] private[utils] (f: => A) {
+  class Lazy[A] private[utils] (@transient f: => A) extends Serializable {
     private[this] var option: Option[A] = None
 
     def apply(): A =
@@ -87,6 +87,12 @@ package utils {
       synchronized {
         option.isDefined
       }
+
+    // for java serialisation
+    private def writeObject(out: java.io.ObjectOutputStream): Unit = {
+      force
+      out.defaultWriteObject()
+    }
   }
 }
 

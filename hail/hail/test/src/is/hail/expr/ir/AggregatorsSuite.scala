@@ -1392,8 +1392,10 @@ class AggregatorsSuite {
       }(_ + _),
     )
 
-    val analyses = LoweringAnalyses.apply(myTableIR, ctx)
-    val myLoweredTableIR = LowerTableIR(myTableIR, DArrayLowering.All, ctx, analyses)
+    val myLoweredTableIR =
+      ctx.local(analyses = LoweringAnalyses(myTableIR, ctx))(
+        LowerTableIR(myTableIR, DArrayLowering.All, _)
+      )
 
     assertEvalsTo(myLoweredTableIR, 4950)
   }

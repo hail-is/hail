@@ -1759,8 +1759,9 @@ class TableIRSuite {
       )),
     )
     val optimized = Optimize(ctx, irToLower)
-    val analyses = LoweringAnalyses.apply(optimized, ctx)
-    LowerTableIR(optimized, DArrayLowering.All, ctx, analyses): Unit
+    ctx.local(analyses = LoweringAnalyses(optimized, ctx))(
+      LowerTableIR(optimized, DArrayLowering.All, _)
+    ): Unit
   }
 
   @Test def testTableMapPartitions(implicit ctx: ExecuteContext): Unit = {

@@ -3,6 +3,7 @@ package is.hail.expr.ir.analyses
 import is.hail.{ParameterizedTest, PrettyVersion}
 import is.hail.TestUtils._
 import is.hail.backend.ExecuteContext
+import is.hail.backend.local.LocalBroadcastValue
 import is.hail.collection.FastSeq
 import is.hail.expr.ir._
 import is.hail.expr.ir.defs._
@@ -297,8 +298,9 @@ class SemanticHashSuite {
     isEqual: Boolean,
     comment: String,
   )(implicit ctx: ExecuteContext
-  ): Unit =
-    ctx.local(fs = new FakeFS) { implicit ctx =>
+  ): Unit = {
+    val fs = new FakeFS
+    ctx.local(fs = fs, fsBc = new LocalBroadcastValue(fs)) { implicit ctx =>
       val actual = SemanticHash(ctx, normalize(a)) == SemanticHash(ctx, normalize(b))
       assertEq(
         actual,
@@ -306,6 +308,7 @@ class SemanticHashSuite {
         s"expected semhash($a) ${if (isEqual) "==" else "!="} semhash($b), $comment",
       )
     }
+  }
 
   @Test
   def testFileNotFoundExceptions(implicit ctx: ExecuteContext): Unit = {
@@ -317,7 +320,7 @@ class SemanticHashSuite {
 
     val ir = importMatrix("gs://fake-bucket/fake-matrix")
 
-    ctx.local(fs = fs) { ctx =>
+    ctx.local(fs = fs, fsBc = new LocalBroadcastValue(fs)) { ctx =>
       assertEq(
         SemanticHash(ctx, ir),
         None,

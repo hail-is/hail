@@ -11,7 +11,6 @@ object LowerTableIRHelpers {
 
   def lowerTableJoin(
     ctx: ExecuteContext,
-    analyses: LoweringAnalyses,
     tj: TableJoin,
     loweredLeft: TableStage,
     loweredRight: TableStage,
@@ -21,9 +20,9 @@ object LowerTableIRHelpers {
     val lValueFields = left.typ.rowType.fieldNames.filter(f => !lKeyFields.contains(f))
     val rKeyFields = right.typ.key.take(joinKey)
     val rValueFields = right.typ.rowType.fieldNames.filter(f => !rKeyFields.contains(f))
-    val lReq = analyses.requirednessAnalysis.lookup(left).asInstanceOf[RTable]
-    val rReq = analyses.requirednessAnalysis.lookup(right).asInstanceOf[RTable]
-    val rightKeyIsDistinct = analyses.distinctKeyedAnalysis.contains(right)
+    val lReq = ctx.analyses.requirednessAnalysis.lookup(left).asInstanceOf[RTable]
+    val rReq = ctx.analyses.requirednessAnalysis.lookup(right).asInstanceOf[RTable]
+    val rightKeyIsDistinct = ctx.analyses.distinctKeyedAnalysis.contains(right)
 
     val joinedStage = loweredLeft.orderedJoin(
       ctx,

@@ -6,7 +6,7 @@ import is.hail.asm4s.HailClassLoader
 import is.hail.backend.local.LocalTaskContext
 import is.hail.expr.ir.{BaseIR, CompileCache, Compiled}
 import is.hail.expr.ir.LoweredTableReader.LoweredTableReaderCoercer
-import is.hail.expr.ir.lowering.IrMetadata
+import is.hail.expr.ir.lowering.{IrMetadata, LoweringAnalyses}
 import is.hail.io.fs.FS
 import is.hail.io.reference.RgAttachments
 import is.hail.linalg.BlockMatrix
@@ -76,23 +76,28 @@ object ExecuteContext {
   ): T = {
     RegionPool.scoped { pool =>
       pool.scopedRegion { region =>
-        using(new ExecuteContext(
-          tmpdir,
-          localTmpdir,
-          backend,
-          references,
-          attachments,
-          fs,
-          region,
-          tempFileManager,
-          theHailClassLoader,
-          flags,
-          irMetadata,
-          blockMatrixCache,
-          compileCache,
-          irCache,
-          coercerCache,
-        ))(f(_))
+        using(new LocalTaskContext(0, 0)) { taskContext =>
+          using(new ExecuteContext(
+            tmpdir,
+            localTmpdir,
+            backend,
+            references,
+            attachments,
+            fs,
+            region,
+            tempFileManager,
+            theHailClassLoader,
+            flags,
+            irMetadata,
+            blockMatrixCache,
+            compileCache,
+            irCache,
+            coercerCache,
+            taskContext,
+            mutable.HashMap.empty,
+            lazily(backend.broadcast(fs)),
+          ))(f(_))
+        }
       }
     }
   }
@@ -124,6 +129,10 @@ class ExecuteContext(
   val CompileCache: CompileCache,
   val PersistedIrCache: mutable.Map[Int, BaseIR],
   val PersistedCoercerCache: mutable.Map[Any, LoweredTableReaderCoercer],
+  val taskContext: HailTaskContext,
+  val memo: mutable.Map[Any, Any],
+  val fsBc: Lazy[BroadcastValue[FS]],
+  val analyses: LoweringAnalyses = null,
 ) extends Closeable {
 
   val rngNonce: Long =
@@ -136,12 +145,6 @@ class ExecuteContext(
           exc,
         )
     }
-
-  lazy val fsBc: BroadcastValue[FS] = backend.broadcast(fs)
-
-  val memo: mutable.Map[Any, Any] = new mutable.HashMap[Any, Any]()
-
-  val taskContext: HailTaskContext = new LocalTaskContext(0, 0)
 
   def scopedExecution[T](f: Compiled[T])(implicit E: Enclosing): T =
     using(new LocalTaskContext(0, 0)) { tc =>
@@ -161,10 +164,8 @@ class ExecuteContext(
 
   def shouldLogIR(): Boolean = !shouldNotLogIR()
 
-  override def close(): Unit = {
+  override def close(): Unit =
     tempFileManager.close()
-    taskContext.close()
-  }
 
   def local[A](
     tmpdir: String = this.tmpdir,
@@ -182,6 +183,10 @@ class ExecuteContext(
     codeCache: CompileCache = this.CompileCache,
     persistedIrCache: mutable.Map[Int, BaseIR] = this.PersistedIrCache,
     persistedCoercerCache: mutable.Map[Any, LoweredTableReaderCoercer] = this.PersistedCoercerCache,
+    taskContext: HailTaskContext = this.taskContext,
+    memo: mutable.Map[Any, Any] = this.memo,
+    fsBc: => BroadcastValue[FS] = this.fsBc,
+    analyses: LoweringAnalyses = this.analyses,
   )(
     f: ExecuteContext => A
   ): A =
@@ -201,5 +206,9 @@ class ExecuteContext(
       codeCache,
       persistedIrCache,
       persistedCoercerCache,
+      taskContext,
+      memo,
+      lazily(fsBc),
+      analyses,
     ))(f)
 }
