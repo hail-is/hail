@@ -49,6 +49,26 @@ class TableNativeReader(TableReader):
         )
 
 
+class TableColumnarReader(TableReader):
+    """Reads a table in the experimental columnar format.
+
+    Private: not part of Hail's public interface, and the format may change. Defines the table's
+    non-builtin reference genomes, which must be equal to any already defined with the same name.
+    """
+
+    @typecheck_method(path=str)
+    def __init__(self, path):
+        self.path = path
+        for rg_config in hl.utils.java.Env.backend().load_references_from_dataset(path):
+            hl.ReferenceGenome._from_config(rg_config)
+
+    def render(self):
+        return escape_str(json.dumps({'name': 'TableColumnarReader', 'path': self.path}))
+
+    def __eq__(self, other):
+        return isinstance(other, TableColumnarReader) and other.path == self.path
+
+
 class TextTableReader(TableReader):
     def __init__(
         self,

@@ -261,6 +261,7 @@ from .table_ir import (
 from .table_reader import (
     AvroTableReader,
     StringTableReader,
+    TableColumnarReader,
     TableFromBlockMatrixNativeReader,
     TableNativeReader,
     TableReader,
@@ -479,6 +480,7 @@ __all__ = [
     'TableAggregate',
     'TableAggregateByKey',
     'TableCollect',
+    'TableColumnarReader',
     'TableColumnarWriter',
     'TableCount',
     'TableDistinct',
