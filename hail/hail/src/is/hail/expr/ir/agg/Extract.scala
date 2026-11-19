@@ -414,14 +414,14 @@ class IndependentExtractedAggs(
 
 object Extract {
 
-  // All lets whose value depends on `name` (either directly or transitively through previous lets)
-  // are returned in the first array, the rest are in the second.
-  /* TODO: this is only being used to do ad hoc code motion. Remove when we have a real code motion
-   * pass. */
-  private def partitionDependentLets(lets: IndexedSeq[(Name, IR)], name: Name)
+  // All lets whose value depends on any of `names` (either directly or transitively through
+  // previous lets) are returned in the first array, the rest are in the second.
+  //  TODO: This is only being used to do ad hoc code motion.
+  //       Remove when we have a real code motion pass.
+  private def partitionDependentLets(lets: IndexedSeq[(Name, IR)], names: Name*)
     : (IndexedSeq[(Name, IR)], IndexedSeq[(Name, IR)]) = {
     val depBindings = mutable.HashSet.empty[Name]
-    depBindings += name
+    depBindings ++= names
 
     val dep = ArraySeq.newBuilder[(Name, IR)]
     val indep = ArraySeq.newBuilder[(Name, IR)]
@@ -758,7 +758,9 @@ object Extract {
         val rt = TArray(TTuple(nestedSigs.map(_.resultType): _*))
         adjust(transformed, Env(localResult -> rt.elementType))
 
-        val (dependent, independent) = partitionDependentLets(newSeq.result(), elementName)
+        // Both names change per element: a let that reads either must stay in the loop.
+        val (dependent, independent) =
+          partitionDependentLets(newSeq.result(), elementName, indexName)
 
         val aRef = Ref(freshName(), a.typ)
         val aLen = Ref(freshName(), TInt32)
