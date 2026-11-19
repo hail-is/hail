@@ -6,8 +6,9 @@ import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
 import is.hail.expr.ir.{
   EmitClassBuilder, EmitCodeBuilder, EmitFunctionBuilder, EmitMethodBuilder, FunctionWithReferences,
-  IRParser, ParamType, PunctuationToken, TokenIterator,
+  IRParser, ParamType, TokenIterator,
 }
+import is.hail.expr.ir.Token.Punc
 import is.hail.io._
 import is.hail.types._
 import is.hail.types.physical._
@@ -462,7 +463,7 @@ object EType extends Logging {
 
   def eTypeParser(it: TokenIterator): EType = {
     val req = it.head match {
-      case x: PunctuationToken if x.value == "+" =>
+      case Punc("+") =>
         IRParser.punctuation(it, "+")
         true
       case _ => false
@@ -493,8 +494,8 @@ object EType extends Logging {
         val args = IRParser.repsepUntil(
           it,
           IRParser.struct_field(eTypeParser),
-          PunctuationToken(","),
-          PunctuationToken("}"),
+          Punc(","),
+          Punc("}"),
         )
         IRParser.punctuation(it, "}")
         EBaseStruct(args.zipWithIndex.map { case ((name, t), i) => EField(name, t, i) }, req)
