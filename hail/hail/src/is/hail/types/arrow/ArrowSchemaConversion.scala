@@ -17,6 +17,10 @@ import org.apache.arrow.vector.types.pojo.{ArrowType, Field, FieldType, Schema}
   * Both locus representations write the same Arrow type, whose storage is a packed locus, and a
   * locus always reads back as a [[PPackedLocus]].
   *
+  * A struct or tuple with no fields is stored as the `hail.empty_struct` extension type, since
+  * Parquet can't store a group with no fields. The top-level struct of a file is the exception: it
+  * is a [[Schema]], not a field, and may be empty.
+  *
   * Arrow -> Hail accepts exactly the Arrow types that Hail -> Arrow produces.
   */
 object ArrowSchemaConversion {
@@ -94,6 +98,9 @@ object ArrowSchemaConversion {
           ),
         )
       case t: PArray => field(ArrowType.List.INSTANCE, child(ElementFieldName, t.elementType))
+      // Parquet can't store a group with no fields (spec section 5.5).
+      case t: PTuple if t.fields.isEmpty => field(EmptyStructExtensionType.Tuple)
+      case t: PStruct if t.fields.isEmpty => field(EmptyStructExtensionType.Struct)
       case t: PTuple => field(TupleExtensionType, t.fields.map(f => child(f.name, f.typ)): _*)
       case t: PStruct =>
         field(ArrowType.Struct.INSTANCE, t.fields.map(f => child(f.name, f.typ)): _*)
@@ -195,7 +202,13 @@ object ArrowSchemaConversion {
             unsupported(s"interval '${f.getName}' must be a non-nullable bool")
         }
         PCanonicalInterval(pointType, required)
+      case t: EmptyStructExtensionType =>
+        scalar(
+          if (t.isTuple) PCanonicalTuple(IndexedSeq.empty[PTupleField], required)
+          else PCanonicalStruct(IndexedSeq.empty[PField], required)
+        )
       case TupleExtensionType =>
+        if (children.isEmpty) unsupported("a tuple with no fields must be 'hail.empty_struct'")
         val fields = children.map { c =>
           val idx = c.getName.toIntOption.filter(i => i >= 0 && i.toString == c.getName).getOrElse(
             unsupported(s"tuple field name '${c.getName}' is not a non-negative integer")
@@ -239,6 +252,7 @@ object ArrowSchemaConversion {
         val key = requiredChild(entries.getChildren.get(0))
         PCanonicalDict(convert(key), convert(entries.getChildren.get(1)), required)
       case ArrowType.Struct.INSTANCE =>
+        if (children.isEmpty) unsupported("a struct with no fields must be 'hail.empty_struct'")
         PCanonicalStruct(structFields(children, references), required)
       case _ => unsupported("unsupported type")
     }
