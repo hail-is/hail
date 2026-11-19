@@ -131,14 +131,37 @@ def edit(
 def change_quote(
     name: str,
     quote: str,
+    accept_history_move: bool = typer.Option(
+        False,
+        '--accept-history-move',
+        help='Accept that the billing project\'s spend history moves with it, without being asked to confirm.',
+    ),
     comment: Optional[str] = typer.Option(None, help='Short comment to record with this event.'),
     output: StructuredFormatOption = StructuredFormat.YAML,
 ):
-    """Move billing project NAME to a different QUOTE."""
+    """Move billing project NAME to a different QUOTE. Global billing managers only.
+
+    The billing project's whole spend history moves with it.
+    """
     from hailtop.batch_client.client import BatchClient  # pylint: disable=import-outside-toplevel
 
     with BatchClient('') as client:
-        result = client.change_billing_project_quote(name, quote, comment=comment)
+        if not accept_history_move:
+            project = client.get_billing_project(name)
+            typer.secho(
+                f"WARNING: moving {name} from quote {project['quote_name']} to quote {quote} moves its whole spend "
+                f"history (${project['accrued_cost'] or 0:,.2f} so far) with it.\n"
+                f"  - {quote}'s owners and managers will see all of it, including spend {project['quote_name']} paid "
+                f"for.\n"
+                f"  - {project['quote_name']}'s owners and managers will no longer see any of it.\n"
+                f"  - Its limit is still checked against all-time spend, so it must cover past spend for jobs to "
+                f"keep running.",
+                fg=typer.colors.RED,
+                err=True,
+            )
+            if not typer.confirm('Move it anyway?', err=True):
+                raise typer.Abort()
+        result = client.change_billing_project_quote(name, quote, acknowledge_history_move=True, comment=comment)
         print(make_formatter(output.value)(result))
 
 

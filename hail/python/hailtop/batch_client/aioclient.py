@@ -1497,8 +1497,9 @@ class BatchClient:
         resp = await self._patch(f'/api/v1alpha/billing_projects/{project}', json=kwargs)
         return await resp.json()
 
-    async def change_billing_project_quote(self, project, quote_name, comment=None):
-        body: dict = {'quote_name': quote_name}
+    async def change_billing_project_quote(self, project, quote_name, *, acknowledge_history_move: bool, comment=None):
+        # The project's whole spend history moves with it, so callers must opt in explicitly.
+        body: dict = {'quote_name': quote_name, 'acknowledge_history_move': acknowledge_history_move}
         if comment is not None:
             body['comment'] = comment
         resp = await self._post(f'/api/v1alpha/billing_projects/{project}/change_quote', json=body)

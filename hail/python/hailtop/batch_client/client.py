@@ -474,8 +474,12 @@ class BatchClient:
     def patch_billing_project(self, project, comment=None, **kwargs):
         return async_to_blocking(self._async_client.patch_billing_project(project, comment=comment, **kwargs))
 
-    def change_billing_project_quote(self, project, quote_name, comment=None):
-        return async_to_blocking(self._async_client.change_billing_project_quote(project, quote_name, comment))
+    def change_billing_project_quote(self, project, quote_name, *, acknowledge_history_move: bool, comment=None):
+        return async_to_blocking(
+            self._async_client.change_billing_project_quote(
+                project, quote_name, acknowledge_history_move=acknowledge_history_move, comment=comment
+            )
+        )
 
     def get_billing_project_events(self, project):
         return async_to_blocking(self._async_client.get_billing_project_events(project))
