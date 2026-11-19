@@ -1042,8 +1042,9 @@ async def test_dropped_connection_is_503_and_not_retried(db, large_batch):
     request = asyncio.create_task(job_list_response(db, large_batch.batch_id, query, asyncio.Semaphore(1)))
 
     async def running_ids(cur):
-        await cur.execute('SHOW FULL PROCESSLIST')
-        return [r[0] for r in await cur.fetchall() if r[7] and f'{marker}0' in r[7] and 'PROCESSLIST' not in r[7]]
+        # SHOW PROCESSLIST warns on newer MySQL, and pytest.ini turns warnings into errors
+        await cur.execute('SELECT ID, INFO FROM performance_schema.processlist')
+        return [r[0] for r in await cur.fetchall() if r[1] and f'{marker}0' in r[1]]
 
     admin = await aiomysql.connect(host='localhost', port=3306, user='root', password='pw')
     try:
@@ -1069,6 +1070,11 @@ async def test_dropped_connection_is_503_and_not_retried(db, large_batch):
             assert await running_ids(cur) == []
     finally:
         admin.close()
+        # Don't leave it holding a connection into db teardown: once the release-task manager is shut down,
+        # the connection is never returned and the pool's wait_closed() hangs. Its time limit ends it within 10 s.
+        if not request.done():
+            await asyncio.wait([request], timeout=15)
+            request.cancel()
 
     # the pool recovers
     resp = await job_list(db, large_batch.batch_id, limit=1)
