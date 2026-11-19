@@ -57,6 +57,32 @@ class IRBuilderSuite {
         M.scan(for { x <- elt + 0 } yield ApplyScanOp(Count())(x))
       },
     ),
+    (
+      streamAggIR(StreamRange(0, 1, 10)) { elt =>
+        IRBuilder.scoped { b =>
+          b.strictMemoize(I32(1), name = Name("y"), scope = Scope.EVAL)
+          val x = b.memoize(elt + 0, scope = Scope.AGG)
+          ApplyAggOp(Count())(x)
+        }
+      },
+      streamAggIR(StreamRange(0, 1, 10)) { elt =>
+        M.agg(for {
+          _ <- M.interleave(Scope.EVAL)(Name("y") -> I32(1))
+          x <- elt + 0
+        } yield ApplyAggOp(Count())(x))
+      },
+    ),
+    (
+      streamAggIR(StreamRange(0, 1, 10)) { elt =>
+        IRBuilder.scoped { b =>
+          val x = b.memoize(elt + 0, scope = Scope.AGG)
+          ApplyAggOp(Count())(x)
+        }
+      },
+      streamAggIR(StreamRange(0, 1, 10)) { elt =>
+        M.agg(for { x <- M.interleave(Scope.EVAL)(M.ret(elt + 0)) } yield ApplyAggOp(Count())(x))
+      },
+    ),
   )
 
   @ParameterizedTest

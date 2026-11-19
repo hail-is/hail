@@ -5,7 +5,6 @@ import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
 import is.hail.collection.implicits.toRichArray
 import is.hail.expr.ir.{Memoized => M, _}
-import is.hail.expr.ir.Scope.EVAL
 import is.hail.expr.ir.agg.{AggExecuteContextExtensions, Extract}
 import is.hail.expr.ir.analyses.PartitionCounts
 import is.hail.expr.ir.defs._
@@ -998,7 +997,7 @@ object LowerTableIR extends Logging {
           },
           partition = ctx =>
             M.eval {
-              val rows: M[Scope.EVAL.type] =
+              val rows: M =
                 (cname -> ctx.get(2)) >> body
 
               if (partitioner.kType.fields.isEmpty) rows
@@ -1195,7 +1194,7 @@ object LowerTableIR extends Logging {
         val newContexts =
           M.eval {
             for {
-              _ <- M.sequence(loweredChild.letBindings.map(M.let[EVAL.type]): _*)
+              _ <- M.sequence(loweredChild.letBindings.map(M.let): _*)
               contexts <- loweredChild.contexts.toArray
               nPartitions <- contexts.len
 
@@ -1246,7 +1245,7 @@ object LowerTableIR extends Logging {
         val newContexts =
           M.eval {
             for {
-              _ <- M.sequence(loweredChild.letBindings.map(M.let[EVAL.type]): _*)
+              _ <- M.sequence(loweredChild.letBindings.map(M.let): _*)
               contexts <- loweredChild.contexts.toArray
               nPartitions <- contexts.len
               reverse <- StreamRange(nPartitions - 1, -1, -1).streamMap(contexts.at(_)).toArray

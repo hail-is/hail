@@ -26,7 +26,7 @@ class MemoizedMapBenchmark {
 
   @Benchmark
   def memoized(): IR = {
-    var x = Memoized.memo[EVAL.type](Zero)
+    var x = Memoized.ret(Zero)
     for (_ <- 1 until numBinds)
       x = x.map(_ + 1)
     eval(x)
@@ -89,9 +89,9 @@ class MemoizedFlatMapBenchmark {
 
   @Benchmark
   def memoized(): IR = {
-    def go(n: Int): Memoized[EVAL.type] =
-      if (n <= 0) Memoized.memo(Zero)
-      else Memoized.memo(Zero).flatMap(acc => go(n - 1).map(acc + _))
+    def go(n: Int): Memoized =
+      if (n <= 0) Memoized.ret(Zero)
+      else Memoized.ret(Zero).flatMap(acc => go(n - 1).map(acc + _))
 
     eval(go(numBinds))
   }

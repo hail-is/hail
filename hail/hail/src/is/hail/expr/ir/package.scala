@@ -26,8 +26,8 @@ import org.apache.spark.TaskContext
 package ir {
   trait LowerPriorityImplicits {
     implicit def irToPrimitiveIR(ir: IR): PrimitiveIR = new PrimitiveIR(ir)
-    implicit def irToMemoized[S](ir: IR): M[S] = M.memo(ir)
-    implicit def bindingToMemoized[S](binding: (Name, IR)): M[S] = M.let(binding)
+    implicit def irToMemoized(ir: IR): M = M.ret(ir)
+    implicit def bindingToMemoized(binding: (Name, IR)): M = M.let(binding)
     implicit def irToIROps(ir: IR): IROps = new IROps(ir)
   }
 }
@@ -76,8 +76,8 @@ package object ir extends CompileOps with LowerPriorityImplicits {
 
   implicit def atomToPrimitiveIR(ir: Atom): PrimitiveIR = new PrimitiveIR(ir)
   implicit def atomicBinding[N](binding: (N, Atom)): (N, IR) = (binding._1, binding._2)
-  implicit def atomToMemoized[S](a: Atom): M[S] = M.pure(a)
-  implicit def atomicBindingMemoized[S](binding: (Name, Atom)): M[S] = M.let(binding)
+  implicit def atomToMemoized(a: Atom): M = M.ret(a)
+  implicit def atomicBindingMemoized(binding: (Name, Atom)): M = M.let(binding)
 
   implicit def intToIR(i: Int): I32 = I32(i)
 
