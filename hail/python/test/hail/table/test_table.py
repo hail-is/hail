@@ -2440,6 +2440,53 @@ def test_table_randomness_map_globals_without_body_randomness():
     assert_unique_uids(t2)
 
 
+def test_table_randomness_map_globals_with_agg_randomness():
+    rt = hl.utils.range_table(10, 3)
+    t = rt.annotate_globals(xs=hl.agg.collect_as_set(hl.rand_int64()))
+    assert_contains_node(t, ir.TableMapGlobals)
+    assert len(hl.eval(t.xs)) == 10
+    assert t.row.dtype == rt.row.dtype
+    assert_unique_uids(t)
+
+
+def test_annotate_globals_aggregates_rows():
+    ht = hl.utils.range_table(10, 3)
+    ht = ht.annotate_globals(n_rows=hl.agg.count())
+    assert hl.eval(ht.n_rows) == 10
+    assert ht.idx.collect() == list(range(10))
+
+
+def test_annotate_globals_aggregates_rows_with_globals():
+    ht = hl.utils.range_table(10, 3).annotate_globals(a=2)
+    ht = ht.annotate_globals(s=hl.agg.sum(ht.idx * ht.a), t=ht.a + 1)
+    assert hl.eval(ht.globals) == hl.Struct(a=2, s=90, t=3)
+
+
+def test_annotate_globals_aggregates_filtered_rows():
+    ht = hl.utils.range_table(10, 3)
+    ht = ht.filter(ht.idx % 2 == 0)
+    ht = ht.annotate_globals(xs=hl.agg.collect(ht.idx))
+    assert hl.eval(ht.xs) == [0, 2, 4, 6, 8]
+
+
+def test_select_globals_aggregates_rows():
+    ht = hl.utils.range_table(10, 3).annotate_globals(a=1, b=2)
+    ht = ht.select_globals(ht.a, m=hl.agg.max(ht.idx))
+    assert hl.eval(ht.globals) == hl.Struct(a=1, m=9)
+
+
+def test_transmute_globals_aggregates_rows():
+    ht = hl.utils.range_table(10, 3).annotate_globals(a=1, b=2)
+    ht = ht.transmute_globals(c=hl.agg.sum(ht.idx) + ht.a)
+    assert hl.eval(ht.globals) == hl.Struct(b=2, c=46)
+
+
+def test_annotate_globals_rejects_unaggregated_row_field():
+    ht = hl.utils.range_table(10, 3)
+    with pytest.raises(ExpressionException, match='scope violation'):
+        ht.annotate_globals(x=ht.idx)
+
+
 def test_table_randomness_explode():
     t = hl.utils.range_table(5)
     t = t.annotate(s=hl.struct(a=hl.range(t.idx)))
