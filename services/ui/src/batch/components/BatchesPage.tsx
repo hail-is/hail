@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import type { Batch } from '../../shared/batchApi';
 import { costByCategory, hasFieldTerm, jobCountBreakdown, withFieldTerm } from './batchModels';
 import { BatchStateIcon } from './StateIcon';
-import { BatchActionDialog } from './BatchActionDialog';
+import { BatchActionDialog, type BatchAction } from './BatchActionDialog';
 import { CostDisplay } from './CostDisplay';
 import { HoverTip } from './HoverTip';
 import { RelativeTime } from './RelativeTime';
@@ -111,7 +111,7 @@ function TermFilterButton({ field, value, q, onSearch }: {
   return (
     <span className="group flex max-w-full items-center gap-0.5 font-light">
       <span className={`truncate ${filteredIn ? 'text-zinc-800' : 'text-zinc-500'}`} title={value}>{value}</span>
-      <span className="hidden group-hover:inline-flex shrink-0 items-center">
+      <span className="sr-only group-hover:not-sr-only group-hover:inline-flex group-focus-within:not-sr-only group-focus-within:inline-flex shrink-0 items-center">
         {!filteredIn && (
           <button
             type="button"
@@ -178,7 +178,9 @@ function RowActions({ batch, onCancel, onDelete }: {
   onCancel: () => Promise<void>;
   onDelete: () => Promise<void>;
 }): JSX.Element | null {
-  const [open, setOpen] = useState(false);
+  // The action the dialog was opened for, so a refresh that completes the batch mid-confirmation
+  // drops the dialog rather than turning a Cancel confirmation into a Delete.
+  const [openFor, setOpenFor] = useState<BatchAction | null>(null);
 
   const action = batch.complete
     ? { kind: 'delete' as const, label: 'Delete', icon: 'delete', run: onDelete }
@@ -191,19 +193,19 @@ function RowActions({ batch, onCancel, onDelete }: {
     <>
       <button
         type="button"
-        onClick={() => { setOpen(true); }}
+        onClick={() => { setOpenFor(action.kind); }}
         title={`${action.label} batch ${batch.id}`}
         aria-label={`${action.label} batch ${batch.id}`}
         className="text-zinc-400 hover:text-red-600"
       >
         <span aria-hidden="true" className="material-symbols-outlined text-lg leading-none">{action.icon}</span>
       </button>
-      {open && (
+      {openFor === action.kind && (
         <BatchActionDialog
           action={action.kind}
           batch={batch}
           onConfirm={action.run}
-          onClose={() => { setOpen(false); }}
+          onClose={() => { setOpenFor(null); }}
         />
       )}
     </>
