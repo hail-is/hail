@@ -50,6 +50,8 @@ class CIEvent(Enum):
     BATCH_CALLBACK_RECEIVED = 'batch_callback_received'
     BATCH_CALLBACK_FAILED = 'batch_callback_failed'
     BUILD_FINISHED = 'build_finished'
+    GITHUB_WEBHOOK_REJECTED = 'github_webhook_rejected'
+    GITHUB_WEBHOOK_VERIFICATION_DISABLED = 'github_webhook_verification_disabled'
 
 
 def truncate_message(message: str) -> str:

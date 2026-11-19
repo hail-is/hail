@@ -18,6 +18,8 @@ CI_UTILS_IMAGE = os.environ['HAIL_CI_UTILS_IMAGE']
 BUILDKIT_IMAGE = os.environ['HAIL_BUILDKIT_IMAGE']
 STORAGE_URI = os.environ['HAIL_CI_STORAGE_URI']
 DEPLOY_STEPS = tuple(json.loads(os.environ.get('HAIL_CI_DEPLOY_STEPS', '[]')))
+# Read once at startup: rotating the secret restarts CI. Unset (or empty) means deliveries aren't verified.
+GITHUB_WEBHOOK_SECRET = os.environ.get('HAIL_CI_GITHUB_WEBHOOK_SECRET') or None
 
 if CLOUD == 'gcp':
     REGION = get_gcp_config().region
