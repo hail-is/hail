@@ -21,8 +21,7 @@ import is.hail.variant.{ReferenceGenome, ReferenceGenomeEnv}
 
 import scala.collection.immutable.ArraySeq
 import scala.reflect.ClassTag
-import scala.util.parsing.combinator.JavaTokenParsers
-import scala.util.parsing.input.Positional
+import scala.util.parsing.input.{OffsetPosition, Positional}
 
 import java.util.Base64
 
@@ -30,147 +29,119 @@ import org.apache.spark.sql.Row
 import org.json4s.{Formats, JObject}
 import org.json4s.jackson.{JsonMethods, Serialization}
 
-abstract class Token extends Positional {
-  def value: Any
+final case class Token(kind: Token.Kind, value: String) extends Positional
 
-  def getName: String
+object Token {
+  final class Kind private[Token] (val name: String) extends AnyVal {
+    def apply(value: String): Token = new Token(this, value)
+    def unapply(t: Token): Option[String] = Option.when(t.kind == this)(t.value)
+    override def toString: String = name
+  }
+
+  val Ident = new Kind("identifier")
+  val Str = new Kind("string")
+  val Num = new Kind("number")
+  val Punc = new Kind("punctuation")
 }
 
-final case class IdentifierToken(value: String) extends Token {
-  override def getName: String = "identifier"
-}
+final class IRLexer(code: String) extends scala.collection.AbstractIterator[Token] {
+  import is.hail.expr.ir.{Token => T}
 
-final case class StringToken(value: String) extends Token {
-  override def getName: String = "string"
-}
+  private[this] var i = 0
 
-final case class IntegerToken(value: Long) extends Token {
-  override def getName: String = "integer"
-}
+  override def hasNext: Boolean = {
+    skipWhitespace()
+    i < code.length
+  }
 
-final case class FloatToken(value: Double) extends Token {
-  override def getName: String = "float"
-}
+  override def next(): Token = {
+    if (!hasNext) fatal("Unexpected end of input.")
 
-final case class PunctuationToken(value: String) extends Token {
-  override def getName: String = "punctuation"
-}
+    val start = i
 
-object IRLexer extends JavaTokenParsers {
-  val token: Parser[Token] =
-    identifier ^^ { id => IdentifierToken(id) } |
-      float64_literal ^^ { d => FloatToken(d) } |
-      int64_literal ^^ { l => IntegerToken(l) } |
-      string_literal ^^ { s => StringToken(s) } |
-      "[()\\[\\]{}<>,:+@=]".r ^^ { p => PunctuationToken(p) }
+    val token =
+      code.charAt(i) match {
+        case '(' | ')' | '[' | ']' | '{' | '}' | '<' | '>' | ',' | ':' | '+' | '@' | '=' =>
+          i += 1
+          T.Punc(code.substring(start, i))
+        case delim @ ('"' | '\'') =>
+          T.Str(quoted(delim, "string literal"))
+        case '`' =>
+          T.Ident(quoted('`', "backtick identifier"))
+        case c if Character.isJavaIdentifierStart(c) =>
+          i += 1
+          while (i < code.length && Character.isJavaIdentifierPart(code.charAt(i))) i += 1
+          T.Ident(code.substring(start, i))
+        case _ =>
+          while (
+            i < code.length && (Character.isLetterOrDigit(code.charAt(i)) || ".+-".indexOf(
+              code.charAt(i).toInt
+            ) >= 0)
+          ) i += 1
 
-  val lexer: Parser[Array[Token]] = rep(positioned(token)) ^^ { l => l.toArray }
-
-  def quotedLiteral(delim: Char, what: String): Parser[String] =
-    new Parser[String] {
-      override def apply(in: Input): ParseResult[String] = {
-        var r = in
-
-        val source = in.source
-        val offset = in.offset
-        val start = handleWhiteSpace(source, offset)
-        r = r.drop(start - offset)
-
-        if (r.atEnd || r.first != delim)
-          return Failure(s"consumed $what", r)
-        r = r.rest
-
-        val sb = new StringBuilder()
-
-        val escapeChars = "\\bfnrtu'\"`".toSet
-        var continue = true
-        while (continue) {
-          if (r.atEnd)
-            return Failure(s"unterminated $what", r)
-          val c = r.first
-          r = r.rest
-          if (c == delim)
-            continue = false
-          else {
-            sb += c
-            if (c == '\\') {
-              if (r.atEnd)
-                return Failure(s"unterminated $what", r)
-              val d = r.first
-              if (!escapeChars.contains(d))
-                return Failure(s"invalid escape character in $what", r)
-              sb += d
-              r = r.rest
-            }
-          }
-        }
-        Success(unescapeString(sb.result()), r)
+          if (i == start) fail(s"Unexpected character '${code.charAt(start)}'.")
+          T.Num(code.substring(start, i))
       }
+
+    token.setPos(OffsetPosition(code, start))
+    token
+  }
+
+  private def fail(msg: String): Nothing =
+    ParserUtils.error(OffsetPosition(code, i), msg)
+
+  private def skipWhitespace(): Unit =
+    while (i < code.length && Character.isWhitespace(code.charAt(i))) i += 1
+
+  private def quoted(delim: Char, what: String): String = {
+    val start = i + 1
+    i = start
+
+    while (i < code.length && code.charAt(i) != delim) {
+      if (code.charAt(i) == '\\') i += 1
+      i += 1
     }
 
-  override def stringLiteral: Parser[String] =
-    quotedLiteral('"', "string literal") | quotedLiteral('\'', "string literal")
-
-  def backtickLiteral: Parser[String] = quotedLiteral('`', "backtick identifier")
-
-  def identifier = backtickLiteral | ident
-
-  def string_literal: Parser[String] = stringLiteral
-
-  def int64_literal: Parser[Long] = wholeNumber.map(_.toLong)
-
-  def float64_literal: Parser[Double] =
-    "-inf" ^^ { _ => Double.NegativeInfinity } | // inf, neginf, and nan are parsed as identifiers
-      """[+-]?\d+(\.\d+)?[eE][+-]?\d+""".r ^^ { _.toDouble } |
-      """[+-]?\d*\.\d+""".r ^^ { _.toDouble }
-
-  def parse(code: String): Array[Token] =
-    parseAll(lexer, code) match {
-      case Success(result, _) => result
-      case NoSuccess(msg, next) => ParserUtils.error(next.pos, msg)
-    }
+    if (i >= code.length) fail(s"unterminated $what")
+    i += 1
+    unescapeString(code.substring(start, i - 1))
+  }
 }
 
 object IRParser {
+  import is.hail.expr.ir.{Token => T}
 
   private val snd: (Name, Type) => Type = (_, t) => t
 
   def error(t: Token, msg: String): Nothing = ParserUtils.error(t.pos, msg)
 
-  def deserialize[T](str: String)(implicit formats: Formats, mf: Manifest[T]): T = {
+  def expected(what: String, x: Token): Nothing =
+    error(x, s"Expected $what but found ${x.kind} '${x.value}'.")
+
+  def deserialize[A](str: String)(implicit formats: Formats, mf: Manifest[A]): A =
     try
-      Serialization.read[T](str)
+      Serialization.read[A](str)
     catch {
       case e: org.json4s.MappingException =>
         throw new RuntimeException(s"Couldn't deserialize $str", e)
     }
 
-  }
-
-  def consumeToken(it: TokenIterator): Token = {
-    if (!it.hasNext)
-      fatal("No more tokens to consume.")
-    it.next()
-  }
-
   def punctuation(it: TokenIterator, symbol: String): Unit =
-    consumeToken(it) match {
-      case x: PunctuationToken if x.value == symbol =>
-      case x: Token =>
-        error(x, s"Expected punctuation '$symbol' but found ${x.getName} '${x.value}'.")
+    it.next() match {
+      case T.Punc(`symbol`) =>
+      case x => expected(s"punctuation '$symbol'", x)
     }
 
   def identifier(it: TokenIterator): String =
-    consumeToken(it) match {
-      case x: IdentifierToken => x.value
-      case x: Token => error(x, s"Expected identifier but found ${x.getName} '${x.value}'.")
+    it.next() match {
+      case T.Ident(v) => v
+      case x => expected("identifier", x)
     }
 
   def identifier(it: TokenIterator, expectedId: String): Unit =
-    consumeToken(it) match {
-      case x: IdentifierToken if x.value == expectedId =>
-      case x: Token =>
-        error(x, s"Expected identifier '$expectedId' but found ${x.getName} '${x.value}'.")
+    it.next() match {
+      case T.Ident(`expectedId`) =>
+      case x => expected(s"identifier '$expectedId'", x)
     }
 
   def identifiers(it: TokenIterator): IndexedSeq[String] =
@@ -182,65 +153,44 @@ object IRParser {
     base_seq_parser(name)(it)
 
   def boolean_literal(it: TokenIterator): Boolean =
-    consumeToken(it) match {
-      case IdentifierToken("True") => true
-      case IdentifierToken("False") => false
-      case x: Token => error(x, s"Expected boolean but found ${x.getName} '${x.value}'.")
+    it.next() match {
+      case T.Ident("True") => true
+      case T.Ident("False") => false
+      case x => expected("boolean", x)
     }
 
-  def int32_literal(it: TokenIterator): Int = {
-    consumeToken(it) match {
-      case x: IntegerToken =>
-        if (x.value >= Int.MinValue && x.value <= Int.MaxValue)
-          x.value.toInt
-        else
-          error(x, s"Found integer '${x.value}' that is outside the numeric range for int32.")
-      case x: Token => error(x, s"Expected integer but found ${x.getName} '${x.value}'.")
+  def int32_literal(it: TokenIterator): Int =
+    it.next() match {
+      case x @ T.Num(n) => n.toIntOption.getOrElse(expected("int32", x))
+      case x => expected("integer", x)
     }
-  }
 
   def int64_literal(it: TokenIterator): Long =
-    consumeToken(it) match {
-      case x: IntegerToken => x.value
-      case x: Token => error(x, s"Expected integer but found ${x.getName} '${x.value}'.")
+    it.next() match {
+      case x @ T.Num(n) => n.toLongOption.getOrElse(expected("int64", x))
+      case x => expected("integer", x)
     }
 
-  def float32_literal(it: TokenIterator): Float = {
-    consumeToken(it) match {
-      case x: FloatToken =>
-        if (x.value >= Float.MinValue && x.value <= Float.MaxValue)
-          x.value.toFloat
-        else
-          error(x, s"Found float '${x.value}' that is outside the numeric range for float32.")
-      case x: IntegerToken => x.value.toFloat
-      case x: IdentifierToken => x.value match {
-          case "nan" => Float.NaN
-          case "inf" => Float.PositiveInfinity
-          case "neginf" => Float.NegativeInfinity
-          case _ => error(x, s"Expected float but found ${x.getName} '${x.value}'.")
-        }
-      case x: Token => error(x, s"Expected float but found ${x.getName} '${x.value}'.")
+  def float32_literal(it: TokenIterator): Float =
+    it.next() match {
+      case x @ (T.Num(_) | T.Ident(_)) =>
+        x.value.toDoubleOption.map(_.toFloat).getOrElse(expected("float32", x))
+      case x =>
+        expected("float", x)
     }
-  }
 
-  def float64_literal(it: TokenIterator): Double = {
-    consumeToken(it) match {
-      case x: FloatToken => x.value
-      case x: IntegerToken => x.value.toDouble
-      case x: IdentifierToken => x.value match {
-          case "nan" => Double.NaN
-          case "inf" => Double.PositiveInfinity
-          case "neginf" => Double.NegativeInfinity
-          case _ => error(x, s"Expected float but found ${x.getName} '${x.value}'.")
-        }
-      case x: Token => error(x, s"Expected float but found ${x.getName} '${x.value}'.")
+  def float64_literal(it: TokenIterator): Double =
+    it.next() match {
+      case x @ (T.Num(_) | T.Ident(_)) =>
+        x.value.toDoubleOption.getOrElse(expected("float64", x))
+      case x =>
+        expected("float", x)
     }
-  }
 
   def string_literal(it: TokenIterator): String =
-    consumeToken(it) match {
-      case x: StringToken => x.value
-      case x: Token => error(x, s"Expected string but found ${x.getName} '${x.value}'.")
+    it.next() match {
+      case T.Str(v) => v
+      case x => expected("string", x)
     }
 
   def partitioner_literal(ctx: ExecuteContext)(it: TokenIterator): RVDPartitioner = {
@@ -254,12 +204,12 @@ object IRParser {
     )
   }
 
-  def literals[T](
-    literalIdentifier: TokenIterator => T
+  def literals[A](
+    literalIdentifier: TokenIterator => A
   )(
     it: TokenIterator
-  )(implicit tct: ClassTag[T]
-  ): IndexedSeq[T] =
+  )(implicit tct: ClassTag[A]
+  ): IndexedSeq[A] =
     base_seq_parser(literalIdentifier)(it)
 
   def between[A](
@@ -279,42 +229,41 @@ object IRParser {
   def int32_literals: TokenIterator => IndexedSeq[Int] = literals(int32_literal)
   def int64_literals: TokenIterator => IndexedSeq[Long] = literals(int64_literal)
 
-  def opt[T](it: TokenIterator, f: (TokenIterator) => T)(implicit tct: ClassTag[T]): Option[T] = {
+  def opt[A](it: TokenIterator, f: (TokenIterator) => A): Option[A] =
     it.head match {
-      case x: IdentifierToken if x.value == "None" =>
-        consumeToken(it): Unit
+      case T.Ident("None") =>
+        it.next(): Unit
         None
       case _ =>
         Some(f(it))
     }
-  }
 
-  def repsepUntil[T](
+  def repsepUntil[A](
     it: TokenIterator,
-    f: (TokenIterator) => T,
+    f: (TokenIterator) => A,
     sep: Token,
     end: Token,
-  )(implicit tct: ClassTag[T]
-  ): IndexedSeq[T] = {
-    val xs = ArraySeq.newBuilder[T]
-    while (it.hasNext && it.head != end) {
+  )(implicit tct: ClassTag[A]
+  ): IndexedSeq[A] = {
+    val xs = ArraySeq.newBuilder[A]
+    while (it.head != end) {
       xs += f(it)
       if (it.head == sep)
-        consumeToken(it): Unit
+        it.next(): Unit
     }
     xs.result()
   }
 
-  def repUntil[T](
+  def repUntil[A](
     it: TokenIterator,
-    f: (TokenIterator) => StackFrame[T],
+    f: (TokenIterator) => StackFrame[A],
     end: Token,
-  )(implicit tct: ClassTag[T]
-  ): StackFrame[IndexedSeq[T]] = {
-    val xs = ArraySeq.newBuilder[T]
-    var cont: T => StackFrame[IndexedSeq[T]] = null
-    def loop(): StackFrame[IndexedSeq[T]] =
-      if (it.hasNext && it.head != end) {
+  )(implicit tct: ClassTag[A]
+  ): StackFrame[IndexedSeq[A]] = {
+    val xs = ArraySeq.newBuilder[A]
+    var cont: A => StackFrame[IndexedSeq[A]] = null
+    def loop(): StackFrame[IndexedSeq[A]] =
+      if (it.head != end) {
         f(it).flatMap(cont)
       } else {
         done(xs.result())
@@ -326,21 +275,21 @@ object IRParser {
     loop()
   }
 
-  def repUntilNonStackSafe[T](
+  def repUntilNonStackSafe[A](
     it: TokenIterator,
-    f: (TokenIterator) => T,
+    f: (TokenIterator) => A,
     end: Token,
-  )(implicit tct: ClassTag[T]
-  ): IndexedSeq[T] = {
-    val xs = ArraySeq.newBuilder[T]
-    while (it.hasNext && it.head != end)
+  )(implicit tct: ClassTag[A]
+  ): IndexedSeq[A] = {
+    val xs = ArraySeq.newBuilder[A]
+    while (it.head != end)
       xs += f(it)
     xs.result()
   }
 
-  def base_seq_parser[T: ClassTag](f: TokenIterator => T)(it: TokenIterator): IndexedSeq[T] = {
+  def base_seq_parser[A: ClassTag](f: TokenIterator => A)(it: TokenIterator): IndexedSeq[A] = {
     punctuation(it, "(")
-    val r = repUntilNonStackSafe(it, f, PunctuationToken(")"))
+    val r = repUntilNonStackSafe(it, f, T.Punc(")"))
     punctuation(it, ")")
     r
   }
@@ -353,25 +302,18 @@ object IRParser {
     (name, desc)
   }
 
-  def ptuple_subset_field(rgs: ReferenceGenomeEnv)(it: TokenIterator): (Int, PType) = {
+  def subset_field[A](f: TokenIterator => A)(it: TokenIterator): (Int, A) = {
     val i = int32_literal(it)
     punctuation(it, ":")
-    val t = ptype_expr(rgs)(it)
+    val t = f(it)
     i -> t
   }
 
-  def tuple_subset_field(rgs: ReferenceGenomeEnv)(it: TokenIterator): (Int, Type) = {
-    val i = int32_literal(it)
-    punctuation(it, ":")
-    val t = type_expr(rgs)(it)
-    i -> t
-  }
-
-  def struct_field[T](f: TokenIterator => T)(it: TokenIterator): (String, T) = {
+  def struct_field[A](f: TokenIterator => A)(it: TokenIterator): (String, A) = {
     val name = identifier(it)
     punctuation(it, ":")
     val typ = f(it)
-    while (it.hasNext && it.head == PunctuationToken("@"))
+    while (it.head == T.Punc("@"))
       decorator(it): Unit
     (name, typ)
   }
@@ -396,7 +338,7 @@ object IRParser {
 
   def ptype_expr(rgs: ReferenceGenomeEnv)(it: TokenIterator): PType = {
     val req = it.head match {
-      case x: PunctuationToken if x.value == "+" =>
+      case T.Punc("+") =>
         punctuation(it, "+")
         true
       case _ => false
@@ -449,12 +391,12 @@ object IRParser {
       case "PCTuple" =>
         punctuation(it, "[")
         val fields =
-          repsepUntil(it, ptuple_subset_field(rgs), PunctuationToken(","), PunctuationToken("]"))
+          repsepUntil(it, subset_field(ptype_expr(rgs)), T.Punc(","), T.Punc("]"))
         punctuation(it, "]")
         PCanonicalTuple(fields.map { case (idx, t) => PTupleField(idx, t) }, req)
       case "PCStruct" =>
         punctuation(it, "{")
-        val args = repsepUntil(it, ptype_field(rgs), PunctuationToken(","), PunctuationToken("}"))
+        val args = repsepUntil(it, ptype_field(rgs), T.Punc(","), T.Punc("}"))
         punctuation(it, "}")
         val fields = args.zipWithIndex.map { case ((id, t), i) => PField(id, t, i) }
         PCanonicalStruct(fields, req)
@@ -469,7 +411,7 @@ object IRParser {
   def type_expr(rgs: ReferenceGenomeEnv)(it: TokenIterator): Type = {
     // skip requiredness token for back-compatibility
     it.head match {
-      case x: PunctuationToken if x.value == "+" =>
+      case T.Punc("+") =>
         punctuation(it, "+")
       case _ =>
     }
@@ -522,18 +464,18 @@ object IRParser {
         TDict(keyType, valueType)
       case "Tuple" =>
         punctuation(it, "[")
-        val types = repsepUntil(it, type_expr(rgs), PunctuationToken(","), PunctuationToken("]"))
+        val types = repsepUntil(it, type_expr(rgs), T.Punc(","), T.Punc("]"))
         punctuation(it, "]")
         TTuple(types: _*)
       case "TupleSubset" =>
         punctuation(it, "[")
         val fields =
-          repsepUntil(it, tuple_subset_field(rgs), PunctuationToken(","), PunctuationToken("]"))
+          repsepUntil(it, subset_field(type_expr(rgs)), T.Punc(","), T.Punc("]"))
         punctuation(it, "]")
         TTuple(fields.map { case (idx, t) => TupleField(idx, t) })
       case "Struct" =>
         punctuation(it, "{")
-        val args = repsepUntil(it, type_field(rgs), PunctuationToken(","), PunctuationToken("}"))
+        val args = repsepUntil(it, type_field(rgs), T.Punc(","), T.Punc("}"))
         punctuation(it, "}")
         val fields = args.zipWithIndex.map { case ((id, t), i) => Field(id, t, i) }
         TStruct(fields)
@@ -554,18 +496,18 @@ object IRParser {
 
   def keys(it: TokenIterator): IndexedSeq[String] = {
     punctuation(it, "[")
-    val keys = repsepUntil(it, identifier, PunctuationToken(","), PunctuationToken("]"))
+    val keys = repsepUntil(it, identifier, T.Punc(","), T.Punc("]"))
     punctuation(it, "]")
     keys
   }
 
   def trailing_keys(it: TokenIterator): IndexedSeq[String] = {
     it.head match {
-      case x: PunctuationToken if x.value == "]" =>
+      case T.Punc("]") =>
         ArraySeq.empty
-      case x: PunctuationToken if x.value == "," =>
+      case T.Punc(",") =>
         punctuation(it, ",")
-        repsepUntil(it, identifier, PunctuationToken(","), PunctuationToken("]"))
+        repsepUntil(it, identifier, T.Punc(","), T.Punc("]"))
     }
   }
 
@@ -583,6 +525,7 @@ object IRParser {
         identifier(it, "row")
         punctuation(it, ":")
         val rowType = tcoerce[PStruct](ptype_expr(rgs)(it))
+        punctuation(it, "}")
         RVDType(rowType, partitionKey ++ restKey)
     }
   }
@@ -747,7 +690,7 @@ object IRParser {
 
   def named_value_irs(ctx: ExecuteContext, env: BindingEnv[Type])(it: TokenIterator)
     : StackFrame[IndexedSeq[(String, IR)]] =
-    repUntil(it, named_value_ir(ctx, env), PunctuationToken(")"))
+    repUntil(it, named_value_ir(ctx, env), T.Punc(")"))
 
   def named_value_ir(ctx: ExecuteContext, env: BindingEnv[Type])(it: TokenIterator)
     : StackFrame[(String, IR)] = {
@@ -770,7 +713,7 @@ object IRParser {
 
   def ir_value_children(ctx: ExecuteContext, env: BindingEnv[Type])(it: TokenIterator)
     : StackFrame[IndexedSeq[IR]] =
-    repUntil(it, ir_value_expr(ctx, env), PunctuationToken(")"))
+    repUntil(it, ir_value_expr(ctx, env), T.Punc(")"))
 
   def ir_value_expr(ctx: ExecuteContext, env: BindingEnv[Type])(it: TokenIterator)
     : StackFrame[IR] = {
@@ -846,7 +789,7 @@ object IRParser {
         } yield Switch(x, default, cases)
       case "Let" | "Block" =>
         val names =
-          repUntilNonStackSafe(it, it => (identifier(it), name(it)), PunctuationToken("("))
+          repUntilNonStackSafe(it, it => (identifier(it), name(it)), T.Punc("("))
         val bindings = new Array[Binding](names.length)
         var e = env
         for {
@@ -1037,7 +980,7 @@ object IRParser {
       case "NDArrayFilter" =>
         for {
           nd <- ir_value_expr(ctx, env)(it)
-          filters <- repUntil(it, ir_value_expr(ctx, env), PunctuationToken(")"))
+          filters <- repUntil(it, ir_value_expr(ctx, env), T.Punc(")"))
         } yield NDArrayFilter(nd, filters)
       case "NDArrayMatMul" =>
         val errorID = int32_literal(it)
@@ -1499,7 +1442,7 @@ object IRParser {
         val writerStr = string_literal(it)
         implicit val formats: Formats = BlockMatrixWriter.formats
         val writer = deserialize[BlockMatrixMultiWriter](writerStr)
-        repUntil(it, blockmatrix_ir(ctx), PunctuationToken(")")).map { blockMatrices =>
+        repUntil(it, blockmatrix_ir(ctx), T.Punc(")")).map { blockMatrices =>
           BlockMatrixMultiWrite(blockMatrices, writer)
         }
       case "CollectDistributedArray" =>
@@ -1519,9 +1462,9 @@ object IRParser {
         done(ctx.PersistedIrCache(id).deepCopy.asInstanceOf[IR])
       case "ReadPartition" =>
         val requestedTypeRaw = it.head match {
-          case x: IdentifierToken if x.value == "None" || x.value == "DropRowUIDs" =>
-            consumeToken(it): Unit
-            Left(x.value)
+          case T.Ident(v @ ("None" | "DropRowUIDs")) =>
+            it.next(): Unit
+            Left(v)
           case _ =>
             Right(type_expr(ctx.references)(it))
         }
@@ -1563,7 +1506,7 @@ object IRParser {
   }
 
   def table_ir_children(ctx: ExecuteContext)(it: TokenIterator): StackFrame[IndexedSeq[TableIR]] =
-    repUntil(it, table_ir(ctx), PunctuationToken(")"))
+    repUntil(it, table_ir(ctx), T.Punc(")"))
 
   def table_ir(ctx: ExecuteContext)(it: TokenIterator): StackFrame[TableIR] = {
     punctuation(it, "(")
@@ -1589,9 +1532,9 @@ object IRParser {
         } yield TableFilter(child, pred)
       case "TableRead" =>
         val requestedTypeRaw = it.head match {
-          case x: IdentifierToken if x.value == "None" || x.value == "DropRowUIDs" =>
-            consumeToken(it): Unit
-            Left(x.value)
+          case T.Ident(v @ ("None" | "DropRowUIDs")) =>
+            it.next(): Unit
+            Left(v)
           case _ =>
             Right(table_type_expr(ctx.references)(it))
         }
@@ -1786,7 +1729,7 @@ object IRParser {
   }
 
   def matrix_ir_children(ctx: ExecuteContext)(it: TokenIterator): StackFrame[IndexedSeq[MatrixIR]] =
-    repUntil(it, matrix_ir(ctx), PunctuationToken(")"))
+    repUntil(it, matrix_ir(ctx), T.Punc(")"))
 
   def matrix_ir(ctx: ExecuteContext)(it: TokenIterator): StackFrame[MatrixIR] = {
     punctuation(it, "(")
@@ -1869,10 +1812,9 @@ object IRParser {
         } yield MatrixAggregateRowsByKey(child, entryExpr, rowExpr)
       case "MatrixRead" =>
         val requestedTypeRaw = it.head match {
-          case x: IdentifierToken
-              if x.value == "None" || x.value == "DropColUIDs" || x.value == "DropRowUIDs" || x.value == "DropRowColUIDs" =>
-            consumeToken(it): Unit
-            Left(x.value)
+          case T.Ident(v @ ("None" | "DropColUIDs" | "DropRowUIDs" | "DropRowColUIDs")) =>
+            it.next(): Unit
+            Left(v)
           case _ =>
             Right(matrix_type_expr(ctx.references)(it))
         }
@@ -2114,9 +2056,11 @@ object IRParser {
     }
   }
 
-  def parse[T](s: String, f: (TokenIterator) => T): T = {
-    val it = IRLexer.parse(s).iterator.buffered
-    f(it)
+  def parse[A](s: String, f: (TokenIterator) => A): A = {
+    val it = new IRLexer(s).buffered
+    val result = f(it)
+    if (it.hasNext) error(it.head, s"Unexpected trailing ${it.head.kind} '${it.head.value}'.")
+    result
   }
 
   def parse_value_ir(ctx: ExecuteContext, s: String, typeEnv: BindingEnv[Type] = BindingEnv.empty)
