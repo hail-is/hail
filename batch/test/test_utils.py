@@ -318,7 +318,7 @@ def test_gcp_pool_n4_fraction_is_a_partial_rollout():
     ],
 )
 def test_gcp_pool_rollout_machine_type(worker_type, cores, draw, expected):
-    assert gcp_pool_rollout_machine_type(worker_type, cores, draw) == expected
+    assert gcp_pool_rollout_machine_type(cores, worker_type, draw) == expected
 
 
 @pytest.mark.parametrize(

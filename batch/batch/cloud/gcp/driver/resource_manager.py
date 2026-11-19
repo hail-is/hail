@@ -78,7 +78,7 @@ class GCPResourceManager(CloudResourceManager):
         return family_worker_type_cores_to_gcp_machine_type(GCP_MACHINE_FAMILY, worker_type, cores)
 
     def rollout_machine_type(self, cores: int, worker_type: str) -> Optional[str]:
-        return gcp_pool_rollout_machine_type(worker_type, cores, random.random())
+        return gcp_pool_rollout_machine_type(cores, worker_type, random.random())
 
     def instance_config(
         self,

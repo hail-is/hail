@@ -381,7 +381,7 @@ def family_worker_type_cores_to_gcp_machine_type(family: str, worker_type: str, 
     return f'{family}-{worker_type}-{cores}'
 
 
-def gcp_pool_rollout_machine_type(worker_type: str, cores: int, draw: float) -> Optional[str]:
+def gcp_pool_rollout_machine_type(cores: int, worker_type: str, draw: float) -> Optional[str]:
     """The n4 machine type a new autoscaled pool instance is rolled out onto, given a uniform random
     `draw` in [0, 1): an n4 machine type for a GCP_POOL_N4_FRACTION share of draws, and None for the
     rest or when n4 has no machine type with this worker type and core count."""
