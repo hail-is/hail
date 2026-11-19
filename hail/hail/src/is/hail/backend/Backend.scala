@@ -97,14 +97,12 @@ abstract class Backend extends Closeable {
     sortFields: IndexedSeq[SortField],
     rt: RTable,
     nPartitions: Option[Int] = None,
-  ): TableReader = {
-    val analyses = LoweringAnalyses.apply(inputIR, ctx)
-    val inputStage = tableToTableStage(ctx, inputIR, analyses)
-    lowerDistributedSort(ctx, inputStage, sortFields, rt, nPartitions)
-  }
+  ): TableReader =
+    ctx.local(analyses = LoweringAnalyses(inputIR, ctx)) { ctx =>
+      lowerDistributedSort(ctx, tableToTableStage(ctx, inputIR), sortFields, rt, nPartitions)
+    }
 
-  def tableToTableStage(ctx: ExecuteContext, inputIR: TableIR, analyses: LoweringAnalyses)
-    : TableStage
+  def tableToTableStage(ctx: ExecuteContext, inputIR: TableIR): TableStage
 
   def execute(ctx: ExecuteContext, ir: IR): Either[Unit, (PTuple, Long)]
 

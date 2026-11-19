@@ -5,32 +5,28 @@ import is.hail.expr.ir._
 
 object LowerToCDA {
 
-  def apply(ir: IR, typesToLower: DArrayLowering.Type, ctx: ExecuteContext): IR = {
-    val analyses = LoweringAnalyses.apply(ir, ctx)
-
-    lower(ir, typesToLower, ctx, analyses)
-  }
+  def apply(ir: IR, typesToLower: DArrayLowering.Type, ctx: ExecuteContext): IR =
+    ctx.local(analyses = LoweringAnalyses(ir, ctx))(lower(ir, typesToLower, _))
 
   def lower(
     ir: IR,
     typesToLower: DArrayLowering.Type,
     ctx: ExecuteContext,
-    analyses: LoweringAnalyses,
   ): IR = ir match {
     case node if node.children.forall(_.isInstanceOf[IR]) =>
-      ir.mapChildren { case c: IR => lower(c, typesToLower, ctx, analyses) }
+      ir.mapChildren { case c: IR => lower(c, typesToLower, ctx) }
 
     case node
         if node.children.exists(n => n.isInstanceOf[TableIR]) && node.children.forall(n =>
           n.isInstanceOf[TableIR] || n.isInstanceOf[IR]
         ) =>
-      LowerTableIR(ir, typesToLower, ctx, analyses)
+      LowerTableIR(ir, typesToLower, ctx)
 
     case node
         if node.children.exists(n => n.isInstanceOf[BlockMatrixIR]) && node.children.forall(n =>
           n.isInstanceOf[BlockMatrixIR] || n.isInstanceOf[IR]
         ) =>
-      LowerBlockMatrixIR(ir, typesToLower, ctx, analyses)
+      LowerBlockMatrixIR(ir, typesToLower, ctx)
 
     case node if node.children.exists(_.isInstanceOf[MatrixIR]) =>
       throw new LowererUnsupportedOperation(
