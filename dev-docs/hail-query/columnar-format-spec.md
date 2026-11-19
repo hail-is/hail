@@ -221,7 +221,9 @@ Field rules:
   MUST NOT assume the defaults.
 - **`reference_genomes`**: full definitions of every non-builtin reference genome
   used by any locus or interval-of-locus field (section 3.1). Builtin genomes
-  (`GRCh37`, `GRCh38`, `GRCm38`, `CanFam3`) MUST NOT be listed.
+  (`GRCh37`, `GRCh38`, `GRCm38`, `CanFam3`) MUST NOT be listed. Readers know a
+  builtin genome by its name alone, so a non-builtin genome MUST NOT have a
+  builtin's name, and writers MUST fail on one.
 
 ### 3.1 Reference genome definitions
 
@@ -364,7 +366,10 @@ These apply to every data file:
 ## 5. Type mapping
 
 Nullability: a Hail field or element is non-null in Arrow if and only if it is
-required in Hail. Note that 'required in Hail' refers to the PType/EmitType
+required in Hail. The exceptions are fields that the storage of a type adds:
+dict keys, an interval's `includes_start` and `includes_end`, and an ndarray's
+`data` are always non-null, and an ndarray's `shape` is always nullable (section
+5.4). Note that 'required in Hail' refers to the PType/EmitType
 level, not the virtual types/python types where there is no notion of true
 nullability and, to the user, everything appears nullable.
 
@@ -434,6 +439,14 @@ The allele representation depends on ploidy:
 ### 5.4 NDArray
 
 Data is stored row-major. `shape` has length *N*, the number of dimensions.
+Each dimension MUST fit in an `int32`; writers MUST fail on an ndarray with a
+longer dimension.
+
+`shape` is nullable, but writers MUST NOT write a null `shape` in a present
+ndarray, and `0.x` readers MUST reject one. Arrow's Parquet reader (pyarrow 26)
+can't read a non-nullable `fixed_size_list` that has a null ancestor, so a
+non-nullable `shape` would make every missing ndarray, and every ndarray under a
+missing value, unreadable by pyarrow.
 
 ### 5.5 Empty structs and tuples
 
@@ -486,21 +499,28 @@ it only through `hail.ir.TableColumnarWriter`, for tests.
 
 ### 7.1 Implemented
 
-For tables whose fields have the types listed in section 7.2.2:
+For tables:
 
 - the directory layout, file naming and commit protocol (sections 2 and 2.1);
 - the manifest root for `"kind": "table"` (section 3), including the base64 IPC
-  schemas, `distinctly_keyed`, a `null` `globals.file` for empty globals, and
-  collision-free internal field names;
+  schemas, `distinctly_keyed`, a `null` `globals.file` for empty globals,
+  collision-free internal field names, and `reference_genomes`, which lists
+  every non-builtin reference genome of a row or global field (section 3.1);
 - the partitions table (section 4.1). Partitioners that aren't strict for the
   table key are strictified before the write, so the key invariants hold;
 - row files with Row IDs (section 4.2), and the globals file (section 4.5);
-- the Parquet requirements (section 4.6): three-level `LIST` encoding, `STRING`
-  annotation, field IDs on both the Arrow fields and the Parquet nodes,
-  `ARROW:schema` in the footer, statistics, the page index, and zstd;
-- fixtures for a keyed table, an unkeyed table and a table with no globals,
-  generated from this spec with pyarrow alone, and pyarrow conformance tests that
-  read Hail's output without Hail.
+- the Parquet requirements (section 4.6): three-level `LIST` and standard `MAP`
+  encodings, `STRING` annotation, field IDs on both the Arrow fields and the
+  Parquet nodes, `ARROW:schema` in the footer, statistics, the page index, and
+  zstd;
+- every type in section 5, with its encoding and extension metadata, including
+  the missing dict key check (section 5.1). A field holding RNG state fails the
+  write with an error naming the field;
+- fixtures for a keyed table, an unkeyed table, a table with no globals, and a
+  table with every type that Hail's Python API can create, as required and
+  nullable fields and nested in structs and arrays, with loci on a non-builtin
+  reference genome. They are generated from this spec with pyarrow alone, and
+  pyarrow conformance tests read Hail's output without Hail.
 
 ### 7.2 Gaps
 
@@ -512,40 +532,18 @@ partitions table, or row-group alignment and leaf cap (section 4.6.1). Row group
 use parquet-java's default target size (128 MiB), which section 4.6.1 allows for
 row files.
 
-#### 7.2.2 Types
-
-The writer supports `bool`, `int32`, `int64`, `float32`, `float64`, `str`,
-`binary`, `struct` and `array`, except nested empty structs. It rejects every
-other type with an error naming the field: `tuple`, `set`, `dict`, `locus`,
-`interval`, `call` and `ndarray`, and nested empty structs. So:
-
-- `reference_genomes` is always `[]` (section 3.1);
-- the missing dict key check (section 5.1) and the locus, call, ndarray and empty
-  struct encodings (sections 5.2 to 5.5) are not implemented.
-
-The Hail-to-Arrow schema conversion (`is.hail.types.arrow.ArrowSchemaConversion`)
-maps every type in section 5, including empty structs and tuples as
-`hail.empty_struct` (section 5.5), and reads them back. Missing are the
-Arrow-to-Parquet translation of `map`, `fixed_size_list` and extension types
-(through their storage types, which includes `hail.empty_struct`'s `bool`) in
-`ColumnarSchema.toParquet`, and value emission for those types in
-`ColumnarPartitionWriter`.
-
-#### 7.2.3 Reading
+#### 7.2.2 Reading
 
 Not implemented. `TableIR.read` fails on a directory that has a `manifest.json`.
 So section 6's requirement that Hail 2's tests read every fixture is not met, and
 none of the reader requirements (rejecting unknown manifest fields, partitions
-table fields that don't match `kind` and `rows.key`, the `"long"` layout and
-schema mismatches) are exercised by Hail.
+table fields that don't match `kind` and `rows.key`, the `"long"` layout,
+schema mismatches and a null ndarray `shape`) are exercised by Hail.
 
-#### 7.2.4 Conformance fixtures
+#### 7.2.3 Conformance fixtures
 
 Section 6 lists fixtures that don't exist yet:
 
 - a matrix table with missing entries and present entries with missing fields;
-- every type in section 5. The existing fixtures cover only the types in section
-  7.2.2, and not every required and nullable combination of them: for example,
-  there is no nullable top-level array or struct, and no array with required
-  elements;
-- a non-builtin reference genome.
+- `binary`. Hail's Python API has no binary type, so the fixtures, which Hail's
+  tests write from Python, can't include it.

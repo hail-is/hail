@@ -9,7 +9,9 @@ import io
 import json
 import struct
 from itertools import pairwise
+from typing import NamedTuple, Optional
 
+import numpy as np
 import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
@@ -50,7 +52,7 @@ def read_parquet_file(path: str) -> pq.ParquetFile:
 
 
 def keyed_table(n_rows: int = 10, n_partitions: int = 3) -> hl.Table:
-    """A keyed table with every type the writer supports so far. The fixtures in
+    """A keyed table with primitive, struct and array fields. The fixtures in
     ``resources/columnar`` hold the same rows, and must change with it."""
     ht = hl.utils.range_table(n_rows, n_partitions=n_partitions)
     ht = ht.annotate(
@@ -353,18 +355,289 @@ def test_row_id_field_name_does_not_collide_with_row_fields():
     ]
 
 
-@pytest.mark.parametrize(
-    'annotate, message',
-    [
-        (lambda ht: ht.annotate(l=hl.locus('1', ht.idx + 1)), "row field 'l' has type locus<GRCh37>"),
-        (lambda ht: ht.annotate(s=hl.struct(e=hl.struct())), "row field 's.e' is an empty struct"),
-        (lambda ht: ht.annotate_globals(d=hl.dict({1: 2})), "global field 'd' has type dict<int32, int32>"),
-    ],
-)
-def test_types_the_writer_does_not_support_yet_are_rejected(annotate, message):
+EXTENSION_NAME = b'ARROW:extension:name'
+EXTENSION_METADATA = b'ARROW:extension:metadata'
+
+
+def parse_extension(f: pa.Field) -> tuple:
+    """The extension name and parsed metadata of a field whose extension type pyarrow doesn't know, which
+    pyarrow leaves in the Arrow field metadata. ``(None, None)`` for a field with no extension type."""
+    metadata = f.metadata or {}
+    if EXTENSION_NAME not in metadata:
+        return None, None
+    return metadata[EXTENSION_NAME].decode(), json.loads(metadata[EXTENSION_METADATA])
+
+
+def required_by_index(i: hl.Int32Expression, values: list, typ: hl.HailType) -> hl.Expression:
+    """``values[i]``, as an expression Hail infers to be required. Indexing a literal array would be
+    inferred optional."""
+    if isinstance(typ, (hl.tstruct, hl.ttuple)) and len(typ) == 0:
+        # hl.switch rejects branches of empty struct or tuple type as having different types. Every value
+        # of such a type is the same.
+        return hl.literal(values[0], typ)
+    switch = hl.switch(i)
+    for j, v in enumerate(values[:-1]):
+        switch = switch.when(j, hl.literal(v, typ))
+    return switch.default(hl.literal(values[-1], typ))
+
+
+def write_typed_fields(values: list, typ: hl.HailType) -> tuple:
+    """Writes a table whose row i has a required field ``x`` holding ``values[i]``, and a nullable field
+    ``x_opt`` holding the same value in even rows and missing in odd rows. Returns the fields' Arrow
+    schemas and their values as pyarrow reads them."""
+    ht = hl.utils.range_table(len(values), n_partitions=2)
+    ht = ht.annotate(x=required_by_index(ht.idx, values, typ))
+    ht = ht.annotate(x_opt=hl.or_missing(ht.idx % 2 == 0, ht.x))
     path = new_temp_file(extension='ht')
-    with pytest.raises(FatalError, match=message):
-        write_columnar(annotate(hl.utils.range_table(3)), path)
+    write_columnar(ht, path)
+
+    schema = decode_schema(read_manifest(path)['rows']['schema'])
+    rows = [r for _, f in row_files(path) for r in f.read().to_pylist()]
+    return schema.field('x'), schema.field('x_opt'), [r['x'] for r in rows], [r['x_opt'] for r in rows]
+
+
+class TypeCase(NamedTuple):
+    """A Hail type, values of it, and the Arrow storage type, extension name, extension metadata and stored
+    values that spec section 5 gives for them.
+
+    pyarrow parses the metadata of a canonical extension type itself and doesn't expose it. For such a
+    type, ``extension_metadata`` is None and ``canonical_type`` is the type pyarrow parses the field to,
+    whose repr shows the parameters it parsed."""
+
+    typ: hl.HailType
+    values: list
+    storage: pa.DataType
+    extension_name: Optional[str]
+    extension_metadata: Optional[dict]
+    stored: list
+    canonical_type: Optional[str] = None
+
+
+# Each case is built when its test runs, since building some cases initializes Hail.
+TYPE_CASES = {
+    'call': lambda: TypeCase(
+        hl.tcall,
+        [hl.Call([0, 1]), hl.Call([1, 1]), hl.Call([0, 1], phased=True), hl.Call([1]), hl.Call([])],
+        pa.int32(),
+        'hail.call',
+        {'encoding': 1},
+        # (allele representation << 3) | (ploidy << 1) | phased, from spec section 5.3.
+        [(1 << 3) | 4, (2 << 3) | 4, (1 << 3) | 4 | 1, (1 << 3) | 2, 0],
+    ),
+    'locus': lambda: TypeCase(
+        hl.tlocus('GRCh37'),
+        [hl.Locus('1', 5), hl.Locus('2', 10), hl.Locus('X', 7), hl.Locus('MT', 16569)],
+        pa.int64(),
+        'hail.locus',
+        {'reference_genome': 'GRCh37', 'contigs': hl.get_reference('GRCh37').contigs},
+        # (contig_index << 32) | position, from spec section 5.2. X and MT are GRCh37's 23rd and 25th contigs.
+        [(0 << 32) | 5, (1 << 32) | 10, (22 << 32) | 7, (24 << 32) | 16569],
+    ),
+    'set': lambda: TypeCase(
+        hl.tset(hl.tint32),
+        [{3, 1, 2}, set(), {5}],
+        # Hail infers a literal's set elements to be optional.
+        pa.list_(pa.field('element', pa.int32())),
+        'hail.set',
+        {},
+        [[1, 2, 3], [], [5]],
+    ),
+    'tuple': lambda: TypeCase(
+        hl.ttuple(hl.tint32, hl.tstr),
+        [(1, 'a'), (2, None), (3, 'c')],
+        pa.struct([pa.field('0', pa.int32()), pa.field('1', pa.string())]),
+        'hail.tuple',
+        {},
+        [{'0': 1, '1': 'a'}, {'0': 2, '1': None}, {'0': 3, '1': 'c'}],
+    ),
+    # A present empty struct or tuple is true, and a missing one null (spec section 5.5).
+    'empty_struct': lambda: TypeCase(
+        hl.tstruct(),
+        [hl.Struct(), hl.Struct(), hl.Struct()],
+        pa.bool_(),
+        'hail.empty_struct',
+        {'tuple': False},
+        [True, True, True],
+    ),
+    'empty_tuple': lambda: TypeCase(
+        hl.ttuple(),
+        [(), (), ()],
+        pa.bool_(),
+        'hail.empty_struct',
+        {'tuple': True},
+        [True, True, True],
+    ),
+    'interval': lambda: TypeCase(
+        hl.tinterval(hl.tint32),
+        [hl.Interval(1, 5, True, False), hl.Interval(2, 3, False, True), hl.Interval(7, 7, True, True)],
+        pa.struct([
+            pa.field('start', pa.int32()),
+            pa.field('end', pa.int32()),
+            pa.field('includes_start', pa.bool_(), False),
+            pa.field('includes_end', pa.bool_(), False),
+        ]),
+        'hail.interval',
+        {},
+        [
+            {'start': 1, 'end': 5, 'includes_start': True, 'includes_end': False},
+            {'start': 2, 'end': 3, 'includes_start': False, 'includes_end': True},
+            {'start': 7, 'end': 7, 'includes_start': True, 'includes_end': True},
+        ],
+    ),
+    'dict': lambda: TypeCase(
+        hl.tdict(hl.tstr, hl.tint32),
+        [{'b': 2, 'a': None}, {}, {'c': 3}],
+        pa.map_(pa.field('key', pa.string(), False), pa.field('value', pa.int32()), keys_sorted=True),
+        None,
+        None,
+        [[('a', None), ('b', 2)], [], [('c', 3)]],
+    ),
+    'ndarray': lambda: TypeCase(
+        hl.tndarray(hl.tfloat64, 2),
+        [np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]), np.zeros((0, 2)), np.array([[7.0]])],
+        # pyarrow replaces the storage type of this canonical extension type with its own, which names
+        # list elements 'item' and makes every field nullable. ArrowSchemaConversionSuite and
+        # ColumnarSchemaSuite check the stored layout; that x_opt reads at all shows that shape is
+        # nullable (spec section 5.4).
+        pa.struct([pa.field('data', pa.list_(pa.float64())), pa.field('shape', pa.list_(pa.int32(), 2))]),
+        'arrow.variable_shape_tensor',
+        None,
+        [
+            {'data': [1.0, 2.0, 3.0, 4.0, 5.0, 6.0], 'shape': [2, 3]},
+            {'data': [], 'shape': [0, 2]},
+            {'data': [7.0], 'shape': [1, 1]},
+        ],
+        # No dim_names, permutation or uniform_shape.
+        canonical_type='extension<arrow.variable_shape_tensor[value_type=double, ndim=2]>',
+    ),
+}
+
+
+@pytest.mark.parametrize('case', TYPE_CASES.keys())
+def test_types_have_the_specified_extension_and_encoding(case):
+    c = TYPE_CASES[case]()
+    x, x_opt, stored, stored_opt = write_typed_fields(c.values, c.typ)
+
+    for f in (x, x_opt):
+        if c.canonical_type is None:
+            assert parse_extension(f) == (c.extension_name, c.extension_metadata), f
+            storage_type = f.type
+        else:
+            assert isinstance(f.type, pa.BaseExtensionType), f
+            assert (f.type.extension_name, str(f.type)) == (c.extension_name, c.canonical_type), f
+            storage_type = f.type.storage_type
+        assert storage_type.equals(c.storage), f
+    assert not x.nullable
+    assert x_opt.nullable
+    assert stored == c.stored
+    assert stored_opt == [v if i % 2 == 0 else None for i, v in enumerate(c.stored)]
+
+
+# A non-builtin reference genome, defined as spec section 3.1 says. Its contig order is not
+# lexicographic: chr2 < chr10 < chr1 < chrX.
+CUSTOM_REFERENCE_GENOME = {
+    'name': 'ColumnarTestGenome',
+    'contigs': [
+        {'name': 'chr2', 'length': 1000},
+        {'name': 'chr10', 'length': 1000},
+        {'name': 'chr1', 'length': 1000},
+        {'name': 'chrX', 'length': 500},
+    ],
+    'xContigs': ['chrX'],
+    'yContigs': [],
+    'mtContigs': [],
+    'par': [{'start': {'contig': 'chrX', 'position': 1}, 'end': {'contig': 'chrX', 'position': 100}}],
+}
+
+
+def custom_reference_genome() -> hl.ReferenceGenome:
+    """``CUSTOM_REFERENCE_GENOME``, defined in Hail."""
+    definition = CUSTOM_REFERENCE_GENOME
+    return hl.ReferenceGenome(
+        definition['name'],
+        [c['name'] for c in definition['contigs']],
+        {c['name']: c['length'] for c in definition['contigs']},
+        x_contigs=definition['xContigs'],
+        y_contigs=definition['yContigs'],
+        mt_contigs=definition['mtContigs'],
+        par=[(p['start']['contig'], p['start']['position'], p['end']['position']) for p in definition['par']],
+    )
+
+
+def test_manifest_defines_only_non_builtin_reference_genomes():
+    rg = custom_reference_genome()
+    ht = hl.utils.range_table(2)
+    ht = ht.annotate(l=hl.locus('1', ht.idx + 1, reference_genome='GRCh37'))
+    ht = ht.annotate_globals(
+        ivs=[hl.interval(hl.locus('chr1', 1, reference_genome=rg), hl.locus('chr1', 5, reference_genome=rg))]
+    )
+    path = new_temp_file(extension='ht')
+    write_columnar(ht, path)
+
+    assert read_manifest(path)['reference_genomes'] == [CUSTOM_REFERENCE_GENOME]
+
+
+def column_index(file: pq.ParquetFile, path: str) -> int:
+    """The index of the Parquet leaf column at ``path``."""
+    return next(i for i in range(file.metadata.num_columns) if file.schema.column(i).path == path)
+
+
+def test_locus_keys_are_ordered_by_the_reference_genome():
+    rg = custom_reference_genome()
+    # Lexicographic order, which differs from the genome's.
+    contigs = ['chr1', 'chr10', 'chr2', 'chrX']
+    ht = hl.utils.range_table(8, n_partitions=3)
+    ht = ht.key_by(locus=hl.locus(hl.literal(contigs)[ht.idx % 4], ht.idx // 4 + 1, reference_genome=rg))
+    path = new_temp_file(extension='ht')
+    write_columnar(ht, path)
+
+    # (contig_index << 32) | position, in the genome's contig order chr2, chr10, chr1, chrX.
+    expected = [(c << 32) | p for c in range(4) for p in (1, 2)]
+    partitions = check_partitions_table(path)
+    assert [r['locus'] for _, f in row_files(path) for r in f.read().to_pylist()] == expected
+    for _, file in row_files(path):
+        locus = column_index(file, 'locus')
+        for i in range(file.metadata.num_row_groups):
+            loci = file.read_row_group(i, columns=['locus']).column('locus').to_pylist()
+            statistics = file.metadata.row_group(i).column(locus).statistics
+            assert (statistics.min, statistics.max) == (min(loci), max(loci))
+
+    # The bounds have the key's Arrow type, extension type included (spec section 4.1).
+    locus_extension = ('hail.locus', {'reference_genome': rg.name, 'contigs': rg.contigs})
+    bounds = read_parquet_file(f'{path}/partitions.parquet').schema_arrow
+    for bound in ('start', 'end'):
+        assert parse_extension(bounds.field(bound).type.field('locus')) == locus_extension
+    non_empty = [p for p in partitions if p['row_count'] > 0]
+    assert non_empty[0]['start'] == {'locus': expected[0]}
+    assert non_empty[-1]['end'] == {'locus': expected[-1]}
+
+
+def test_ndarrays_are_stored_row_major():
+    ht = hl.utils.range_table(1)
+    ht = ht.annotate(x=hl.nd.array([[1, 2, 3], [4, 5, 6]]).T)
+    path = new_temp_file(extension='ht')
+    write_columnar(ht, path)
+
+    ((_, file),) = row_files(path)
+    assert file.read().to_pylist()[0]['x'] == {'data': [1, 4, 2, 5, 3, 6], 'shape': [3, 2]}
+
+
+def test_an_ndarray_dimension_longer_than_int32_fails_the_write():
+    ht = hl.utils.range_table(1)
+    # No elements, so nothing large is allocated.
+    ht = ht.annotate(x=hl.nd.zeros((2**31, 0)))
+    path = new_temp_file(extension='ht')
+    with pytest.raises(FatalError, match="ndarray in field 'x' has a dimension longer than 2147483647"):
+        write_columnar(ht, path)
+    assert not is_committed(path)
+
+
+def test_a_missing_dict_key_fails_the_write():
+    ht = hl.utils.range_table(4, n_partitions=2)
+    ht = ht.annotate(s=hl.struct(d=hl.dict([(hl.or_missing(ht.idx != 2, 'k'), ht.idx)])))
+    path = new_temp_file(extension='ht')
+    with pytest.raises(FatalError, match="field 's.d' has a missing dict key.*Filter the missing dict key out"):
+        write_columnar(ht, path)
     assert not is_committed(path)
 
 
@@ -414,6 +687,56 @@ def assert_same_table(actual: str, expected: str) -> None:
         assert actual_globals.read().to_pylist() == expected_globals.read().to_pylist()
 
 
+def all_types_values(rg: hl.ReferenceGenome) -> list:
+    """For each type the columnar format can store, except binary, which Hail's Python API has no type
+    for, its name, Hail type, and the value of row ``i`` of the ``all_types`` fixture, for ``i`` in 0
+    to 3. ``generate.py`` holds the same values, encoded as
+    spec section 5 says, and must change with these."""
+    contigs = rg.contigs
+    calls = [hl.Call([0, 1]), hl.Call([1, 1]), hl.Call([0, 1], phased=True), hl.Call([1])]
+    return [
+        ('bool', hl.tbool, lambda i: i % 2 == 0),
+        ('int32', hl.tint32, lambda i: i - 1),
+        ('int64', hl.tint64, lambda i: i * 1_000_000_000_000 - 1),
+        ('float32', hl.tfloat32, lambda i: i / 4),
+        ('float64', hl.tfloat64, lambda i: i * 1.5),
+        ('str', hl.tstr, lambda i: f'v{i}'),
+        ('struct', hl.tstruct(a=hl.tint32, b=hl.tstr), lambda i: hl.Struct(a=i, b=str(i))),
+        ('empty_struct', hl.tstruct(), lambda i: hl.Struct()),
+        ('tuple', hl.ttuple(hl.tint32, hl.tstr), lambda i: (i, str(i))),
+        ('empty_tuple', hl.ttuple(), lambda i: ()),
+        ('array', hl.tarray(hl.tint32), lambda i: list(range(i))),
+        ('set', hl.tset(hl.tint32), lambda i: {3 - j for j in range(i)}),
+        ('dict', hl.tdict(hl.tstr, hl.tint32), lambda i: {str(3 - j): None if j == 1 else j for j in range(i)}),
+        ('locus', hl.tlocus(rg), lambda i: hl.Locus(contigs[i], i + 1, rg)),
+        ('builtin_locus', hl.tlocus('GRCh37'), lambda i: hl.Locus(str(i + 1), 100 + i, 'GRCh37')),
+        (
+            'interval',
+            hl.tinterval(hl.tlocus(rg)),
+            lambda i: hl.Interval(hl.Locus(contigs[i], 1, rg), hl.Locus(contigs[i], 10 + i, rg), True, i % 2 == 0),
+        ),
+        ('call', hl.tcall, lambda i: calls[i]),
+        ('ndarray', hl.tndarray(hl.tfloat64, 2), lambda i: np.arange(i * 2, dtype=np.float64).reshape((i, 2))),
+    ]
+
+
+def all_types_table() -> hl.Table:
+    """A keyed table of 4 rows in 2 row partitions with, for every type the columnar format can store, a
+    required field, a nullable field missing in odd rows, and the same value nested in a struct, alone
+    and in arrays with required and nullable elements."""
+    ht = hl.utils.range_table(4, n_partitions=2)
+    fields = {}
+    for name, typ, value in all_types_values(custom_reference_genome()):
+        x = required_by_index(ht.idx, [value(i) for i in range(4)], typ)
+        x_opt = hl.or_missing(ht.idx % 2 == 0, x)
+        fields[name] = x
+        fields[f'{name}_opt'] = x_opt
+        fields[f'{name}_nested'] = hl.struct(
+            req=x, opt=x_opt, req_arr=hl.array([x]), opt_arr=hl.array([x, hl.missing(typ)])
+        )
+    return ht.annotate(**fields).annotate_globals(g=5, gs='hello')
+
+
 def no_globals_table() -> hl.Table:
     ht = hl.utils.range_table(6, n_partitions=2)
     return ht.annotate(s=hl.str(ht.idx))
@@ -425,6 +748,7 @@ def no_globals_table() -> hl.Table:
         ('keyed', lambda: keyed_table(6, 2)),
         ('unkeyed', lambda: keyed_table(6, 2).key_by()),
         ('no_globals', no_globals_table),
+        ('all_types', all_types_table),
     ],
 )
 def test_output_matches_fixture(fixture, table):
