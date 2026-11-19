@@ -535,7 +535,7 @@ class Table(BaseTable):
     @typecheck_method(caller=str, s=expr_struct())
     def _select_globals(self, caller, s) -> 'Table':
         base, cleanup = self._process_joins(s)
-        analyze(caller, s, self._global_indices)
+        analyze(caller, s, self._global_indices, {self._row_axis})
         return cleanup(Table(ir.TableMapGlobals(base._tir, s._ir)))
 
     @classmethod
@@ -960,9 +960,11 @@ class Table(BaseTable):
         ...     release_date='2023-01-01'
         ... )
 
-        Note
-        ----
-        This method does not support aggregation.
+        Aggregate over rows to compute a global field:
+
+        >>> ht = ht.annotate_globals(n_rows=hl.agg.count())
+        >>> hl.eval(ht.n_rows)
+        1
 
         Parameters
         ----------
@@ -975,7 +977,7 @@ class Table(BaseTable):
             Table with new global field(s).
         """
         caller = 'Table.annotate_globals'
-        check_annotate_exprs(caller, named_exprs, self._global_indices, set())
+        check_annotate_exprs(caller, named_exprs, self._global_indices, {self._row_axis})
         return self._select_globals('Table.annotate_globals', self.globals.annotate(**named_exprs))
 
     def select_globals(self, *exprs, **named_exprs) -> 'Table':
@@ -1035,10 +1037,6 @@ class Table(BaseTable):
         ----
 
         See :meth:`.Table.select` for more information about using ``select`` methods.
-
-        Note
-        ----
-        This method does not support aggregation.
 
         Parameters
         ----------
@@ -1110,7 +1108,7 @@ class Table(BaseTable):
 
         """
         caller = 'Table.transmute_globals'
-        check_annotate_exprs(caller, named_exprs, self._global_indices, set())
+        check_annotate_exprs(caller, named_exprs, self._global_indices, {self._row_axis})
         fields_referenced = extract_refs_by_indices(named_exprs.values(), self._global_indices) - set(
             named_exprs.keys()
         )
