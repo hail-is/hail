@@ -661,6 +661,11 @@ async def create_billing_project(
 
         quote_authorized = quote_row['authorized_amount']
 
+        # Before the capacity check, so retrying a create whose response was lost doesn't count its own limit twice.
+        row = await tx.execute_and_fetchone('SELECT name_cs FROM billing_projects WHERE name = %s FOR UPDATE;', (name,))
+        if row is not None:
+            raise BatchOperationAlreadyCompletedError(f'Billing project {row["name_cs"]} already exists.', 'info')
+
         if limit is None:
             # Rule check before grant check: a missing limit on an ordinary quote is a bad request, not a caller bug.
             if quote_id != INTERNAL_QUOTE_ID or quote_authorized is not None:
@@ -674,10 +679,6 @@ async def create_billing_project(
                     f'Creating billing project with limit {limit} would exceed quote authorized amount {quote_authorized} '
                     f'(existing BPs use {existing_sum}).'
                 )
-
-        row = await tx.execute_and_fetchone('SELECT name_cs FROM billing_projects WHERE name = %s FOR UPDATE;', (name,))
-        if row is not None:
-            raise BatchOperationAlreadyCompletedError(f'Billing project {row["name_cs"]} already exists.', 'info')
 
         with invariant_violations_as_user_errors():
             await tx.execute_insertone(

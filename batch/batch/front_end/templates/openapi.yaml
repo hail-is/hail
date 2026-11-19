@@ -1174,7 +1174,8 @@ paths:
       summary: Edit a billing project
       description: >
         Update a billing project's limit and/or description. Requires EDIT_BP_METADATA billing permission,
-        plus EDIT_BP_LIMIT to change the limit. The billing project must be open.
+        plus EDIT_BP_LIMIT to change the limit. The limit can only be changed while the billing project is open;
+        the description can be edited on open or closed billing projects.
       tags: [Billing]
       parameters:
         - name: billing_project
@@ -1810,7 +1811,7 @@ paths:
                   nullable: true
       responses:
         '200':
-          description: Manager removed
+          description: Manager removed, or the user was not a manager of the quote (nothing changed)
           content:
             application/json:
               schema:
@@ -1825,7 +1826,7 @@ paths:
         '403':
           description: Forbidden - insufficient billing permissions
         '404':
-          description: Quote not found or user not a manager
+          description: Quote not found
   '/api/v1alpha/quotes/{name}/events':
     get:
       summary: Get quote event log
@@ -3747,6 +3748,15 @@ components:
         pm_designee:
           type: string
           nullable: true
+        state:
+          type: string
+          enum: [open, closed]
+        quote_number:
+          type: string
+          nullable: true
+        description:
+          type: string
+          nullable: true
         time_created:
           type: integer
           description: "Unix epoch milliseconds"
@@ -3772,6 +3782,15 @@ components:
           type: string
           nullable: true
         pm_designee:
+          type: string
+          nullable: true
+        state:
+          type: string
+          enum: [open, closed]
+        quote_number:
+          type: string
+          nullable: true
+        description:
           type: string
           nullable: true
         time_created:

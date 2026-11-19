@@ -188,6 +188,17 @@ async def test_create_billing_project_duplicate_raises(db, unique_name):
         await create_billing_project(db, bp_dup, q_row['id'], 100.0, 'admin', 'global_bm')
 
 
+async def test_create_billing_project_retry_when_quote_is_full_is_noop(db, unique_name):
+    """Retrying a create that used the quote's last headroom must not count the project's own limit twice."""
+    q_full = unique_name('q-full-retry')
+    bp_full = unique_name('bp-full-retry')
+    await create_quote(db, q_full, cost_object='CO', actor='admin', authorized_amount=100.0)
+    q_row = await db.select_and_fetchone('SELECT id FROM quotes WHERE name = %s', (q_full,))
+    await create_billing_project(db, bp_full, q_row['id'], 100.0, 'admin', 'global_bm')
+    with pytest.raises(BatchOperationAlreadyCompletedError):
+        await create_billing_project(db, bp_full, q_row['id'], 100.0, 'admin', 'global_bm')
+
+
 async def test_create_billing_project_logs_event(db, unique_name):
     q_log_bp = unique_name('q-log-bp')
     bp_log = unique_name('bp-log')

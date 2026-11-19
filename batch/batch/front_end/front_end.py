@@ -3472,11 +3472,15 @@ async def _verify_user_exists(request: web.Request, user: str) -> None:
         session_id = await get_session_id(request)
         assert session_id is not None
         url = deploy_config.url('auth', f'/api/v1alpha/users/{user}')
-        await impersonate_user(session_id, request.app[CommonAiohttpAppKeys.CLIENT_SESSION], url)
+        user_record = await impersonate_user(session_id, request.app[CommonAiohttpAppKeys.CLIENT_SESSION], url)
     except aiohttp.ClientResponseError as e:
         if e.status == 404:
             raise NonExistentUserError(user) from e
         raise
+    # impersonate_user returns None when auth refuses the lookup (401/403), which says nothing about whether the
+    # user exists, so don't let the write go ahead.
+    if user_record is None:
+        raise web.HTTPForbidden(reason=f'Could not verify that user {user} exists.')
 
 
 async def _add_user_to_billing_project(
