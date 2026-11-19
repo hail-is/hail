@@ -3161,9 +3161,11 @@ steps:
               --durations=50 \
               --log-date-format="%Y-%m-%dT%H:%M:%S" \
               --log-format="%(asctime)s %(levelname)s %(name)s %(filename)s:%(lineno)d:%(funcName)s %(message)s" \
-              -k "not test_scale and not test_invariants" \
               --timeout=360 \
-              /io/test/test_batch.py
+              /io/test/test_batch.py \
+              /io/test/test_accounts.py \
+              /io/test/test_aioclient.py \
+              /io/test/test_dag.py
     inputs:
       - from: /repo/batch/test
         to: /io/test
