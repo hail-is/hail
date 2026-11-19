@@ -24,7 +24,7 @@ class ConditionalBuilder:
             self._ret_type = t
         else:
             r = unify_types_limited(self._ret_type, t)
-            if not r:
+            if r is None:
                 raise TypeError("'then' expressions must have same type, found '{}' and '{}'".format(self._ret_type, t))
 
 
@@ -109,7 +109,7 @@ class SwitchBuilder(ConditionalBuilder):
             Mutates and returns `self`.
         """
         can_compare = unify_types(self._base.dtype, value.dtype)
-        if not can_compare:
+        if can_compare is None:
             raise TypeError("cannot compare expressions of type '{}' and '{}'".format(self._base.dtype, value.dtype))
 
         self._unify_type(then.dtype)

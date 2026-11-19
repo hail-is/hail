@@ -4611,3 +4611,65 @@ def test_zip_join_producers():
             ],
         ),
     ]
+
+
+empty_struct_and_tuple = pytest.mark.parametrize(
+    'value, dtype',
+    [(hl.Struct(), hl.tstruct()), ((), hl.ttuple())],
+    ids=['struct', 'tuple'],
+)
+
+
+@empty_struct_and_tuple
+def test_empty_type_is_truthy(value, dtype):
+    assert dtype
+
+
+@empty_struct_and_tuple
+def test_case_with_empty_branches(value, dtype):
+    e = hl.literal(value, dtype)
+    assert hl.eval(hl.case().when(True, e).default(e)) == value
+
+
+@empty_struct_and_tuple
+def test_switch_with_empty_branches(value, dtype):
+    e = hl.literal(value, dtype)
+    assert hl.eval(hl.switch(0).when(0, e).default(e)) == value
+
+
+@empty_struct_and_tuple
+def test_switch_on_empty(value, dtype):
+    e = hl.literal(value, dtype)
+    assert hl.eval(hl.switch(e).when(e, 1).default(2)) == 1
+
+
+@empty_struct_and_tuple
+def test_literal_set_of_empty(value, dtype):
+    e = hl.literal({value})
+    assert e.dtype == hl.tset(dtype)
+    assert hl.eval(e) == {value}
+
+
+@empty_struct_and_tuple
+def test_literal_dict_of_empty_values(value, dtype):
+    e = hl.literal({1: value})
+    assert e.dtype == hl.tdict(hl.tint32, dtype)
+    assert hl.eval(e) == {1: value}
+
+
+@empty_struct_and_tuple
+def test_literal_str_keyed_dict_of_empty_values(value, dtype):
+    assert hl.literal({'a': value}).dtype == hl.tdict(hl.tstr, dtype)
+
+
+@empty_struct_and_tuple
+def test_to_expr_checks_empty_dtype(value, dtype):
+    with pytest.raises(TypeError, match='expected expression of type'):
+        hl.expr.expressions.to_expr(hl.literal(1), dtype=dtype)
+
+
+@empty_struct_and_tuple
+def test_cast_expr_none_to_empty_dtype(value, dtype):
+    e = hl.expr.expressions.cast_expr(None, dtype)
+    assert e.dtype == dtype
+    assert hl.eval(e) is None
