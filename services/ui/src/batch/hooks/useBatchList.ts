@@ -106,6 +106,9 @@ export function useBatchList(basePath: string, username: string): UseBatchListRe
     } catch (e) {
       if (seq !== requestSeq.current) return;
       setError(String(e));
+      // The cursor we hold belongs to whatever page was showing before this search, so paging on
+      // from it under the new query could skip batches.
+      if (kind === 'search') setNextLastBatchId(undefined);
     } finally {
       if (seq === requestSeq.current) {
         setLoading(false);
@@ -119,6 +122,15 @@ export function useBatchList(basePath: string, username: string): UseBatchListRe
   useEffect(() => {
     void fetchData('search', q, pageLastBatchId);
   }, [q, pageLastBatchId, fetchData]);
+
+  // Actions refresh whichever page is showing when they finish, not the one they started on: the
+  // user may have searched or paged while the request was in flight.
+  const currentPage = useRef(page);
+  currentPage.current = page;
+  const refreshCurrentPage = useCallback(async () => {
+    const { q: currentQ, lastBatchId } = currentPage.current;
+    await fetchData('refresh', currentQ, lastBatchId);
+  }, [fetchData]);
 
   const isFirstPage = pageLastBatchId == null;
   const refreshActive = batches != null && (isFirstPage || batches.some((b) => !b.complete));
@@ -154,13 +166,13 @@ export function useBatchList(basePath: string, username: string): UseBatchListRe
 
   const cancelBatch = useCallback(async (batchId: number) => {
     await api.cancelBatch(String(batchId));
-    await fetchData('refresh', q, pageLastBatchId);
-  }, [api, fetchData, q, pageLastBatchId]);
+    await refreshCurrentPage();
+  }, [api, refreshCurrentPage]);
 
   const deleteBatch = useCallback(async (batchId: number) => {
     await api.deleteBatch(String(batchId));
-    await fetchData('refresh', q, pageLastBatchId);
-  }, [api, fetchData, q, pageLastBatchId]);
+    await refreshCurrentPage();
+  }, [api, refreshCurrentPage]);
 
   return {
     batches,

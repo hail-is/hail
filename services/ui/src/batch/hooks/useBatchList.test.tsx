@@ -113,6 +113,19 @@ describe('pagination', () => {
     expect(new URLSearchParams(window.location.search).get('last_batch_id')).toBeNull();
     expect(new URLSearchParams(window.location.search).get('q')).toBe('billing_project = proj');
   });
+
+  it('a failed search drops the previous query\'s next-page cursor', async () => {
+    const { result } = renderHook(() => useBatchList(BASE_PATH, 'alice'));
+    await flush();
+    expect(result.current.hasNextPage).toBe(true);
+
+    fetchMock.mockImplementationOnce(() =>
+      Promise.resolve({ ok: false, status: 400, statusText: 'Bad Request', text: () => Promise.resolve('bad query') }));
+    act(() => { result.current.setSearch('nonsense'); });
+    await flush();
+    expect(result.current.error).not.toBeNull();
+    expect(result.current.hasNextPage).toBe(false);
+  });
 });
 
 describe('auto-refresh', () => {
@@ -151,5 +164,24 @@ describe('actions', () => {
     expect(fetchMock.mock.calls[before + 2][0]).toBe(`${BASE_PATH}/api/v1alpha/batches/870`);
     expect(fetchMock.mock.calls[before + 2][1]?.method).toBe('DELETE');
     expect(fetchMock.mock.calls[before + 3][0]).toContain('/api/v2alpha/batches?');
+  });
+
+  it('refreshes the page showing when the action finishes, not the one it started on', async () => {
+    const { result } = renderHook(() => useBatchList(BASE_PATH, 'alice'));
+    await flush();
+
+    let finishCancel!: () => void;
+    fetchMock.mockImplementationOnce(() => new Promise((resolve) => {
+      finishCancel = () => { resolve({ ok: true, text: () => Promise.resolve('') }); };
+    }));
+    let cancelling!: Promise<void>;
+    act(() => { cancelling = result.current.cancelBatch(900); });
+    act(() => { result.current.setSearch('billing_project = proj'); });
+    await flush();
+
+    await act(async () => { finishCancel(); await cancelling; });
+    const last = requestedParams(fetchMock.mock.calls.length - 1);
+    expect(last.get('q')).toBe('billing_project = proj');
+    expect(result.current.q).toBe('billing_project = proj');
   });
 });
