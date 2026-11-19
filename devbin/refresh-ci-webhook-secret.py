@@ -42,7 +42,7 @@ def run(args, input=None):  # pylint: disable=redefined-builtin
 def spin(name, getter):
     """Run getter() while displaying a spinner, then print the result string it returns."""
     stop = threading.Event()
-    result = [None]
+    value = None
     error: BaseException | None = None
     prefix = f'{name}: '
 
@@ -56,7 +56,7 @@ def spin(name, getter):
     t = threading.Thread(target=_spin, daemon=True)
     t.start()
     try:
-        result[0] = getter()
+        value = getter()
     except Exception as e:
         error = e
     finally:
@@ -67,9 +67,9 @@ def spin(name, getter):
         print(f'\r{prefix}FAILED{"":<50}')
         raise error
 
-    line = f'{prefix}{result[0]}'
+    line = f'{prefix}{value}'
     print(f'\r{line:<60}')
-    return result[0]
+    return value
 
 
 def confirm(prompt):
