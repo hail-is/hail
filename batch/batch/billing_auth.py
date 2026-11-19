@@ -20,7 +20,8 @@ _ALL_BILLING_PERMISSIONS: set[BillingPermission] = set(BillingPermission)
 
 BILLING_ROLE_PERMISSIONS: dict[str, set[BillingPermission]] = {
     # Removing other users from a billing project (MANAGE_BP_MEMBERS) is global-billing-manager only; any member can
-    # still remove themselves.
+    # still remove themselves. So is moving a billing project between quotes (CHANGE_BP_QUOTE): its whole spend
+    # history and its limit check go with it to the destination quote.
     'global_bm': _ALL_BILLING_PERMISSIONS,
     'quote_owner': {
         BillingPermission.VIEW_QUOTE,
@@ -33,7 +34,6 @@ BILLING_ROLE_PERMISSIONS: dict[str, set[BillingPermission]] = {
         BillingPermission.EDIT_BP_LIMIT,
         BillingPermission.EDIT_BP_METADATA,
         BillingPermission.CLOSE_REOPEN_BP,
-        BillingPermission.CHANGE_BP_QUOTE,
         BillingPermission.VIEW_EVENTS,
     },
     'quote_manager': {
@@ -44,7 +44,6 @@ BILLING_ROLE_PERMISSIONS: dict[str, set[BillingPermission]] = {
         BillingPermission.EDIT_BP_LIMIT,
         BillingPermission.EDIT_BP_METADATA,
         BillingPermission.CLOSE_REOPEN_BP,
-        BillingPermission.CHANGE_BP_QUOTE,
         BillingPermission.VIEW_EVENTS,
     },
     'bp_member': {

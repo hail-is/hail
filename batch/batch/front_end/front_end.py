@@ -3741,6 +3741,13 @@ async def api_patch_billing_project(request: web.Request, userdata: UserData) ->
     return json_response({'billing_project': billing_project})
 
 
+_HISTORY_MOVE_WARNING = (
+    "Moving a billing project takes its whole spend history to the destination quote: the destination quote's"
+    " managers see all of it, the source quote's managers no longer do, and the billing project's limit is still"
+    " checked against its all-time spend. Set 'acknowledge_history_move' to true to proceed."
+)
+
+
 @routes.post('/api/v1alpha/billing_projects/{billing_project}/change_quote')
 @auth.authenticated_users_only()
 @billing_permission_required(BillingPermission.CHANGE_BP_QUOTE)
@@ -3748,19 +3755,16 @@ async def api_change_billing_project_quote(request: web.Request, userdata: UserD
     db: Database = request.app['db']
     billing_project = request.match_info['billing_project']
     body = await _json_body(request)
-    _reject_unknown_keys(body, ('quote_name', 'comment'))
+    _reject_unknown_keys(body, ('quote_name', 'acknowledge_history_move', 'comment'))
     dest_quote_name = _optional_str(body, 'quote_name')
     comment = _optional_str(body, 'comment')
     if not dest_quote_name:
         raise web.HTTPBadRequest(reason="'quote_name' is required.")
+    if body.get('acknowledge_history_move') is not True:
+        raise web.HTTPBadRequest(reason=_HISTORY_MOVE_WARNING)
 
-    try:
-        dest_target = await quote_target(db, userdata, dest_quote_name, BillingPermission.CHANGE_BP_QUOTE)
-        dest_grant = await require(db, userdata, BillingPermission.CHANGE_BP_QUOTE, dest_target)
-    except web.HTTPForbidden as e:
-        raise web.HTTPForbidden(
-            reason='You must be a manager of the destination quote to move a billing project there.'
-        ) from e
+    dest_target = await quote_target(db, userdata, dest_quote_name, BillingPermission.CHANGE_BP_QUOTE)
+    dest_grant = await require(db, userdata, BillingPermission.CHANGE_BP_QUOTE, dest_target)
 
     # Authorize against the source quote itself, so the move fails if the billing project changes quote before the
     # write rather than being authorized by the caller's role on the quote it used to be under.

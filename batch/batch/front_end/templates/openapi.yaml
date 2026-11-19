@@ -1423,9 +1423,15 @@ paths:
     post:
       summary: Move billing project to a different quote
       description: >
-        Move a billing project to a different quote. The caller must have CHANGE_BP_QUOTE
-        permission on the billing project's current quote, and must also be a manager of
-        the destination quote.
+        Move a billing project to a different quote. Global billing managers only.
+
+
+        **Warning:** the billing project's whole spend history moves with it. The destination
+        quote's managers see all of its past spend (including spend the source quote paid for),
+        the source quote's managers no longer see it, and billing history reports it under the
+        destination quote. The billing project's limit is still checked against its all-time
+        spend, so it must cover past spend for jobs to keep running. The request must set
+        `acknowledge_history_move: true`.
       tags: [Billing]
       parameters:
         - name: billing_project
@@ -1441,11 +1447,15 @@ paths:
             schema:
               type: object
               additionalProperties: false
-              required: [quote_name]
+              required: [quote_name, acknowledge_history_move]
               properties:
                 quote_name:
                   type: string
                   description: Name of the destination quote
+                acknowledge_history_move:
+                  type: boolean
+                  enum: [true]
+                  description: Must be true, to confirm the caller accepts that spend history moves with the project
                 comment:
                   type: string
                   description: Optional audit comment
@@ -1462,15 +1472,15 @@ paths:
                   quote_name:
                     type: string
         '400':
-          description: Bad request (unknown field, limit would exceed destination quota, etc.)
+          description: >
+            Bad request (unknown field, acknowledge_history_move not true, limit would exceed destination quota,
+            etc.)
         '401':
           description: Unauthorized
         '403':
-          description: >
-            Forbidden - insufficient billing permissions, or the destination quote does not exist and the caller
-            is not a global billing manager
+          description: Forbidden - the caller is not a global billing manager
         '404':
-          description: Billing project not found, or destination quote not found (global billing managers only)
+          description: Billing project or destination quote not found
         '409':
           description: The billing project was moved to another quote while the request was in progress; retry
   '/api/v1alpha/billing_projects/{billing_project}/events':
