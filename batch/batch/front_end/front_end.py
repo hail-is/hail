@@ -380,7 +380,7 @@ def _parse_authorized_amount(value: Any) -> float:
     return amount
 
 
-def parse_billing_limit_or_400(value: Any) -> Optional[float]:
+def _parse_billing_limit_or_400(value: Any) -> Optional[float]:
     try:
         return parse_billing_limit(value)
     except InvalidBillingLimitError as e:
@@ -3579,7 +3579,7 @@ async def api_get_create_billing_projects(request: web.Request, userdata: UserDa
         if not userdata['system_permissions'].get(SystemPermission.CREATE_BILLING_PROJECTS, False):
             raise web.HTTPBadRequest(reason="'quote_name' is required.")
         quote_name = 'INTERNAL'
-    limit = parse_billing_limit_or_400(body.get('limit'))
+    limit = _parse_billing_limit_or_400(body.get('limit'))
     description = _optional_str(body, 'description')
     initial_users = body.get('initial_users', [])
     if not isinstance(initial_users, list) or not all(isinstance(u, str) for u in initial_users):
@@ -3722,7 +3722,7 @@ async def api_patch_billing_project(request: web.Request, userdata: UserData) ->
     unlimited_grant = None
     if 'limit' in body:
         limit_grant = await require(db, userdata, BillingPermission.EDIT_BP_LIMIT, target)
-        updates['limit'] = parse_billing_limit_or_400(body['limit'])
+        updates['limit'] = _parse_billing_limit_or_400(body['limit'])
         if updates['limit'] is None:
             unlimited_grant = await require(db, userdata, BillingPermission.SET_UNLIMITED, GlobalTarget())
     if 'description' in body:
