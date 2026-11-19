@@ -386,6 +386,28 @@ echo "kernel modules before worker start: $(echo $BOOT_MODULES)"
     done
 ) &
 
+# Log each distinct process (by name and cgroup) that calls io_uring_setup, to learn whether anything
+# uses io_uring. Fires on attempts, so it also shows who gets EPERM once io_uring is disabled
+IO_URING_SETUP_EVENT=/sys/kernel/tracing/events/syscalls/sys_enter_io_uring_setup
+if [ -d $IO_URING_SETUP_EVENT ]; then
+    echo 1 > $IO_URING_SETUP_EVENT/enable
+    (
+        set +x
+        declare -A SEEN
+        while read -r line; do
+            comm=$(echo "$line" | sed -E 's/^ *(.*)-[0-9]+ +\[.*$/\1/')
+            pid=$(echo "$line" | sed -E 's/^.*-([0-9]+) +\[.*$/\1/')
+            cgroup=$(cat /proc/$pid/cgroup 2>/dev/null | tr '\n' ' ')
+            if [ -z "${{SEEN["$comm $cgroup"]}}" ]; then
+                SEEN["$comm $cgroup"]=1
+                echo "io_uring_setup called: comm=$comm pid=$pid cgroup=$cgroup"
+            fi
+        done < /sys/kernel/tracing/trace_pipe
+    ) &
+else
+    echo "io_uring_setup tracepoint not available, not logging io_uring use"
+fi
+
 # So here I go it's my shot.
 docker run \
 --name worker \
