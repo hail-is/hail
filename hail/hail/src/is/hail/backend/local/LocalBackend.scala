@@ -136,7 +136,6 @@ object LocalBackend extends Backend with Logging {
   ): TableReader =
     LowerDistributedSort.distributedSort(ctx, stage, sortFields, rt, nPartitions)
 
-  override def tableToTableStage(ctx: ExecuteContext, inputIR: TableIR, analyses: LoweringAnalyses)
-    : TableStage =
-    LowerTableIR.applyTable(inputIR, DArrayLowering.All, ctx, analyses)
+  override def tableToTableStage(lctx: LoweringContext, inputIR: TableIR): TableStage =
+    LowerTableIR.applyTable(inputIR, DArrayLowering.All, lctx)
 }

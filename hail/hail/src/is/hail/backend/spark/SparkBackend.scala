@@ -404,13 +404,12 @@ class SparkBackend(val spark: SparkSession) extends Backend with Logging {
     RVDTableReader(RVD.unkeyed(rowPType, orderedCRDD), globalsLit, rt)
   }
 
-  override def tableToTableStage(ctx: ExecuteContext, inputIR: TableIR, analyses: LoweringAnalyses)
-    : TableStage =
-    CanLowerEfficiently(ctx, inputIR) match {
+  override def tableToTableStage(lctx: LoweringContext, inputIR: TableIR): TableStage =
+    CanLowerEfficiently(lctx.ctx, inputIR) match {
       case Some(failReason) =>
         logger.info(s"SparkBackend: could not lower IR to table stage: $failReason")
-        ExecuteRelational(ctx, inputIR).asTableStage(ctx)
+        ExecuteRelational(lctx, inputIR).asTableStage(lctx.ctx)
       case None =>
-        LowerTableIR.applyTable(inputIR, DArrayLowering.All, ctx, analyses)
+        LowerTableIR.applyTable(inputIR, DArrayLowering.All, lctx)
     }
 }

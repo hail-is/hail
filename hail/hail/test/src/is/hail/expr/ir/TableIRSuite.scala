@@ -12,7 +12,7 @@ import is.hail.expr.ir.TestUtils._
 import is.hail.expr.ir.analyses.PartitionCounts
 import is.hail.expr.ir.defs._
 import is.hail.expr.ir.lowering.{
-  DArrayLowering, ExecuteRelational, LowerTableIR, LoweringAnalyses, Optimize,
+  DArrayLowering, ExecuteRelational, LowerTableIR, LoweringContext, Optimize,
 }
 import is.hail.methods.{ForceCountTable, NPartitionsTable}
 import is.hail.rvd.RVDPartitioner
@@ -985,7 +985,7 @@ class TableIRSuite {
     val table = TableRange(5, 4)
     val path = ctx.createTmpPath("test-table-write", "ht")
     Interpret[Unit](ctx, TableWrite(table, TableNativeWriter(path)))
-    val before = ExecuteRelational(ctx, table).asTableValue(ctx)
+    val before = ExecuteRelational(LoweringContext(ctx, table), table).asTableValue(ctx)
     val read = TableIR.read(ctx.fs, ctx.references, path, requestedType = Some(table.typ))
     assert(read.isDistinctlyKeyed)
     val after = unoptimized(Interpret(read, _))
@@ -1455,8 +1455,8 @@ class TableIRSuite {
             FastSeq("interval"),
           )
 
-          val leftTV = ExecuteRelational(ctx, left).asTableValue(ctx)
-          val rightTV = ExecuteRelational(ctx, right).asTableValue(ctx)
+          val leftTV = ExecuteRelational(LoweringContext(ctx, left), left).asTableValue(ctx)
+          val rightTV = ExecuteRelational(LoweringContext(ctx, right), right).asTableValue(ctx)
           val rightPointType =
             rightTV.rvd.rowPType.fieldType("interval").asInstanceOf[PInterval].pointType
           assert(rightPointType.isInstanceOf[PCanonicalLocus], rightPointType)
@@ -1759,8 +1759,7 @@ class TableIRSuite {
       )),
     )
     val optimized = Optimize(ctx, irToLower)
-    val analyses = LoweringAnalyses.apply(optimized, ctx)
-    LowerTableIR(optimized, DArrayLowering.All, ctx, analyses): Unit
+    LowerTableIR(optimized, DArrayLowering.All, LoweringContext(ctx, optimized)): Unit
   }
 
   @Test def testTableMapPartitions(implicit ctx: ExecuteContext): Unit = {

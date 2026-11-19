@@ -1,8 +1,8 @@
 package is.hail.expr.ir.lowering
 
 import is.hail.backend.ExecuteContext
-import is.hail.expr.ir.{Requiredness, _}
-import is.hail.types._
+import is.hail.expr.ir._
+import is.hail.types.RTable
 import is.hail.utils.TimedBlock
 
 object LowerAndExecuteShuffles {
@@ -13,28 +13,28 @@ object LowerAndExecuteShuffles {
         ir,
         {
           case t @ TableKeyBy(child, key, _, nPartitions) if !t.definitelyDoesNotShuffle =>
-            val r = Requiredness(child, ctx)
-            val reader = ctx.backend.lowerDistributedSort(
-              ctx,
-              child,
-              key.map(k => SortField(k, Ascending)),
-              r.lookup(child).asInstanceOf[RTable],
-              nPartitions,
-            )
+            val reader =
+              lowerDistributedSort(ctx, child, key.map(k => SortField(k, Ascending)), nPartitions)
             Some(TableRead(t.typ, false, reader))
 
           case t @ TableOrderBy(child, sortFields) if !t.definitelyDoesNotShuffle =>
-            val r = Requiredness(child, ctx)
-            val reader = ctx.backend.lowerDistributedSort(
-              ctx,
-              child,
-              sortFields,
-              r.lookup(child).asInstanceOf[RTable],
-            )
+            val reader = lowerDistributedSort(ctx, child, sortFields)
             Some(TableRead(t.typ, false, reader))
 
           case _ => None
         },
       )
     }
+
+  private def lowerDistributedSort(
+    ctx: ExecuteContext,
+    child: TableIR,
+    sortFields: IndexedSeq[SortField],
+    nPartitions: Option[Int] = None,
+  ): TableReader = {
+    val lctx = LoweringContext(ctx, child)
+    val rt = lctx.requiredness.lookup(child).asInstanceOf[RTable]
+    val stage = ctx.backend.tableToTableStage(lctx, child)
+    ctx.backend.lowerDistributedSort(ctx, stage, sortFields, rt, nPartitions)
+  }
 }

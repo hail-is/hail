@@ -1,6 +1,5 @@
 package is.hail.expr.ir.lowering
 
-import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
 import is.hail.expr.ir._
 import is.hail.expr.ir.defs._
@@ -10,20 +9,21 @@ import is.hail.types.virtual.TStruct
 object LowerTableIRHelpers {
 
   def lowerTableJoin(
-    ctx: ExecuteContext,
-    analyses: LoweringAnalyses,
+    lctx: LoweringContext,
     tj: TableJoin,
     loweredLeft: TableStage,
     loweredRight: TableStage,
   ): TableStage = {
+    import lctx.ctx
+
     val TableJoin(left, right, joinType, joinKey) = tj
     val lKeyFields = left.typ.key.take(joinKey)
     val lValueFields = left.typ.rowType.fieldNames.filter(f => !lKeyFields.contains(f))
     val rKeyFields = right.typ.key.take(joinKey)
     val rValueFields = right.typ.rowType.fieldNames.filter(f => !rKeyFields.contains(f))
-    val lReq = analyses.requirednessAnalysis.lookup(left).asInstanceOf[RTable]
-    val rReq = analyses.requirednessAnalysis.lookup(right).asInstanceOf[RTable]
-    val rightKeyIsDistinct = analyses.distinctKeyedAnalysis.contains(right)
+    val lReq = lctx.requiredness.lookup(left).asInstanceOf[RTable]
+    val rReq = lctx.requiredness.lookup(right).asInstanceOf[RTable]
+    val rightKeyIsDistinct = lctx.distinctKeyed.contains(right)
 
     val joinedStage = loweredLeft.orderedJoin(
       ctx,

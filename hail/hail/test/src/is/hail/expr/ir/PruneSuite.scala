@@ -8,7 +8,7 @@ import is.hail.expr.Nat
 import is.hail.expr.ir.PruneDeadFields.TypeState
 import is.hail.expr.ir.defs._
 import is.hail.expr.ir.implicits.forTesting._
-import is.hail.expr.ir.lowering.ExecuteRelational
+import is.hail.expr.ir.lowering.{ExecuteRelational, LoweringContext}
 import is.hail.methods.{ForceCountMatrixTable, ForceCountTable}
 import is.hail.rvd.RVD
 import is.hail.types._
@@ -137,9 +137,8 @@ class PruneSuite {
     )
   }
 
-  def tab(implicit ctx: ExecuteContext) = TableLiteral(
-    ExecuteRelational(
-      ctx,
+  def tab(implicit ctx: ExecuteContext) = {
+    val keyed =
       TableKeyBy(
         TableParallelize(
           Literal(
@@ -168,10 +167,13 @@ class PruneSuite {
         ),
         FastSeq("3"),
         false,
-      ),
-    ).asTableValue(ctx),
-    ctx.theHailClassLoader,
-  )
+      )
+
+    TableLiteral(
+      ExecuteRelational(LoweringContext(ctx, keyed), keyed).asTableValue(ctx),
+      ctx.theHailClassLoader,
+    )
+  }
 
   def tr(implicit ctx: ExecuteContext) = TableRead(
     tab.typ,

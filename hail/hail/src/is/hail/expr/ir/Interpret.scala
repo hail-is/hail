@@ -8,7 +8,7 @@ import is.hail.collection.FastSeq
 import is.hail.collection.implicits._
 import is.hail.expr.ir.analyses.PartitionCounts
 import is.hail.expr.ir.defs._
-import is.hail.expr.ir.lowering.{ExecuteRelational, LoweringPipeline}
+import is.hail.expr.ir.lowering.{ExecuteRelational, LoweringContext, LoweringPipeline}
 import is.hail.expr.ir.lowering.Optimize.Flags.Optimize
 import is.hail.io.BufferSpec
 import is.hail.linalg.BlockMatrix
@@ -31,13 +31,13 @@ object Interpret extends Logging {
     TypeCheck(ctx, tir)
     val lowered =
       LoweringPipeline.legacyRelationalLowerer(ctx, tir).asInstanceOf[TableIR]
-    ExecuteRelational(ctx, lowered).asTableValue(ctx)
+    ExecuteRelational(LoweringContext(ctx, lowered), lowered).asTableValue(ctx)
   }
 
   def apply(mir: MatrixIR, ctx: ExecuteContext): TableValue = {
     TypeCheck(ctx, mir)
     val lowered = LoweringPipeline.legacyRelationalLowerer(ctx, mir).asInstanceOf[TableIR]
-    ExecuteRelational(ctx, lowered).asTableValue(ctx)
+    ExecuteRelational(LoweringContext(ctx, lowered), lowered).asTableValue(ctx)
   }
 
   def apply(bmir: BlockMatrixIR, ctx: ExecuteContext): BlockMatrix = {
@@ -60,25 +60,27 @@ object Interpret extends Logging {
     val ir = Let(bindings, ir0)
     TypeCheck(ctx, ir)
     val lowered = LoweringPipeline.relationalLowerer(ctx, ir).asInstanceOf[IR]
-    val result = run(ctx, lowered, Env.empty[Any], args, Memo.empty).asInstanceOf[T]
+    val result =
+      run(LoweringContext(ctx, lowered), lowered, Env.empty[Any], args, Memo.empty).asInstanceOf[T]
     result
   }
 
   def alreadyLowered(ctx: ExecuteContext, ir: IR): Any =
     ctx.local(flags = ctx.flags - Optimize) { ctx =>
-      run(ctx, ir, Env.empty, FastSeq(), Memo.empty)
+      run(LoweringContext(ctx, ir), ir, Env.empty, FastSeq(), Memo.empty)
     }
 
   private def run(
-    ctx: ExecuteContext,
+    lctx: LoweringContext,
     ir: IR,
     env: Env[Any],
     args: IndexedSeq[(Any, Type)],
     functionMemo: Memo[(SingleCodeType, AsmFunction2RegionLongLong)],
   ): Any = {
+    import lctx.ctx
 
     def interpret(ir: IR, env: Env[Any] = env, args: IndexedSeq[(Any, Type)] = args): Any =
-      run(ctx, ir, env, args, functionMemo)
+      run(lctx, ir, env, args, functionMemo)
 
     ir match {
       case I32(x) => x
@@ -936,23 +938,23 @@ object Interpret extends Logging {
       case TableCount(child) =>
         PartitionCounts(child)
           .map(_.sum)
-          .getOrElse(ExecuteRelational(ctx, child).asTableValue(ctx).rvd.count())
+          .getOrElse(ExecuteRelational(lctx, child).asTableValue(ctx).rvd.count())
       case TableGetGlobals(child) =>
-        ExecuteRelational(ctx, child).asTableValue(ctx).globals.safeJavaValue
+        ExecuteRelational(lctx, child).asTableValue(ctx).globals.safeJavaValue
       case TableCollect(child) =>
-        val tv = ExecuteRelational(ctx, child).asTableValue(ctx)
+        val tv = ExecuteRelational(lctx, child).asTableValue(ctx)
         RowSeq(tv.rvd.collect(ctx), tv.globals.safeJavaValue)
       case TableMultiWrite(children, writer) =>
-        val tvs = children.map(child => ExecuteRelational(ctx, child).asTableValue(ctx))
+        val tvs = children.map(child => ExecuteRelational(lctx, child).asTableValue(ctx))
         writer(ctx, tvs)
       case TableWrite(child, writer) =>
-        writer(ctx, ExecuteRelational(ctx, child).asTableValue(ctx))
+        writer(ctx, ExecuteRelational(lctx, child).asTableValue(ctx))
       case BlockMatrixWrite(child, writer) =>
         writer(ctx, child.execute(ctx))
       case BlockMatrixMultiWrite(blockMatrices, writer) =>
         writer(ctx, blockMatrices.map(_.execute(ctx)))
       case TableToValueApply(child, function) =>
-        function.execute(ctx, ExecuteRelational(ctx, child).asTableValue(ctx))
+        function.execute(ctx, ExecuteRelational(lctx, child).asTableValue(ctx))
       case BlockMatrixToValueApply(child, function) =>
         function.execute(ctx, child.execute(ctx))
       case BlockMatrixCollect(child) =>
@@ -961,14 +963,14 @@ object Interpret extends Logging {
         val lm = bm.transpose().toDenseMatrix()
         val shape = IndexedSeq(bm.nRows, bm.nCols)
         SafeNDArray(shape, ArraySeq.unsafeWrapArray(lm.toArray))
-      case x @ TableAggregate(child, query) =>
-        val value = ExecuteRelational(ctx, child).asTableValue(ctx)
+      case TableAggregate(child, query) =>
+        val value = ExecuteRelational(lctx, child).asTableValue(ctx)
         val fsBc = ctx.fsBc
 
         val globalsBc = value.globals.broadcast(ctx.theHailClassLoader)
         val globalsOffset = value.globals.value.offset
 
-        val extracted = agg.Extract(ctx, query, Requiredness(x, ctx)).independent
+        val extracted = agg.Extract(ctx, query, lctx.requiredness).independent
         val aggSigs = extracted.sigs
 
         val wrapped = if (aggSigs.isEmpty) {
