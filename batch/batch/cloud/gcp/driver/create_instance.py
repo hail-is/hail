@@ -367,6 +367,25 @@ docker pull $BATCH_WORKER_IMAGE || \
 
 BATCH_WORKER_IMAGE_ID=$(docker inspect $BATCH_WORKER_IMAGE --format='{{{{.Id}}}}' | cut -d':' -f2)
 
+# Log the kernel modules loaded before the worker starts, then any loaded since, to learn which
+# modules jobs need
+BOOT_MODULES=$(cut -d' ' -f1 /proc/modules | sort)
+modules_loaded_since_boot() {{
+    comm -13 <(echo "$BOOT_MODULES") <(cut -d' ' -f1 /proc/modules | sort) | tr '\n' ' '
+}}
+echo "kernel modules before worker start: $(echo $BOOT_MODULES)"
+(
+    set +x
+    LOGGED=""
+    while sleep 300; do
+        NEW=$(modules_loaded_since_boot)
+        if [ "$NEW" != "$LOGGED" ]; then
+            echo "kernel modules loaded since worker start: $NEW"
+            LOGGED="$NEW"
+        fi
+    done
+) &
+
 # So here I go it's my shot.
 docker run \
 --name worker \
@@ -417,6 +436,8 @@ $BATCH_WORKER_IMAGE \
 python3 -u -m batch.worker.worker >worker.log 2>&1
 
 [ $? -eq 0 ] || tail -n 1000 worker.log
+
+echo "kernel modules loaded since worker start (worker exited): $(modules_loaded_since_boot)"
 
 while true; do
 gcloud -q compute instances delete $NAME --zone=$ZONE
