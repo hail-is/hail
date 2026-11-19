@@ -17,7 +17,7 @@ DOCKER_ROOT_IMAGE=$(get_global_config_field docker_root_image $NAMESPACE)
 # When you bump the WORKER_IMAGE_VERSION, you should also update:
 # - the INSTANCE_VERSION in globals.py (add one to the current value)
 # - the image name in batch/batch/cloud/gcp/driver/create_instance.py (should match this value)
-WORKER_IMAGE_VERSION=26
+WORKER_IMAGE_VERSION=27
 
 if [ "$NAMESPACE" == "default" ]; then
     WORKER_IMAGE=batch-worker-${WORKER_IMAGE_VERSION}
