@@ -33,7 +33,7 @@ aws cloudformation create-stack --stack-name bootstrap --template-body file://bo
 When the stack reaches `CREATE_COMPLETE`, the bootstrap instance is ready. Connect to the instance using EC2 Instance Connect:
 ```
 BOOTSTRAP_INSTANCE_ID=$(aws cloudformation describe-stack-resources --stack-name bootstrap --logical-resource-id BootstrapInstance --query "StackResources[0].PhysicalResourceId" --output text)
-aws ec2-instance-connect ssh --os-user root --instance-id $BOOTSTRAP_INSTANCE_ID
+aws ec2-instance-connect ssh --connection-type eice --os-user root --instance-id $BOOTSTRAP_INSTANCE_ID
 ```
 
 On the bootstrap instance, set up environment variables and activate the virtual environment Hail was installed in:

@@ -73,12 +73,32 @@ Resources:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupDescription: Security group allowing EC2 Instance Connect SSH access
-      SecurityGroupIngress:
-        - CidrIp: 0.0.0.0/0
+      VpcId: !ImportValue VdcNetwork
+  BootstrapInstanceConnectEndpoint:
+    Type: AWS::EC2::InstanceConnectEndpoint
+    Properties:
+      SubnetId: !ImportValue VdcSubnet
+      SecurityGroupIds:
+          - !GetAtt BootstrapInstanceConnectEndpointSecurityGroup.GroupId
+      PreserveClientIp: false
+  BootstrapInstanceConnectEndpointSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for the EC2 Instance Connect Endpoint used to reach the bootstrap instance
+      SecurityGroupEgress:
+        - DestinationSecurityGroupId: !GetAtt BootstrapInstanceSSHSecurityGroup.GroupId
           FromPort: 22
           ToPort: 22
           IpProtocol: tcp
       VpcId: !ImportValue VdcNetwork
+  BootstrapInstanceSSHAccess:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !GetAtt BootstrapInstanceSSHSecurityGroup.GroupId
+      IpProtocol: tcp
+      FromPort: 22
+      ToPort: 22
+      SourceSecurityGroupId: !GetAtt BootstrapInstanceConnectEndpointSecurityGroup.GroupId
   BootstrapInstanceClusterAccess:
     Type: AWS::EC2::SecurityGroupIngress
     Properties:
