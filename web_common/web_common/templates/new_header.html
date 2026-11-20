@@ -43,6 +43,7 @@
 
     {% if userdata and userdata['system_permissions']['read_ci'] %}
     {% call header_item("CI", ci_base_url) %}
+    <a class="block hover:bg-slate-100 px-2 py-1" href="{{ ci_base_url }}/prs">PRs</a>
     <a class="block hover:bg-slate-100 px-2 py-1" href="{{ ci_base_url }}/me">Me</a>
     <a class="block hover:bg-slate-100 px-2 py-1" href="{{ ci_base_url }}/namespaces">Namespaces</a>
     <a class="block hover:bg-slate-100 px-2 py-1" href="{{ ci_base_url }}/flaky_tests">Flaky Tests</a>

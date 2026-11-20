@@ -230,6 +230,12 @@ ci/ci/static/compiled-js/pr.js: services/ui/dist/.built
 
 ci-image: ci/ci/static/compiled-js/pr.js
 
+ci/ci/static/compiled-js/prs.js: services/ui/dist/.built
+	mkdir -p $(@D)
+	cp services/ui/dist/ci/prs.js $@
+
+ci-image: ci/ci/static/compiled-js/prs.js
+
 batch/batch/front_end/static/compiled-js/job.js: services/ui/dist/.built
 	mkdir -p $(@D)
 	cp services/ui/dist/batch/job.js $@
@@ -350,6 +356,7 @@ tailwind-compile-watch:
 
 run-dev-proxy: ci/ci/static/compiled-js/flaky_tests.js \
     ci/ci/static/compiled-js/pr.js \
+    ci/ci/static/compiled-js/prs.js \
     batch/batch/front_end/static/compiled-js/job.js \
     batch/batch/front_end/static/compiled-js/batch.js \
     batch/batch/driver/static/compiled-js/index.js \
@@ -374,7 +381,7 @@ ui-js-watch: services/ui/node_modules/.package-lock.json
 
 .PHONY: ui-js-watch-pr
 ui-js-watch-pr: services/ui/node_modules/.package-lock.json
-	cd services/ui && npx esbuild src/ci/pr.tsx --bundle --jsx=automatic --format=esm --outfile=../../ci/ci/static/compiled-js/pr.js --minify --watch=forever
+	cd services/ui && npx esbuild src/ci/pr.tsx src/ci/prs.tsx --bundle --jsx=automatic --format=esm --outdir=../../ci/ci/static/compiled-js --minify --watch=forever
 
 .PHONY: ui-js-watch-batch
 ui-js-watch-batch: services/ui/node_modules/.package-lock.json
