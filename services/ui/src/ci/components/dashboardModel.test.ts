@@ -27,7 +27,7 @@ function branch(overrides: Partial<DeveloperBranchStatus> = {}): DeveloperBranch
 }
 
 function entry(overrides: Partial<MergeQueueEntry> = {}): MergeQueueEntry {
-  return { pr: 1, blockers: [], failures: 0, backoff_until_ms: null, ...overrides };
+  return { pr: 1, source_sha: 'src', blockers: [], failures: 0, backoff_until_ms: null, ...overrides };
 }
 
 describe('deployDisplay', () => {

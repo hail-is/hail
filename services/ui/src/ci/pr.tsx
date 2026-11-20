@@ -9,6 +9,7 @@ import { BatchStateIcon } from '../shared/BatchStateIcon';
 import { useTip, FloatingTip } from '../shared/useTip';
 import { AutoRefreshBar } from '../shared/AutoRefreshBar';
 import { formatTimestamp } from '../shared/timeUtils';
+import { EventLog } from './components/EventLog';
 
 const REFRESH_INTERVAL_MS = 30_000;
 
@@ -973,6 +974,17 @@ function PrPage({ basePath, batchBaseUrl, wbIndex, prNumber }: {
       <div className="mt-4">
         <h2 className="text-lg font-semibold text-zinc-700 mb-2">Build Batch History</h2>
         <BatchHistoryTable batches={history} batchBaseUrl={batchBaseUrl} />
+      </div>
+
+      <div className="mt-4">
+        <h2 className="text-lg font-semibold text-zinc-700 mb-2">Events</h2>
+        <EventLog
+          basePath={basePath}
+          batchBaseUrl={batchBaseUrl}
+          targetBranch={wbBranch}
+          pr={Number(prNumber)}
+          refreshKey={countdownKey}
+        />
       </div>
     </div>
   );

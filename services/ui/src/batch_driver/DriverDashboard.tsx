@@ -5,6 +5,7 @@ import { formatDuration, formatRelative, formatTimestamp } from '../shared/timeU
 import { hasPermission } from '../shared/authUtils';
 import { SegmentedBar, Segment } from '../shared/SegmentedBar';
 import { hailApiFetch as apiFetch } from '../shared/hailApiFetch';
+import { DataTr, TD_BASE, TH_BASE, Td, Th } from '../shared/Table';
 import { useTip, FloatingTip } from '../shared/useTip';
 
 const REFRESH_INTERVAL_MS = 30_000;
@@ -95,27 +96,12 @@ function InstanceStateIcon({ state }: { state: string }): JSX.Element {
 
 // ── Table primitives ──────────────────────────────────────────────────────────
 
-const TH_BASE = 'whitespace-nowrap px-2.5 py-0.5 text-white bg-zinc-500 font-normal text-left border-r border-zinc-400 last:border-r-0';
-const TD_BASE = 'px-2.5 py-0.5';
-
-function Th({ children, className = '', colSpan }: { children?: React.ReactNode; className?: string; colSpan?: number }): JSX.Element {
-  return <th colSpan={colSpan} className={`${TH_BASE} ${className}`}>{children}</th>;
-}
-
-function Td({ children, className = '' }: { children?: React.ReactNode; className?: string }): JSX.Element {
-  return <td className={`${TD_BASE} ${className}`}>{children}</td>;
-}
-
 function TdNum({ children }: { children?: React.ReactNode }): JSX.Element {
   return <td className={`${TD_BASE} text-right tabular-nums`}>{children}</td>;
 }
 
 function FootTd({ children, className = '' }: { children?: React.ReactNode; className?: string }): JSX.Element {
   return <td className={`${TH_BASE} font-bold ${className}`}>{children}</td>;
-}
-
-function DataTr({ children }: { children: React.ReactNode }): JSX.Element {
-  return <tr className="even:bg-zinc-100 hover:bg-zinc-200">{children}</tr>;
 }
 
 // ── Sortable column header ────────────────────────────────────────────────────

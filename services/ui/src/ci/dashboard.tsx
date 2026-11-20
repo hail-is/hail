@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import {
   createCiApi,
   type CiApi,
+  type CIEvent,
   type CiDeveloperStatus,
   type CiOperatorStatus,
   type DeployStatus,
@@ -14,6 +15,8 @@ import {
 import { hasPermission } from '../shared/authUtils';
 import { AutoRefreshBar } from '../shared/AutoRefreshBar';
 import { Panel } from '../shared/Panel';
+import { EventLog, MessageCell } from './components/EventLog';
+import { currentMergeFailures } from './components/eventLogModel';
 import { disableReactUi } from '../shared/reactUiCookie';
 import { formatRelative, formatTimestamp } from '../shared/timeUtils';
 import {
@@ -216,8 +219,17 @@ function DeploySection({ branch, repo, batchBaseUrl, failure, failureError }: {
   );
 }
 
-function MergeSection({ branch, prBase, nowMs }: { branch: DeveloperBranchStatus; prBase: string; nowMs: number }): JSX.Element {
+function MergeSection({ branch, branchFqn, prBase, nowMs, mergeFailedEvents }: {
+  branch: DeveloperBranchStatus;
+  branchFqn: string | undefined;
+  prBase: string;
+  nowMs: number;
+  mergeFailedEvents: CIEvent[];
+}): JSX.Element {
   const paused = mergePausedLabel(branch.merge_paused_reason);
+  const failures = branchFqn === undefined
+    ? new Map<number, CIEvent>()
+    : currentMergeFailures(mergeFailedEvents, branchFqn, branch.sha, branch.merge_queue);
   return (
     <Tile title="Merge queue">
       {paused && <p className="text-sm text-amber-700 mb-1">{paused}</p>}
@@ -233,13 +245,24 @@ function MergeSection({ branch, prBase, nowMs }: { branch: DeveloperBranchStatus
           <ol className="text-sm">
             {branch.merge_queue.map((entry) => {
               const status = mergeQueueStatus(entry, nowMs);
+              const failure = failures.get(entry.pr);
               return (
-                <li key={entry.pr} className="flex gap-2 py-0.5">
-                  <span className="w-16 shrink-0"><PrLink pr={entry.pr} prBase={prBase} /></span>
-                  {entry.pr === branch.merge_candidate && (
-                    <span className="shrink-0 rounded bg-sky-100 px-1.5 text-xs leading-5 text-sky-800">candidate</span>
+                <li key={entry.pr} className="py-0.5">
+                  <div className="flex gap-2">
+                    <span className="w-16 shrink-0"><PrLink pr={entry.pr} prBase={prBase} /></span>
+                    {entry.pr === branch.merge_candidate && (
+                      <span className="shrink-0 rounded bg-sky-100 px-1.5 text-xs leading-5 text-sky-800">candidate</span>
+                    )}
+                    <span className={toneClass(status.tone)}>{status.text}</span>
+                  </div>
+                  {failure && (
+                    <div className="ml-[4.5rem] text-xs text-zinc-600">
+                      <span className="text-red-600" title={formatTimestamp(failure.time)}>
+                        merge failed {formatRelative(Date.parse(failure.time))}:
+                      </span>{' '}
+                      <MessageCell message={failure.message} />
+                    </div>
                   )}
-                  <span className={toneClass(status.tone)}>{status.text}</span>
                 </li>
               );
             })}
@@ -332,7 +355,7 @@ function PrCountTile({ href, n }: { href: string; n: number }): JSX.Element {
   );
 }
 
-function BranchPanel({ index, branch, summary, op, basePath, batchBaseUrl, failure, failureError, nowMs }: {
+function BranchPanel({ index, branch, summary, op, basePath, batchBaseUrl, failure, failureError, nowMs, mergeFailedEvents }: {
   index: number;
   branch: DeveloperBranchStatus;
   summary: WatchedBranchSummary | undefined;
@@ -342,6 +365,7 @@ function BranchPanel({ index, branch, summary, op, basePath, batchBaseUrl, failu
   failure: DeployStatus | undefined;
   failureError: string | null;
   nowMs: number;
+  mergeFailedEvents: CIEvent[];
 }): JSX.Element {
   const prBase = `${basePath}/watched_branches/${index}/pr`;
   const lastUpdate = branch.last_update;
@@ -359,7 +383,13 @@ function BranchPanel({ index, branch, summary, op, basePath, batchBaseUrl, failu
           failure={failure}
           failureError={failureError}
         />
-        <MergeSection branch={branch} prBase={prBase} nowMs={nowMs} />
+        <MergeSection
+          branch={branch}
+          branchFqn={summary?.branch_fqn}
+          prBase={prBase}
+          nowMs={nowMs}
+          mergeFailedEvents={mergeFailedEvents}
+        />
         <BuildSlotsSection branch={branch} prBase={prBase} />
         {op && <OperatorBranchTiles op={op} />}
       </div>
@@ -414,6 +444,57 @@ function OperatorPanel({ op }: { op: CiOperatorStatus }): JSX.Element {
             )}
         </Tile>
       </div>
+    </Panel>
+  );
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function FilterChip({ label, active, onToggle }: { label: string; active: boolean; onToggle: () => void }): JSX.Element {
+  return (
+    <button
+      type="button"
+      aria-pressed={active}
+      onClick={onToggle}
+      className={`text-xs px-2 py-0.5 rounded-full border transition-colors ${active ? 'bg-sky-500 border-sky-500 text-white' : 'border-zinc-300 text-zinc-500 hover:border-sky-400 hover:text-sky-600 bg-white'}`}
+    >
+      {label}
+    </button>
+  );
+}
+
+// One feed for every event; the filters stack. PR events are off by default since each PR page has its own
+// feed, but PR-scoped errors still show.
+function EventsPanel({ basePath, batchBaseUrl, refreshKey, prHref }: {
+  basePath: string;
+  batchBaseUrl: string;
+  refreshKey: number;
+  prHref: (e: CIEvent) => string | null;
+}): JSX.Element {
+  const [errorsOnly, setErrorsOnly] = useState(false);
+  const [lastDay, setLastDay] = useState(true);
+  const [prEvents, setPrEvents] = useState(false);
+  return (
+    <Panel
+      title="Events"
+      viewSelector={
+        <div className="flex flex-wrap gap-1.5">
+          <FilterChip label="Errors" active={errorsOnly} onToggle={() => { setErrorsOnly((v) => !v); }} />
+          <FilterChip label="Last 24h" active={lastDay} onToggle={() => { setLastDay((v) => !v); }} />
+          <FilterChip label="PR events" active={prEvents} onToggle={() => { setPrEvents((v) => !v); }} />
+        </div>
+      }
+    >
+      <EventLog
+        basePath={basePath}
+        batchBaseUrl={batchBaseUrl}
+        errorsOnly={errorsOnly}
+        sinceWindowMs={lastDay ? DAY_MS : undefined}
+        includePrEvents={prEvents}
+        hideBranch
+        refreshKey={refreshKey}
+        prHref={prHref}
+      />
     </Panel>
   );
 }
@@ -483,6 +564,22 @@ function DashboardPage({ basePath, batchBaseUrl }: { basePath: string; batchBase
     return () => { clearInterval(id); };
   }, [autoRefresh, refresh]);
 
+  // Recent merge failures, for the reasons shown next to merge-queue entries. Refetched with each
+  // status refresh; the reasons are a nicety, so errors are ignored.
+  const [mergeFailedEvents, setMergeFailedEvents] = useState<CIEvent[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    api.getEvents({ event: 'merge_failed', limit: 100 })
+      .then((r) => { if (!cancelled) setMergeFailedEvents(r.rows); })
+      .catch(() => { /* leave the previous reasons */ });
+    return () => { cancelled = true; };
+  }, [api, countdownKey]);
+
+  const prHref = useCallback((e: CIEvent) => {
+    const summary = summaries.find((s) => s.branch_fqn === e.target_branch);
+    return summary === undefined ? null : `${basePath}/watched_branches/${summary.index}/pr/${e.pr_number}`;
+  }, [basePath, summaries]);
+
   const failedKey = dev ? failedDeploysKey(dev.branches) : '';
   useEffect(() => {
     if (failedKey === '') {
@@ -537,9 +634,16 @@ function DashboardPage({ basePath, batchBaseUrl }: { basePath: string; batchBase
                 failure={deployStatus.at(i)}
                 failureError={deployError}
                 nowMs={nowMs}
+                mergeFailedEvents={mergeFailedEvents}
               />
             );
           })}
+          <EventsPanel
+            basePath={basePath}
+            batchBaseUrl={batchBaseUrl}
+            refreshKey={countdownKey}
+            prHref={prHref}
+          />
           {op && <OperatorPanel op={op} />}
         </div>
       </>
