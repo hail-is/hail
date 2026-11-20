@@ -4,7 +4,7 @@ import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.collection.FastSeq
 import is.hail.expr.ir.EmitCodeBuilder
-import is.hail.types.physical.{PCanonicalLocus, PType}
+import is.hail.types.physical.{PCanonicalLocus, PLocus, PType}
 import is.hail.types.physical.stypes.{SSettable, SType, SValue}
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.virtual.Type
@@ -101,7 +101,7 @@ class SCanonicalLocusPointerValue(
   override def position(cb: EmitCodeBuilder): Value[Int] = _position
 
   override def packed(cb: EmitCodeBuilder): Value[Long] =
-    cb.memoize((contigIdx(cb).toL << 32) | _position.toL)
+    PLocus.pack(cb, st.rg, contigIdx(cb), _position)
 
   override def structRepr(cb: EmitCodeBuilder): SBaseStructValue = new SBaseStructPointerValue(
     SBaseStructPointer(st.pType.representation),
