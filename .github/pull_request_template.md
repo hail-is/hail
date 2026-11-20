@@ -4,6 +4,26 @@ Fixes #<issue_number> (delete if N/A)
 
 Brief description and justification of what this PR is doing.
 
+<details>
+  <summary>Additional details</summary>
+  A place to put longform (or generated) change descriptions. Delete if unnecessary
+</details>
+
+## Merge Impact
+
+What's the immediate impact of merging this PR? Note and distinguish between immediate, unavoidable impacts and 
+impacts which are delayed, gated or only activate in specific situations.
+
+## Reversibility
+
+How easy is it to roll back this PR if something goes wrong? Consider reasons why a simple revert PR might not work
+(including potentially needing to update the deployed image in k8s manually if CI is unable to deploy the revert).
+
+## Validation
+
+Standard: all PRs must pass the CI suite run against their changes. 
+Additionally: Mention any testing or other validation performed beyond what CI would run.
+
 ## Security Assessment
 
 Delete all except the correct answer:
