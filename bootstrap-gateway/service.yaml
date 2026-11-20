@@ -20,11 +20,6 @@ metadata:
   name: gateway
   labels:
     app: gateway
-  annotations:
-    service.beta.kubernetes.io/aws-load-balancer-type: "nlb-ip"
-    service.beta.kubernetes.io/aws-load-balancer-scheme: "internet-facing"
-    service.beta.kubernetes.io/aws-load-balancer-cross-zone-load-balancing-enabled: "true"
-    service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: "ip"
 spec:
   ports:
   - name: http
@@ -37,7 +32,12 @@ spec:
     targetPort: 443
   selector:
     app: gateway
+{% if global.cloud == "aws" %}
+  # configured in infra/aws/main.yaml
+  type: ClusterIP
+{% else %}
   loadBalancerIP: "{{ global.ip }}"
   # https://kubernetes.io/docs/tutorials/services/source-ip/#source-ip-for-services-with-type-loadbalancer
   externalTrafficPolicy: Local
   type: LoadBalancer
+{% endif %}

@@ -1,0 +1,10 @@
+apiVersion: elbv2.k8s.aws/v1beta1
+kind: TargetGroupBinding
+metadata:
+  name: internal-gateway-http
+spec:
+  serviceRef:
+    name: internal-gateway
+    port: 80
+  targetGroupARN: "{{ global.internal_gateway_target_group_arn }}"
+  targetType: ip
