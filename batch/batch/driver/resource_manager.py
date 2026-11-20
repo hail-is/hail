@@ -1,6 +1,6 @@
 import abc
 import logging
-from typing import Any, List
+from typing import Any, List, Optional
 
 from hailtop.utils import time_msecs
 
@@ -66,6 +66,12 @@ class CloudResourceManager:
     @abc.abstractmethod
     def machine_type(self, cores: int, worker_type: str, local_ssd: bool) -> str:
         raise NotImplementedError
+
+    def rollout_machine_type(self, cores: int, worker_type: str) -> Optional[str]:  # pylint: disable=unused-argument
+        """The machine type of a new machine family that one new autoscaled pool instance is rolled
+        out onto, or None to use machine_type(). A rolled-out instance gets a network data disk, since
+        the new family can't be assumed to offer the pool's local SSDs. By default nothing is rolled out."""
+        return None
 
     @abc.abstractmethod
     def instance_config(

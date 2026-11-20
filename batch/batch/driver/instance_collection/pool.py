@@ -2,7 +2,7 @@ import asyncio
 import logging
 import random
 from collections import defaultdict
-from typing import Dict, List, Optional, Tuple
+from typing import Awaitable, Callable, Dict, List, Optional, Tuple
 
 import prometheus_client as pc
 import sortedcontainers
@@ -24,6 +24,7 @@ from ...batch_format_version import BatchFormatVersion
 from ...globals import INSTANCE_VERSION
 from ...inst_coll_config import PoolConfig
 from ...utils import ExceededSharesCounter, regions_bits_rep_to_regions
+from ..exceptions import RegionsNotSupportedError
 from ..instance import Instance
 from ..job import mark_job_errored, schedule_job
 from ..resource_manager import CloudResourceManager
@@ -214,12 +215,13 @@ WHERE removed = 0 AND inst_coll = %s;
     async def create_instance(
         self,
         cores: int,
+        machine_type: str,
+        local_ssd_data_disk: bool,
         data_disk_size_gb: int,
         regions: List[str],
         max_idle_time_msecs: int,
     ):
-        machine_type = self.resource_manager.machine_type(cores, self.worker_type, self.worker_local_ssd_data_disk)
-        _, _ = await self._create_instance(
+        await self._create_instance(
             app=self.app,
             cores=cores,
             machine_type=machine_type,
@@ -227,9 +229,40 @@ WHERE removed = 0 AND inst_coll = %s;
             regions=regions,
             preemptible=self.preemptible,
             max_idle_time_msecs=max_idle_time_msecs,
-            local_ssd_data_disk=self.worker_local_ssd_data_disk,
+            local_ssd_data_disk=local_ssd_data_disk,
             data_disk_size_gb=data_disk_size_gb,
             boot_disk_size_gb=self.boot_disk_size_gb,
+        )
+
+    async def create_autoscaled_instance(self, regions: List[str]):
+        """Create an instance to meet ready jobs' demand: on the resource manager's rollout machine
+        type when it gives one, and on the pool's own machine type otherwise."""
+        max_idle_time_msecs = self.worker_max_idle_time_secs * 1000
+        rollout_machine_type = self.resource_manager.rollout_machine_type(self.worker_cores, self.worker_type)
+        if rollout_machine_type is not None:
+            try:
+                await self.create_instance(
+                    cores=self.worker_cores,
+                    machine_type=rollout_machine_type,
+                    local_ssd_data_disk=False,
+                    data_disk_size_gb=self.data_disk_size_gb,
+                    regions=regions,
+                    max_idle_time_msecs=max_idle_time_msecs,
+                )
+                return
+            except RegionsNotSupportedError:
+                # Nothing has been created yet, so fall through to the pool's own machine type.
+                log.info(f'{rollout_machine_type} is not offered in regions {regions}; using the pool machine type')
+
+        await self.create_instance(
+            cores=self.worker_cores,
+            machine_type=self.resource_manager.machine_type(
+                self.worker_cores, self.worker_type, self.worker_local_ssd_data_disk
+            ),
+            local_ssd_data_disk=self.worker_local_ssd_data_disk,
+            data_disk_size_gb=self.data_disk_size_gb,
+            regions=regions,
+            max_idle_time_msecs=max_idle_time_msecs,
         )
 
     def compute_n_instances_needed(
@@ -251,26 +284,11 @@ WHERE removed = 0 AND inst_coll = %s;
         )
         return max(0, instances_needed)
 
-    async def _create_instances(
-        self,
-        n_instances: int,
-        cores: int,
-        data_disk_size_gb: int,
-        regions: List[str],
-        max_idle_time_msecs: int,
-    ):
+    async def _create_instances(self, n_instances: int, create_instance: Callable[[], Awaitable[None]]):
         if n_instances > 0:
             log.info(f'creating {n_instances} new instances')
             # parallelism will be bounded by thread pool
-            await asyncio.gather(*[
-                self.create_instance(
-                    cores=cores,
-                    data_disk_size_gb=data_disk_size_gb,
-                    regions=regions,
-                    max_idle_time_msecs=max_idle_time_msecs,
-                )
-                for _ in range(n_instances)
-            ])
+            await asyncio.gather(*[create_instance() for _ in range(n_instances)])
 
     async def create_instances_from_ready_cores(
         self, ready_cores_mcpu: int, regions: List[str], remaining_max_new_instances_per_autoscaler_loop: int
@@ -280,13 +298,7 @@ WHERE removed = 0 AND inst_coll = %s;
             remaining_max_new_instances_per_autoscaler_loop,
         )
 
-        await self._create_instances(
-            instances_needed,
-            self.worker_cores,
-            self.data_disk_size_gb,
-            regions,
-            max_idle_time_msecs=self.worker_max_idle_time_secs * 1000,
-        )
+        await self._create_instances(instances_needed, lambda: self.create_autoscaled_instance(regions))
         return instances_needed
 
     async def regions_to_ready_cores_mcpu_from_estimated_job_queue(self) -> List[Tuple[List[str], int]]:
@@ -464,12 +476,20 @@ GROUP BY user;
                 300,  # 20 queries/s; our GCE long-run quota
             )
             if n_standing_instances_to_provision > 0:
+                # Standing instances keep the pool's own machine type: they are few and long-lived.
+                standing_machine_type = self.resource_manager.machine_type(
+                    self.standing_worker_cores, self.worker_type, self.worker_local_ssd_data_disk
+                )
                 await self._create_instances(
-                    n_instances=n_standing_instances_to_provision,
-                    cores=self.standing_worker_cores,
-                    data_disk_size_gb=self.data_disk_size_standing_gb,
-                    regions=self.all_supported_regions,
-                    max_idle_time_msecs=self.standing_worker_max_idle_time_secs * 1000,
+                    n_standing_instances_to_provision,
+                    lambda: self.create_instance(
+                        cores=self.standing_worker_cores,
+                        machine_type=standing_machine_type,
+                        local_ssd_data_disk=self.worker_local_ssd_data_disk,
+                        data_disk_size_gb=self.data_disk_size_standing_gb,
+                        regions=self.all_supported_regions,
+                        max_idle_time_msecs=self.standing_worker_max_idle_time_secs * 1000,
+                    ),
                 )
 
         log.info(
