@@ -372,8 +372,8 @@ def required_by_index(i: hl.Int32Expression, values: list, typ: hl.HailType) -> 
     """``values[i]``, as an expression Hail infers to be required. Indexing a literal array would be
     inferred optional."""
     if isinstance(typ, (hl.tstruct, hl.ttuple)) and len(typ) == 0:
-        # hl.switch rejects branches of empty struct or tuple type as having different types. Every value
-        # of such a type is the same.
+        # Every value of an empty struct or tuple type is the same, so a switch's branches would all be the
+        # same literal, and Simplify rewrites an If whose branches are equal into one Hail infers optional.
         return hl.literal(values[0], typ)
     switch = hl.switch(i)
     for j, v in enumerate(values[:-1]):
