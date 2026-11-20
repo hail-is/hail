@@ -74,9 +74,12 @@ class Classx[C](val name: String, val superName: String, var sourceFile: Option[
 
     // SplitMethod adds methods to this class thus invalidating iterators
     // Iterate from 0 until current length to avoid a potentially unnecessary array copy
-    val len = methods.length
-    for (i <- 0 until len) {
+    // Re-evaluate the length each iteration, to ensure methods added in earlier iterations
+    // get processed (they shouldn't need to be split, but just in case...)
+    var i = 0
+    while (i < methods.length) {
       val m = methods(i)
+      i += 1
       if (
         m.name != "<init>"
         && m.approxByteCodeSize() > SplitMethod.TargetMethodSize
