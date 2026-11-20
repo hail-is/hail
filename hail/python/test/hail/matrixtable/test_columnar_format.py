@@ -15,22 +15,22 @@ from hail.utils import FatalError, new_temp_file
 from hail.utils.java import Env
 from hail.utils.misc import is_committed
 
-from ..helpers import resource
-from ..table.test_columnar_format import (
+from ..columnar_helpers import (
     CUSTOM_REFERENCE_GENOME,
     MANIFEST_FIELDS,
     TYPE_CASES,
-    TypeCase,
+    assert_has_type,
+    assert_same_dataset,
     custom_reference_genome,
+    data_files,
     decode_schema,
     field,
-    parse_extension,
     read_manifest,
     read_parquet_file,
     required_by_index,
     to_python,
-    without_schemas,
 )
+from ..helpers import resource
 
 
 def write_columnar(
@@ -75,19 +75,6 @@ def test_manifest_describes_a_matrix_table():
         'entry_valid': '__entry_valid',
     }
     assert decode_schema(manifest['globals']['schema']).names == ['g']
-
-
-def data_files(path: str) -> list:
-    """Each row partition's row in the partitions table, with its row file and its entry files."""
-    partitions = read_parquet_file(f'{path}/partitions.parquet').read().to_pylist()
-    return [
-        (
-            p,
-            read_parquet_file(f'{path}/{p["row_file"]["path"]}'),
-            [read_parquet_file(f'{path}/{f["path"]}') for f in p['entry_files']],
-        )
-        for p in partitions
-    ]
 
 
 ENTRY_SCHEMA = pa.schema([
@@ -281,48 +268,6 @@ def test_joining_entries_to_rows_and_columns_gives_the_matrix_tables_entries():
     assert joined_entries(path) == hail_entries(mt)
 
 
-def assert_same_matrix_table(actual: str, expected: str) -> None:
-    """Compares two columnar matrix tables by value. Data file paths may differ."""
-    actual_manifest = read_manifest(actual)
-    expected_manifest = read_manifest(expected)
-    assert without_schemas(actual_manifest) == without_schemas(expected_manifest)
-    for component in ('rows', 'globals', 'cols', 'entries'):
-        actual_schema = decode_schema(actual_manifest[component]['schema'])
-        assert actual_schema.equals(decode_schema(expected_manifest[component]['schema']), check_metadata=True)
-
-    def contents(file) -> tuple:
-        return file.schema_arrow, file.read().to_pylist()
-
-    def assert_same_contents(actual_file, expected_file) -> None:
-        actual_schema, actual_rows = contents(actual_file)
-        expected_schema, expected_rows = contents(expected_file)
-        assert actual_schema.equals(expected_schema, check_metadata=True)
-        assert actual_rows == expected_rows
-
-    actual_partitions = data_files(actual)
-    expected_partitions = data_files(expected)
-    assert len(actual_partitions) == len(expected_partitions)
-    for (actual_partition, actual_rows, actual_entries), (expected_partition, expected_rows, expected_entries) in zip(
-        actual_partitions, expected_partitions
-    ):
-        for p in (actual_partition, expected_partition):
-            del p['row_file']['path']
-            for f in p['entry_files']:
-                del f['path']
-        assert actual_partition == expected_partition
-        assert_same_contents(actual_rows, expected_rows)
-        assert len(actual_entries) == len(expected_entries)
-        for a, e in zip(actual_entries, expected_entries):
-            assert_same_contents(a, e)
-
-    for file in ('partitions.parquet', 'globals.parquet', 'cols.parquet'):
-        actual_file = read_parquet_file(f'{actual}/{file}')
-        expected_file = read_parquet_file(f'{expected}/{file}')
-        assert actual_file.schema_arrow.equals(expected_file.schema_arrow, check_metadata=True)
-        if file != 'partitions.parquet':
-            assert_same_contents(actual_file, expected_file)
-
-
 MISSING_ENTRIES_FIXTURE = 'columnar/0.1/matrix_table/missing_entries'
 
 
@@ -330,7 +275,7 @@ def test_output_matches_the_missing_entries_fixture():
     path = new_temp_file(extension='mt')
     write_columnar(matrix_table(), path)
 
-    assert_same_matrix_table(path, resource(MISSING_ENTRIES_FIXTURE))
+    assert_same_dataset(path, resource(MISSING_ENTRIES_FIXTURE))
 
 
 def test_missing_entries_fixture_holds_the_matrix_tables_entries():
@@ -401,18 +346,6 @@ def test_a_matrix_table_with_no_columns_has_one_empty_column_block():
     ((_, _, (entry_file,)),) = data_files(path)
     entry_valid = manifest['internal_fields']['entry_valid']
     assert [(e[entry_valid], e['x']) for e in entry_file.read().to_pylist()] == [([], [])] * 3
-
-
-def assert_has_type(f: pa.Field, c: TypeCase) -> None:
-    """``f`` has the Arrow storage type and extension type that spec section 5 gives for ``c``."""
-    if c.canonical_type is None:
-        assert parse_extension(f) == (c.extension_name, c.extension_metadata), f
-        storage_type = f.type
-    else:
-        assert isinstance(f.type, pa.BaseExtensionType), f
-        assert (f.type.extension_name, str(f.type)) == (c.extension_name, c.canonical_type), f
-        storage_type = f.type.storage_type
-    assert storage_type.equals(c.storage), f
 
 
 @pytest.mark.parametrize('case', TYPE_CASES.keys())
