@@ -30,29 +30,65 @@ object ColumnarPartitionWriter {
   val MaxRowsPerPartition: Long = 1L << RowIdPositionBits
 
   val MaxPartitions: Int = 1 << (63 - RowIdPositionBits)
+
+  /** The most values a leaf field of an entry file may hold in one row group (spec section 4.6.1).
+    */
+  val MaxLeafCap: Long = 1L << 30
 }
 
-/** Writes a stream of structs to one Parquet data file of the columnar format. A row group ends
-  * once it buffers [[ColumnarRowGroups.TargetBytes]].
+/** The entries of a matrix table, which a [[ColumnarPartitionWriter]] writes to an entry file
+  * beside each row file, in the dense layout with one column block (spec section 4.3).
+  *
+  * Each row holds its entries in field `field`, an array of `entryType` with one element per
+  * column. `leafCap` is the most values a leaf field of an entry file may hold in one row group.
+  */
+case class ColumnarEntries(
+  field: String,
+  entryType: PStruct,
+  entryValidField: String,
+  leafCap: Long,
+) {
+
+  /** The fields of an entry file after the Row ID: the entry validity list, then one list per entry
+    * field, whose elements are nullable.
+    */
+  def fileType: PStruct = PCanonicalStruct(
+    true,
+    (entryValidField -> PCanonicalArray(PBoolean(true), true)) +:
+      entryType.fields.map(f => f.name -> PCanonicalArray(f.typ.setRequired(false), true)): _*
+  )
+}
+
+/** Writes a stream of structs to one Parquet data file of the columnar format, and, given
+  * `entries`, each struct's entries to an entry file beside it. Both files have the same row
+  * groups.
   *
   * The file holds the fields of `schema`, preceded by a Row ID field named `rowIdField` if given.
-  * Row IDs are `(partitionIndex << RowIdPositionBits) | position`.
+  * Row IDs are `(partitionIndex << RowIdPositionBits) | position`. An entry file requires a Row ID
+  * field, which it shares.
   *
-  * The context is `{path, partitionIndex}`, where `path` is relative to `root`. The result is the
-  * file's path, its row count, and the first and last values of the `key` fields, which are missing
-  * for an empty file. `distinct` is whether no two consecutive rows share a key; it is false when
-  * `key` is empty.
+  * The context is `{path, partitionIndex}`, where `path` is relative to `root`. With entries, it
+  * also has the entry file's `entryPath` and the `columnCount`, the length of every row's entries.
+  * The result is the file's path, its row count, and the first and last values of the `key` fields,
+  * which are missing for an empty file. `distinct` is whether no two consecutive rows share a key;
+  * it is false when `key` is empty. With entries, it also has the `entryPath`.
   */
 case class ColumnarPartitionWriter(
   root: String,
   schema: PStruct,
   key: IndexedSeq[String],
   rowIdField: Option[String],
+  entries: Option[ColumnarEntries] = None,
 ) extends PartitionWriter {
   import ColumnarPartitionWriter._
 
+  assert(entries.isEmpty || rowIdField.isDefined, "an entry file requires a Row ID field")
+
   lazy val arrowSchema: String =
     ColumnarSchema.serialize(ColumnarSchema.fileSchema(schema, rowIdField))
+
+  lazy val entriesArrowSchema: Option[String] =
+    entries.map(e => ColumnarSchema.serialize(ColumnarSchema.fileSchema(e.fileType, rowIdField)))
 
   private lazy val keyType: TStruct = schema.virtualType.typeAfterSelectNames(key)
 
@@ -61,14 +97,19 @@ case class ColumnarPartitionWriter(
 
   private lazy val resultPType: PCanonicalStruct = PCanonicalStruct(
     true,
-    "path" -> PCanonicalString(true),
-    "rowCount" -> PInt64(true),
-    "distinct" -> PBoolean(true),
-    "firstKey" -> keyPType,
-    "lastKey" -> keyPType,
+    FastSeq(
+      "path" -> PCanonicalString(true),
+      "rowCount" -> PInt64(true),
+      "distinct" -> PBoolean(true),
+      "firstKey" -> keyPType,
+      "lastKey" -> keyPType,
+    ) ++ entries.map(_ => "entryPath" -> PCanonicalString(true)): _*
   )
 
-  override def ctxType: Type = TStruct("path" -> TString, "partitionIndex" -> TInt32)
+  override def ctxType: Type = TStruct(
+    FastSeq("path" -> TString, "partitionIndex" -> TInt32) ++
+      entries.toSeq.flatMap(_ => FastSeq("entryPath" -> TString, "columnCount" -> TInt32)): _*
+  )
 
   override def returnType: Type = resultPType.virtualType
 
@@ -88,6 +129,17 @@ case class ColumnarPartitionWriter(
     optional(rs.field("lastKey"))
   }
 
+  private def open(cb: EmitCodeBuilder, arrowSchema: String, relPath: Value[String])
+    : Value[ColumnarFileSink] =
+    cb.memoize(
+      cb.emb.getObject(ColumnarFileSpec(arrowSchema))
+        .invoke[FS, String, ColumnarFileSink](
+          "open",
+          cb.emb.getFS,
+          const(s"$root/").concat(relPath),
+        )
+    )
+
   override def consumeStream(
     ctx: ExecuteContext,
     cb: EmitCodeBuilder,
@@ -97,21 +149,24 @@ case class ColumnarPartitionWriter(
   ): IEmitCode =
     context.toI(cb).map(cb) { ctxValue =>
       val ctx = ctxValue.asBaseStruct
-      val relPath = cb.memoize(ctx.loadField(cb, "path").getOrAssert(cb).asString.loadString(cb))
-      val partitionIndex =
-        cb.memoize(ctx.loadField(cb, "partitionIndex").getOrAssert(cb).asInt.value)
+      def ctxString(name: String): Value[String] =
+        cb.memoize(ctx.loadField(cb, name).getOrAssert(cb).asString.loadString(cb))
+      def ctxInt(name: String): Value[Int] =
+        cb.memoize(ctx.loadField(cb, name).getOrAssert(cb).asInt.value)
+
+      val relPath = ctxString("path")
+      val partitionIndex = ctxInt("partitionIndex")
       val rowGroups = cb.memoize(
         Code.newInstance[ColumnarRowGroups, Long](const(ColumnarRowGroups.TargetBytes))
       )
-      val sink = cb.memoize(
-        cb.emb.getObject(ColumnarFileSpec(arrowSchema))
-          .invoke[FS, String, ColumnarFileSink](
-            "open",
-            cb.emb.getFS,
-            const(s"$root/").concat(relPath),
-          )
-      )
+      val sink = open(cb, arrowSchema, relPath)
       cb += rowGroups.invoke[ColumnarFileSink, Unit]("add", sink)
+      val entryFile = entries.map { e =>
+        val entryPath = ctxString("entryPath")
+        val entrySink = open(cb, entriesArrowSchema.get, entryPath)
+        cb += rowGroups.invoke[ColumnarFileSink, Unit]("add", entrySink)
+        new EntryFileWriter(cb, e, entrySink, entryPath, ctxInt("columnCount"))
+      }
 
       val count = cb.newLocal[Long]("count", 0L)
       val keys =
@@ -126,18 +181,23 @@ case class ColumnarPartitionWriter(
           count >= MaxRowsPerPartition,
           cb._fatal(s"columnar writer: a row partition has more than 2^$RowIdPositionBits rows"),
         )
+        val rowId = cb.memoize((partitionIndex.toL << RowIdPositionBits) | count)
 
-        cb.if_(rowGroups.invoke[Boolean]("checkFull"), cb += rowGroups.invoke[Unit]("endRowGroup"))
+        val entryRow = entryFile.map(_.load(cb, row))
+        cb.if_(
+          rowGroups.invoke[Long]("recordCount") > 0L && (
+            entryRow.fold[Code[Boolean]](const(false))(_.exceedsLeafCap(cb)) ||
+              rowGroups.invoke[Boolean]("checkFull")
+          ), {
+            cb += rowGroups.invoke[Unit]("endRowGroup")
+            entryFile.foreach(_.startRowGroup(cb))
+          },
+        )
 
         cb += sink.invoke[Unit]("startRecord")
         val offset = rowIdField match {
           case Some(name) =>
-            field(cb, sink, name, 0) {
-              cb += sink.invoke[Long, Unit](
-                "addLong",
-                (partitionIndex.toL << RowIdPositionBits) | count,
-              )
-            }
+            field(cb, sink, name, 0)(cb += sink.invoke[Long, Unit]("addLong", rowId))
             1
           case None => 0
         }
@@ -145,6 +205,7 @@ case class ColumnarPartitionWriter(
           writeField(cb, sink, f.name, f.index + offset, f.typ, row.loadField(cb, f.name), f.name)
         }
         cb += sink.invoke[Unit]("endRecord")
+        entryRow.foreach(_.write(cb, rowId))
         cb += rowGroups.invoke[Unit]("endRecord")
 
         keys.observe(cb, row, isFirst = count ceq 0L)
@@ -163,10 +224,191 @@ case class ColumnarPartitionWriter(
           distinct,
           firstKey,
           lastKey,
-        ),
+        ) ++ entryFile.map(f => EmitCode.present(cb.emb, SJavaString.construct(cb, f.path))),
         deepCopy = false,
       )
     }
+
+  /** Writes each row's entries to an entry file, and tracks how many values the leaf fields of the
+    * current row group hold, to keep them within the leaf cap (spec section 4.6.1).
+    *
+    * Values are counted per leaf group: the entry validity list and every entry field with no list
+    * inside share one, and every other entry field has one of its own. A leaf group's count bounds
+    * the count of each of its leaf fields from above, and is exact for the first leaf group.
+    */
+  private class EntryFileWriter(
+    cb: EmitCodeBuilder,
+    e: ColumnarEntries,
+    sink: Value[ColumnarFileSink],
+    val path: Value[String],
+    columnCount: Value[Int],
+  ) {
+    private[this] val nestedFields = e.entryType.fields.filterNot(f => isFlat(f.typ))
+
+    // The values each leaf of the first leaf group holds per row. An empty list is one value.
+    private[this] val flatRowLeaves: Value[Long] = max(cb, columnCount.toL, 1L)
+
+    private[this] val flatLeaves = cb.newLocal[Long]("flatLeaves", 0L)
+
+    private[this] val nestedLeaves =
+      nestedFields.map(f => cb.newLocal[Long](s"leaves_${f.name}", 0L))
+
+    def startRowGroup(cb: EmitCodeBuilder): Unit =
+      (flatLeaves +: nestedLeaves).foreach(cb.assign(_, 0L))
+
+    /** Loads `row`'s entries, failing unless there is one per column. */
+    def load(cb: EmitCodeBuilder, row: SBaseStructValue): EntryRow = {
+      val entries = row.loadField(cb, e.field)
+        .getOrFatal(cb, "columnar writer: a row's entries are missing")
+        .asIndexable
+      cb.if_(
+        entries.loadLength cne columnCount,
+        cb._fatal(
+          "columnar writer: a row has ",
+          entries.loadLength.toS,
+          " entries, expected one per column, ",
+          columnCount.toS,
+        ),
+      )
+      cb.if_(
+        flatRowLeaves > e.leafCap,
+        cb._fatal(
+          s"columnar writer: the entries of one row hold more than ${e.leafCap} values in each " +
+            "entry field, which can't be stored: there are ",
+          columnCount.toS,
+          " columns",
+        ),
+      )
+      new EntryRow(entries, nestedFields.map(f => fieldLeaves(cb, f, entries)))
+    }
+
+    /** An upper bound on the values each leaf of entry field `f` holds for one row's `entries`. */
+    private[this] def fieldLeaves(cb: EmitCodeBuilder, f: PField, entries: SIndexableValue)
+      : Value[Long] = {
+      val total = cb.newLocal[Long](s"rowLeaves_${f.name}", 0L)
+      entries.forEachDefinedOrMissing(cb)(
+        (cb, _) => cb.assign(total, total + 1L),
+        (cb, _, entry) =>
+          entry.asBaseStruct.loadField(cb, f.index).consume(
+            cb,
+            cb.assign(total, total + 1L),
+            v => cb.assign(total, total + leafBound(cb, f.typ, v)),
+          ),
+      )
+      cb.if_(
+        total > e.leafCap,
+        cb._fatal(
+          s"columnar writer: the entries of one row hold more than ${e.leafCap} values in " +
+            s"entry field '${f.name}', which can't be stored"
+        ),
+      )
+      max(cb, total, 1L)
+    }
+
+    class EntryRow(entries: SIndexableValue, rowNestedLeaves: IndexedSeq[Value[Long]]) {
+
+      /** Whether adding this row to the current row group would exceed the leaf cap. */
+      def exceedsLeafCap(cb: EmitCodeBuilder): Code[Boolean] =
+        (flatLeaves +: nestedLeaves).zip(flatRowLeaves +: rowNestedLeaves)
+          .map { case (group, row) => (group + row) > e.leafCap }
+          .reduce(_ || _)
+
+      def write(cb: EmitCodeBuilder, rowId: Value[Long]): Unit = {
+        cb += sink.invoke[Unit]("startRecord")
+        field(cb, sink, rowIdField.get, 0)(cb += sink.invoke[Long, Unit]("addLong", rowId))
+        field(cb, sink, e.entryValidField, 1) {
+          list(cb, sink, columnCount > 0) {
+            entries.forEachDefinedOrMissing(cb)(
+              (cb, _) =>
+                listElement(cb, sink)(cb += sink.invoke[Boolean, Unit]("addBoolean", false)),
+              (cb, _, _) =>
+                listElement(cb, sink)(cb += sink.invoke[Boolean, Unit]("addBoolean", true)),
+            )
+          }
+        }
+        e.entryType.fields.foreach { f =>
+          field(cb, sink, f.name, f.index + 2) {
+            list(cb, sink, columnCount > 0) {
+              entries.forEachDefinedOrMissing(cb)(
+                (cb, _) => missingListElement(cb, sink),
+                (cb, _, entry) =>
+                  entry.asBaseStruct.loadField(cb, f.index).consume(
+                    cb,
+                    missingListElement(cb, sink),
+                    v => listElement(cb, sink)(writeValue(cb, sink, f.typ, v, f.name)),
+                  ),
+              )
+            }
+          }
+        }
+        cb += sink.invoke[Unit]("endRecord")
+
+        cb.assign(flatLeaves, flatLeaves + flatRowLeaves)
+        nestedLeaves.zip(rowNestedLeaves).foreach { case (group, row) =>
+          cb.assign(group, group + row)
+        }
+      }
+    }
+  }
+
+  /** Whether `t`'s Parquet translation has no repeated field, so that each of its leaves holds one
+    * value per value of `t`.
+    */
+  private def isFlat(t: PType): Boolean = t match {
+    case _: PContainer | _: PNDArray => false
+    case t: PInterval => isFlat(t.pointType)
+    case t: PBaseStruct => t.types.forall(isFlat)
+    case _ => true
+  }
+
+  private def max(cb: EmitCodeBuilder, a: Code[Long], b: Code[Long]): Value[Long] =
+    cb.memoize(Code.invokeStatic2[java.lang.Math, Long, Long, Long]("max", a, b))
+
+  /** An upper bound on the values that any one leaf of `t`'s Parquet translation holds for the
+    * present value `v`. A missing value, or an empty list, is one value in each of its leaves.
+    */
+  private def leafBound(cb: EmitCodeBuilder, t: PType, v: SValue): Value[Long] = {
+    def optional(t: PType, v: => IEmitCode): Value[Long] =
+      if (isFlat(t)) const(1L)
+      else {
+        val leaves = cb.newLocal[Long]("leaves", 1L)
+        v.consume(cb, {}, v => cb.assign(leaves, leafBound(cb, t, v)))
+        leaves
+      }
+
+    t match {
+      case t if isFlat(t) => const(1L)
+      case t: PNDArray =>
+        // `data` holds every element, and `shape` one value per dimension.
+        max(cb, SNDArray.numElements(v.asNDArray.shapes), math.max(t.nDims, 1).toLong)
+      case t: PContainer =>
+        val a = v.asIndexable
+        val total = cb.newLocal[Long]("leaves", 0L)
+        t match {
+          case t: PDict =>
+            a.forEachDefined(cb) { (cb, _, entry) =>
+              val kv = entry.asBaseStruct
+              val keyLeaves = optional(t.keyType, kv.loadField(cb, 0))
+              val valueLeaves = optional(t.valueType, kv.loadField(cb, 1))
+              cb.assign(total, total + max(cb, keyLeaves, valueLeaves))
+            }
+          case _ =>
+            a.forEachDefinedOrMissing(cb)(
+              (cb, _) => cb.assign(total, total + 1L),
+              (cb, _, elt) => cb.assign(total, total + leafBound(cb, t.elementType, elt)),
+            )
+        }
+        max(cb, total, 1L)
+      case t: PInterval =>
+        val i = v.asInterval
+        max(cb, optional(t.pointType, i.loadStart(cb)), optional(t.pointType, i.loadEnd(cb)))
+      case t: PBaseStruct =>
+        val s = v.asBaseStruct
+        t.fields.filterNot(f => isFlat(f.typ)).foldLeft[Value[Long]](const(1L)) { (acc, f) =>
+          max(cb, acc, optional(f.typ, s.loadField(cb, f.index)))
+        }
+    }
+  }
 
   /** Emits `body` between the start and end of field `name`, at position `index` in its group. */
   private def field(
