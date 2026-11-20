@@ -26,6 +26,14 @@ object LocusRepresentations {
   val references: IndexedSeq[ReferenceGenome] =
     ArraySeq(builtin(ReferenceGenome.GRCh38), customReference)
 
+  /** Runs `f` once with each locus representation as the canonical one (see [[PLocus.canonical]]).
+    * `f` is passed the canonical locus type's constructor, so it can say what it expects.
+    */
+  def forEachCanonicalLocus(f: ((ReferenceGenome, Boolean) => PLocus) => Unit): Unit = {
+    PLocus.withPackedCanonical(packed = false)(f(PCanonicalLocus(_, _)))
+    PLocus.withPackedCanonical(packed = true)(f(PPackedLocus(_, _)))
+  }
+
   /** A copy of `rg` that is a distinct object, as when two sessions define the same layout. */
   def twin(rg: ReferenceGenome): ReferenceGenome = {
     val copy = rg.copy()

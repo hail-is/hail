@@ -216,26 +216,20 @@ final case class PCanonicalLocus(rg: ReferenceGenome, required: Boolean = false)
     addr
   }
 
-  def constructFromContigAndPosition(
+  override def constructFromContigAndPosition(
     cb: EmitCodeBuilder,
-    r: Value[Region],
+    region: Value[Region],
     contig: Code[String],
-    pos: Code[Int],
+    position: Code[Int],
   ): SCanonicalLocusPointerValue = {
-    val position = cb.memoize(pos)
-    val contigType = representation.fieldType("contig").asInstanceOf[PCanonicalString]
-    val contigCode = contigType.sType.constructFromString(cb, r, contig)
+    val pos = cb.memoize(position)
+    val contigCode = contigType.sType.constructFromString(cb, region, contig)
     val repr = representation.constructFromFields(
       cb,
-      r,
-      FastSeq(EmitCode.present(cb.emb, contigCode), EmitCode.present(cb.emb, primitive(position))),
+      region,
+      FastSeq(EmitCode.present(cb.emb, contigCode), EmitCode.present(cb.emb, primitive(pos))),
       deepCopy = false,
     )
-    new SCanonicalLocusPointerValue(
-      SCanonicalLocusPointer(setRequired(false)),
-      repr.a,
-      contigCode.a,
-      position,
-    )
+    new SCanonicalLocusPointerValue(sType, repr.a, contigCode.a, pos)
   }
 }
