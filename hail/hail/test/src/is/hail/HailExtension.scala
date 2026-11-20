@@ -2,7 +2,10 @@ package is.hail
 
 import is.hail.annotations.{Region, RegionPool}
 import is.hail.asm4s.HailClassLoader
-import is.hail.backend.{Backend, ExecuteContext, OwningTempFileManager}
+import is.hail.backend.{
+  Backend, BroadcastValue, ExecuteContext, HailTaskContext, OwningTempFileManager,
+}
+import is.hail.backend.local.LocalTaskContext
 import is.hail.backend.spark.SparkBackend
 import is.hail.collection.ImmutableMap
 import is.hail.expr.ir.functions.IRFunctionRegistry
@@ -11,9 +14,10 @@ import is.hail.expr.ir.lowering.invariant.Flags.StrictInvariants
 import is.hail.io.fs.{FS, HadoopFS}
 import is.hail.io.reference.RgAttachments
 import is.hail.rvd.RVD
-import is.hail.utils.SerializableHadoopConfiguration
+import is.hail.utils.{lazily, SerializableHadoopConfiguration}
 import is.hail.variant.ReferenceGenomeEnv
 
+import scala.collection.mutable
 import scala.jdk.OptionConverters.RichOptional
 
 import org.apache.hadoop.conf.Configuration
@@ -55,7 +59,9 @@ final class SharedResources extends AutoCloseable {
 
   val references: ReferenceGenomeEnv = ReferenceGenomeEnv.empty
 
-  def newExecuteContext: ExecuteContext =
+  val fsBc: BroadcastValue[FS] = backend.broadcast(fs)
+
+  def newExecuteContext(taskContext: HailTaskContext): ExecuteContext =
     new ExecuteContext(
       tmpdir = "/tmp",
       localTmpdir = "file:///tmp",
@@ -73,6 +79,9 @@ final class SharedResources extends AutoCloseable {
       CompileCache = ImmutableMap.empty,
       PersistedIrCache = ImmutableMap.empty,
       PersistedCoercerCache = ImmutableMap.empty,
+      taskContext = taskContext,
+      memo = mutable.HashMap.empty,
+      fsBc = lazily(fsBc),
     )
 
   override def close(): Unit = {
@@ -143,8 +152,11 @@ class HailExtension extends AfterAllCallback with ParameterResolver {
     * class-level injection (e.g. `@BeforeAll`) it's the class scope.
     */
   private def createCtx(extCtx: ExtensionContext, s: SharedResources): ExecuteContext = {
-    val ctx = s.newExecuteContext
-    storageScope(extCtx).getStore(NAMESPACE).put(CTX_KEY, ctx)
+    val store = storageScope(extCtx).getStore(NAMESPACE)
+    val taskContext = new LocalTaskContext(0, 0)
+    store.put(TASK_CTX_KEY, taskContext)
+    val ctx = s.newExecuteContext(taskContext)
+    store.put(CTX_KEY, ctx)
     ctx
   }
 
@@ -166,4 +178,5 @@ object HailExtension {
   val NAMESPACE: Namespace = Namespace.create(classOf[HailExtension])
   val SHARED_KEY = "sharedResources"
   val CTX_KEY = "executeContext"
+  val TASK_CTX_KEY = "taskContext"
 }

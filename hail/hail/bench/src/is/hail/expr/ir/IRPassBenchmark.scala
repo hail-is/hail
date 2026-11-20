@@ -3,11 +3,15 @@ package is.hail.expr.ir
 import is.hail.{HailFeatureFlags, SharedResources}
 import is.hail.annotations.Region
 import is.hail.backend.{ExecuteContext, OwningTempFileManager}
+import is.hail.backend.local.LocalTaskContext
 import is.hail.collection.ImmutableMap
 import is.hail.expr.ir.defs._
 import is.hail.expr.ir.lowering.{ForwardLets, IrMetadata, RewriteBottomUp}
 import is.hail.io.reference.RgAttachments
 import is.hail.types.virtual.TInt32
+import is.hail.utils.lazily
+
+import scala.collection.mutable
 
 import java.util.concurrent.TimeUnit
 
@@ -34,11 +38,13 @@ class IRPassBenchmark {
   var shape: String = _
 
   var shared: SharedResources = _
+  var taskContext: LocalTaskContext = _
   var ctx: ExecuteContext = _
   var ir: IR = _
 
   @Setup def setup(): Unit = {
     shared = new SharedResources()
+    taskContext = new LocalTaskContext(0, 0)
     ctx = new ExecuteContext(
       tmpdir = "/tmp",
       localTmpdir = "file:///tmp",
@@ -56,12 +62,16 @@ class IRPassBenchmark {
       CompileCache = ImmutableMap.empty,
       PersistedIrCache = ImmutableMap.empty,
       PersistedCoercerCache = ImmutableMap.empty,
+      taskContext = taskContext,
+      memo = mutable.HashMap.empty,
+      fsBc = lazily(shared.fsBc),
     )
     ir = IRPassBenchmark.build(shape)
   }
 
   @TearDown def tearDown(): Unit = {
     ctx.close()
+    taskContext.close()
     shared.close()
   }
 

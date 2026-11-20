@@ -1,7 +1,6 @@
 package is.hail.expr.ir.lowering
 
 import is.hail.annotations.{BroadcastRow, RegionValue}
-import is.hail.backend.ExecuteContext
 import is.hail.expr.ir._
 import is.hail.expr.ir.analyses.PartitionCounts
 import is.hail.rvd.{RVD, RVDPartitioner}
@@ -9,10 +8,10 @@ import is.hail.types.physical.PStruct
 import is.hail.utils.{fatal, ArrayOfByteArrayInputStream, TimedBlock}
 
 object ExecuteRelational {
-  def apply(ctx: ExecuteContext, ir0: TableIR): TableExecuteIntermediate =
+  def apply(lctx: LoweringContext, ir0: TableIR): TableExecuteIntermediate =
     TimedBlock.enter {
 
-      val r = LoweringAnalyses(ir0, ctx)
+      import lctx.ctx
 
       def recur(ir: TableIR): TableExecuteIntermediate = ir match {
         case BlockMatrixToTable(child) =>
@@ -23,7 +22,7 @@ object ExecuteRelational {
           TableValueIntermediate(function.execute(ctx, b, a))
         case TableAggregateByKey(child, expr) =>
           val prev = recur(child).asTableValue(ctx)
-          val extracted = agg.Extract(ctx, expr, r.requirednessAnalysis).independent
+          val extracted = agg.Extract(ctx, expr, lctx.requiredness).independent
           val tv = prev.aggregateByKey(extracted)
           assert(tv.typ == ir.typ, s"${tv.typ}, ${ir.typ}")
           TableValueIntermediate(tv)
@@ -50,7 +49,7 @@ object ExecuteRelational {
             TableValue(ctx, tv.typ, tv.globals, tv.rvd.filterIntervals(partitioner, keep))
           )
         case ir: TableGen =>
-          TableStageIntermediate(LowerTableIR.applyTable(ir, DArrayLowering.All, ctx, r))
+          TableStageIntermediate(LowerTableIR.applyTable(ir, DArrayLowering.All, lctx))
         case TableIntervalJoin(left, right, root, product) =>
           val leftTV = recur(left).asTableValue(ctx)
           val rightTV = recur(right).asTableValue(ctx)
@@ -58,7 +57,7 @@ object ExecuteRelational {
         case ir @ TableJoin(left, right, _, _) =>
           val leftTS = recur(left).asTableStage(ctx)
           val rightTS = recur(right).asTableStage(ctx)
-          TableExecuteIntermediate(LowerTableIRHelpers.lowerTableJoin(ctx, r, ir, leftTS, rightTS))
+          TableExecuteIntermediate(LowerTableIRHelpers.lowerTableJoin(lctx, ir, leftTS, rightTS))
         case ir @ TableKeyBy(child, keys, isSorted, _) =>
           val tv = recur(child).asTableValue(ctx)
           TableValueIntermediate(tv.copy(
@@ -67,7 +66,7 @@ object ExecuteRelational {
           ))
         case TableKeyByAndAggregate(child, expr, newKey, nPartitions, bufferSize) =>
           val prev = recur(child).asTableValue(ctx)
-          val extracted = agg.Extract(ctx, expr, r.requirednessAnalysis).independent
+          val extracted = agg.Extract(ctx, expr, lctx.requiredness).independent
           TableValueIntermediate(
             prev.keyByAndAggregate(ctx, newKey, extracted, nPartitions, bufferSize)
           )
@@ -92,7 +91,7 @@ object ExecuteRelational {
           TableValueIntermediate(recur(child).asTableValue(ctx).mapGlobals(newGlobals))
         case TableMapRows(child, newRow) =>
           val extracted =
-            agg.Extract(ctx, newRow, r.requirednessAnalysis, isScan = true).independent
+            agg.Extract(ctx, newRow, lctx.requiredness, isScan = true).independent
           TableValueIntermediate(recur(child).asTableValue(ctx).mapRows(extracted))
         case TableMapPartitions(child, globalName, partitionStreamName, body, _,
               allowedOverlap) =>

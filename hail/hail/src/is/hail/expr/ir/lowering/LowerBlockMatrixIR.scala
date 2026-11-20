@@ -957,12 +957,12 @@ object LowerBlockMatrixIR {
   def apply(
     node: IR,
     typesToLower: DArrayLowering.Type,
-    ctx: ExecuteContext,
-    analyses: LoweringAnalyses,
+    lctx: LoweringContext,
   ): IR = {
+    import lctx.ctx
 
     def lower(bmir: BlockMatrixIR, ib: IRBuilder) =
-      LowerBlockMatrixIR.lower(ib, bmir, typesToLower, ctx, analyses)
+      LowerBlockMatrixIR.lower(ib, bmir, typesToLower, lctx)
 
     val lowered =
       IRBuilder.scoped { ib =>
@@ -998,11 +998,12 @@ object LowerBlockMatrixIR {
   def lowerToTableStage(
     bmir: BlockMatrixIR,
     typesToLower: DArrayLowering.Type,
-    ctx: ExecuteContext,
-    analyses: LoweringAnalyses,
+    lctx: LoweringContext,
   ): TableStage = {
+    import lctx.ctx
+
     val ib = new IRBuilder()
-    val bms = lower(ib, bmir, typesToLower, ctx, analyses)
+    val bms = lower(ib, bmir, typesToLower, lctx)
     bms.toTableStage(ib, ctx, bmir.typ)
   }
 
@@ -1013,9 +1014,10 @@ object LowerBlockMatrixIR {
     ib: IRBuilder,
     bmir: BlockMatrixIR,
     typesToLower: DArrayLowering.Type,
-    ctx: ExecuteContext,
-    analyses: LoweringAnalyses,
+    lctx: LoweringContext,
   ): BlockMatrixStage2 = {
+    import lctx.ctx
+
     if (!DArrayLowering.lowerBM(typesToLower))
       throw new LowererUnsupportedOperation(
         "found BlockMatrixIR in lowering; lowering only TableIRs."
@@ -1029,26 +1031,26 @@ object LowerBlockMatrixIR {
     }
     if (bmir.typ.nRows == 0L && bmir.typ.nCols == 0L)
       BlockMatrixStage2.empty(ib, bmir.typ.elementType)
-    else lowerNonEmpty2(ib, bmir, typesToLower, ctx, analyses)
+    else lowerNonEmpty2(ib, bmir, typesToLower, lctx)
   }
 
   def lowerNonEmpty2(
     ib: IRBuilder,
     bmir: BlockMatrixIR,
     typesToLower: DArrayLowering.Type,
-    ctx: ExecuteContext,
-    analyses: LoweringAnalyses,
+    lctx: LoweringContext,
   ): BlockMatrixStage2 = {
+    import lctx.ctx
 
     def lower(ir: BlockMatrixIR, ib: IRBuilder = ib): BlockMatrixStage2 =
-      LowerBlockMatrixIR.lower(ib, ir, typesToLower, ctx, analyses)
+      LowerBlockMatrixIR.lower(ib, ir, typesToLower, lctx)
 
     bmir match {
       case BlockMatrixRead(reader) => reader.lower(ctx, ib)
 
       case ValueToBlockMatrix(child, _, _)
           if !child.typ.isInstanceOf[TArray] && !child.typ.isInstanceOf[TNDArray] =>
-        val element = LowerToCDA.lower(child, typesToLower, ctx, analyses)
+        val element = LowerToCDA.lower(child, typesToLower, lctx)
         val contextsIR = MakeArray(makestruct())
 
         BlockMatrixStage2(
@@ -1065,7 +1067,7 @@ object LowerBlockMatrixIR {
         )
 
       case x @ ValueToBlockMatrix(child, _, _) =>
-        val lowered = LowerToCDA.lower(child, typesToLower, ctx, analyses)
+        val lowered = LowerToCDA.lower(child, typesToLower, lctx)
         val nd = ib.memoize(child.typ match {
           case _: TArray => MakeNDArray(
               lowered,
@@ -1388,7 +1390,7 @@ object LowerBlockMatrixIR {
 
       case _ =>
         BlockMatrixStage2.fromOldBMS(
-          lowerNonEmpty(ib, bmir, typesToLower, ctx, analyses),
+          lowerNonEmpty(ib, bmir, typesToLower, lctx),
           bmir.typ,
           ib,
         )
@@ -1399,11 +1401,10 @@ object LowerBlockMatrixIR {
     ib: IRBuilder,
     bmir: BlockMatrixIR,
     typesToLower: DArrayLowering.Type,
-    ctx: ExecuteContext,
-    analyses: LoweringAnalyses,
+    lctx: LoweringContext,
   ): BlockMatrixStage = {
     def lower(ir: BlockMatrixIR, ib: IRBuilder = ib) =
-      LowerBlockMatrixIR.lower(ib, ir, typesToLower, ctx, analyses).toOldBMS
+      LowerBlockMatrixIR.lower(ib, ir, typesToLower, lctx).toOldBMS
 
     bmir match {
       case BlockMatrixDot(leftIR, rightIR) =>

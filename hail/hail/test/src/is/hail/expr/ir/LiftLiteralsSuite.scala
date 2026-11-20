@@ -7,7 +7,7 @@ import is.hail.annotations.RowSeq
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
 import is.hail.expr.ir.defs.{ApplyBinaryPrimOp, I64, MakeStruct, TableCount, TableGetGlobals}
-import is.hail.expr.ir.lowering.ExecuteRelational
+import is.hail.expr.ir.lowering.{ExecuteRelational, LoweringContext}
 
 import org.junit.jupiter.api.Test
 
@@ -15,9 +15,10 @@ class LiftLiteralsSuite {
   implicit val execStrats: Set[ExecStrategy] = ExecStrategy.interpretOnly
 
   @Test def testNestedGlobalsRewrite(implicit ctx: ExecuteContext): Unit = {
+    val range = TableRange(10, 1)
     val tab =
       TableLiteral(
-        ExecuteRelational(ctx, TableRange(10, 1)).asTableValue(ctx),
+        ExecuteRelational(LoweringContext(ctx, range), range).asTableValue(ctx),
         ctx.theHailClassLoader,
       )
     val ir = TableGetGlobals(
