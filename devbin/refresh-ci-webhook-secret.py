@@ -25,6 +25,7 @@ import subprocess
 import sys
 import threading
 import time
+from functools import partial
 
 # GitHub webhooks only ever point at the default namespace's CI.
 NAMESPACE = 'default'
@@ -204,39 +205,57 @@ def latest_ping(repo, hook):
     return next((d for d in deliveries if d['event'] == 'ping'), None)
 
 
+PING_ATTEMPTS = 4
+PING_RETRY_DELAY_SECS = 15
+PING_DELIVERY_TIMEOUT_SECS = 60
+# Just after a CI restart the gateway can still route to the old pod and answer 502/503/504.
+GATEWAY_NOT_READY_STATUSES = (502, 503, 504)
+
+
+def ping_once(repo, hook):
+    """Send a ping and wait for its delivery to be listed. Returns the delivery, or None if it never showed up."""
+    # Remember the previous ping so an old one can't pass for this run's.
+    previous = latest_ping(repo, hook)
+    previous_id = previous['id'] if previous else None
+    gh_api(f'repos/{repo}/hooks/{hook["id"]}/pings', method='POST')
+    deadline = time.monotonic() + PING_DELIVERY_TIMEOUT_SECS
+    while time.monotonic() < deadline:
+        time.sleep(3)
+        latest = latest_ping(repo, hook)
+        if latest is not None and latest['id'] != previous_id:
+            return latest
+    return None
+
+
+def ping(repo, hook, result):
+    """Ping once for spin(): returns a status line and stores the delivery's status code in result."""
+    delivery = ping_once(repo, hook)
+    if delivery is None:
+        return f'no ping delivery listed after {PING_DELIVERY_TIMEOUT_SECS}s'
+    result['status_code'] = delivery['status_code']
+    return f'{delivery["status_code"]} {delivery["status"]} at {delivery["delivered_at"]}'
+
+
 def ping_hooks(matched, expected_status):
     all_ok = True
-    sent = []
     for repo, hook in matched:
-        try:
-            # Remember the previous ping so an old one can't pass for this run's.
-            previous = latest_ping(repo, hook)
-            gh_api(f'repos/{repo}/hooks/{hook["id"]}/pings', method='POST')
-        except RuntimeError as e:
-            print(f'  {repo} hook {hook["id"]}: ping failed to send: {e}')
-            all_ok = False
-            continue
-        sent.append((repo, hook, previous['id'] if previous else None))
-    # Deliveries show up asynchronously; one short wait, no polling.
-    time.sleep(5)
-
-    for repo, hook, previous_id in sent:
-        try:
-            latest = latest_ping(repo, hook)
-        except RuntimeError as e:
-            print(f'  {repo} hook {hook["id"]}: could not list deliveries: {e}')
-            all_ok = False
-            continue
-        if latest is None or latest['id'] == previous_id:
-            print(f'  {repo} hook {hook["id"]}: no new ping delivery found yet')
-            all_ok = False
-            continue
-        ok = latest['status_code'] == expected_status
+        ok = False
+        for attempt in range(1, PING_ATTEMPTS + 1):
+            result = {}
+            try:
+                spin(f'  {repo} hook {hook["id"]} ping {attempt}/{PING_ATTEMPTS}', partial(ping, repo, hook, result))
+            except RuntimeError as e:
+                print(f'    {e}')
+                break
+            status_code = result.get('status_code')
+            ok = status_code == expected_status
+            if status_code not in GATEWAY_NOT_READY_STATUSES or attempt == PING_ATTEMPTS:
+                break
+            print(f'    gateway not ready yet, retrying in {PING_RETRY_DELAY_SECS}s')
+            time.sleep(PING_RETRY_DELAY_SECS)
+        if not ok:
+            print(f'    expected {expected_status}')
         all_ok = all_ok and ok
-        print(
-            f'  {repo} hook {hook["id"]}: latest ping at {latest["delivered_at"]} -> '
-            f'{latest["status_code"]} {latest["status"]}  {"OK" if ok else f"expected {expected_status}"}'
-        )
 
     if not all_ok:
         print()
