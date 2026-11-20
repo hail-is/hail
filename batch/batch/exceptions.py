@@ -1,4 +1,4 @@
-from typing import Union
+from typing import Any, Union
 
 from aiohttp import web
 
@@ -39,13 +39,23 @@ class BillingValidationError(BatchUserError):
         return web.HTTPBadRequest(reason=self.message)
 
 
+class BillingConflictError(BatchUserError):
+    """The request conflicts with the current state, e.g. creating something that already exists with other values."""
+
+    def __init__(self, message: str):
+        super().__init__(message, 'error')
+
+    def http_response(self):
+        return web.HTTPConflict(reason=self.message)
+
+
 class ClosedBillingProjectError(BatchUserError):
     def __init__(self, billing_project: str):
         super().__init__(f'Billing project {billing_project} is closed and cannot be modified.', 'error')
 
 
 class InvalidBillingLimitError(BatchUserError):
-    def __init__(self, billing_limit: Union[str, float, int]):
+    def __init__(self, billing_limit: Any):
         super().__init__(f'Invalid billing_limit {billing_limit}.', 'error')
 
     def http_response(self):

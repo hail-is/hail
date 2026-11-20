@@ -112,65 +112,16 @@ GROUP BY billing_projects.name, billing_projects.`status`, billing_projects.`lim
     return billing_projects
 
 
-async def query_billing_projects_without_cost(
-    db: Database, user: Optional[str] = None, billing_project: Optional[str] = None, status: Optional[str] = None
-) -> List[Dict[str, Any]]:
-    where_conditions = ["billing_projects.`status` != 'deleted'"]
-    args = []
-
-    if user:
-        where_conditions.append("JSON_CONTAINS(users, JSON_QUOTE(%s))")
-        args.append(user)
-
-    if billing_project:
-        where_conditions.append('billing_projects.name_cs = %s')
-        args.append(billing_project)
-
-    if status:
-        where_conditions.append('billing_projects.`status` = %s')
-        args.append(status)
-
-    if where_conditions:
-        where_condition = f'WHERE {" AND ".join(where_conditions)}'
-    else:
-        where_condition = ''
-
-    sql = f"""
-SELECT billing_projects.name as billing_project,
-  billing_projects.`status` as `status`,
-  users, `limit`
-FROM billing_projects
-LEFT JOIN LATERAL (
-  SELECT billing_project, JSON_ARRAYAGG(`user_cs`) as users
-  FROM billing_project_users
-  WHERE billing_project_users.billing_project = billing_projects.name
-  GROUP BY billing_project_users.billing_project
-) AS t ON TRUE
-{where_condition};
-"""
-
-    billing_projects = []
-    async for record in db.select_and_fetchall(sql, tuple(args)):
-        record['users'] = json.loads(record['users']) if record['users'] is not None else []
-        billing_projects.append(record)
-
-    return billing_projects
-
-
 async def query_billing_history(
     db: Database,
     start: datetime.datetime,
     end: Optional[datetime.datetime],
     user: Optional[str] = None,
-    quote_manager_user: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
     """Return per-(billing_project, user) spend for the given date range.
 
-    Access control:
-      user=None, quote_manager_user=None  — global_bm, no filter
-      user=X, quote_manager_user=X        — quote manager: own spend + all
-                                            spend in managed quotes
-      user=X, quote_manager_user=None     — regular user: own spend only
+    With user=None, all spend (for global billing managers). Otherwise the user's own spend plus all spend in
+    billing projects under quotes they manage.
     """
     where_conditions = [
         "billing_projects.`status` != 'deleted'",
@@ -183,14 +134,10 @@ async def query_billing_history(
         args.append(end)
 
     if user is not None:
-        if quote_manager_user is not None:
-            where_conditions.append(
-                "(`user` = %s OR billing_projects.quote_id IN (SELECT quote_id FROM quote_managers WHERE `user` = %s))"
-            )
-            args.extend([user, quote_manager_user])
-        else:
-            where_conditions.append("`user` = %s")
-            args.append(user)
+        where_conditions.append(
+            "(`user` = %s OR billing_projects.quote_id IN (SELECT quote_id FROM quote_managers WHERE `user` = %s))"
+        )
+        args.extend([user, user])
 
     sql = f"""
 SELECT
@@ -219,7 +166,6 @@ async def query_billing_breakdown(
     start: datetime.datetime,
     end: datetime.datetime,
     user: Optional[str] = None,
-    quote_manager_user: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
     """Return per-(billing_project, user, resource) spend for the given date range.
 
@@ -233,14 +179,10 @@ async def query_billing_breakdown(
     args: List[Any] = [start, end]
 
     if user is not None:
-        if quote_manager_user is not None:
-            where_conditions.append(
-                "(`user` = %s OR billing_projects.quote_id IN (SELECT quote_id FROM quote_managers WHERE `user` = %s))"
-            )
-            args.extend([user, quote_manager_user])
-        else:
-            where_conditions.append("`user` = %s")
-            args.append(user)
+        where_conditions.append(
+            "(`user` = %s OR billing_projects.quote_id IN (SELECT quote_id FROM quote_managers WHERE `user` = %s))"
+        )
+        args.extend([user, user])
 
     sql = f"""
 SELECT billing_project, `user`, resources.resource, COALESCE(SUM(`usage` * rate), 0) AS cost

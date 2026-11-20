@@ -183,8 +183,8 @@ The table below lays out the permissions for each role type:
      - ❌
    * - Move a billing project to a different quote †
      - ✅
-     - ✅
-     - ✅
+     - ❌
+     - ❌
      - ❌
    * - Close / reopen a quote
      - ✅
@@ -207,12 +207,19 @@ The table below lays out the permissions for each role type:
      - ❌
      - ❌
 
-.. note::
+.. warning::
 
     **† Moving billing projects between quotes.**
-    To move a billing project between quotes, you must be a ``quote_owner`` or ``quote_manager`` in
-    both the source and destination quotes. The destination quote must have sufficient headroom to
-    accommodate the billing project's limit.
+    Only global billing managers can move a billing project to a different quote, and they must
+    explicitly accept that its spend history moves with it:
+
+    - The destination quote's owners and managers see all of the billing project's past spend,
+      including spend that the source quote paid for.
+    - The source quote's owners and managers no longer see any of it.
+    - Billing history reports all of the billing project's past spend under the destination quote.
+    - The billing project's limit is still checked against its all-time spend, so it must cover
+      past spend as well as new budget for jobs to keep running. The destination quote must have
+      enough headroom for that limit.
 
 .. note::
 

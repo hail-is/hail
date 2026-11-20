@@ -112,36 +112,39 @@ async def test_unauthorized_billing_project_modification(
     client = await make_client('billing-project-not-needed-but-required-by-BatchClient')
     try:
         await client.create_billing_project(project)
-    except BatchNotAuthenticatedError:
-        pass
+    except httpx.ClientResponseError as e:
+        # Without the create_billing_projects system permission, a quote must be chosen explicitly
+        # rather than falling back to INTERNAL.
+        assert e.status == 400, e
     else:
         assert False, 'expected error'
 
+    # These routes are gated by billing roles, and `test` has none on this billing project.
     try:
         await client.add_user('test', project)
-    except BatchNotAuthenticatedError:
-        pass
+    except httpx.ClientResponseError as e:
+        assert e.status == 403, e
     else:
         assert False, 'expected error'
 
     try:
         await client.remove_user('test', project)
-    except BatchNotAuthenticatedError:
-        pass
+    except httpx.ClientResponseError as e:
+        assert e.status == 403, e
     else:
         assert False, 'expected error'
 
     try:
         await client.close_billing_project(project)
-    except BatchNotAuthenticatedError:
-        pass
+    except httpx.ClientResponseError as e:
+        assert e.status == 403, e
     else:
         assert False, 'expected error'
 
     try:
         await client.reopen_billing_project(project)
-    except BatchNotAuthenticatedError:
-        pass
+    except httpx.ClientResponseError as e:
+        assert e.status == 403, e
     else:
         assert False, 'expected error'
 
@@ -232,7 +235,7 @@ async def test_delete_billing_project_only_when_closed(dev_client: BatchClient, 
     try:
         await dev_client.delete_billing_project(project)
     except httpx.ClientResponseError as e:
-        assert e.status == 403, e
+        assert e.status == 400, e
     else:
         assert False, 'expected error'
 
@@ -251,7 +254,7 @@ async def test_delete_billing_project_only_when_closed(dev_client: BatchClient, 
     try:
         await dev_client.reopen_billing_project(project)
     except httpx.ClientResponseError as e:
-        assert e.status == 403, e
+        assert e.status == 400, e
     else:
         assert False, 'expected error'
 
