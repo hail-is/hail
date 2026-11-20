@@ -14,7 +14,7 @@ import is.hail.io.{AbstractTypedCodecSpec, BufferSpec, TypedCodecSpec}
 import is.hail.io.avro.{AvroPartitionReader, AvroSchemaSerializer}
 import is.hail.io.bgen.BgenPartitionReader
 import is.hail.io.columnar.{
-  ColumnarPartitionReader, ColumnarPartitionWriter, ColumnarTableCommit, ColumnarTableManifest,
+  ColumnarCommit, ColumnarManifestWriter, ColumnarPartitionReader, ColumnarPartitionWriter,
 }
 import is.hail.io.vcf.{GVCFPartitionReader, VCFHeaderInfo}
 import is.hail.rvd.RVDSpecMaker
@@ -513,8 +513,8 @@ package defs {
             classOf[TableTextFinalizer],
             classOf[VCFExportFinalizer],
             classOf[SimpleMetadataWriter],
-            classOf[ColumnarTableCommit],
-            classOf[ColumnarTableManifest],
+            classOf[ColumnarCommit],
+            classOf[ColumnarManifestWriter],
             classOf[RVDSpecMaker],
             classOf[AbstractTypedCodecSpec],
             classOf[TypedCodecSpec],

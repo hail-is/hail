@@ -11,6 +11,7 @@ import is.hail.expr.ir.lowering.TableStage
 import is.hail.expr.ir.streams.StreamProducer
 import is.hail.io._
 import is.hail.io.bgen.BgenSettings
+import is.hail.io.columnar.MatrixColumnarWriter
 import is.hail.io.fs.FS
 import is.hail.io.gen.{BgenWriter, ExportGen}
 import is.hail.io.index.IndexType
@@ -44,6 +45,7 @@ object MatrixWriter {
       List(
         classOf[MatrixNativeWriter],
         classOf[MatrixNativePartitionedColumnsWriter],
+        classOf[MatrixColumnarWriter],
         classOf[MatrixVCFWriter],
         classOf[MatrixGENWriter],
         classOf[MatrixBGENWriter],
@@ -63,6 +65,15 @@ case class WrappedMatrixWriter(
   colKey: IndexedSeq[String],
 ) extends TableWriter {
   override def path: String = writer.path
+
+  // TableWriter.apply builds the RTable from the stage, so its key would be the partitioner key,
+  // which may extend the table key. Give the matrix writer the matrix table's row key, as lowering
+  // a TableWrite does.
+  override def apply(ctx: ExecuteContext, tv: TableValue): Unit = {
+    val ts = TableValueIntermediate(tv).asTableStage(ctx)
+    val r = RTable.fromTableStage(ctx, ts)
+    CompileAndEvaluate(ctx, lower(ctx, ts, RTable(r.rowFields, r.globalFields, tv.typ.key)))
+  }
 
   override def lower(ctx: ExecuteContext, ts: TableStage, r: RTable): IR =
     writer.lower(colsFieldName, entriesFieldName, colKey, ctx, ts, r)

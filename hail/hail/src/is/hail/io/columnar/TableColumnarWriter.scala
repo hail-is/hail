@@ -10,6 +10,7 @@ import is.hail.expr.ir.lowering.TableStage
 import is.hail.io.fs.FS
 import is.hail.types.RTable
 import is.hail.types.physical._
+import is.hail.types.physical.stypes.SValue
 import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
@@ -20,7 +21,7 @@ import java.io.OutputStreamWriter
 import java.nio.charset.StandardCharsets
 
 import org.apache.spark.sql.Row
-import org.json4s.{JArray, JBool, JNull, JObject, JString, JValue}
+import org.json4s.{JArray, JBool, JInt, JNull, JObject, JString, JValue}
 import org.json4s.jackson.JsonMethods
 
 object TableColumnarWriter {
@@ -30,8 +31,12 @@ object TableColumnarWriter {
   val ManifestFile: String = "manifest.json"
   val PartitionsFile: String = "partitions.parquet"
   val GlobalsFile: String = "globals.parquet"
+  val ColsFile: String = "cols.parquet"
   val RowsDirectory: String = "rows"
+  val EntriesDirectory: String = "entries"
   val DefaultRowIdField: String = "__row_id"
+  val DefaultColIdxField: String = "__col_idx"
+  val DefaultEntryValidField: String = "__entry_valid"
 
   /** A field of the partitions table: its type, and its value given one row file's write result
     * (see [[ColumnarPartitionWriter]]) and its partition index.
@@ -55,37 +60,54 @@ object TableColumnarWriter {
       )
     FastSeq(bound("start", "firstKey"), bound("end", "lastKey"))
   }
-}
 
-/** Writes a table in the columnar format (`dev-docs/hail-query/columnar-format-spec.md`).
-  *
-  * Rows with equal keys never span row partitions in this format, so a stage whose partitioner
-  * isn't strict for the table key is strictified first. `manifest.json` is written last and is the
-  * commit point.
-  */
-case class TableColumnarWriter(path: String, overwrite: Boolean = false) extends TableWriter {
-  import TableColumnarWriter._
+  private val fileRefPType: PStruct = PCanonicalStruct(
+    true,
+    "path" -> PCanonicalString(true),
+    "container" -> PCanonicalString(true),
+  )
 
-  // The stage's partitioner key may extend the table key, and an RTable built from the stage
-  // carries the partitioner key, so pass the table key explicitly.
-  override def apply(ctx: ExecuteContext, tv: TableValue): Unit = {
-    val stage = TableValueIntermediate(tv).asTableStage(ctx)
-    CompileAndEvaluate(ctx, lower(ctx, stage, RTable.fromTableStage(ctx, stage), tv.typ.key))
-  }
+  private def fileRef(path: IR): IR =
+    MakeStruct(FastSeq("path" -> path, "container" -> Str(Container)))
 
-  // When lowering a TableWrite, `r` is the requiredness of the child TableIR, whose key is the
-  // table key.
-  override def lower(ctx: ExecuteContext, stage: TableStage, r: RTable): IR =
-    lower(ctx, stage, r, r.key.toIndexedSeq)
+  /** What a matrix table adds to a table: its columns, which the stage holds in the global field
+    * `colsField`, and its entries, which each row holds in the field `entriesField`. `leafCap` is
+    * the most values a leaf field of an entry file may hold in one row group.
+    */
+  case class MatrixParts(
+    colsField: String,
+    colKey: IndexedSeq[String],
+    colPType: PStruct,
+    entriesField: String,
+    entryPType: PStruct,
+    leafCap: Long,
+  )
 
-  private def lower(ctx: ExecuteContext, stage: TableStage, r: RTable, key: IndexedSeq[String])
-    : IR = {
+  /** Writes `stage` in the columnar format, as a table keyed by `key`, or as a matrix table given
+    * `matrix`. `rowPType` and `globalPType` are the row and global types, without a matrix table's
+    * entries and columns.
+    *
+    * Rows with equal keys never span row partitions in this format, so a stage whose partitioner
+    * isn't strict for the key is strictified first. `manifest.json` is written last and is the
+    * commit point.
+    */
+  def lower(
+    ctx: ExecuteContext,
+    stage: TableStage,
+    key: IndexedSeq[String],
+    rowPType: PStruct,
+    globalPType: PStruct,
+    path: String,
+    overwrite: Boolean,
+    matrix: Option[MatrixParts],
+  ): IR = {
     assert(stage.key.startsWith(key), s"table key $key is not a prefix of ${stage.key}")
-    ColumnarSchema.checkSupported("row", stage.rowType)
-    ColumnarSchema.checkSupported("global", stage.globalType)
-
-    val rowPType = r.rowType.canonicalPType(stage.rowType).asInstanceOf[PStruct]
-    val globalPType = r.globalType.canonicalPType(stage.globalType).asInstanceOf[PStruct]
+    ColumnarSchema.checkSupported("row", rowPType.virtualType)
+    ColumnarSchema.checkSupported("global", globalPType.virtualType)
+    matrix.foreach { m =>
+      ColumnarSchema.checkSupported("column", m.colPType.virtualType)
+      ColumnarSchema.checkSupported("entry", m.entryPType.virtualType)
+    }
 
     // Only a keyed table needs a strict partitioner and has partition bounds.
     val (ts, bounds) =
@@ -97,29 +119,45 @@ case class TableColumnarWriter(path: String, overwrite: Boolean = false) extends
           s"supported, found ${ts.numPartitions}"
       )
 
-    val rowIdField = ColumnarSchema.internalFieldName(DefaultRowIdField, ts.rowType.fieldNames)
-    val rowWriter = ColumnarPartitionWriter(path, rowPType, key, Some(rowIdField))
+    // Row and entry files share the Row ID field.
+    val rowIdField = ColumnarSchema.internalFieldName(
+      DefaultRowIdField,
+      rowPType.fieldNames ++ matrix.toSeq.flatMap(_.entryPType.fieldNames),
+    )
+    val entries = matrix.map { m =>
+      ColumnarEntries(
+        m.entriesField,
+        m.entryPType,
+        ColumnarSchema.internalFieldName(
+          DefaultEntryValidField,
+          m.entryPType.fieldNames :+ rowIdField,
+        ),
+        m.leafCap,
+      )
+    }
+    val rowWriter = ColumnarPartitionWriter(path, rowPType, key, Some(rowIdField), entries)
 
     val partitionsFields =
       (PartitionsField("partition_index", PInt32(true), (_, idx) => idx) +: bounds) ++ FastSeq(
         PartitionsField("row_count", PInt64(true), (part, _) => GetField(part, "rowCount")),
+        PartitionsField("row_file", fileRefPType, (part, _) => fileRef(GetField(part, "path"))),
+      ) ++ matrix.map { _ =>
+        // One entry file per column block, and there is one column block.
         PartitionsField(
-          "row_file",
-          PCanonicalStruct(
-            true,
-            "path" -> PCanonicalString(true),
-            "container" -> PCanonicalString(true),
-          ),
-          (part, _) =>
-            MakeStruct(FastSeq("path" -> GetField(part, "path"), "container" -> Str(Container))),
-        ),
-      )
+          "entry_files",
+          PCanonicalArray(fileRefPType, true),
+          (part, _) => MakeArray(fileRef(GetField(part, "entryPath"))),
+        )
+      }
     val partitionsWriter = ColumnarPartitionWriter(
       path,
       PCanonicalStruct(true, partitionsFields.map(f => f.name -> f.typ): _*),
       FastSeq(),
       None,
     )
+
+    def fileContext(relPath: IR, partitionIndex: IR): IR =
+      MakeStruct(FastSeq("path" -> relPath, "partitionIndex" -> partitionIndex))
 
     def partitionsTable(parts: IR): IR =
       mapIR(zipWithIndex(ToStream(parts))) { elt =>
@@ -132,13 +170,47 @@ case class TableColumnarWriter(path: String, overwrite: Boolean = false) extends
       if (globalPType.size == 0) None
       else Some(ColumnarPartitionWriter(path, globalPType, FastSeq(), None))
 
-    def fileContext(relPath: IR, partitionIndex: IR): IR =
-      MakeStruct(FastSeq("path" -> relPath, "partitionIndex" -> partitionIndex))
+    // The columns file holds each column's index, then its fields (spec section 4.4).
+    val cols = matrix.map { m =>
+      val colIdxField = ColumnarSchema.internalFieldName(DefaultColIdxField, m.colPType.fieldNames)
+      val writer = ColumnarPartitionWriter(
+        path,
+        PCanonicalStruct(
+          true,
+          (colIdxField -> PInt32(true)) +: m.colPType.fields.map(f => f.name -> f.typ): _*
+        ),
+        FastSeq(),
+        None,
+      )
+      def write(globals: IR): IR =
+        WritePartition(
+          mapIR(zipWithIndex(ToStream(GetField(globals, m.colsField)))) { elt =>
+            bindIR(GetField(elt, "elt")) { col =>
+              MakeStruct(
+                (colIdxField -> GetField(elt, "idx")) +:
+                  m.colPType.fieldNames.map(n => n -> GetField(col, n))
+              )
+            }
+          },
+          fileContext(Str(ColsFile), I32(0)),
+          writer,
+        )
+      (colIdxField, writer, write _)
+    }
+
+    def columnCount(globals: IR): Option[IR] =
+      matrix.map(m => ArrayLen(GetField(globals, m.colsField)))
 
     val d = digitsNeeded(ts.numPartitions)
     val writeContexts = Literal(
-      TArray(TStruct("prefix" -> TString, "index" -> TInt32)),
-      ArraySeq.tabulate(ts.numPartitions)(i => Row(s"$RowsDirectory/${partFile(d, i)}-", i)),
+      TArray(TStruct(
+        FastSeq("index" -> TInt32, "prefix" -> TString) ++
+          matrix.map(_ => "entryPrefix" -> TString): _*
+      )),
+      ArraySeq.tabulate(ts.numPartitions) { i =>
+        val entryPrefix = matrix.map(_ => s"$EntriesDirectory/${partFile(d, i)}-block-0-")
+        Row(i +: s"$RowsDirectory/${partFile(d, i)}-" +: entryPrefix.toSeq: _*)
+      },
     )
 
     val job = ts.mapContexts { oldCtx =>
@@ -147,10 +219,17 @@ case class TableColumnarWriter(path: String, overwrite: Boolean = false) extends
       }
     }(GetField(_, "oldCtx")).mapCollectWithContextsAndGlobals("table_columnar_writer") {
       (rows, ctxRef) =>
-        bindIR(GetField(ctxRef, "writeCtx")) { w =>
+        bindIRs(GetField(ctxRef, "writeCtx"), UUID4()) { case Seq(w, uuid) =>
+          // The row file and its entry files share a UUID.
+          def file(prefixField: String): IR = GetField(w, prefixField) + uuid + Str(".parquet")
           WritePartition(
             rows,
-            fileContext(GetField(w, "prefix") + UUID4() + Str(".parquet"), GetField(w, "index")),
+            MakeStruct(
+              FastSeq("path" -> file("prefix"), "partitionIndex" -> GetField(w, "index")) ++
+                columnCount(ts.globals).toSeq.flatMap { n =>
+                  FastSeq("entryPath" -> file("entryPrefix"), "columnCount" -> n)
+                }
+            ),
             rowWriter,
           )
         }
@@ -167,76 +246,154 @@ case class TableColumnarWriter(path: String, overwrite: Boolean = false) extends
             partitionsWriter,
           ),
           "distinctlyKeyed" -> distinctlyKeyed,
+          "columnCount" -> columnCount(globals).getOrElse(I32(0)),
         ) ++ globalsWriter.map { w =>
           "globals" -> WritePartition(
             MakeStream(FastSeq[IR](globals), TStream(globals.typ)),
             fileContext(Str(GlobalsFile), I32(0)),
             w,
           )
-        }
+        } ++ cols.map { case (_, _, write) => "cols" -> write(globals) }
       )
     }
 
-    val manifest = ColumnarTableManifest(
+    val manifest = ColumnarManifestWriter(
       rowsSchema = rowWriter.arrowSchema,
       key = key,
       globalsSchema = ColumnarSchema.serialize(ColumnarSchema.fileSchema(globalPType, None)),
       hasGlobalsFile = globalsWriter.isDefined,
       rowIdField = rowIdField,
-      referenceGenomes = ColumnarSchema.nonBuiltinReferenceGenomes(ts.rowType, ts.globalType),
+      referenceGenomes = ColumnarSchema.nonBuiltinReferenceGenomes(
+        FastSeq(rowPType, globalPType).map(_.virtualType) ++
+          matrix.toSeq.flatMap(m => FastSeq(m.colPType, m.entryPType).map(_.virtualType)): _*
+      ),
+      matrix = matrix.zip(cols).zip(entries).map { case ((m, (colIdxField, colsWriter, _)), e) =>
+        ColumnarMatrixManifest(
+          colsSchema = colsWriter.arrowSchema,
+          colKey = m.colKey,
+          entriesSchema = rowWriter.entriesArrowSchema.get,
+          colIdxField = colIdxField,
+          entryValidField = e.entryValidField,
+        )
+      },
     )
-    WriteMetadata(job, ColumnarTableCommit(path, overwrite, manifest, job.typ))
+    WriteMetadata(job, ColumnarCommit(path, overwrite, manifest, job.typ))
   }
 }
 
-/** The contents of a table's `manifest.json`, apart from what is only known after the write. */
-case class ColumnarTableManifest(
+/** Writes a table in the columnar format (`dev-docs/hail-query/columnar-format-spec.md`). */
+case class TableColumnarWriter(path: String, overwrite: Boolean = false) extends TableWriter {
+
+  // TableWriter.apply builds the RTable from the stage, so its key would be the partitioner key,
+  // which may extend the table key. Give it the table key, as lowering a TableWrite does.
+  override def apply(ctx: ExecuteContext, tv: TableValue): Unit = {
+    val stage = TableValueIntermediate(tv).asTableStage(ctx)
+    val r = RTable.fromTableStage(ctx, stage)
+    CompileAndEvaluate(ctx, lower(ctx, stage, RTable(r.rowFields, r.globalFields, tv.typ.key)))
+  }
+
+  // `r.key` is the table key: when lowering a TableWrite, `r` is the requiredness of the child
+  // TableIR.
+  override def lower(ctx: ExecuteContext, stage: TableStage, r: RTable): IR =
+    TableColumnarWriter.lower(
+      ctx,
+      stage,
+      r.key.toIndexedSeq,
+      r.rowType.canonicalPType(stage.rowType).asInstanceOf[PStruct],
+      r.globalType.canonicalPType(stage.globalType).asInstanceOf[PStruct],
+      path,
+      overwrite,
+      None,
+    )
+}
+
+/** What a matrix table's `manifest.json` adds to a table's, apart from the column count. */
+case class ColumnarMatrixManifest(
+  colsSchema: String,
+  colKey: IndexedSeq[String],
+  entriesSchema: String,
+  colIdxField: String,
+  entryValidField: String,
+)
+
+/** Writes the `manifest.json` of a table, or of a matrix table given `matrix`, once the write is
+  * done.
+  */
+case class ColumnarManifestWriter(
   rowsSchema: String,
   key: IndexedSeq[String],
   globalsSchema: String,
   hasGlobalsFile: Boolean,
   rowIdField: String,
   referenceGenomes: IndexedSeq[ReferenceGenome],
+  matrix: Option[ColumnarMatrixManifest],
 ) {
   import TableColumnarWriter._
 
   private def fileRef(path: String): JValue =
     JObject("path" -> JString(path), "container" -> JString(Container))
 
-  def toJson(distinctlyKeyed: Boolean): JValue =
-    JObject(
-      "format" -> JString(FormatName),
-      "version" -> JString(FormatVersion),
-      "kind" -> JString("table"),
-      "rows" -> JObject(
-        "schema" -> JString(rowsSchema),
-        "key" -> JArray(key.map(JString(_)).toList),
-        "distinctly_keyed" -> JBool(distinctlyKeyed),
-      ),
-      "globals" -> JObject(
-        "schema" -> JString(globalsSchema),
-        "file" -> (if (hasGlobalsFile) fileRef(GlobalsFile) else JNull),
-      ),
-      "partitions" -> fileRef(PartitionsFile),
-      "internal_fields" -> JObject("row_id" -> JString(rowIdField)),
-      "reference_genomes" -> JArray(referenceGenomes.map(_.toJSON).toList),
-    )
+  private def strings(xs: IndexedSeq[String]): JValue = JArray(xs.map(JString(_)).toList)
 
-  def write(fs: FS, path: String, distinctlyKeyed: Boolean): Unit =
+  /** The manifest, given what is only known after the write. `columnCount` is ignored for a table.
+    */
+  def toJson(distinctlyKeyed: Boolean, columnCount: Int): JValue = {
+    val matrixFields = matrix.toList.flatMap { m =>
+      List(
+        "cols" -> JObject(
+          "schema" -> JString(m.colsSchema),
+          "key" -> strings(m.colKey),
+          "count" -> JInt(columnCount),
+          "file" -> fileRef(ColsFile),
+        ),
+        "entries" -> JObject(
+          "schema" -> JString(m.entriesSchema),
+          "layout" -> JString("dense"),
+          "column_blocks" -> JArray(List(JObject("start" -> JInt(0), "end" -> JInt(columnCount)))),
+        ),
+      )
+    }
+    val internalFields = ("row_id" -> JString(rowIdField)) :: matrix.toList.flatMap { m =>
+      List("col_idx" -> JString(m.colIdxField), "entry_valid" -> JString(m.entryValidField))
+    }
+    JObject(
+      List(
+        "format" -> JString(FormatName),
+        "version" -> JString(FormatVersion),
+        "kind" -> JString(if (matrix.isDefined) "matrix_table" else "table"),
+        "rows" -> JObject(
+          "schema" -> JString(rowsSchema),
+          "key" -> strings(key),
+          "distinctly_keyed" -> JBool(distinctlyKeyed),
+        ),
+        "globals" -> JObject(
+          "schema" -> JString(globalsSchema),
+          "file" -> (if (hasGlobalsFile) fileRef(GlobalsFile) else JNull),
+        ),
+        "partitions" -> fileRef(PartitionsFile),
+        "internal_fields" -> JObject(internalFields),
+        "reference_genomes" -> JArray(referenceGenomes.map(_.toJSON).toList),
+      ) ++ matrixFields
+    )
+  }
+
+  def write(fs: FS, path: String, distinctlyKeyed: Boolean, columnCount: Int): Unit =
     using(new OutputStreamWriter(fs.create(s"$path/$ManifestFile"), StandardCharsets.UTF_8)) {
-      out => out.write(JsonMethods.compact(toJson(distinctlyKeyed)))
+      out => out.write(JsonMethods.compact(toJson(distinctlyKeyed, columnCount)))
     }
 }
 
 /** Prepares the output directory, runs the write, and then commits it by writing `manifest.json`.
-  * The annotation is the write's result, a struct with a boolean `distinctlyKeyed` field.
+  * The annotation is the write's result, a struct with a boolean `distinctlyKeyed` field and an
+  * int32 `columnCount` field.
   */
-case class ColumnarTableCommit(
+case class ColumnarCommit(
   path: String,
   overwrite: Boolean,
-  manifest: ColumnarTableManifest,
+  manifest: ColumnarManifestWriter,
   annotationType: Type,
 ) extends MetadataWriter {
+  import TableColumnarWriter._
 
   override def writeMetadata(
     writeAnnotations: => IEmitCode,
@@ -247,11 +404,7 @@ case class ColumnarTableCommit(
     if (overwrite) {
       // Uncommit any existing dataset first, so a delete that fails partway never leaves a
       // manifest whose files are gone (spec section 2.1).
-      cb += fs.invoke[String, Boolean, Unit](
-        "delete",
-        s"$path/${TableColumnarWriter.ManifestFile}",
-        false,
-      )
+      cb += fs.invoke[String, Boolean, Unit]("delete", s"$path/$ManifestFile", false)
       cb += fs.invoke[String, Boolean, Unit]("delete", path, true)
     } else
       cb.if_(
@@ -259,11 +412,18 @@ case class ColumnarTableCommit(
         cb._fatal(s"columnar writer: file already exists: $path"),
       )
     cb += fs.invoke[String, Unit]("mkDir", path)
-    cb += fs.invoke[String, Unit]("mkDir", s"$path/${TableColumnarWriter.RowsDirectory}")
+    cb += fs.invoke[String, Unit]("mkDir", s"$path/$RowsDirectory")
+    if (manifest.matrix.isDefined)
+      cb += fs.invoke[String, Unit]("mkDir", s"$path/$EntriesDirectory")
 
     val result = writeAnnotations.getOrAssert(cb).asBaseStruct
-    val distinctlyKeyed = result.loadField(cb, "distinctlyKeyed").getOrAssert(cb).asBoolean.value
-    cb += cb.emb.getObject(manifest)
-      .invoke[FS, String, Boolean, Unit]("write", fs, path, distinctlyKeyed)
+    def field(name: String): SValue = result.loadField(cb, name).getOrAssert(cb)
+    cb += cb.emb.getObject(manifest).invoke[FS, String, Boolean, Int, Unit](
+      "write",
+      fs,
+      path,
+      field("distinctlyKeyed").asBoolean.value,
+      field("columnCount").asInt.value,
+    )
   }
 }
