@@ -4,11 +4,6 @@
 Billing Management
 ==================
 
-.. note::
-
-    **Coming soon.** Quotes and the billing management features described on this page are being
-    rolled out and are not yet available.
-
 Overview
 --------
 
