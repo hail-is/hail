@@ -28,7 +28,7 @@ case class ColumnarManifest(
 )
 
 object ColumnarManifest {
-  import TableColumnarWriter._
+  import RelationalColumnarWriter._
 
   /** Reads and validates `<path>/manifest.json`. A directory without one is not a committed table
     * (spec section 2.1).

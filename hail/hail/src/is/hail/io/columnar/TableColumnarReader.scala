@@ -195,7 +195,7 @@ class TableColumnarReader private (
         fatal(s"columnar reader: partitions table row $i has partition_index " +
           s"${field[Int]("partition_index")}")
       val Row(rowFile: String, container: String) = field[Row]("row_file"): @unchecked
-      if (container != TableColumnarWriter.Container)
+      if (container != RelationalColumnarWriter.Container)
         fatal(s"columnar reader: row file of partition $i has unsupported container '$container'")
       ColumnarPartition(
         rowFile,

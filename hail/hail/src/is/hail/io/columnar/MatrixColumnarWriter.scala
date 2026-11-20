@@ -36,7 +36,7 @@ case class MatrixColumnarWriter(
       )
     val tm = MatrixType.fromTableType(ts.tableType, colsFieldName, entriesFieldName, colKey)
     val rm = r.asMatrixType(colsFieldName, entriesFieldName)
-    TableColumnarWriter.lower(
+    RelationalColumnarWriter.lower(
       ctx,
       ts,
       r.key.toIndexedSeq,
@@ -44,7 +44,7 @@ case class MatrixColumnarWriter(
       rm.globalType.canonicalPType(tm.globalType).asInstanceOf[PStruct],
       path,
       overwrite,
-      Some(TableColumnarWriter.MatrixParts(
+      Some(RelationalColumnarWriter.MatrixParts(
         colsField = colsFieldName,
         colKey = colKey,
         colPType = rm.colType.canonicalPType(tm.colType).asInstanceOf[PStruct],
