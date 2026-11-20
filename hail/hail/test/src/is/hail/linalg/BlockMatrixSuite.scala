@@ -687,7 +687,7 @@ class BlockMatrixSuite {
         ArraySeq(1, 4, 5, 7, 8, 9),
         ArraySeq(0, 1, 2, 3, 4, 5, 6, 7, 8, 9),
       ).foreach { keep =>
-        val filteredViaBlock = bm.filterCols(keep.map(_.toLong)).toDenseMatrix()
+        val filteredViaBlock = bm.filterCols(ctx, keep.map(_.toLong)).toDenseMatrix()
         val filteredViaSlice = lm(::, keep)
         assert(filteredViaBlock == filteredViaSlice)
       }
@@ -706,7 +706,7 @@ class BlockMatrixSuite {
         ArraySeq(1, 4, 5, 7, 8),
         ArraySeq(0, 1, 2, 3, 4, 5, 6, 7, 8),
       ).foreach { keep =>
-        val filteredViaBlock = bm.filterCols(keep.map(_.toLong)).toDenseMatrix()
+        val filteredViaBlock = bm.filterCols(ctx, keep.map(_.toLong)).toDenseMatrix()
         val filteredViaSlice = lmt(::, keep)
         assert(filteredViaBlock == filteredViaSlice)
       }
@@ -724,7 +724,7 @@ class BlockMatrixSuite {
         ArraySeq(1, 4, 5, 7, 8),
         ArraySeq(0, 1, 2, 3, 4, 5, 6, 7, 8),
       ).foreach { keep =>
-        val filteredViaBlock = bm.filterRows(keep.map(_.toLong)).toDenseMatrix()
+        val filteredViaBlock = bm.filterRows(ctx, keep.map(_.toLong)).toDenseMatrix()
         val filteredViaSlice = lm(keep, ::)
 
         assert(filteredViaBlock == filteredViaSlice)
@@ -878,8 +878,8 @@ class BlockMatrixSuite {
     val bm = toBM(lm, blockSize = 5)
 
     val onlyEight = bm.filterBlocks(ArraySeq(8)) // Bottom right corner block
-    val onlyEightRowEleven = onlyEight.filterRows(ArraySeq(11)).toDenseMatrix()
-    val onlyEightColEleven = onlyEight.filterCols(ArraySeq(11)).toDenseMatrix()
+    val onlyEightRowEleven = onlyEight.filterRows(ctx, ArraySeq(11)).toDenseMatrix()
+    val onlyEightColEleven = onlyEight.filterCols(ctx, ArraySeq(11)).toDenseMatrix()
     val onlyEightCornerFour = onlyEight.filter(ArraySeq(10, 11), ArraySeq(10, 11)).toDenseMatrix()
 
     assert(onlyEightRowEleven.toArray sameElements Array(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 131,
@@ -910,7 +910,7 @@ class BlockMatrixSuite {
     val nCols = 50
     val bm = BlockMatrix.fill(nRows.toLong, nCols.toLong, 2, 1)
     val banded = bm.filterBand(0, 0, false)
-    val rowFilt = banded.filterRows(0L until nRows.toLong by 2L)
+    val rowFilt = banded.filterRows(ctx, 0L until nRows.toLong by 2L)
     val summed = rowFilt.rowSum().toDenseMatrix().toArray
     val expected =
       Array.tabulate(nRows)(x => if (x % 2 == 0) 2.0 else 0) ++ Array.tabulate(nCols - nRows)(x =>
@@ -1113,8 +1113,8 @@ class BlockMatrixSuite {
       assert(fbm.reverseColVectorSub(ctx, v).toDenseMatrix() == -(flm(::, *) - BDV(v)))
 
       // filter ops
-      assert(fbm.filterRows(ArraySeq(1, 2)).toDenseMatrix() == flm(1 to 2, ::))
-      assert(fbm.filterCols(ArraySeq(1, 2)).toDenseMatrix() == flm(::, 1 to 2))
+      assert(fbm.filterRows(ctx, ArraySeq(1, 2)).toDenseMatrix() == flm(1 to 2, ::))
+      assert(fbm.filterCols(ctx, ArraySeq(1, 2)).toDenseMatrix() == flm(::, 1 to 2))
       assert(fbm.filter(ArraySeq(1, 2), ArraySeq(1, 2)).toDenseMatrix() == flm(1 to 2, 1 to 2))
     }
 

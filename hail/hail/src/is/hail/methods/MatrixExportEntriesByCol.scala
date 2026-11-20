@@ -76,7 +76,7 @@ case class MatrixExportEntriesByCol(
           .toArray
       )
 
-      val fsBc = ctx.fsBc
+      val fsBc = ctx.backend.broadcast(ctx.fs)
       val localTempDir = ctx.localTmpdir
       val partFolders = mv.rvd.crdd.cmapPartitionsWithIndex { (i, _, ctx, it) =>
         val partFolder = partFileBase + partFile(d, i, TaskContext.get())
@@ -198,7 +198,7 @@ case class MatrixExportEntriesByCol(
 
     // clean up temporary files
     val temps = tempFolders.result()
-    val fsBc = ctx.fsBc
+    val fsBc = ctx.backend.broadcast(ctx.fs)
     ctx.backend.asSpark.sc.parallelize(
       temps,
       (temps.length / 32).max(1),

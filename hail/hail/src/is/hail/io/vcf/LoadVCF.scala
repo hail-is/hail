@@ -3,7 +3,6 @@ package is.hail.io.vcf
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.backend.{BroadcastValue, ExecuteContext}
-import is.hail.backend.spark.SparkBackend
 import is.hail.collection.{FastSeq, MissingArrayBuilder}
 import is.hail.collection.implicits.toRichIterable
 import is.hail.expr.JSONAnnotationImpex
@@ -16,7 +15,6 @@ import is.hail.expr.ir.lowering.{LowerMatrixIR, TableStage}
 import is.hail.expr.ir.streams.StreamProducer
 import is.hail.io.{checkGzipOfGlobbedFiles, VCFAttributes, VCFMetadata}
 import is.hail.io.fs.{FS, FileListEntry}
-import is.hail.io.tabix._
 import is.hail.io.vcf.LoadVCF.{getHeaderLines, parseHeader}
 import is.hail.rvd.{RVDPartitioner, RVDType}
 import is.hail.sparkextras.ContextRDD
@@ -28,15 +26,12 @@ import is.hail.utils._
 import is.hail.utils.implicits.toTruncatable
 import is.hail.variant._
 
-import scala.annotation.meta.param
 import scala.annotation.switch
 import scala.collection.BufferedIterator
 import scala.collection.immutable.ArraySeq
 import scala.jdk.CollectionConverters._
 
 import htsjdk.variant.vcf._
-import org.apache.spark.{Partition, TaskContext}
-import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 import org.json4s.{DefaultFormats, Formats, JValue}
 import org.json4s.JsonAST.{JArray, JObject, JString}
@@ -1675,74 +1670,6 @@ object LoadVCF extends Logging {
         }
       }
       rvb.endArray()
-    }
-  }
-}
-
-case class PartitionedVCFPartition(index: Int, chrom: String, start: Int, end: Int)
-    extends Partition
-
-class PartitionedVCFRDD(
-  fsBc: BroadcastValue[FS],
-  file: String,
-  @(transient @param) reverseContigMapping: Map[String, String],
-  @(transient @param) _partitions: Array[Partition],
-) extends RDD[WithContext[String]](SparkBackend.sparkContext, Seq()) {
-
-  val contigRemappingBc =
-    if (reverseContigMapping.size != 0) sparkContext.broadcast(reverseContigMapping) else null
-
-  override protected def getPartitions: Array[Partition] = _partitions
-
-  override def compute(split: Partition, context: TaskContext): Iterator[WithContext[String]] = {
-    val p = split.asInstanceOf[PartitionedVCFPartition]
-
-    val chromToQuery = if (contigRemappingBc != null)
-      contigRemappingBc.value.getOrElse(p.chrom, p.chrom)
-    else p.chrom
-
-    val reg = {
-      val r = new TabixReader(file, fsBc.value)
-      val tid = r.chr2tid(chromToQuery)
-      r.queryPairs(tid, p.start - 1, p.end)
-    }
-    if (reg.isEmpty)
-      return Iterator.empty
-
-    val lines = new TabixLineIterator(fsBc.value, file, reg)
-
-    // clean up
-    val context = TaskContext.get()
-    context.addTaskCompletionListener[Unit]((context: TaskContext) => lines.close()): Unit
-
-    val it: Iterator[WithContext[String]] = new Iterator[WithContext[String]] {
-      private var l = lines.next()
-      private var curIdx: Long = lines.getCurIdx()
-
-      override def hasNext: Boolean = l != null
-
-      override def next(): WithContext[String] = {
-        assert(l != null)
-        val n = l
-        l = lines.next()
-        curIdx = lines.getCurIdx()
-        if (l == null)
-          lines.close()
-        WithContext(n, Context(n, file, Some(curIdx.toInt)))
-      }
-    }
-
-    it.filter { l =>
-      val t1 = l.value.indexOf('\t')
-      val t2 = l.value.indexOf('\t', t1 + 1)
-
-      val chrom = l.value.substring(0, t1)
-      val pos = l.value.substring(t1 + 1, t2).toInt
-
-      if (chrom != chromToQuery) {
-        throw new RuntimeException(s"bad chromosome! $chromToQuery, $l")
-      }
-      p.start <= pos && pos <= p.end
     }
   }
 }

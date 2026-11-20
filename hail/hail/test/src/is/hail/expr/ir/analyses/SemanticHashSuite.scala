@@ -3,7 +3,6 @@ package is.hail.expr.ir.analyses
 import is.hail.{ParameterizedTest, PrettyVersion}
 import is.hail.TestUtils._
 import is.hail.backend.ExecuteContext
-import is.hail.backend.local.LocalBroadcastValue
 import is.hail.collection.FastSeq
 import is.hail.expr.ir._
 import is.hail.expr.ir.defs._
@@ -300,7 +299,7 @@ class SemanticHashSuite {
   )(implicit ctx: ExecuteContext
   ): Unit = {
     val fs = new FakeFS
-    ctx.local(fs = fs, fsBc = new LocalBroadcastValue(fs)) { implicit ctx =>
+    ctx.local(fs = fs) { implicit ctx =>
       val actual = SemanticHash(ctx, normalize(a)) == SemanticHash(ctx, normalize(b))
       assertEq(
         actual,
@@ -320,7 +319,7 @@ class SemanticHashSuite {
 
     val ir = importMatrix("gs://fake-bucket/fake-matrix")
 
-    ctx.local(fs = fs, fsBc = new LocalBroadcastValue(fs)) { ctx =>
+    ctx.local(fs = fs) { ctx =>
       assertEq(
         SemanticHash(ctx, ir),
         None,

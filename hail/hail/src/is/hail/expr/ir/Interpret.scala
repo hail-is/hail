@@ -965,7 +965,7 @@ object Interpret extends Logging {
         SafeNDArray(shape, ArraySeq.unsafeWrapArray(lm.toArray))
       case TableAggregate(child, query) =>
         val value = ExecuteRelational(lctx, child).asTableValue(ctx)
-        val fsBc = ctx.fsBc
+        val fsBc = ctx.backend.broadcast(ctx.fs)
 
         val globalsBc = value.globals.broadcast(ctx.theHailClassLoader)
         val globalsOffset = value.globals.value.offset
