@@ -422,7 +422,7 @@ class MatrixPLINKReader(
 
     val fullRowPType = PCanonicalStruct(
       true,
-      "locus" -> PCanonicalLocus.schemaFromRG(referenceGenome, true),
+      "locus" -> PLocus.schemaFromRG(referenceGenome, true),
       "alleles" -> PCanonicalArray(PCanonicalString(true), true),
       "rsid" -> PCanonicalString(true),
       "cm_position" -> PFloat64(true),
