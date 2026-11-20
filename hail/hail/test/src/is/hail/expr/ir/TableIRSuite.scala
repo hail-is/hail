@@ -981,6 +981,71 @@ class TableIRSuite {
     )
   }
 
+  def testTableMapGlobalsAggregation(implicit ctx: ExecuteContext) = {
+    def count = ApplyAggOp(Count())()
+    val rows = FastSeq(0 until 5: _*).map(RowSeq(_))
+
+    val tt = TableType(
+      rowType = TStruct("field1" -> TString, "field2" -> TInt32),
+      key = FastSeq("field1", "field2"),
+      globalType = TStruct.empty,
+    )
+    val data = FastSeq(RowSeq("A", 1), RowSeq("A", 2), RowSeq("B", 1))
+    val rdd = ctx.backend.asSpark.sc.parallelize(data)
+    val base = TableLiteral(TableValue(ctx, tt.rowType, tt.key, rdd), ctx.theHailClassLoader)
+    // keyed by field1, but its RVD is keyed by field1 and field2
+    val prefixKeyed =
+      TableLiteral(tt.copy(key = FastSeq("field1")), base.rvd, base.enc, base.encodedGlobals)
+
+    FastSeq(
+      (
+        TableRange(5, 2)
+          .mapGlobals((_, row) => makestruct("sum" -> ApplyAggOp(Sum())(row.get("idx").toL)))
+          .keyBy(FastSeq())
+          .collect,
+        RowSeq(rows, RowSeq(10L)),
+      ),
+      (
+        TableDistinct(prefixKeyed.mapGlobals((_, _) => makestruct("n" -> count)))
+          .keyBy(FastSeq())
+          .collect,
+        RowSeq(FastSeq(RowSeq("A", 1), RowSeq("B", 1)), RowSeq(3L)),
+      ),
+      (
+        TableRange(5, 2)
+          .mapGlobals((_, _) =>
+            If(count > I64(0), makestruct("n" -> count), NA(TStruct("n" -> TInt64)))
+          )
+          .keyBy(FastSeq())
+          .collect,
+        RowSeq(rows, RowSeq(5L)),
+      ),
+    )
+  }
+
+  @ParameterizedTest
+  def testTableMapGlobalsAggregation(ir: IR, expected: Row)(implicit ctx: ExecuteContext): Unit =
+    assertEvalsTo(ir, expected)
+
+  @Test def testTableMapGlobalsOptionalTypeExecuteRelational(implicit ctx: ExecuteContext): Unit = {
+    def count = ApplyAggOp(Count())()
+    val table = TableRange(5, 2).mapGlobals((_, _) =>
+      If(count > I64(0), makestruct("n" -> count), NA(TStruct("n" -> TInt64)))
+    )
+    val value = ExecuteRelational(LoweringContext(ctx, table), table).asTableValue(ctx)
+    assert(value.globals.safeJavaValue == Row(5L))
+  }
+
+  @Test def testTableMapGlobalsKeepsRVDExecuteRelational(implicit ctx: ExecuteContext): Unit = {
+    val range = TableRange(5, 2)
+    val child = ExecuteRelational(LoweringContext(ctx, range), range).asTableValue(ctx)
+    val table = TableLiteral(child, ctx.theHailClassLoader)
+      .mapGlobals((_, _) => makestruct("n" -> I32(1)))
+    val mapped = ExecuteRelational(LoweringContext(ctx, table), table).asTableValue(ctx)
+    assert(mapped.rvd eq child.rvd)
+    assert(mapped.globals.safeJavaValue == Row(1))
+  }
+
   @Test def testTableWrite(implicit ctx: ExecuteContext): Unit = {
     val table = TableRange(5, 4)
     val path = ctx.createTmpPath("test-table-write", "ht")

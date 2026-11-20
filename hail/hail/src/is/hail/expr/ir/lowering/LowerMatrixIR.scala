@@ -139,11 +139,11 @@ object LowerMatrixIR extends Logging {
         var t = lower(ctx, child).rename(rowMap, globalMap)
 
         if (colMap.nonEmpty)
-          t = t.mapGlobals { global =>
+          t = t.mapGlobals((global, _) =>
             global.rename(_.insertFields(FastSeq(
               colsFieldName -> TArray(child.typ.colType.rename(colMap))
             )))
-          }
+          )
 
         if (entryMap.nonEmpty)
           t = t.mapRows { (_, row) =>
@@ -170,7 +170,7 @@ object LowerMatrixIR extends Logging {
 
       case MatrixFilterCols(child, pred) =>
         lower(ctx, child)
-          .mapGlobals { global =>
+          .mapGlobals((global, _) =>
             M.eval {
               for {
                 cols <- global.get(colsFieldName)
@@ -186,17 +186,17 @@ object LowerMatrixIR extends Logging {
                   })
               )
             }
-          }
+          )
           .mapRows { (global, row) =>
             row.update(entriesFieldName) { entries =>
               mapArray(global.get("__new_col_idx"))(entries.at(_))
             }
           }
-          .mapGlobals { global =>
+          .mapGlobals((global, _) =>
             global
               .update(colsFieldName)(cols => mapArray(global.get("__new_col_idx"))(cols.at(_)))
               .drop("__new_col_idx")
-          }
+          )
 
       case MatrixAnnotateRowsTable(child, table, root, product) =>
         val kt = table.typ.keyType
@@ -216,20 +216,20 @@ object LowerMatrixIR extends Logging {
 
       case MatrixChooseCols(child, oldIndices) =>
         lower(ctx, child)
-          .mapGlobals(_.insert("__new_col_idx" -> Literal(TArray(TInt32), oldIndices)))
+          .mapGlobals((g, _) => g.insert("__new_col_idx" -> Literal(TArray(TInt32), oldIndices)))
           .mapRows { (global, row) =>
             row.update(entriesFieldName) { entries =>
               mapArray(global.get("__new_col_idx"))(entries.at(_))
             }
           }
-          .mapGlobals { global =>
+          .mapGlobals((global, _) =>
             global
               .update(colsFieldName)(cols => mapArray(global.get("__new_col_idx"))(cols.at(_)))
               .drop("__new_col_idx")
-          }
+          )
 
       case MatrixAnnotateColsTable(child, table, root) =>
-        lower(ctx, child).mapGlobals { global =>
+        lower(ctx, child).mapGlobals((global, _) =>
           lower(ctx, table).collectAsDict.bind { annotations =>
             global.update(colsFieldName) { cols =>
               mapArray(cols) { col =>
@@ -242,10 +242,10 @@ object LowerMatrixIR extends Logging {
               }
             }
           }
-        }
+        )
 
       case MatrixMapGlobals(child, newGlobals) =>
-        lower(ctx, child).mapGlobals { global =>
+        lower(ctx, child).mapGlobals((global, _) =>
           M.eval {
             for {
               cols <- global.get(colsFieldName)
@@ -253,7 +253,7 @@ object LowerMatrixIR extends Logging {
               newGlobals <- lower(ctx, newGlobals)
             } yield newGlobals.insert(colsFieldName -> cols)
           }
-        }
+        )
 
       case MatrixMapRows(child, newRow) =>
         def liftScans(ir: IR): (IR, M) = {
@@ -707,7 +707,7 @@ object LowerMatrixIR extends Logging {
             (bindResult, bindBody)
           }
 
-        lc.mapGlobals { global =>
+        lc.mapGlobals((global, _) =>
           M.eval {
             for {
               global <- Name("__global_matrix_map_cols") -> global
@@ -730,7 +730,7 @@ object LowerMatrixIR extends Logging {
                 })
             )
           }
-        }
+        )
 
       case MatrixFilterEntries(child, pred) =>
         val mtype = child.typ
@@ -763,7 +763,7 @@ object LowerMatrixIR extends Logging {
           ll,
           rr
             .mapRows((_, row) => row.rename(_.rename(Map(entriesFieldName -> "__right_entries"))))
-            .mapGlobals(global => makestruct("__right_cols" -> global.get(colsFieldName))),
+            .mapGlobals((global, _) => makestruct("__right_cols" -> global.get(colsFieldName))),
           joinType,
         )
           .mapRows { (global, row) =>
@@ -785,11 +785,11 @@ object LowerMatrixIR extends Logging {
               )
               .drop("__right_entries")
           }
-          .mapGlobals { global =>
+          .mapGlobals((global, _) =>
             global
               .update(colsFieldName)(cols => concatIR(cols, global.get("__right_cols")).toArray)
               .drop("__right_cols")
-          }
+          )
 
       case MatrixMapEntries(child, newEntries) =>
         lower(ctx, child).mapRows { (global, row) =>
@@ -833,17 +833,17 @@ object LowerMatrixIR extends Logging {
 
       case MatrixColsHead(child, n) =>
         lower(ctx, child)
-          .mapGlobals(_.update(colsFieldName)(_.slice(0, Some(n))))
+          .mapGlobals((g, _) => g.update(colsFieldName)(_.slice(0, Some(n))))
           .mapRows((_, row) => row.update(entriesFieldName)(_.slice(0, Some(n))))
 
       case MatrixColsTail(child, n) =>
         lower(ctx, child)
-          .mapGlobals(_.update(colsFieldName)(_.slice(-n, None)))
+          .mapGlobals((g, _) => g.update(colsFieldName)(_.slice(-n, None)))
           .mapRows((_, row) => row.update(entriesFieldName)(_.slice(-n, None)))
 
       case MatrixExplodeCols(child, path) =>
         lower(ctx, child)
-          .mapGlobals { global =>
+          .mapGlobals((global, _) =>
             global.get(colsFieldName).stream.streamAgg { col =>
               IRBuilder.scoped { ib =>
                 val N = path.length
@@ -869,7 +869,7 @@ object LowerMatrixIR extends Logging {
                 )
               }
             }
-          }
+          )
           .mapRows { (global, row) =>
             M.eval {
               for {
@@ -885,7 +885,7 @@ object LowerMatrixIR extends Logging {
               )
             }
           }
-          .mapGlobals(_.drop("__lengths"))
+          .mapGlobals((g, _) => g.drop("__lengths"))
 
       case MatrixAggregateRowsByKey(child, entryExpr, rowExpr) =>
         lower(ctx, child).aggregateByKey { (global, row) =>
@@ -919,7 +919,7 @@ object LowerMatrixIR extends Logging {
 
       case MatrixCollectColsByKey(child) =>
         lower(ctx, child)
-          .mapGlobals { global =>
+          .mapGlobals((global, _) =>
             bindIR(global.get(colsFieldName)) { cols =>
               global.insert(
                 "__new_col_idx" ->
@@ -932,7 +932,7 @@ object LowerMatrixIR extends Logging {
                     .toArray
               )
             }
-          }
+          )
           .mapRows { (global, row) =>
             row.update(entriesFieldName) { entries =>
               mapArray(global.get("__new_col_idx")) { kv =>
@@ -942,7 +942,7 @@ object LowerMatrixIR extends Logging {
               }
             }
           }
-          .mapGlobals { global =>
+          .mapGlobals((global, _) =>
             global.update(colsFieldName) { cols =>
               mapArray(global.get("__new_col_idx")) { kv =>
                 InsertFields(
@@ -954,7 +954,7 @@ object LowerMatrixIR extends Logging {
               }
             }
               .drop("__new_col_idx")
-          }
+          )
 
       case MatrixExplodeRows(child, path) =>
         TableExplode(lower(ctx, child), path)
@@ -963,7 +963,7 @@ object LowerMatrixIR extends Logging {
 
       case MatrixAggregateColsByKey(child, entryExpr, colExpr) =>
         lower(ctx, child)
-          .mapGlobals { global =>
+          .mapGlobals((global, _) =>
             bindIR(global.get(colsFieldName)) { cols =>
               global.insert(
                 "__key_map" ->
@@ -976,7 +976,7 @@ object LowerMatrixIR extends Logging {
                     .toArray
               )
             }
-          }
+          )
           .mapRows { (global, row) =>
             M.eval {
               for {
@@ -1000,7 +1000,7 @@ object LowerMatrixIR extends Logging {
               } yield row.insert(entriesFieldName -> newEntries)
             }
           }
-          .mapGlobals { global =>
+          .mapGlobals((global, _) =>
             M.eval {
               for {
                 cols <- global.get(colsFieldName)
@@ -1023,7 +1023,7 @@ object LowerMatrixIR extends Logging {
                 })
               } yield global.insert(colsFieldName -> newCols).drop("__key_map")
             }
-          }
+          )
 
       case MatrixLiteral(_, tl) => tl
     }
@@ -1046,7 +1046,7 @@ object LowerMatrixIR extends Logging {
       case CastMatrixToTable(child, entries, cols) =>
         lower(ctx, child)
           .mapRows((_, row) => row.select(child.typ.rowType.fieldNames :+ entriesFieldName))
-          .mapGlobals(_.select(child.typ.globalType.fieldNames :+ colsFieldName))
+          .mapGlobals((g, _) => g.select(child.typ.globalType.fieldNames :+ colsFieldName))
           .rename(Map(entriesFieldName -> entries), Map(colsFieldName -> cols))
 
       case x @ MatrixEntriesTable(child) =>
@@ -1054,7 +1054,7 @@ object LowerMatrixIR extends Logging {
 
         if (child.typ.rowKey.nonEmpty && child.typ.colKey.nonEmpty) {
           lc
-            .mapGlobals { global =>
+            .mapGlobals((global, _) =>
               bindIR(global.get(colsFieldName)) { cols =>
                 global.insert(
                   "__old_col_idx" ->
@@ -1068,7 +1068,7 @@ object LowerMatrixIR extends Logging {
                       .toArray
                 )
               }
-            }
+            )
             .aggregateByKey { (_, row) =>
               makestruct(
                 "__values" ->
@@ -1132,7 +1132,7 @@ object LowerMatrixIR extends Logging {
                   )
               }
             }
-            .mapGlobals(_.drop(colsFieldName, "__old_col_idx"))
+            .mapGlobals((g, _) => g.drop(colsFieldName, "__old_col_idx"))
             .keyBy(child.typ.rowKey ++ child.typ.colKey, isSorted = true)
         } else {
           val result =
@@ -1162,7 +1162,7 @@ object LowerMatrixIR extends Logging {
                     .insert(newFields, ordering = Some(x.typ.rowType.fieldNames))
                 }
               }
-              .mapGlobals(_.drop(colsFieldName))
+              .mapGlobals((g, _) => g.drop(colsFieldName))
 
           if (child.typ.colKey.isEmpty) result
           else {
@@ -1186,7 +1186,7 @@ object LowerMatrixIR extends Logging {
 
       case MatrixRowsTable(child) =>
         lower(ctx, child)
-          .mapGlobals(_.drop(colsFieldName))
+          .mapGlobals((g, _) => g.drop(colsFieldName))
           .mapRows((_, row) => row.drop(entriesFieldName))
 
       case MatrixColsTable(child) =>
