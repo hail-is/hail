@@ -19,3 +19,13 @@ def test_get_fs_by_requester_pays_config(cls):
     assert set(set_kwargs["gcs_requester_pays_configuration"][1]) == set(config_2[1])
     default_kwargs_fses = GCSRequesterPaysFSCache(cls, {"gcs_kwargs": kwargs_1})
     assert default_kwargs_fses[None]._gcs_kwargs == kwargs_1
+
+
+@pytest.mark.parametrize("cls", [RouterFS, RouterAsyncFS])
+def test_pop_all_returns_every_cached_fs_and_empties_the_cache(cls):
+    fses = GCSRequesterPaysFSCache(cls)
+    cached = [fses[None], fses["foo"]]
+
+    assert fses.pop_all() == cached
+    assert fses.pop_all() == []
+    assert fses[None] is not cached[0]
