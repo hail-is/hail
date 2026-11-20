@@ -11,6 +11,7 @@ import is.hail.expr.ir.TestUtils._
 import is.hail.expr.ir.defs._
 import is.hail.expr.ir.implicits.forTesting._
 import is.hail.io.fs.FS
+import is.hail.types.RTable
 import is.hail.types.virtual._
 import is.hail.utils.Interval
 import is.hail.variant.Locus
@@ -1109,7 +1110,8 @@ class SimplifySuite {
       (ApplyUnaryPrimOp(Bang, c), x, y, If(c, y, x)),
       (c, If(c, x, y), y, If(c, x, y)),
       (c, x, If(c, x, y), If(c, x, y)),
-      (c, x, x, If(IsNA(c), NA(x.typ), x)),
+      (IsNA(y), x, x.deepCopy, x),
+      (c, x, x.deepCopy, If(c, x, x.deepCopy)),
       (c, True(), False(), c),
       (c, False(), True(), ApplyUnaryPrimOp(Bang, c)),
     )
@@ -1124,6 +1126,20 @@ class SimplifySuite {
   )(implicit ctx: ExecuteContext
   ): Unit =
     If(pred, cnsq, altr) should simplifyTo(expected)
+
+  @Test def testEqualBranchIfKeepsRequiredness(implicit ctx: ExecuteContext): Unit = {
+    val tr = TableRange(4, 2)
+    val row = Ref(TableIR.rowName, tr.typ.rowType)
+    val pred = ApplyComparisonOp(EQ, GetField(row, "idx"), I32(0))
+    val mapped =
+      TableMapRows(tr, InsertFields(row, FastSeq("same" -> If(pred, I32(1), I32(1)))))
+    val simplified = Simplify(ctx, mapped).asInstanceOf[TableIR]
+    val req = Requiredness(simplified, ctx).r.lookup(simplified).asInstanceOf[RTable]
+    assert(
+      req.field("same").required,
+      s"\n${Pretty.sexprStyle(simplified)}\n$req",
+    )
+  }
 
   def testLandSimplification() = {
     def na = NA(TBoolean)
