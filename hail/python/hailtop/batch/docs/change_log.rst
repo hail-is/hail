@@ -15,6 +15,26 @@ versions. In particular, Hail officially supports:
 Change Log
 ==========
 
+**Version 0.2.141**
+
+- (`#15976 <https://github.com/hail-is/hail/pull/15976>`__) restore accidentally removed tests
+- (`#15991 <https://github.com/hail-is/hail/pull/15991>`__) disable sctp in workers
+- (`#15804 <https://github.com/hail-is/hail/pull/15804>`__) replace /timing and /dag with customizable /job-list api
+- (`#15981 <https://github.com/hail-is/hail/pull/15981>`__) disable intrinsic base64 decoder in JVM
+- (`#15651 <https://github.com/hail-is/hail/pull/15651>`__) add DB-layer tests for billing project management and reporting
+- (`#15862 <https://github.com/hail-is/hail/pull/15862>`__) resolve a broken user share counter in the scheduler
+- (`#15796 <https://github.com/hail-is/hail/pull/15796>`__) report retry-related costs and projections on job details page
+- (`#15973 <https://github.com/hail-is/hail/pull/15973>`__) bump docker ubuntu base to noble-20261110
+- (`#15972 <https://github.com/hail-is/hail/pull/15972>`__) bump worker base disk image to noble-amd64-v20261107
+- (`#15971 <https://github.com/hail-is/hail/pull/15971>`__) pip npm bump 2026_11_13
+- (`#15645 <https://github.com/hail-is/hail/pull/15645>`__) add billing quotes DB schema, migrations, and DB-layer functions
+- (`#15968 <https://github.com/hail-is/hail/pull/15968>`__) dedicated driver to CI callbacks
+- (`#15965 <https://github.com/hail-is/hail/pull/15965>`__) tighter job network rules
+- (`#15964 <https://github.com/hail-is/hail/pull/15964>`__) create and bill n4 external storage disks as Hyperdisk
+- (`#15947 <https://github.com/hail-is/hail/pull/15947>`__) bump ubuntu docker base to noble-20261024.1
+- (`#15946 <https://github.com/hail-is/hail/pull/15946>`__) pip npm bump 2026_11_06
+- (`#15917 <https://github.com/hail-is/hail/pull/15917>`__) pip npm bump 2026_10_30
+
 **Version 0.2.140**
 
 - (`#15663 <https://github.com/hail-is/hail/pull/15663>`__) ``hailtop`` now supports Python 3.12, 3.13 and 3.14. Support for Python 3.10 and 3.11 is removed. The default Python version for jobs is now 3.12.

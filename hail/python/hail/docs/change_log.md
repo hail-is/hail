@@ -52,6 +52,30 @@ supports.
 policy. Their functionality or even existence may change without notice. Please contact us if you
 critically depend on experimental functionality.**
 
+## Version 0.2.141 
+
+Released 2026-11-20 
+
+- (hail#15983) Always bind a named binding at the end of a Memoized chain
+- (hail#15982) Keep lets that read the element index in AggArrayPerElement's loop
+- (hail#15974) Remove relational lets and the REL scope
+- (hail#15665) Add Arrow <-> Hail type conversions
+- (hail#15978) Honour MILL_OUTPUT_DIR in the Makefile
+- (hail#15940) Dispatch Pretty.header on a per-node tag
+- (hail#15937) Dispatch ChildEnv.get on a per-node tag
+- (hail#15934) Dispatch TypeCheck on a per-node tag
+- (hail#15931) Add a format-aware commit check for tables and matrix tables
+- (hail#15948) Fix use-after-free of lazy inner elements in StreamFlatMap
+- (hail#15928) Thread Block envs in the walkers and build each node once
+- (hail#15929) Make StackFrame helpers lazy and replace the More node
+- (hail#15924) Delete Bindings, AggEnv and GenericBindingEnv
+- (hail#15923) Port PruneDeadFields to ChildEnv
+- (hail#15922) Port the direct Bindings.get callers to ChildEnv
+- (hail#15921) Skip fresh scopes in FreeVariables
+- (hail#15920) Walk children through ChildEnv
+- (hail#15919) Add Binds and ChildEnv, checked against Bindings.get
+- (hail#15918) Add Scopes and bindingEnvScopes
+
 ## Version 0.2.140
 
 Released 2026-11-02
