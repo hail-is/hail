@@ -2,10 +2,12 @@
 
 The fixtures are written with pyarrow alone, directly from the columnar format specification
 (``dev-docs/hail-query/columnar-format-spec.md``), so they don't depend on Hail's writer. Hail's
-tests write the same tables and compare the output with these fixtures by value
-(``hail/python/test/hail/table/test_columnar_format.py``).
+tests write the same tables and matrix tables and compare the output with these fixtures by value
+(``test_columnar_format.py`` in ``hail/python/test/hail/table`` and
+``hail/python/test/hail/matrixtable``).
 
-Run from any directory, with pyarrow installed, to regenerate ``<spec version>/table/<fixture>``:
+Run from any directory, with pyarrow installed, to regenerate ``<spec version>/table/<fixture>`` and
+``<spec version>/matrix_table/<fixture>``:
 
     python hail/hail/test/resources/columnar/generate.py
 """
@@ -14,12 +16,15 @@ import base64
 import json
 import os
 import shutil
+from typing import NamedTuple, Optional
 
 import pyarrow as pa
 import pyarrow.parquet as pq
 
 SPEC_VERSION = '0.1'
 ROW_ID = '__row_id'
+COL_IDX = '__col_idx'
+ENTRY_VALID = '__entry_valid'
 
 
 def with_field_ids(schema: pa.Schema) -> pa.Schema:
@@ -72,6 +77,24 @@ def write_parquet(path: str, schema: pa.Schema, rows: list) -> None:
     )
 
 
+FILE_REF = pa.struct([pa.field('path', pa.string(), False), pa.field('container', pa.string(), False)])
+
+
+def file_ref(path: str) -> dict:
+    return {'path': path, 'container': 'parquet'}
+
+
+class MatrixParts(NamedTuple):
+    """What a matrix table adds to a table: its columns, and the entries of each row of each row
+    partition, one per column, each a dict of entry fields or None for a missing entry."""
+
+    col_schema: pa.Schema
+    col_key: list
+    cols: list
+    entry_schema: pa.Schema
+    entries: list
+
+
 def write_table(
     path: str,
     row_schema: pa.Schema,
@@ -80,61 +103,111 @@ def write_table(
     global_schema: pa.Schema,
     globals_row,
     reference_genomes: tuple = (),
+    matrix: Optional[MatrixParts] = None,
 ):
-    """Writes a table whose row partitions are `partitions`, each a list of rows. `reference_genomes`
-    holds the definitions of its non-builtin reference genomes (spec section 3.1)."""
+    """Writes a table whose row partitions are `partitions`, each a list of rows, or a matrix table
+    given `matrix`. `reference_genomes` holds the definitions of its non-builtin reference genomes
+    (spec section 3.1)."""
     shutil.rmtree(path, ignore_errors=True)
     os.makedirs(f'{path}/rows')
 
     file_schema = with_field_ids(pa.schema([pa.field(ROW_ID, pa.int64(), False), *row_schema]))
     key_type = pa.struct([row_schema.field(k) for k in key])
     bounds = [pa.field('start', key_type), pa.field('end', key_type)] if key else []
+    entry_files = [pa.field('entry_files', pa.list_(pa.field('element', FILE_REF, False)), False)] if matrix else []
     partitions_schema = with_field_ids(
         pa.schema([
             pa.field('partition_index', pa.int32(), False),
             *bounds,
             pa.field('row_count', pa.int64(), False),
-            pa.field(
-                'row_file',
-                pa.struct([pa.field('path', pa.string(), False), pa.field('container', pa.string(), False)]),
-                False,
-            ),
+            pa.field('row_file', FILE_REF, False),
+            *entry_files,
         ])
     )
 
+    if matrix:
+        os.makedirs(f'{path}/entries')
+        # Spec section 4.3: the entry validity list, then one list per entry field, whose elements
+        # are nullable.
+        entry_file_schema = with_field_ids(
+            pa.schema([
+                pa.field(ROW_ID, pa.int64(), False),
+                pa.field(ENTRY_VALID, pa.list_(pa.field('element', pa.bool_(), False)), False),
+                *[
+                    pa.field(f.name, pa.list_(f.with_name('element').with_nullable(True)), False)
+                    for f in matrix.entry_schema
+                ],
+            ])
+        )
+
     digits = len(str(len(partitions) - 1))
-    entries = []
+    partitions_table = []
     distinctly_keyed = bool(key)
     for i, rows in enumerate(partitions):
-        row_file = f'rows/part-{i:0{digits}}-00000000-0000-4000-8000-{i:012}.parquet'
-        write_parquet(f'{path}/{row_file}', file_schema, [{ROW_ID: (i << 40) | j, **r} for j, r in enumerate(rows)])
-        entry = {'partition_index': i}
+        uuid = f'00000000-0000-4000-8000-{i:012}'
+        row_file = f'rows/part-{i:0{digits}}-{uuid}.parquet'
+        row_ids = [(i << 40) | j for j in range(len(rows))]
+        write_parquet(f'{path}/{row_file}', file_schema, [{ROW_ID: row_id, **r} for row_id, r in zip(row_ids, rows)])
+        partition = {'partition_index': i}
         if key:
             keys = [tuple(r[k] for k in key) for r in rows]
             distinctly_keyed = distinctly_keyed and len(set(keys)) == len(keys)
-            entry['start'] = {k: rows[0][k] for k in key} if rows else None
-            entry['end'] = {k: rows[-1][k] for k in key} if rows else None
-        entry['row_count'] = len(rows)
-        entry['row_file'] = {'path': row_file, 'container': 'parquet'}
-        entries.append(entry)
-    write_parquet(f'{path}/partitions.parquet', partitions_schema, entries)
+            partition['start'] = {k: rows[0][k] for k in key} if rows else None
+            partition['end'] = {k: rows[-1][k] for k in key} if rows else None
+        partition['row_count'] = len(rows)
+        partition['row_file'] = file_ref(row_file)
+        if matrix:
+            entry_file = f'entries/part-{i:0{digits}}-block-0-{uuid}.parquet'
+            write_parquet(
+                f'{path}/{entry_file}',
+                entry_file_schema,
+                [
+                    {
+                        ROW_ID: row_id,
+                        ENTRY_VALID: [e is not None for e in row_entries],
+                        **{f: [None if e is None else e[f] for e in row_entries] for f in matrix.entry_schema.names},
+                    }
+                    for row_id, row_entries in zip(row_ids, matrix.entries[i])
+                ],
+            )
+            partition['entry_files'] = [file_ref(entry_file)]
+        partitions_table.append(partition)
+    write_parquet(f'{path}/partitions.parquet', partitions_schema, partitions_table)
 
     global_schema = with_field_ids(global_schema)
     globals_file = None
     if len(global_schema) > 0:
-        globals_file = {'path': 'globals.parquet', 'container': 'parquet'}
+        globals_file = file_ref('globals.parquet')
         write_parquet(f'{path}/globals.parquet', global_schema, [globals_row])
 
     manifest = {
         'format': 'hail-columnar',
         'version': SPEC_VERSION,
-        'kind': 'table',
+        'kind': 'matrix_table' if matrix else 'table',
         'rows': {'schema': encode_schema(file_schema), 'key': key, 'distinctly_keyed': distinctly_keyed},
         'globals': {'schema': encode_schema(global_schema), 'file': globals_file},
-        'partitions': {'path': 'partitions.parquet', 'container': 'parquet'},
+        'partitions': file_ref('partitions.parquet'),
         'internal_fields': {'row_id': ROW_ID},
         'reference_genomes': list(reference_genomes),
     }
+    if matrix:
+        col_file_schema = with_field_ids(pa.schema([pa.field(COL_IDX, pa.int32(), False), *matrix.col_schema]))
+        write_parquet(
+            f'{path}/cols.parquet', col_file_schema, [{COL_IDX: j, **col} for j, col in enumerate(matrix.cols)]
+        )
+        n_cols = len(matrix.cols)
+        manifest['cols'] = {
+            'schema': encode_schema(col_file_schema),
+            'key': matrix.col_key,
+            'count': n_cols,
+            'file': file_ref('cols.parquet'),
+        }
+        manifest['entries'] = {
+            'schema': encode_schema(entry_file_schema),
+            'layout': 'dense',
+            'column_blocks': [{'start': 0, 'end': n_cols}],
+        }
+        manifest['internal_fields'].update(col_idx=COL_IDX, entry_valid=ENTRY_VALID)
     # The manifest is written last.
     with open(f'{path}/manifest.json', 'w') as f:
         json.dump(manifest, f, indent=2)
@@ -344,8 +417,35 @@ def all_types_table() -> tuple:
     return pa.schema(fields), [[row(0), row(1)], [row(2), row(3)]]
 
 
+# A matrix table of 6 rows in two row partitions of three rows, and 4 columns, with missing entries and
+# present entries with a missing field (spec section 6). Hail's tests build the same matrix table
+# (``matrix_table`` in ``hail/python/test/hail/matrixtable/test_columnar_format.py``).
+MISSING_ENTRIES_ROW_SCHEMA = pa.schema([pa.field('row_idx', pa.int32(), False), pa.field('r', pa.string(), False)])
+
+
+def missing_entries_row(i: int) -> dict:
+    return {'row_idx': i, 'r': str(i)}
+
+
+def missing_entry(i: int, j: int) -> Optional[dict]:
+    """Entry (i, j) is missing when (i + j) % 4 == 1. Its field y is missing when (i + j) % 3 == 0."""
+    if (i + j) % 4 == 1:
+        return None
+    return {'x': i * 10 + j, 'y': None if (i + j) % 3 == 0 else str(j)}
+
+
+MISSING_ENTRIES_MATRIX = MatrixParts(
+    col_schema=pa.schema([pa.field('col_idx', pa.int32(), False), pa.field('s', pa.string(), False)]),
+    col_key=['col_idx'],
+    cols=[{'col_idx': j, 's': str(j)} for j in range(4)],
+    entry_schema=pa.schema([pa.field('x', pa.int32(), False), pa.field('y', pa.string())]),
+    entries=[[[missing_entry(i, j) for j in range(4)] for i in rows] for rows in (range(3), range(3, 6))],
+)
+
+
 def main():
-    root = os.path.join(os.path.dirname(os.path.abspath(__file__)), SPEC_VERSION, 'table')
+    here = os.path.dirname(os.path.abspath(__file__))
+    root = os.path.join(here, SPEC_VERSION, 'table')
     all_types_schema, all_types_partitions = all_types_table()
     write_table(
         f'{root}/all_types',
@@ -365,6 +465,15 @@ def main():
         [[{'idx': i, 's': str(i)} for i in range(3)], [{'idx': i, 's': str(i)} for i in range(3, 6)]],
         pa.schema([]),
         None,
+    )
+    write_table(
+        os.path.join(here, SPEC_VERSION, 'matrix_table', 'missing_entries'),
+        MISSING_ENTRIES_ROW_SCHEMA,
+        ['row_idx'],
+        [[missing_entries_row(i) for i in range(3)], [missing_entries_row(i) for i in range(3, 6)]],
+        pa.schema([pa.field('g', pa.int32(), False)]),
+        {'g': 5},
+        matrix=MISSING_ENTRIES_MATRIX,
     )
 
 
