@@ -3988,6 +3988,22 @@ class IRSuite {
     testValueIRParser(block, BindingEnv.empty[Type].createAgg)
   }
 
+  @Test def testParserRejectsTrailingInput(implicit ctx: ExecuteContext): Unit = {
+    assert(IRParser.parse_value_ir(ctx, "(I32 1) \n") == I32(1))
+    interceptFatal("Unexpected trailing punctuation '\\)'")(
+      IRParser.parse_value_ir(ctx, "(I32 1))")
+    )
+    interceptFatal("Unexpected trailing identifier 'x'")(
+      IRParser.parse_value_ir(ctx, "(I32 1) x")
+    )
+    interceptFatal("Unexpected character '#'")(
+      IRParser.parse_value_ir(ctx, "(I32 1) #")
+    )
+  }
+
+  @Test def testParserNarrowsFloat32LiteralsFromFloat64(implicit ctx: ExecuteContext): Unit =
+    assert(IRParser.parse_value_ir(ctx, "(F32 1.0000000596046448)") == F32(1.0f))
+
   // A relational writer names the reference genomes it writes, as types do, and reads them back as
   // the reference genomes in scope.
   @Test def testRelationalWriterNamesItsReferenceGenomes(implicit ctx: ExecuteContext): Unit = {
