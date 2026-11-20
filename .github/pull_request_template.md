@@ -4,6 +4,13 @@ Fixes #<issue_number> (delete if N/A)
 
 Brief description and justification of what this PR is doing.
 
+## Stack Meta
+
+Delete this section unless this PR is the first PR (position 1, nearest to main) of a native GitHub stack (gh stack). CI uses it to name the stack in its PR list.
+
+name: <short name for the stack>
+reference doc: <link to a design doc or RFC (delete if N/A)>
+
 ## Security Assessment
 
 Delete all except the correct answer:

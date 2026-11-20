@@ -84,6 +84,7 @@ async def test_build_slots_and_queue():
     add_unbuilt_pr(wb, 3).pending_build_reason = 'new commit 1a2b3c4d'
     add_unbuilt_pr(wb, 4).labels = {DO_NOT_TEST}
     wb.merge_candidate = running
+    wb.stacked_prs[5] = MagicMock()  # upper-stack: counted, never built
 
     status = await developer_branch_status(wb, authorizing_db(), frozen=False)
 
@@ -95,7 +96,7 @@ async def test_build_slots_and_queue():
         'queued': [{'pr': 3, 'reason': 'new commit 1a2b3c4d'}],
     }
     assert status['merge_candidate'] == 1
-    assert status['n_prs'] == 4
+    assert status['n_prs'] == 5
 
 
 async def test_unauthorized_prs_are_not_queued_or_in_merge_queue():
