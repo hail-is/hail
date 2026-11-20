@@ -17,7 +17,12 @@ spec:
     targetPort: 8443
   selector:
     app: gateway
+{% if global.cloud == "aws" %}
+  # configured in infra/aws/main.yaml
+  type: ClusterIP
+{% else %}
   loadBalancerIP: "{{ global.ip }}"
   # https://kubernetes.io/docs/tutorials/services/source-ip/#source-ip-for-services-with-type-loadbalancer
   externalTrafficPolicy: Local
   type: LoadBalancer
+{% endif %}
