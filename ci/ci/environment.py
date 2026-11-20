@@ -1,12 +1,12 @@
 import json
 import os
 
-from gear.cloud_config import get_azure_config, get_gcp_config, get_global_config
+from gear.cloud_config import get_aws_config, get_azure_config, get_gcp_config, get_global_config
 
 global_config = get_global_config()
 
 CLOUD = global_config['cloud']
-assert CLOUD in ('gcp', 'azure'), CLOUD
+assert CLOUD in ('gcp', 'azure', 'aws'), CLOUD
 
 DOCKER_PREFIX = global_config['docker_prefix']
 DOCKER_ROOT_IMAGE = global_config['docker_root_image']
@@ -23,6 +23,8 @@ GITHUB_WEBHOOK_SECRET = os.environ.get('HAIL_CI_GITHUB_WEBHOOK_SECRET') or None
 
 if CLOUD == 'gcp':
     REGION = get_gcp_config().region
+elif CLOUD == 'aws':
+    REGION = get_aws_config().region
 else:
     assert CLOUD == 'azure', CLOUD
     REGION = get_azure_config().region
