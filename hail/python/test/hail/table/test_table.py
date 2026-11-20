@@ -1798,6 +1798,11 @@ class Tests(unittest.TestCase):
         assert "both an input and output source" in str(exc.value)
 
 
+def test_parallelize_rejects_empty_schema_with_partial_type():
+    with pytest.raises(ValueError, match='either schema or partial type'):
+        hl.Table.parallelize([], schema=hl.tstruct(), partial_type={'a': hl.tint32})
+
+
 def test_large_number_of_fields():
     ht = hl.utils.range_table(100)
     ht = ht.annotate(**{str(k): k for k in range(1000)})

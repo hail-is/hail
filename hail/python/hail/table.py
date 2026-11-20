@@ -688,7 +688,7 @@ class Table(BaseTable):
             A distributed Hail table created from the local collection of rows.
 
         """
-        if schema and partial_type:
+        if schema is not None and partial_type is not None:
             raise ValueError("define either schema or partial type, not both.")
 
         dtype = schema

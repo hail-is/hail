@@ -68,7 +68,7 @@ def read_expression(path, _assert_type=None):
     """
     _assert_table_type = None
     _load_refs = True
-    if _assert_type:
+    if _assert_type is not None:
         _assert_table_type = ttable(hl.tstruct(expr=_assert_type), row_type=hl.tstruct(), row_key=[])
         _load_refs = False
     return hl.read_table(path, _assert_type=_assert_table_type, _load_refs=_load_refs).index_globals().expr

@@ -214,7 +214,7 @@ def _impute_type(x, partial_type):
             return partial_type
         ts = {_impute_type(element, partial_type.element_type) for element in x}
         unified_type = super_unify_types(*ts)
-        if not unified_type:
+        if unified_type is None:
             raise ExpressionException(
                 "Hail does not support heterogeneous sets: found set with elements of types {} ".format(list(ts))
             )
@@ -235,7 +235,7 @@ def _impute_type(x, partial_type):
                     list(x.keys()), list(kts)
                 )
             )
-        if not unified_value_type:
+        if unified_value_type is None:
             if unified_key_type == hl.tstr and user_partial_type is None:
                 return tstruct(**{k: _impute_type(x[k], None) for k in x})
 
@@ -300,7 +300,7 @@ def raise_for_holes(t):
 def to_expr(e, dtype=None, partial_type=None) -> 'Expression':
     assert dtype is None or partial_type is None
     if isinstance(e, Expression):
-        if dtype and not dtype == e.dtype:
+        if dtype is not None and dtype != e.dtype:
             raise TypeError("expected expression of type '{}', found expression of type '{}'".format(dtype, e.dtype))
         return e
     return cast_expr(e, dtype, partial_type)
@@ -308,7 +308,7 @@ def to_expr(e, dtype=None, partial_type=None) -> 'Expression':
 
 def cast_expr(e, dtype=None, partial_type=None) -> 'Expression':
     assert dtype is None or partial_type is None
-    if not dtype:
+    if dtype is None:
         dtype = impute_type(e, partial_type)
     x = _to_expr(e, dtype)
     if isinstance(x, Expression):

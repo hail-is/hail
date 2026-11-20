@@ -167,6 +167,11 @@ class HailType(object):
     def __eq__(self, other):
         return isinstance(other, HailType) and self._eq(other)
 
+    def __bool__(self):
+        # A type is a value, not a container: `tstruct()` and `ttuple()` must
+        # not be falsy just because they inherit `__len__` from Mapping/Sequence.
+        return True
+
     @abc.abstractmethod
     def __str__(self):
         raise NotImplementedError
@@ -1442,7 +1447,7 @@ class tstruct(HailType, Mapping):
 
         key = path[0]
         keyt = self.get(key)
-        if not (keyt and isinstance(keyt, tstruct)):
+        if not isinstance(keyt, tstruct):
             keyt = tstruct()
         return self._insert_fields(**{key: keyt._insert(path[1:], t)})
 
