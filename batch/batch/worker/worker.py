@@ -88,6 +88,7 @@ from ..publicly_available_images import publicly_available_images
 from ..resource_usage import ResourceUsageMonitor
 from ..semaphore import FIFOWeightedSemaphore
 from ..worker.worker_api import CloudDisk, CloudWorkerAPI, ContainerRegistryCredentials
+from ..worker_api_auth import instance_token_middleware
 from .jvm_entryway_protocol import EndOfStream, read_bool, read_int, read_str, write_int, write_str
 
 with open('/subdomains.txt', 'r', encoding='utf-8') as subdomains_file:
@@ -3099,6 +3100,8 @@ class Worker:
         self.file_store = FileStore(self.fs, BATCH_LOGS_STORAGE_URI, INSTANCE_ID)
 
         self.instance_token = os.environ['ACTIVATION_TOKEN']
+        # None until activation: the activation token is in VM metadata, so it must not open the API
+        self.active_instance_token: Optional[str] = None
 
         self.cloudfuse_mount_manager = ReadOnlyCloudfuseManager()
 
@@ -3355,7 +3358,10 @@ class Worker:
         return json_response(body)
 
     async def run(self):
-        app = web.Application(client_max_size=HTTP_CLIENT_MAX_SIZE)
+        app = web.Application(
+            client_max_size=HTTP_CLIENT_MAX_SIZE,
+            middlewares=[instance_token_middleware(lambda: self.active_instance_token, frozenset({'/healthcheck'}))],
+        )
         app.add_routes([
             web.post('/api/v1alpha/kill', self.kill),
             web.post('/api/v1alpha/batches/jobs/create', self.create_job),
@@ -3562,6 +3568,7 @@ class Worker:
             headers=await self.headers(),
         )
         self.instance_token = resp_json['token']
+        self.active_instance_token = self.instance_token
         self.active = True
         self.last_updated = time_msecs()
         log.info('activated')

@@ -3281,7 +3281,8 @@ steps:
               --durations=50 \
               /io/test/test_utils.py \
               /io/test/test_time_limited_max_size_cache.py \
-              /io/test/test_job_list_unit.py
+              /io/test/test_job_list_unit.py \
+              /io/test/test_worker_api_auth.py
     inputs:
       - from: /repo/batch/test
         to: /io/test
