@@ -156,7 +156,7 @@ case class BgenSettings(
   val rowPType: PCanonicalStruct = PCanonicalStruct(
     required = true,
     ArraySeq(
-      "locus" -> PCanonicalLocus.schemaFromRG(rg, required = false),
+      "locus" -> PLocus.schemaFromRG(rg, required = false),
       "alleles" -> PCanonicalArray(PCanonicalString(false), false),
       "rsid" -> PCanonicalString(),
       "varid" -> PCanonicalString(),
