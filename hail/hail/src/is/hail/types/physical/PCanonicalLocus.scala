@@ -47,7 +47,11 @@ final case class PCanonicalLocus(rg: ReferenceGenome, required: Boolean = false)
   override def position(address: Long): Int = Region.loadInt(representation.fieldOffset(address, 1))
 
   override def packed(address: Long): Long =
-    PLocus.pack(rg.getContigIndex(contigType.loadString(contigAddr(address))), position(address))
+    PLocus.pack(
+      rg,
+      rg.getContigIndex(contigType.loadString(contigAddr(address))),
+      position(address),
+    )
 
   lazy val contigType: PCanonicalString =
     representation.field("contig").typ.asInstanceOf[PCanonicalString]

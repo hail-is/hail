@@ -5,11 +5,42 @@ import is.hail.asm4s._
 import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.types.physical.stypes.interfaces.SLocusValue
 import is.hail.types.virtual.TLocus
+import is.hail.utils.fatal
 import is.hail.variant.{Locus, ReferenceGenome}
 
 object PLocus {
-  def pack(contigIdx: Int, position: Int): Long =
+
+  /** Packs a locus on `rg` into a long as `(contigIdx << 32) | position`. Fails on a negative
+    * position: its sign bits would overwrite the contig index. Every site that packs a locus calls
+    * this or the staged `pack`, so none of them skips the check. Packed loci that are read rather
+    * than packed, such as those decoded from Arrow or the varint encoding, are not checked.
+    */
+  def pack(rg: ReferenceGenome, contigIdx: Int, position: Int): Long = {
+    if (position < 0) fatal(negativePositionMessage(rg, contigIdx, position))
     (contigIdx.toLong << 32) | position.toLong
+  }
+
+  /** The staged [[pack]]. */
+  def pack(cb: EmitCodeBuilder, rg: ReferenceGenome, contigIdx: Code[Int], position: Code[Int])
+    : Value[Long] = {
+    val idx = cb.memoize(contigIdx)
+    val pos = cb.memoize(position)
+    cb.if_(
+      pos < 0,
+      cb._fatal(Code.invokeScalaObject3[ReferenceGenome, Int, Int, String](
+        PLocus.getClass,
+        "negativePositionMessage",
+        cb.emb.getReferenceGenome(rg),
+        idx,
+        pos,
+      )),
+    )
+    cb.memoize((idx.toL << 32) | pos.toL)
+  }
+
+  def negativePositionMessage(rg: ReferenceGenome, contigIdx: Int, position: Int): String =
+    s"Invalid locus '${rg.getContig(contigIdx)}:$position' for reference genome '${rg.name}': " +
+      "a locus position cannot be negative."
 
   // Volatile and global, not thread-local, so that Spark tasks running in the test JVM see the
   // same choice as the driver.
@@ -65,9 +96,9 @@ abstract class PLocus extends PType {
 
   /** Builds a locus of this type, allocating in `region` if the representation needs it. It does
     * not validate the locus: callers that need validation check it first. A packed locus looks up
-    * the contig's index, so it fails on a contig that isn't in `rg`. `position` must not be
-    * negative: a packed locus keeps it in its low 32 bits, where a negative position would
-    * overwrite the contig index.
+    * the contig's index, so it fails on a contig that isn't in `rg`, and it fails on a negative
+    * position (see [[PLocus.pack]]). A struct locus accepts either, and fails the same way later if
+    * it is packed.
     */
   def constructFromContigAndPosition(
     cb: EmitCodeBuilder,
