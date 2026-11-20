@@ -278,6 +278,9 @@ EOF
 
 sudo systemctl restart google-cloud-ops-agent
 
+# Jobs don't need io_uring, and it has been a frequent source of kernel privilege escalations
+sysctl -w kernel.io_uring_disabled=2
+
 # combine multiple local SSDs into a single RAID0 array
 if [ "$NUM_LOCAL_SSDS" -gt 1 ]; then
     DEVICES=""

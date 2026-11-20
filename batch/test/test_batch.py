@@ -1449,6 +1449,23 @@ echo "hello" | nc -q 1 $(hostname -i) 5000
     assert 'hello\n' == job_log['main'], str((job_log, b.debug_info()))
 
 
+def test_io_uring_is_disabled(client: BatchClient):
+    b = create_batch(client)
+    script = """
+import ctypes, errno
+libc = ctypes.CDLL(None, use_errno=True)
+params = ctypes.create_string_buffer(120)
+fd = libc.syscall(425, 1, params)  # io_uring_setup, x86_64
+print("ALLOWED" if fd >= 0 else errno.errorcode[ctypes.get_errno()])
+"""
+    j = b.create_job(HAIL_GENETICS_HAILTOP_IMAGE, ['python3', '-c', script])
+    b.submit()
+    status = j.wait()
+    assert status['state'] == 'Success', str((status, b.debug_info()))
+    job_log = j.log()
+    assert job_log['main'] == 'EPERM\n', str((job_log, b.debug_info()))
+
+
 def test_verify_private_network_is_restricted(client: BatchClient):
     b = create_batch(client)
     b.create_job(
