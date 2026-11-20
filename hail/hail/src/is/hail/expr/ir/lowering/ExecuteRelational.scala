@@ -48,7 +48,7 @@ object ExecuteRelational {
               tv.typ.keyType.size - 1,
             )
           TableValueIntermediate(
-            TableValue(ctx, tv.typ, tv.globals, tv.rvd.filterIntervals(partitioner, keep))
+            TableValue(ctx, tv.typ, tv.globals, tv.rvd.filterIntervals(ctx, partitioner, keep))
           )
         case ir: TableGen =>
           TableStageIntermediate(LowerTableIR.applyTable(ir, DArrayLowering.All, lctx))

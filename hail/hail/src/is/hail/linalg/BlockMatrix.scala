@@ -218,7 +218,7 @@ object BlockMatrix {
 
     val gp = GridPartitioner(blockSize, nRows, nCols, maybeFiltered)
     val nPartitions = partFiles.length
-    val fsBc = ctx.fsBc
+    val fsBc = ctx.backend.broadcast(ctx.fs)
 
     val blocks =
       new RDD[((Int, Int), DenseMatrix)](ctx.backend.asSpark.sc, Nil) {
@@ -307,7 +307,7 @@ object BlockMatrix {
     fs.mkDir(prefix)
 
     val d = digitsNeeded(bms.length)
-    val fsBc = ctx.fsBc
+    val fsBc = ctx.backend.broadcast(ctx.fs)
     collectMatrices(bms)
       .mapPartitionsWithIndex { case (i, it) =>
         assert(it.hasNext)
@@ -344,7 +344,7 @@ object BlockMatrix {
     fs.mkDir(prefix)
 
     val d = digitsNeeded(bms.length)
-    val fsBc = ctx.fsBc
+    val fsBc = ctx.backend.broadcast(ctx.fs)
 
     val nameFunction = customFilenames match {
       case None => i: Int => StringUtils.leftPad(i.toString, d, '0') + ".tsv"
@@ -767,7 +767,7 @@ class BlockMatrix(
     val writeRectangle = if (binary) writeRectangleBinary else writeRectangleText
 
     val dRect = digitsNeeded(rectangles.length)
-    val fsBc = ctx.fsBc
+    val fsBc = ctx.backend.broadcast(ctx.fs)
     BlockMatrixRectanglesRDD(rectangles, bm = this).foreach { case (index, rectData) =>
       val r = rectangles(index)
       val paddedIndex = StringUtils.leftPad(index.toString, dRect, "0")
@@ -1542,11 +1542,21 @@ class BlockMatrix(
       0.0
   }
 
-  def filterRows(keep: IndexedSeq[Long]): BlockMatrix =
-    new BlockMatrix(new BlockMatrixFilterRowsRDD(this, keep), blockSize, keep.length.toLong, nCols)
+  def filterRows(ctx: ExecuteContext, keep: IndexedSeq[Long]): BlockMatrix =
+    new BlockMatrix(
+      BlockMatrixFilterRowsRDD(ctx, this, keep),
+      blockSize,
+      keep.length.toLong,
+      nCols,
+    )
 
-  def filterCols(keep: IndexedSeq[Long]): BlockMatrix =
-    new BlockMatrix(new BlockMatrixFilterColsRDD(this, keep), blockSize, nRows, keep.length.toLong)
+  def filterCols(ctx: ExecuteContext, keep: IndexedSeq[Long]): BlockMatrix =
+    new BlockMatrix(
+      BlockMatrixFilterColsRDD(ctx, this, keep),
+      blockSize,
+      nRows,
+      keep.length.toLong,
+    )
 
   def filter(keepRows: IndexedSeq[Long], keepCols: IndexedSeq[Long]): BlockMatrix =
     new BlockMatrix(
@@ -1796,48 +1806,61 @@ case class BlockMatrixFilterOneDimRDDPartition(
   blockRanges: Array[(Int, Array[Int], Array[Int])],
 ) extends Partition
 
-// checked in Python: keep non-empty, increasing, valid range
-private class BlockMatrixFilterColsRDD(bm: BlockMatrix, keep: IndexedSeq[Long])
-    extends RDD[((Int, Int), DenseMatrix)](bm.blocks.sparkContext, Nil) {
+private object BlockMatrixFilterColsRDD {
+  // checked in Python: keep non-empty, increasing, valid range
+  def apply(ctx: ExecuteContext, bm: BlockMatrix, keep: IndexedSeq[Long])
+    : BlockMatrixFilterColsRDD = {
+    val originalGP = bm.gp
+    val tempDenseGP = GridPartitioner(originalGP.blockSize, originalGP.nRows, keep.length.toLong)
 
-  private val childPartitionsBc = bm.blocks.sparkContext.broadcast(bm.blocks.partitions)
+    val allBlockColRanges =
+      BlockMatrixFilterRDD.computeAllBlockColRanges(keep, originalGP, tempDenseGP)
+
+    val originalMaybeBlocksSet = originalGP.partitionIndexToBlockIndex.map(_.toSet)
+
+    /* Map the denseGP blocks to the blocks of parents they depend on, temporarily pretending they
+     * are all there. */
+    // Then delete the parents that aren't in originalGP.maybeBlocks, then delete the pairs
+    // without parents at all.
+    val blockParentMap = (0 until tempDenseGP.numPartitions).map { blockId =>
+      val (blockRow, newBlockCol) = tempDenseGP.blockCoordinates(blockId)
+      blockId -> allBlockColRanges(newBlockCol).map { case (blockCol, _, _) =>
+        originalGP.coordinatesBlock(blockRow, blockCol)
+      }
+    }.map { case (blockId, parents) =>
+      val filteredParents = originalMaybeBlocksSet match {
+        case None => parents
+        case Some(blockIdSet) => parents.filter(id => blockIdSet.contains(id))
+      }
+      (blockId, filteredParents)
+    }.filter { case (_, parents) => !parents.isEmpty }.toMap
+
+    val blockIndices = ArraySeq.sorted(blockParentMap.keys)
+
+    val newGPMaybeBlocks =
+      if (blockIndices.length == tempDenseGP.maxNBlocks) None else Some(blockIndices)
+
+    new BlockMatrixFilterColsRDD(
+      bm,
+      allBlockColRanges,
+      blockParentMap,
+      tempDenseGP.copy(partitionIndexToBlockIndex = newGPMaybeBlocks),
+      ctx.backend.broadcast(bm.blocks.partitions),
+      ctx.backend.broadcast(blockParentMap),
+    )
+  }
+}
+
+private class BlockMatrixFilterColsRDD(
+  bm: BlockMatrix,
+  @transient private val allBlockColRanges: Array[Array[(Int, Array[Int], Array[Int])]],
+  @transient private val blockParentMap: Map[Int, Array[Int]],
+  newGP: GridPartitioner,
+  childPartitionsBc: BroadcastValue[Array[Partition]],
+  blockParentMapBc: BroadcastValue[Map[Int, Array[Int]]],
+) extends RDD[((Int, Int), DenseMatrix)](bm.blocks.sparkContext, Nil) {
 
   private val originalGP = bm.gp
-  private val blockSize = originalGP.blockSize
-
-  @transient private val tempDenseGP =
-    GridPartitioner(blockSize, originalGP.nRows, keep.length.toLong)
-
-  @transient private val allBlockColRanges: Array[Array[(Int, Array[Int], Array[Int])]] =
-    BlockMatrixFilterRDD.computeAllBlockColRanges(keep, originalGP, tempDenseGP)
-
-  @transient private val originalMaybeBlocksSet = originalGP.partitionIndexToBlockIndex.map(_.toSet)
-
-  /* Map the denseGP blocks to the blocks of parents they depend on, temporarily pretending they are
-   * all there. */
-  // Then delete the parents that aren't in originalGP.maybeBlocks, then delete the pairs
-  // without parents at all.
-  @transient private val blockParentMap = (0 until tempDenseGP.numPartitions).map { blockId =>
-    val (blockRow, newBlockCol) = tempDenseGP.blockCoordinates(blockId)
-    blockId -> allBlockColRanges(newBlockCol).map { case (blockCol, _, _) =>
-      originalGP.coordinatesBlock(blockRow, blockCol)
-    }
-  }.map { case (blockId, parents) =>
-    val filteredParents = originalMaybeBlocksSet match {
-      case None => parents
-      case Some(blockIdSet) => parents.filter(id => blockIdSet.contains(id))
-    }
-    (blockId, filteredParents)
-  }.filter { case (_, parents) => !parents.isEmpty }.toMap
-
-  private val blockParentMapBc = bm.blocks.sparkContext.broadcast(blockParentMap)
-
-  @transient private val blockIndices = ArraySeq.sorted(blockParentMap.keys)
-
-  @transient private val newGPMaybeBlocks =
-    if (blockIndices.length == tempDenseGP.maxNBlocks) None else Some(blockIndices)
-
-  private val newGP = tempDenseGP.copy(partitionIndexToBlockIndex = newGPMaybeBlocks)
 
   override protected def getPartitions: Array[Partition] =
     Array.tabulate(newGP.numPartitions) { partitionIndex: Int =>
@@ -1903,46 +1926,61 @@ private class BlockMatrixFilterColsRDD(bm: BlockMatrix, keep: IndexedSeq[Long])
   @transient override val partitioner: Option[Partitioner] = Some(newGP)
 }
 
-// checked in Python: keep non-empty, increasing, valid range
-private class BlockMatrixFilterRowsRDD(bm: BlockMatrix, keep: IndexedSeq[Long])
-    extends RDD[((Int, Int), DenseMatrix)](bm.blocks.sparkContext, Nil) {
+private object BlockMatrixFilterRowsRDD {
+  // checked in Python: keep non-empty, increasing, valid range
+  def apply(ctx: ExecuteContext, bm: BlockMatrix, keep: IndexedSeq[Long])
+    : BlockMatrixFilterRowsRDD = {
+    val originalGP = bm.gp
+    val tempDenseGP = GridPartitioner(originalGP.blockSize, keep.length.toLong, originalGP.nCols)
 
-  private val childPartitionsBc = bm.blocks.sparkContext.broadcast(bm.blocks.partitions)
+    val allBlockRowRanges =
+      BlockMatrixFilterRDD.computeAllBlockRowRanges(keep, originalGP, tempDenseGP)
+
+    val originalMaybeBlocksSet = originalGP.partitionIndexToBlockIndex.map(_.toSet)
+
+    /* Map the denseGP blocks to the blocks of parents they depend on, temporarily pretending they
+     * are all there. */
+    // Then delete the parents that aren't in originalGP.maybeBlocks, then delete the pairs
+    // without parents at all.
+    val blockParentMap = (0 until tempDenseGP.numPartitions).map { blockId =>
+      val (newBlockRow, blockCol) = tempDenseGP.blockCoordinates(blockId)
+      blockId -> allBlockRowRanges(newBlockRow).map { case (blockRow, _, _) =>
+        originalGP.coordinatesBlock(blockRow, blockCol)
+      }
+    }.map { case (blockId, parents) =>
+      val filteredParents = originalMaybeBlocksSet match {
+        case None => parents
+        case Some(blockIdSet) => parents.filter(id => blockIdSet.contains(id))
+      }
+      (blockId, filteredParents)
+    }.filter { case (_, parents) => !parents.isEmpty }.toMap
+
+    val blockIndices = ArraySeq.sorted(blockParentMap.keys)
+
+    val newGPMaybeBlocks =
+      if (blockIndices.length == tempDenseGP.maxNBlocks) None else Some(blockIndices)
+
+    new BlockMatrixFilterRowsRDD(
+      bm,
+      allBlockRowRanges,
+      blockParentMap,
+      tempDenseGP.copy(partitionIndexToBlockIndex = newGPMaybeBlocks),
+      ctx.backend.broadcast(bm.blocks.partitions),
+      ctx.backend.broadcast(blockParentMap),
+    )
+  }
+}
+
+private class BlockMatrixFilterRowsRDD(
+  bm: BlockMatrix,
+  @transient private val allBlockRowRanges: Array[Array[(Int, Array[Int], Array[Int])]],
+  @transient private val blockParentMap: Map[Int, Array[Int]],
+  newGP: GridPartitioner,
+  childPartitionsBc: BroadcastValue[Array[Partition]],
+  blockParentMapBc: BroadcastValue[Map[Int, Array[Int]]],
+) extends RDD[((Int, Int), DenseMatrix)](bm.blocks.sparkContext, Nil) {
 
   private val originalGP = bm.gp
-  private val blockSize = originalGP.blockSize
-  private val tempDenseGP = GridPartitioner(blockSize, keep.length.toLong, originalGP.nCols)
-
-  @transient private val allBlockRowRanges: Array[Array[(Int, Array[Int], Array[Int])]] =
-    BlockMatrixFilterRDD.computeAllBlockRowRanges(keep, originalGP, tempDenseGP)
-
-  @transient private val originalMaybeBlocksSet = originalGP.partitionIndexToBlockIndex.map(_.toSet)
-
-  /* Map the denseGP blocks to the blocks of parents they depend on, temporarily pretending they are
-   * all there. */
-  // Then delete the parents that aren't in originalGP.maybeBlocks, then delete the pairs
-  // without parents at all.
-  @transient private val blockParentMap = (0 until tempDenseGP.numPartitions).map { blockId =>
-    val (newBlockRow, blockCol) = tempDenseGP.blockCoordinates(blockId)
-    blockId -> allBlockRowRanges(newBlockRow).map { case (blockRow, _, _) =>
-      originalGP.coordinatesBlock(blockRow, blockCol)
-    }
-  }.map { case (blockId, parents) =>
-    val filteredParents = originalMaybeBlocksSet match {
-      case None => parents
-      case Some(blockIdSet) => parents.filter(id => blockIdSet.contains(id))
-    }
-    (blockId, filteredParents)
-  }.filter { case (_, parents) => !parents.isEmpty }.toMap
-
-  private val blockParentMapBc = bm.blocks.sparkContext.broadcast(blockParentMap)
-
-  @transient private val blockIndices = ArraySeq.sorted(blockParentMap.keys)
-
-  @transient private val newGPMaybeBlocks =
-    if (blockIndices.length == tempDenseGP.maxNBlocks) None else Some(blockIndices)
-
-  private val newGP = tempDenseGP.copy(partitionIndexToBlockIndex = newGPMaybeBlocks)
 
   override protected def getPartitions: Array[Partition] =
     Array.tabulate(newGP.numPartitions) { partitionIndex: Int =>

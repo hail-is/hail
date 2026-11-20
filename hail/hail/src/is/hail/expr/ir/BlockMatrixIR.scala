@@ -764,9 +764,9 @@ case class BlockMatrixFilter(
   override protected[ir] def execute(ctx: ExecuteContext): BlockMatrix = {
     val bm = child.execute(ctx)
     if (keepRow.isEmpty) {
-      bm.filterCols(keepCol)
+      bm.filterCols(ctx, keepCol)
     } else if (keepCol.isEmpty) {
-      bm.filterRows(keepRow)
+      bm.filterRows(ctx, keepRow)
     } else {
       bm.filter(keepRow, keepCol)
     }
@@ -972,9 +972,9 @@ case class BlockMatrixSlice(child: BlockMatrixIR, slices: IndexedSeq[IndexedSeq[
     }
 
     if (isFullRange(rowKeep, child.typ.nRows)) {
-      bm.filterCols(colKeep)
+      bm.filterCols(ctx, colKeep)
     } else if (isFullRange(colKeep, child.typ.nCols)) {
-      bm.filterRows(rowKeep)
+      bm.filterRows(ctx, rowKeep)
     } else {
       bm.filter(rowKeep, colKeep)
     }

@@ -359,7 +359,7 @@ object StagedIndexWriter {
 
     val makeFB = fb.resultWithIndex()
 
-    val fsBc = ctx.fsBc
+    val fsBc = ctx.backend.broadcast(ctx.fs)
 
     {
       (

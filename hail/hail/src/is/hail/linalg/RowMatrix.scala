@@ -49,7 +49,7 @@ object RowMatrix {
     val partSize: Int = if (maybePartSize != null) maybePartSize else blockSize
     val partitionCounts = computePartitionCounts(partSize.toLong, gp.nRows)
     RowMatrix(
-      new ReadBlocksAsRowsRDD(ctx.fsBc, uri, partFiles, partitionCounts, gp),
+      new ReadBlocksAsRowsRDD(ctx.backend.broadcast(ctx.fs), uri, partFiles, partitionCounts, gp),
       gp.nCols.toInt,
       gp.nRows,
       partitionCounts,

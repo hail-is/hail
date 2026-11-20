@@ -248,7 +248,7 @@ class AggSignatures(val sigs: IndexedSeq[PhysicalAggSig]) {
       DeserializeAggs(0, 0, spec, states),
     )
 
-    val fsBc = ctx.fsBc;
+    val fsBc = ctx.backend.broadcast(ctx.fs);
     { (hcl: HailClassLoader, htc: HailTaskContext, aggRegion: Region, bytes: Array[Byte]) =>
       val f2 = f(hcl, fsBc.value, htc, aggRegion)
       f2.newAggState(aggRegion)
@@ -269,7 +269,7 @@ class AggSignatures(val sigs: IndexedSeq[PhysicalAggSig]) {
       SerializeAggs(0, 0, spec, states),
     )
 
-    val fsBc = ctx.fsBc;
+    val fsBc = ctx.backend.broadcast(ctx.fs);
     { (hcl: HailClassLoader, htc: HailTaskContext, aggRegion: Region, off: Long) =>
       val f2 = f(hcl, fsBc.value, htc, aggRegion)
       f2.setAggState(aggRegion, off)
@@ -311,7 +311,7 @@ class AggSignatures(val sigs: IndexedSeq[PhysicalAggSig]) {
       )),
     )
 
-    val fsBc = ctx.fsBc
+    val fsBc = ctx.backend.broadcast(ctx.fs)
     poolGetter: (() => (RegionPool, HailClassLoader, HailTaskContext)) => {
       (bytes1: Array[Byte], bytes2: Array[Byte]) =>
         val (pool, hcl, htc) = poolGetter()
@@ -372,7 +372,7 @@ class AggSignatures(val sigs: IndexedSeq[PhysicalAggSig]) {
     })
 
     val f = fb.resultWithIndex()
-    val fsBc = ctx.fsBc
+    val fsBc = ctx.backend.broadcast(ctx.fs)
 
     { (hcl: HailClassLoader, htc: HailTaskContext, l: RegionValue, r: RegionValue) =>
       val comb = f(hcl, fsBc.value, htc, l.region)

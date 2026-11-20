@@ -19,6 +19,7 @@ import is.hail.utils._
 import scala.collection.immutable.ArraySeq
 import scala.collection.mutable
 import scala.concurrent.{CancellationException, ExecutionException}
+import scala.ref.WeakReference
 import scala.reflect.ClassTag
 import scala.util.control.NonFatal
 
@@ -213,8 +214,19 @@ class SparkBackend(val spark: SparkSession) extends Backend with Logging {
   val sc: SparkContext =
     spark.sparkContext
 
+  private[this] val broadcasts =
+    mutable.WeakHashMap.empty[AnyRef, WeakReference[Broadcast[_]]]
+
   override def broadcast[T: ClassTag](value: T): BroadcastValue[T] =
-    new SparkBroadcastValue[T](sc.broadcast(value))
+    broadcasts.synchronized {
+      val key = value.asInstanceOf[AnyRef]
+      val bc = broadcasts.get(key).flatMap(_.get).getOrElse {
+        val made = sc.broadcast(value)
+        broadcasts.update(key, WeakReference[Broadcast[_]](made))
+        made
+      }
+      new SparkBroadcastValue[T](bc.asInstanceOf[Broadcast[T]])
+    }
 
   override def runtimeContext(ctx: ExecuteContext): DriverRuntimeContext =
     new DriverRuntimeContext {
@@ -237,8 +249,10 @@ class SparkBackend(val spark: SparkSession) extends Backend with Logging {
             dep <- rvdDep.deps
           } yield new AnonymousDependency(dep.asInstanceOf[RVDDependency].rvd.crdd.rdd)
 
+        // Globals belong to this stage alone, so they skip the `broadcast` cache and are
+        // destroyed when the stage ends.
         val globalsBc = sc.broadcast(globals)
-        val fsBc = ctx.fsBc
+        val fsBc = broadcast(ctx.fs)
 
         val rdd: RDD[Array[Byte]] =
           new RDD[Array[Byte]](sc, sparkDeps) {

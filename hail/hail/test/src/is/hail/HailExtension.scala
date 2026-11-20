@@ -2,9 +2,7 @@ package is.hail
 
 import is.hail.annotations.{Region, RegionPool}
 import is.hail.asm4s.HailClassLoader
-import is.hail.backend.{
-  Backend, BroadcastValue, ExecuteContext, HailTaskContext, OwningTempFileManager,
-}
+import is.hail.backend.{Backend, ExecuteContext, HailTaskContext, OwningTempFileManager}
 import is.hail.backend.local.LocalTaskContext
 import is.hail.backend.spark.SparkBackend
 import is.hail.collection.ImmutableMap
@@ -14,7 +12,7 @@ import is.hail.expr.ir.lowering.invariant.Flags.StrictInvariants
 import is.hail.io.fs.{FS, HadoopFS}
 import is.hail.io.reference.RgAttachments
 import is.hail.rvd.RVD
-import is.hail.utils.{lazily, SerializableHadoopConfiguration}
+import is.hail.utils.SerializableHadoopConfiguration
 import is.hail.variant.ReferenceGenomeEnv
 
 import scala.collection.mutable
@@ -59,8 +57,6 @@ final class SharedResources extends AutoCloseable {
 
   val references: ReferenceGenomeEnv = ReferenceGenomeEnv.empty
 
-  val fsBc: BroadcastValue[FS] = backend.broadcast(fs)
-
   def newExecuteContext(taskContext: HailTaskContext): ExecuteContext =
     new ExecuteContext(
       tmpdir = "/tmp",
@@ -81,7 +77,6 @@ final class SharedResources extends AutoCloseable {
       PersistedCoercerCache = ImmutableMap.empty,
       taskContext = taskContext,
       memo = mutable.HashMap.empty,
-      fsBc = lazily(fsBc),
     )
 
   override def close(): Unit = {

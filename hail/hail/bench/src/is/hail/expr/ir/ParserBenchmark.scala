@@ -8,7 +8,6 @@ import is.hail.collection.ImmutableMap
 import is.hail.expr.ir.lowering.IrMetadata
 import is.hail.io.reference.RgAttachments
 import is.hail.scalacheck.ArbitraryIR
-import is.hail.utils.lazily
 
 import scala.collection.mutable
 
@@ -54,7 +53,6 @@ class ParserBenchmark {
       PersistedCoercerCache = ImmutableMap.empty,
       taskContext = taskContext,
       memo = mutable.HashMap.empty,
-      fsBc = lazily(shared.fsBc),
     )
     val gen =
       for {
