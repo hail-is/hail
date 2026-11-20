@@ -32,7 +32,8 @@ object ColumnarPartitionWriter {
   val MaxPartitions: Int = 1 << (63 - RowIdPositionBits)
 }
 
-/** Writes a stream of structs to one Parquet data file of the columnar format.
+/** Writes a stream of structs to one Parquet data file of the columnar format. A row group ends
+  * once it buffers [[ColumnarRowGroups.TargetBytes]].
   *
   * The file holds the fields of `schema`, preceded by a Row ID field named `rowIdField` if given.
   * Row IDs are `(partitionIndex << RowIdPositionBits) | position`.
@@ -99,6 +100,9 @@ case class ColumnarPartitionWriter(
       val relPath = cb.memoize(ctx.loadField(cb, "path").getOrAssert(cb).asString.loadString(cb))
       val partitionIndex =
         cb.memoize(ctx.loadField(cb, "partitionIndex").getOrAssert(cb).asInt.value)
+      val rowGroups = cb.memoize(
+        Code.newInstance[ColumnarRowGroups, Long](const(ColumnarRowGroups.TargetBytes))
+      )
       val sink = cb.memoize(
         cb.emb.getObject(ColumnarFileSpec(arrowSchema))
           .invoke[FS, String, ColumnarFileSink](
@@ -107,6 +111,7 @@ case class ColumnarPartitionWriter(
             const(s"$root/").concat(relPath),
           )
       )
+      cb += rowGroups.invoke[ColumnarFileSink, Unit]("add", sink)
 
       val count = cb.newLocal[Long]("count", 0L)
       val keys =
@@ -121,6 +126,8 @@ case class ColumnarPartitionWriter(
           count >= MaxRowsPerPartition,
           cb._fatal(s"columnar writer: a row partition has more than 2^$RowIdPositionBits rows"),
         )
+
+        cb.if_(rowGroups.invoke[Boolean]("checkFull"), cb += rowGroups.invoke[Unit]("endRowGroup"))
 
         cb += sink.invoke[Unit]("startRecord")
         val offset = rowIdField match {
@@ -138,12 +145,13 @@ case class ColumnarPartitionWriter(
           writeField(cb, sink, f.name, f.index + offset, f.typ, row.loadField(cb, f.name), f.name)
         }
         cb += sink.invoke[Unit]("endRecord")
+        cb += rowGroups.invoke[Unit]("endRecord")
 
         keys.observe(cb, row, isFirst = count ceq 0L)
         cb.assign(count, count + 1L)
       }
 
-      cb += sink.invoke[Unit]("close")
+      cb += rowGroups.invoke[Unit]("close")
 
       val (distinct, firstKey, lastKey) = keys.finish(cb)
       resultPType.constructFromFields(
