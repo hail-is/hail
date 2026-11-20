@@ -1,4 +1,5 @@
 import type { DeveloperBranchStatus, PrConfig } from '../../shared/ciApi';
+import type { ReactNode } from 'react';
 import { BuildStateIcon } from './BuildStateIcon';
 import { LabelChip } from './LabelChip';
 import { ReviewStateIcon } from './ReviewStateIcon';
@@ -15,6 +16,7 @@ import {
   upToDateCell,
 } from './prTableModel';
 import { visibleLabels } from './labelModel';
+import type { SortColumn, SortState } from './prListView';
 
 // GitHub's mark (octicons `mark-github`, 16px).
 function GitHubIcon(): JSX.Element {
@@ -41,6 +43,36 @@ function StageCellView({ cell, nowMs }: { cell: StageCell; nowMs: number }): JSX
         )}
       </span>
     </span>
+  );
+}
+
+// A column header that sorts the table when clicked; the arrow shows the current direction.
+function SortHeader({ column, sort, onSort, className, rowSpan, children }: {
+  column: SortColumn;
+  sort: SortState | null;
+  onSort: (_column: SortColumn) => void;
+  className: string;
+  rowSpan?: number;
+  children: ReactNode;
+}): JSX.Element {
+  const dir = sort?.column === column ? sort.dir : null;
+  let ariaSort: 'ascending' | 'descending' | 'none' = 'none';
+  if (dir === 'asc') ariaSort = 'ascending';
+  else if (dir === 'desc') ariaSort = 'descending';
+  return (
+    <th rowSpan={rowSpan} className={className} aria-sort={ariaSort}>
+      <button
+        type="button"
+        onClick={() => { onSort(column); }}
+        title="Sort (click again to reverse, a third time to reset)"
+        className="inline-flex items-center gap-0.5 uppercase hover:text-zinc-800"
+      >
+        {children}
+        <span aria-hidden="true" className={`material-symbols-outlined text-sm ${dir === null ? 'invisible' : ''}`}>
+          {dir === 'desc' ? 'arrow_downward' : 'arrow_upward'}
+        </span>
+      </button>
+    </th>
   );
 }
 
@@ -73,16 +105,20 @@ function StepArrow({ after }: { after: JourneyMark }): JSX.Element | null {
 // (build, reviews, labels, up to date, merge), so the first step that isn't green is what's
 // holding a PR up. `statusNames` is the column set for the whole branch, so filtering rows doesn't
 // add or drop columns. `branchStatus` adds queue position and merge progress to the Merge step;
-// it's optional so the table still renders without it.
-export function PrTable({ prs, statusNames, repo, basePath, wbIndex, branchStatus }: {
+// it's optional so the table still renders without it. Rows are shown in the order given; `sort`
+// only marks which header is active.
+export function PrTable({ prs, statusNames, repo, basePath, wbIndex, branchStatus, sort, onSort }: {
   prs: PrConfig[];
   statusNames: string[];
   repo: string;
   basePath: string;
   wbIndex: number;
   branchStatus?: DeveloperBranchStatus;
+  sort: SortState | null;
+  onSort: (_column: SortColumn) => void;
 }): JSX.Element {
   const th = 'px-3 py-1 font-medium';
+  const sortable = { sort, onSort };
   const td = 'px-3 py-1 align-top';
   const nowMs = Date.now();
   return (
@@ -91,23 +127,23 @@ export function PrTable({ prs, statusNames, repo, basePath, wbIndex, branchStatu
         <table className="w-full text-sm border border-zinc-200">
           <thead className="bg-zinc-100 text-left text-xs uppercase text-zinc-500">
             <tr>
-              <th rowSpan={3} className={th}>PR</th>
+              <SortHeader column="pr" rowSpan={3} className={th} {...sortable}>PR</SortHeader>
               <th colSpan={6 + statusNames.length} className={`${th} ${STEP} text-center`}>Merge journey</th>
-              <th rowSpan={3} className={`${th} ${STEP}`}>Branch</th>
-              <th rowSpan={3} className={th}>Author</th>
+              <SortHeader column="branch" rowSpan={3} className={`${th} ${STEP}`} {...sortable}>Branch</SortHeader>
+              <SortHeader column="author" rowSpan={3} className={th} {...sortable}>Author</SortHeader>
             </tr>
             <tr>
               <th colSpan={1 + statusNames.length} className={`${th} ${STEP} text-center`}>Build</th>
-              <th rowSpan={2} className={`${th} ${STEP}`}>Review 1</th>
-              <th rowSpan={2} className={`${th} ${STEP}`}>Review 2</th>
-              <th rowSpan={2} className={`${th} ${STEP}`}>Labels</th>
-              <th rowSpan={2} className={`${th} ${STEP}`}>Up to date</th>
-              <th rowSpan={2} className={`${th} ${STEP}`}>Merge</th>
+              <SortHeader column="review1" rowSpan={2} className={`${th} ${STEP}`} {...sortable}>Review 1</SortHeader>
+              <SortHeader column="review2" rowSpan={2} className={`${th} ${STEP}`} {...sortable}>Review 2</SortHeader>
+              <SortHeader column="labels" rowSpan={2} className={`${th} ${STEP}`} {...sortable}>Labels</SortHeader>
+              <SortHeader column="uptodate" rowSpan={2} className={`${th} ${STEP}`} {...sortable}>Up to date</SortHeader>
+              <SortHeader column="merge" rowSpan={2} className={`${th} ${STEP}`} {...sortable}>Merge</SortHeader>
             </tr>
             <tr>
-              <th className={`${th} ${STEP}`}>CI</th>
+              <SortHeader column="build" className={`${th} ${STEP}`} {...sortable}>CI</SortHeader>
               {statusNames.map((name) => (
-                <th key={name} className={`${th} normal-case`}>{name}</th>
+                <SortHeader key={name} column={`status:${name}`} className={`${th} [&_button]:normal-case`} {...sortable}>{name}</SortHeader>
               ))}
             </tr>
           </thead>
