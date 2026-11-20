@@ -279,6 +279,22 @@ class TableStage(
     )
   }
 
+  def evalLets(ctx: ExecuteContext): TableStage = {
+    val values =
+      Let(
+        letBindings,
+        MakeStruct(letBindings.map { case (n, v) => n.str -> Ref(n, v.typ) }),
+      )
+
+    val evaluated = Ref(freshName(), values.typ)
+
+    copy(
+      letBindings =
+        (evaluated.name -> CompileAndEvaluate.evalToIR(ctx, values)) +:
+          letBindings.map { case (n, _) => n -> evaluated.ir.get(n.str) }
+    )
+  }
+
   def mapCollect(staticID: String, dynamicID: IR = NA(TString))(f: Atom => IR): IR =
     mapCollectWithGlobals(staticID, dynamicID)(f)((parts, _) => parts)
 
@@ -1203,7 +1219,7 @@ object LowerTableIR extends Logging {
         )
 
       case TableHead(child, targetNumRows) =>
-        val loweredChild = lower(child)
+        val loweredChild = lower(child).evalLets(ctx)
 
         val newContexts =
           M.eval {
@@ -1254,7 +1270,7 @@ object LowerTableIR extends Logging {
         )
 
       case TableTail(child, targetNumRows) =>
-        val loweredChild = lower(child)
+        val loweredChild = lower(child).evalLets(ctx)
 
         val newContexts =
           M.eval {
