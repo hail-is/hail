@@ -607,6 +607,7 @@ Resources:
         - OidcPrefix: !Select [1, !Split ["//", !GetAtt VdcCluster.OpenIdConnectIssuerUrl]]
   VdcExternalSecretsRole:
     Type: "AWS::IAM::Role"
+    DependsOn: VdcClusterOidcProvider
     Properties:
       Path: "/"
       ManagedPolicyArns:
@@ -634,6 +635,7 @@ Resources:
         - OidcPrefix: !Select [1, !Split ["//", !GetAtt VdcCluster.OpenIdConnectIssuerUrl]]
   VdcLoadBalancerControllerRole:
     Type: "AWS::IAM::Role"
+    DependsOn: VdcClusterOidcProvider
     Properties:
       Path: "/"
       MaxSessionDuration: 3600
