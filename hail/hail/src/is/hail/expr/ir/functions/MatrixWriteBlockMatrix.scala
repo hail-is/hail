@@ -44,7 +44,15 @@ object MatrixWriteBlockMatrix extends Logging {
     fs.mkDir(path + "/parts")
     val gp = GridPartitioner(blockSize, nRows, localNCols.toLong)
     val blockPartFiles =
-      new WriteBlocksRDD(ctx.fsBc, ctx.localTmpdir, path, rvd, partStarts, entryField, gp)
+      new WriteBlocksRDD(
+        ctx.backend.broadcast(ctx.fs),
+        ctx.localTmpdir,
+        path,
+        rvd,
+        partStarts,
+        entryField,
+        gp,
+      )
         .collect()
 
     val blockCount = blockPartFiles.length

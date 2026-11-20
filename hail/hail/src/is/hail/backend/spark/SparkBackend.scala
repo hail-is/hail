@@ -19,6 +19,7 @@ import is.hail.utils._
 import scala.collection.immutable.ArraySeq
 import scala.collection.mutable
 import scala.concurrent.{CancellationException, ExecutionException}
+import scala.ref.WeakReference
 import scala.reflect.ClassTag
 import scala.util.control.NonFatal
 
@@ -34,7 +35,10 @@ import org.apache.spark.serializer.KryoSerializer
 import org.apache.spark.sql.SparkSession
 import sourcecode.Enclosing
 
-class SparkBroadcastValue[T](bc: Broadcast[T]) extends BroadcastValue[T] with Serializable {
+private class SparkBroadcastValue[T](
+  @transient val key: RefEquality[AnyRef],
+  bc: Broadcast[T],
+) extends BroadcastValue[T] with Serializable {
   override def value: T = bc.value
 }
 
@@ -213,8 +217,24 @@ class SparkBackend(val spark: SparkSession) extends Backend with Logging {
   val sc: SparkContext =
     spark.sparkContext
 
+  private[this] val broadcasts =
+    mutable.WeakHashMap.empty[RefEquality[_], WeakReference[BroadcastValue[_]]]
+
   override def broadcast[T: ClassTag](value: T): BroadcastValue[T] =
-    new SparkBroadcastValue[T](sc.broadcast(value))
+    broadcasts.synchronized {
+      val key = RefEquality(value.asInstanceOf[AnyRef])
+      val existing = broadcasts.get(key)
+      existing
+        .flatMap(_.get)
+        .getOrElse {
+          // `made` keeps `key` alive while the broadcast is live; remove stale entries first.
+          if (existing.isDefined) broadcasts.remove(key): Unit
+          val made = new SparkBroadcastValue(key, sc.broadcast(value))
+          broadcasts(key) = WeakReference(made)
+          made
+        }
+        .asInstanceOf[BroadcastValue[T]]
+    }
 
   override def runtimeContext(ctx: ExecuteContext): DriverRuntimeContext =
     new DriverRuntimeContext {
@@ -237,8 +257,10 @@ class SparkBackend(val spark: SparkSession) extends Backend with Logging {
             dep <- rvdDep.deps
           } yield new AnonymousDependency(dep.asInstanceOf[RVDDependency].rvd.crdd.rdd)
 
+        // Globals belong to this stage alone, so they skip the `broadcast` cache and are
+        // destroyed when the stage ends.
         val globalsBc = sc.broadcast(globals)
-        val fsBc = ctx.fsBc
+        val fsBc = broadcast(ctx.fs)
 
         val rdd: RDD[Array[Byte]] =
           new RDD[Array[Byte]](sc, sparkDeps) {

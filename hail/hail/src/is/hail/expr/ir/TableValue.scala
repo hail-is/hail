@@ -437,7 +437,7 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
 
   def aggregateByKey(extracted: IndependentExtractedAggs): TableValue = {
     val prevRVD = rvd.truncateKey(typ.key)
-    val fsBc = ctx.fsBc
+    val fsBc = ctx.backend.broadcast(ctx.fs)
 
     val aggSigs = extracted.sigs
 
@@ -616,7 +616,7 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
       newRowType,
       rvd.typ.key.takeWhile(_ != path.head),
     )
-    val fsBc = ctx.fsBc
+    val fsBc = ctx.backend.broadcast(ctx.fs)
 
     TableValue(
       ctx,
@@ -667,7 +667,7 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
       Coalesce(FastSeq(pred, False())),
     )
 
-    val fsBc = ctx.fsBc
+    val fsBc = ctx.backend.broadcast(ctx.fs)
     val localGlobals = globals.broadcast(ctx.theHailClassLoader)
     copy(rvd =
       rvd.filterWithContext[(AsmFunction3RegionLongLongBoolean, Long)](
@@ -773,7 +773,7 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
     nPartitions: Option[Int],
     bufferSize: Int,
   ): TableValue = {
-    val fsBc = ctx.fsBc
+    val fsBc = ctx.backend.broadcast(ctx.fs)
 
     val aggSigs = extracted.sigs
 
@@ -976,7 +976,7 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
 
     val globalsBc = globals.broadcast(ctx.theHailClassLoader)
 
-    val fsBc = ctx.fsBc
+    val fsBc = ctx.backend.broadcast(ctx.fs)
     val itF = {
       (idx: Int, hcl: HailClassLoader, consumerCtx: RVDContext, partition: Element[Long]) =>
         val boxedPartition = new NoBoxLongIterator {
@@ -1017,7 +1017,7 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
   }
 
   def mapRows(extracted: IndependentExtractedAggs): TableValue = {
-    val fsBc = ctx.fsBc
+    val fsBc = ctx.backend.broadcast(ctx.fs)
     val aggSigs = extracted.sigs
 
     val newType = typ.copy(rowType = extracted.result.typ.asInstanceOf[TStruct])
@@ -1051,7 +1051,7 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
         else
           null
 
-      val fsBc = ctx.fsBc
+      val fsBc = ctx.backend.broadcast(ctx.fs)
       val itF = { (i: Int, hcl: HailClassLoader, ctx: RVDContext, it: Iterator[Long]) =>
         val globalRegion = ctx.partitionRegion
         val globals = if (rowIterationNeedsGlobals)
@@ -1154,7 +1154,7 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
     }
 
     if (ctx.getFlag("distributed_scan_comb_op") != null && extracted.sigs.shouldTreeAggregate) {
-      val fsBc = ctx.fsBc
+      val fsBc = ctx.backend.broadcast(ctx.fs)
       val tmpBase = ctx.createTmpPath("table-map-rows-distributed-scan")
       val d = digitsNeeded(rvd.getNumPartitions)
       val files = ArraySeq.unsafeWrapArray(rvd.mapPartitionsWithIndex { (i, hcl, ctx, it) =>

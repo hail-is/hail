@@ -95,7 +95,6 @@ object ExecuteContext {
             coercerCache,
             taskContext,
             mutable.HashMap.empty,
-            lazily(backend.broadcast(fs)),
           ))(f(_))
         }
       }
@@ -131,7 +130,6 @@ class ExecuteContext(
   val PersistedCoercerCache: mutable.Map[Any, LoweredTableReaderCoercer],
   val taskContext: HailTaskContext,
   val memo: mutable.Map[Any, Any],
-  val fsBc: Lazy[BroadcastValue[FS]],
 ) extends Closeable {
 
   val rngNonce: Long =
@@ -184,7 +182,6 @@ class ExecuteContext(
     persistedCoercerCache: mutable.Map[Any, LoweredTableReaderCoercer] = this.PersistedCoercerCache,
     taskContext: HailTaskContext = this.taskContext,
     memo: mutable.Map[Any, Any] = this.memo,
-    fsBc: => BroadcastValue[FS] = this.fsBc,
   )(
     f: ExecuteContext => A
   ): A =
@@ -206,6 +203,5 @@ class ExecuteContext(
       persistedCoercerCache,
       taskContext,
       memo,
-      lazily(fsBc),
     ))(f)
 }

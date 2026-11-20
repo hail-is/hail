@@ -622,7 +622,7 @@ case class PartitionRVDReader(rvd: RVD, uidFieldName: String) extends PartitionR
       val upcastF = mb.genFieldThisRef[AsmFunction2RegionLongLong]("rvdreader_upcast")
 
       val broadcastRVD =
-        mb.getObject[BroadcastRVD](new BroadcastRVD(ctx.backend.asSpark, rvd))
+        mb.getObject[BroadcastRVD](BroadcastRVD(ctx, rvd))
 
       val producer = new StreamProducer {
         override def method: EmitMethodBuilder[_] = mb
@@ -1978,7 +1978,7 @@ case class TableFromBlockMatrixNativeReader(
   ): TableExecuteIntermediate = {
     assert(!dropRows)
     val rowsRDD = new BlockMatrixReadRowBlockedRDD(
-      ctx.fsBc,
+      ctx.backend.broadcast(ctx.fs),
       params.path,
       partitionRanges,
       requestedType.rowType,

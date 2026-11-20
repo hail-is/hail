@@ -2,8 +2,8 @@ package is.hail.rvd
 
 import is.hail.annotations._
 import is.hail.asm4s.HailClassLoader
-import is.hail.backend.{ExecuteContext, HailTaskContext}
-import is.hail.backend.spark.{SparkBackend, SparkTaskContext}
+import is.hail.backend.{BroadcastValue, ExecuteContext, HailTaskContext}
+import is.hail.backend.spark.SparkTaskContext
 import is.hail.collection.FastSeq
 import is.hail.collection.implicits._
 import is.hail.expr.ir.InferPType
@@ -26,7 +26,7 @@ import scala.reflect.ClassTag
 
 import java.util
 
-import org.apache.spark.{Partitioner, SparkContext, TaskContext}
+import org.apache.spark.{Partition, Partitioner, SparkContext, TaskContext}
 import org.apache.spark.rdd.{RDD, ShuffledRDD}
 import org.apache.spark.sql.Row
 import org.apache.spark.storage.StorageLevel
@@ -128,11 +128,12 @@ class RVD(
 
     if (sharedPrefixLength == newKey.length)
       this
-    else if (isSorted)
-      truncateKey(newKey.take(sharedPrefixLength))
-        .extendKeyPreservesPartitioning(execCtx, newKey)
-        .checkKeyOrdering()
-    else
+    else if (isSorted) {
+      val extended =
+        truncateKey(newKey.take(sharedPrefixLength))
+          .extendKeyPreservesPartitioning(execCtx, newKey)
+      extended.checkKeyOrdering(execCtx.backend.broadcast(extended.partitioner))
+    } else
       changeKey(execCtx, newKey)
   }
 
@@ -169,8 +170,7 @@ class RVD(
     }
   }
 
-  def checkKeyOrdering(): RVD = {
-    val partitionerBc = partitioner.broadcast(crdd.sparkContext)
+  def checkKeyOrdering(partitionerBc: BroadcastValue[RVDPartitioner]): RVD = {
     val localType = typ
     val localKPType = typ.kType
 
@@ -262,7 +262,7 @@ class RVD(
       val localRowPType = rowPType
       val kOrdering = PartitionBoundOrdering(newType.kType.virtualType)
 
-      val partBc = newPartitioner.broadcast(crdd.sparkContext)
+      val partBc = ctx.backend.broadcast(newPartitioner)
       val enc = TypedCodecSpec(ctx, rowPType, BufferSpec.wireSpec)
 
       val filtered: RVD = if (filter) filterWithContext[(UnsafeRow, SelectFieldsRow)](
@@ -280,7 +280,7 @@ class RVD(
 
       val shuffled: RDD[(Any, Array[Byte])] = new ShuffledRDD(
         filtered.keyedEncodedRDD(ctx, enc, newType.key),
-        newPartitioner.sparkPartitioner(crdd.sparkContext),
+        RVDPartitioner.sparkPartitioner(partBc),
       ).setKeyOrdering(kOrdering.toOrdering)
 
       val (rType: PStruct, shuffledCRDD) =
@@ -637,14 +637,14 @@ class RVD(
     RVD(this.typ, this.partitioner, crdd)
   }
 
-  def filterIntervals(intervals: RVDPartitioner, keep: Boolean): RVD =
+  def filterIntervals(ctx: ExecuteContext, intervals: RVDPartitioner, keep: Boolean): RVD =
     if (keep)
-      filterToIntervals(intervals)
+      filterToIntervals(ctx, intervals)
     else
-      filterOutIntervals(intervals)
+      filterOutIntervals(ctx, intervals)
 
-  def filterOutIntervals(intervals: RVDPartitioner): RVD = {
-    val intervalsBc = intervals.broadcast(sparkContext)
+  def filterOutIntervals(execCtx: ExecuteContext, intervals: RVDPartitioner): RVD = {
+    val intervalsBc = execCtx.backend.broadcast(intervals)
     val kType = typ.kType
     val kPType = kType
     val kRowFieldIdx = typ.kFieldIdx
@@ -661,8 +661,8 @@ class RVD(
     )
   }
 
-  def filterToIntervals(intervals: RVDPartitioner): RVD = {
-    val intervalsBc = intervals.broadcast(sparkContext)
+  def filterToIntervals(execCtx: ExecuteContext, intervals: RVDPartitioner): RVD = {
+    val intervalsBc = execCtx.backend.broadcast(intervals)
     val localRowPType = rowPType
     val kRowFieldIdx = typ.kFieldIdx
 
@@ -987,7 +987,7 @@ class RVD(
       TInterval
     ].pointType == rowType.field(typ.key(0)).typ)
 
-    val partBc = partitioner.broadcast(sparkContext)
+    val partBc = ctx.backend.broadcast(partitioner)
     val rightTyp = that.typ
     val codecSpec = TypedCodecSpec(ctx, that.rowPType, BufferSpec.wireSpec)
     val makeEnc = codecSpec.buildEncoder(ctx, that.rowPType)
@@ -1307,7 +1307,12 @@ object RVD extends Logging {
 
   def apply(typ: RVDType, partitioner: RVDPartitioner, crdd: ContextRDD[Long]): RVD = {
     val rvd = new RVD(typ, partitioner, crdd)
-    if (CheckRvdKeyOrderingForTesting) rvd.checkKeyOrdering() else rvd
+    if (CheckRvdKeyOrderingForTesting)
+      rvd.checkKeyOrdering {
+        val bc = crdd.sparkContext.broadcast(partitioner)
+        new BroadcastValue[RVDPartitioner] with Serializable { override def value = bc.value }
+      }
+    else rvd
   }
 
   def unify(execCtx: ExecuteContext, rvds: IndexedSeq[RVD]): IndexedSeq[RVD] = {
@@ -1363,12 +1368,11 @@ object RVD extends Logging {
         )
     }
 
-    val sc = SparkBackend.sparkContext
     val fs = execCtx.fs
 
     val nRVDs = rvds.length
     val partitioner = first.partitioner
-    val partitionerBc = partitioner.broadcast(sc)
+    val partitionerBc = execCtx.backend.broadcast(partitioner)
     val nPartitions = partitioner.numPartitions
 
     val localTyp = first.typ
@@ -1397,7 +1401,7 @@ object RVD extends Logging {
       fs.mkDir(path + "/index")
     }
 
-    val fsBc = execCtx.fsBc
+    val fsBc = execCtx.backend.broadcast(execCtx.fs)
     val partF = {
       (originIdx: Int, originPartIdx: Int, it: Iterator[Element[Long]]) =>
         ContextRDD.inCtx { (hcl, ctx) =>
@@ -1461,10 +1465,13 @@ object RVD extends Logging {
   }
 }
 
-class BroadcastRVD(backend: SparkBackend, rvd: RVD) extends Serializable {
-  private[this] val crdd = rvd.crdd
+object BroadcastRVD {
+  def apply(ctx: ExecuteContext, rvd: RVD): BroadcastRVD =
+    new BroadcastRVD(rvd.crdd, ctx.backend.broadcast(rvd.crdd.partitions))
+}
 
-  private[this] val bcPartitions = backend.broadcast(rvd.crdd.partitions)
+class BroadcastRVD(crdd: ContextRDD[Long], bcPartitions: BroadcastValue[Array[Partition]])
+    extends Serializable {
 
   def computePartition(idx: Int, hcl: HailClassLoader, region: Region, partitionRegion: Region)
     : Iterator[Long] = {
