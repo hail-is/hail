@@ -17,7 +17,7 @@ import org.apache.spark.sql.Row
 class PTypeSerializer(rgs: Option[ReferenceGenomeEnv])
     extends TypeStringSerializer[PType](
       rgs,
-      (s, rgs) => PType.canonical(IRParser.parsePType(s, rgs)),
+      IRParser.parsePType,
       _.toString,
     ) {
   def this(rgs: ReferenceGenomeEnv) = this(Some(rgs))
