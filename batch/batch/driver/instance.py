@@ -13,6 +13,7 @@ from hailtop.utils import retry_transient_errors, time_msecs, time_msecs_str
 from ..cloud.utils import instance_config_from_config_dict
 from ..globals import INSTANCE_VERSION
 from ..instance_config import InstanceConfig
+from ..worker_api_auth import worker_api_headers
 
 log = logging.getLogger('instance')
 
@@ -25,6 +26,7 @@ class Instance:
             inst_coll,
             record['name'],
             record['state'],
+            record['token'],
             record['cores_mcpu'],
             record['free_cores_mcpu'],
             record['time_created'],
@@ -100,6 +102,7 @@ VALUES (%s, %s);
             inst_coll,
             name,
             state,
+            token,
             worker_cores_mcpu,
             worker_cores_mcpu,
             now,
@@ -119,6 +122,7 @@ VALUES (%s, %s);
         inst_coll,
         name,
         state,
+        token: str,
         cores_mcpu,
         free_cores_mcpu,
         time_created,
@@ -137,6 +141,7 @@ VALUES (%s, %s);
         # pending, active, inactive, deleted
         self._state = state
         self.name = name
+        self.token = token
         self.cores_mcpu = cores_mcpu
         self._free_cores_mcpu = free_cores_mcpu
         self.time_created = time_created
@@ -197,7 +202,9 @@ VALUES (%s, %s);
                 return
             try:
                 await self.client_session.post(
-                    f'http://{self.ip_address}:5000/api/v1alpha/kill', timeout=aiohttp.ClientTimeout(total=30)
+                    f'http://{self.ip_address}:5000/api/v1alpha/kill',
+                    headers=worker_api_headers(self.token),
+                    timeout=aiohttp.ClientTimeout(total=30),
                 )
             except aiohttp.ClientResponseError as err:
                 if err.status == 403:
