@@ -493,9 +493,11 @@ row group whole.
 This section is informative. It records where Hail 2's implementation falls short
 of this spec. Update it as the gaps close.
 
-Hail 2 has a table writer, `TableColumnarWriter` (`is.hail.io.columnar`). It is a
-lowered `TableWriter`, so it runs on every backend. It is private: Python reaches
-it only through `hail.ir.TableColumnarWriter`, for tests.
+Hail 2 has a table writer, `TableColumnarWriter`, and a table reader,
+`TableColumnarReader` (`is.hail.io.columnar`). They are a lowered `TableWriter`
+and a lowered `TableReader`, so they run on every backend. They are private:
+Python reaches them only through `hail.ir.TableColumnarWriter` and
+`hail.ir.TableColumnarReader`, for tests.
 
 ### 7.1 Implemented
 
@@ -522,6 +524,29 @@ For tables:
   reference genome. They are generated from this spec with pyarrow alone, and
   pyarrow conformance tests read Hail's output without Hail.
 
+For reading tables:
+
+- the manifest root, rejecting another format, version, kind or container, and
+  missing or unknown fields (section 3). A directory without `manifest.json` is
+  not a table, and files the manifest doesn't reference are never opened
+  (sections 2 and 2.1);
+- `reference_genomes`: the Python reader defines each non-builtin reference
+  genome in the session, and fails on one that differs from a reference genome
+  of the same name already defined (section 3.1);
+- the partitions table, rejecting fields that don't match `kind` and
+  `rows.key`, and bounds whose types differ from the key fields' (section 4.1).
+  The key, the partitioning from the bounds, and `distinctly_keyed` are read
+  from the manifest, so the table is never re-sorted. Row partitions with no
+  rows are dropped;
+- row files and the globals file, checking each file's `ARROW:schema` against
+  its component's `schema` (section 3). Only the column chunks of the requested
+  fields are read, at any depth of nesting, except that a struct none of whose
+  fields is requested reads its first leaf, to tell whether it is missing. The
+  row's UID is its Row ID;
+- every type in section 5, rejecting a null ndarray `shape` (section 5.4) and an
+  empty struct stored as `false` (section 5.5);
+- reading every table fixture (section 6).
+
 ### 7.2 Gaps
 
 #### 7.2.1 Matrix tables
@@ -534,11 +559,11 @@ row files.
 
 #### 7.2.2 Reading
 
-Not implemented. `TableIR.read` fails on a directory that has a `manifest.json`.
-So section 6's requirement that Hail 2's tests read every fixture is not met, and
-none of the reader requirements (rejecting unknown manifest fields, partitions
-table fields that don't match `kind` and `rows.key`, the `"long"` layout,
-schema mismatches and a null ndarray `shape`) are exercised by Hail.
+Tables are read only through the private reader. `hl.read_table` and
+`TableIR.read` still fail on a directory that has a `manifest.json`. Matrix
+tables are not read, so rejecting the `"long"` layout is not implemented. The
+reader doesn't report partition row counts to the optimizer, so counting a
+table iterates over its row files' footers.
 
 #### 7.2.3 Conformance fixtures
 
