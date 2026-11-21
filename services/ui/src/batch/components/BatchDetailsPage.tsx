@@ -3,6 +3,7 @@ import type { Batch, BatchJob } from '../../shared/batchApi';
 import { StateIcon, BatchStateIcon } from './StateIcon';
 import { CollapsibleItem } from './CollapsibleItem';
 import { CostDisplay } from './CostDisplay';
+import { BatchActionDialog, type BatchAction } from './BatchActionDialog';
 import { AutoRefreshBar } from '../../shared/AutoRefreshBar';
 import { SpinnerIcon } from '../../shared/SpinnerIcon';
 import { formatDuration, formatTimestamp } from '../../shared/timeUtils';
@@ -166,6 +167,7 @@ export function BatchDetailsPage({ basePath, batchId }: Props): JSX.Element {
   const [actionError, setActionError] = useState<string | null>(null);
   const [queryDirty, setQueryDirty] = useState(false);
   const [deleted, setDeleted] = useState(false);
+  const [confirming, setConfirming] = useState<BatchAction | null>(null);
 
   if (loading) {
     return (
@@ -194,14 +196,14 @@ export function BatchDetailsPage({ basePath, batchId }: Props): JSX.Element {
     );
   }
 
-  const handleCancel = () => {
+  const handleCancel = async () => {
     setActionError(null);
-    cancelBatch().catch((e: unknown) => { setActionError(String(e)); });
+    await cancelBatch().catch((e: unknown) => { setActionError(String(e)); });
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     setActionError(null);
-    deleteBatch()
+    await deleteBatch()
       .then(() => { setDeleted(true); })
       .catch((e: unknown) => { setActionError(String(e)); });
   };
@@ -266,7 +268,7 @@ export function BatchDetailsPage({ basePath, batchId }: Props): JSX.Element {
                 {!batch.complete && batch.state !== 'cancelled' && (
                   <button
                     type="button"
-                    onClick={handleCancel}
+                    onClick={() => { setConfirming('cancel'); }}
                     className="px-3 py-1 bg-red-600 text-white rounded text-sm hover:bg-red-700"
                   >
                     Cancel
@@ -275,7 +277,7 @@ export function BatchDetailsPage({ basePath, batchId }: Props): JSX.Element {
                 {batch.complete && (
                   <button
                     type="button"
-                    onClick={handleDelete}
+                    onClick={() => { setConfirming('delete'); }}
                     className="px-3 py-1 bg-red-600 text-white rounded text-sm hover:bg-red-700"
                   >
                     Delete
@@ -283,6 +285,14 @@ export function BatchDetailsPage({ basePath, batchId }: Props): JSX.Element {
                 )}
               </div>
               {actionError && <div className="mt-2 text-sm text-red-600">{actionError}</div>}
+              {confirming && (
+                <BatchActionDialog
+                  action={confirming}
+                  batch={batch}
+                  onConfirm={confirming === 'cancel' ? handleCancel : handleDelete}
+                  onClose={() => { setConfirming(null); }}
+                />
+              )}
             </li>
 
             <CollapsibleItem title="Jobs" summary={batch.n_jobs} startOpen>

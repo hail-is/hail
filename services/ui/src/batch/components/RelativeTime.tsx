@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { formatRelative, formatTimestamp } from '../../shared/timeUtils';
+import { HoverTip } from './HoverTip';
 
 type Props = { ms: number };
 
@@ -12,8 +13,8 @@ export function RelativeTime({ ms }: Props): JSX.Element {
   }, []);
 
   return (
-    <span title={formatTimestamp(ms)} className="cursor-help">
-      {formatRelative(ms)}
-    </span>
+    <HoverTip tip={formatTimestamp(ms)}>
+      <span className="cursor-help">{formatRelative(ms)}</span>
+    </HoverTip>
   );
 }
