@@ -88,6 +88,16 @@ final case class PPackedLocus(rg: ReferenceGenome, required: Boolean = false)
       PLocus.pack(rg.getContigIndex(contig), position),
     )
 
+  override def constructFromContigAndPosition(
+    cb: EmitCodeBuilder,
+    region: Value[Region],
+    contig: Code[String],
+    position: Code[Int],
+  ): SPackedLocusValue = {
+    val contigIdx = cb.emb.getReferenceGenome(rg).invoke[String, Int]("getContigIndex", contig)
+    new SPackedLocusValue(sType, cb.memoize((contigIdx.toL << 32) | position.toL))
+  }
+
   override def unstagedStoreJavaObjectAtAddress(
     addr: Long,
     annotation: Annotation,

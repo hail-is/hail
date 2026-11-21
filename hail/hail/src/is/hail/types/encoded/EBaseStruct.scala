@@ -64,7 +64,7 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
       val pointType = structPType.field("start").typ
       SIntervalPointer(PCanonicalInterval(pointType, false))
     case t: TLocus =>
-      SCanonicalLocusPointer(PCanonicalLocus(t.rg, false))
+      PLocus.canonical(t.rg).sType
     case t: TStruct =>
       val pFields = t.fields.map { case Field(name, typ, idx) =>
         val pt = fieldType(name).decodedPType(typ)
@@ -157,8 +157,18 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
     in: Value[InputBuffer],
   ): Unit = pt match {
     case t: PPackedLocus =>
-      val decoded = _buildDecoder(cb, t.virtualType, region, in)
-      t.storeAtAddress(cb, addr, region, decoded, deepCopy = false)
+      // Decode the struct as a struct locus, then pack it. Not through _buildDecoder: that decodes
+      // to PLocus.canonical, which may be this packed type.
+      val structLocus = PCanonicalLocus(t.rg)
+      val structAddr = cb.memoize(region.allocate(structLocus.alignment, structLocus.byteSize))
+      _buildInplaceStructDecoder(cb, structLocus, region, structAddr, in)
+      t.storeAtAddress(
+        cb,
+        addr,
+        region,
+        structLocus.loadCheapSCode(cb, structAddr),
+        deepCopy = false,
+      )
     case _ =>
       _buildInplaceStructDecoder(cb, pt, region, addr, in)
   }

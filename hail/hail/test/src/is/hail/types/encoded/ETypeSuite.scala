@@ -355,6 +355,19 @@ class ETypeSuite {
     )
   }
 
+  // A struct-encoded locus decodes to the canonical locus type, whichever representation that is,
+  // and nested loci decode and store into either representation.
+  @Test def testStructEncodedLocusDecodesToCanonicalLocus(implicit ctx: ExecuteContext): Unit =
+    forEachCanonicalLocus { canonicalLocusType =>
+      for (rg <- references) {
+        val et = structEncodedLocus(required = true)
+        assertEq(et.decodedSType(TLocus(rg)), canonicalLocusType(rg, false).sType)
+        for ((in, out) <- representationPairs(PCanonicalLocus(rg, true), rg))
+          check(forAll(genLocus(rg))(l => encodeDecode(in, et, out, l) == l))
+      }
+      withStableEncodings(checkLocusRepresentationsEncodeDecode(_))
+    }
+
   private def unstagedEncodeDecode(ctx: ExecuteContext, pt: PType, et: EType, a: Annotation)
     : Annotation = {
     val codec = TypedCodecSpec(et, pt.virtualType, BufferSpec.wireSpec)
