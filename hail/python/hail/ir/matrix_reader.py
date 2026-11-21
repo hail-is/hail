@@ -1,6 +1,8 @@
 import abc
 import json
 
+import hail as hl
+
 from ..expr.types import HailType, tfloat32, tfloat64
 from ..genetics.reference_genome import reference_genome_type
 from ..typecheck import anytype, dictof, enumeration, nullable, oneof, sequenceof, sized_tupleof, typecheck_method
@@ -45,6 +47,27 @@ class MatrixNativeReader(MatrixReader):
             and other.intervals == self.intervals
             and other.filter_intervals == self.filter_intervals
         )
+
+
+class MatrixColumnarReader(MatrixReader):
+    """Reads a matrix table in the experimental columnar format.
+
+    Private: not part of Hail's public interface, and the format may change. Defines the matrix
+    table's non-builtin reference genomes, which must be equal to any already defined with the same
+    name.
+    """
+
+    @typecheck_method(path=str)
+    def __init__(self, path):
+        self.path = path
+        for rg_config in hl.utils.java.Env.backend().load_references_from_dataset(path):
+            hl.ReferenceGenome._from_config(rg_config)
+
+    def render(self, r):
+        return escape_str(json.dumps({'name': 'MatrixColumnarReader', 'path': self.path}))
+
+    def __eq__(self, other):
+        return isinstance(other, MatrixColumnarReader) and other.path == self.path
 
 
 class MatrixRangeReader(MatrixReader):

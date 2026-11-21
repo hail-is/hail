@@ -193,6 +193,7 @@ from .matrix_ir import (
 )
 from .matrix_reader import (
     MatrixBGENReader,
+    MatrixColumnarReader,
     MatrixNativeReader,
     MatrixPLINKReader,
     MatrixRangeReader,
@@ -380,6 +381,7 @@ __all__ = [
     'MatrixColsHead',
     'MatrixColsTable',
     'MatrixColsTail',
+    'MatrixColumnarReader',
     'MatrixColumnarWriter',
     'MatrixCount',
     'MatrixDistinctByRow',

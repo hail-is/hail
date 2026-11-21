@@ -24,6 +24,14 @@ class ColumnarPartitionsTableSuite {
   private def rowsSchema(name: String)(implicit ctx: ExecuteContext): Schema =
     ColumnarManifest.read(ctx.fs, fixture(name)).rowsSchema
 
+  private val mtFixture: String = getTestResource("columnar/0.1/matrix_table/missing_entries")
+
+  private def mtPartitionsSchema(implicit ctx: ExecuteContext): Schema =
+    ColumnarFileSource.readArrowSchema(ctx.fs, s"$mtFixture/partitions.parquet")
+
+  private def mtRowsSchema(implicit ctx: ExecuteContext): Schema =
+    ColumnarManifest.read(ctx.fs, mtFixture).rowsSchema
+
   private def withFields(schema: Schema)(f: Seq[Field] => Seq[Field]): Schema =
     new Schema(f(schema.getFields.asScala.toSeq).asJava)
 
@@ -32,9 +40,10 @@ class ColumnarPartitionsTableSuite {
     rows: Schema,
     key: IndexedSeq[String],
     message: String,
+    matrix: Boolean = false,
   ): Unit =
     interceptFatal(Pattern.quote(message)) {
-      ColumnarPartitionsTable.checkSchema(partitions, rows, key)
+      ColumnarPartitionsTable.checkSchema(partitions, rows, key, matrix)
     }
 
   @Test def testAcceptsTheFixturesPartitionsTables(implicit ctx: ExecuteContext): Unit = {
@@ -72,6 +81,55 @@ class ColumnarPartitionsTableSuite {
       rowsSchema("keyed"),
       FastSeq("idx"),
       "field 'entry_files'",
+    )
+  }
+
+  @Test def testAcceptsAMatrixTablesPartitionsTable(implicit ctx: ExecuteContext): Unit =
+    ColumnarPartitionsTable.checkSchema(
+      mtPartitionsSchema,
+      mtRowsSchema,
+      FastSeq("row_idx"),
+      matrix = true,
+    )
+
+  @Test def testRejectsAMatrixTableWithoutEntryFiles(implicit ctx: ExecuteContext): Unit =
+    assertRejected(
+      partitionsSchema("keyed"),
+      rowsSchema("keyed"),
+      FastSeq("idx"),
+      "missing field 'entry_files'",
+      matrix = true,
+    )
+
+  @Test def testRejectsMistypedEntryFiles(implicit ctx: ExecuteContext): Unit = {
+    // A single file reference, where the spec has a list of them.
+    val partitions = withFields(mtPartitionsSchema)(_.map { f =>
+      if (f.getName == "entry_files") {
+        val rowFile = mtPartitionsSchema.findField("row_file")
+        new Field("entry_files", rowFile.getFieldType, rowFile.getChildren)
+      } else f
+    })
+    assertRejected(
+      partitions,
+      mtRowsSchema,
+      FastSeq("row_idx"),
+      "field 'entry_files' has the wrong type",
+      matrix = true,
+    )
+  }
+
+  @Test def testRejectsNullableEntryFiles(implicit ctx: ExecuteContext): Unit = {
+    val partitions = withFields(mtPartitionsSchema)(_.map { f =>
+      if (f.getName == "entry_files")
+        new Field("entry_files", FieldType.nullable(f.getType), f.getChildren)
+      else f
+    })
+    assertRejected(
+      partitions,
+      mtRowsSchema,
+      FastSeq("row_idx"),
+      "field 'entry_files' has the wrong type",
+      matrix = true,
     )
   }
 

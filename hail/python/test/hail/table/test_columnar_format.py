@@ -5,7 +5,6 @@ format specification (``dev-docs/hail-query/columnar-format-spec.md``).
 """
 
 import base64
-import io
 import secrets
 from itertools import pairwise
 from typing import Optional
@@ -28,8 +27,10 @@ from ..columnar_helpers import (
     TYPE_CASES,
     assert_has_type,
     assert_same_dataset,
+    corrupt_column_chunks_except,
     custom_reference_genome,
     decode_schema,
+    drop_checksum,
     field,
     parse_extension,
     read_manifest,
@@ -554,41 +555,8 @@ def test_round_trip_of_every_type_preserves_values():
     assert_reads_as(path, ht)
 
 
-def local_path(path: str) -> str:
-    """``path``, a file in a local temporary directory, as a path Python's ``open`` takes."""
-    return path.removeprefix('file://')
-
-
-def drop_checksum(file_path: str) -> None:
-    """Removes the checksum file Hadoop's local file system keeps beside ``file_path``, which would fail
-    reads of a file changed outside Hadoop."""
-    directory, name = local_path(file_path).rsplit('/', 1)
-    crc = f'{directory}/.{name}.crc'
-    if hfs.exists(crc):
-        hfs.remove(crc)
-
-
 def row_file_paths(path: str) -> list:
     return [f'{path}/{p["row_file"]["path"]}' for p, _ in row_files(path)]
-
-
-def corrupt_column_chunks_except(file_path: str, keep: set) -> None:
-    """Overwrites with zeros every column chunk of the Parquet file at ``file_path`` whose leaf column
-    path is not in ``keep``. Reading a zeroed chunk fails."""
-    with hfs.open(file_path, 'rb') as f:
-        data = bytearray(f.read())
-    metadata = pq.ParquetFile(io.BytesIO(data)).metadata
-    for i in range(metadata.num_row_groups):
-        row_group = metadata.row_group(i)
-        for j in range(row_group.num_columns):
-            column = row_group.column(j)
-            if column.path_in_schema in keep:
-                continue
-            start = column.dictionary_page_offset if column.has_dictionary_page else column.data_page_offset
-            data[start : start + column.total_compressed_size] = bytes(column.total_compressed_size)
-    with hfs.open(file_path, 'wb') as f:
-        f.write(data)
-    drop_checksum(file_path)
 
 
 def test_projection_reads_only_the_requested_fields_column_chunks():
