@@ -26,6 +26,7 @@ from ..columnar_helpers import (
     assert_has_type,
     assert_same_dataset,
     corrupt_column_chunks_except,
+    corrupt_pages_except,
     custom_reference_genome,
     data_files,
     decode_schema,
@@ -34,6 +35,7 @@ from ..columnar_helpers import (
     read_manifest,
     read_parquet_file,
     required_by_index,
+    rewrite_with_one_row_pages,
     to_python,
 )
 from ..helpers import resource
@@ -663,3 +665,148 @@ def test_a_table_is_not_a_matrix_table():
 def test_a_matrix_table_is_not_a_table():
     with pytest.raises(FatalError, match='is a matrix table, not a table'):
         hl.Table(ir.TableRead(ir.TableColumnarReader(resource(MISSING_ENTRIES_FIXTURE)))).count()
+
+
+# Key-range reads
+
+
+def read_columnar_intervals(path: str, intervals: list, filter_intervals: bool = False) -> hl.MatrixTable:
+    return hl.MatrixTable(ir.MatrixRead(ir.MatrixColumnarReader(path, intervals, filter_intervals)))
+
+
+def row_partitions(mt: hl.MatrixTable) -> list:
+    """The ``row_idx`` of each row of each partition of ``mt``."""
+    rows = (
+        mt.rows()
+        .key_by()
+        ._map_partitions(lambda p: hl.array([hl.struct(idx=p.map(lambda r: r.row_idx).to_array())])._to_stream())
+    )
+    return [r.idx for r in rows.collect()]
+
+
+def assert_same_rows_and_entries(actual: hl.MatrixTable, expected: hl.MatrixTable) -> None:
+    assert actual.rows().collect() == expected.rows().collect()
+    assert localized_entries(actual) == localized_entries(expected)
+
+
+INTERVALS = {
+    'within a row partition': [hl.Interval(1, 3)],
+    'spanning row partitions, exclusive start': [hl.Interval(1, 8, includes_start=False, includes_end=True)],
+    'several': [hl.Interval(0, 1), hl.Interval(5, 9)],
+}
+
+
+@pytest.mark.parametrize('intervals', INTERVALS.values(), ids=INTERVALS.keys())
+def test_an_interval_read_gives_the_rows_in_the_intervals_and_their_entries(intervals):
+    mt = matrix_table(n_rows=12, n_partitions=3)
+    path = new_temp_file(extension='mt')
+    write_columnar(mt, path)
+
+    assert_same_rows_and_entries(read_columnar_intervals(path, intervals), hl.filter_intervals(mt, intervals))
+
+
+def matrix_table_with_rows_5_and_6_only() -> tuple:
+    """A matrix table of rows 0 to 11 in one row partition, of which only rows 5 and 6 can be read from
+    the row file and the entry file. Their row groups hold rows 0-3, 4-7 and 8-11, and their pages one
+    row each."""
+    mt = matrix_table(n_rows=12, n_partitions=1)
+    path = new_temp_file(extension='mt')
+    write_columnar(mt, path)
+    [(partition, _, _)] = data_files(path)
+    for file in [partition['row_file'], *partition['entry_files']]:
+        file_path = f'{path}/{file["path"]}'
+        rewrite_with_one_row_pages(file_path, 4)
+        corrupt_pages_except(file_path, {5, 6})
+    return mt, path
+
+
+def test_row_groups_and_pages_outside_the_intervals_are_not_read_from_row_or_entry_files():
+    mt, path = matrix_table_with_rows_5_and_6_only()
+    intervals = [hl.Interval(5, 6, includes_end=True)]
+
+    assert_same_rows_and_entries(read_columnar_intervals(path, intervals), hl.filter_intervals(mt, intervals))
+    # Reading any other row reads a zeroed page.
+    with pytest.raises(FatalError):
+        localized_entries(read_columnar_intervals(path, [hl.Interval(4, 5, includes_end=True)]))
+
+
+def test_filter_intervals_on_the_row_key_reads_only_the_row_groups_and_pages_in_the_intervals():
+    mt, path = matrix_table_with_rows_5_and_6_only()
+    intervals = [hl.Interval(5, 6, includes_end=True)]
+
+    assert_same_rows_and_entries(
+        hl.filter_intervals(read_columnar(path), intervals), hl.filter_intervals(mt, intervals)
+    )
+
+
+def test_row_key_filters_that_hail_pushes_down_read_only_the_row_groups_and_pages_they_keep():
+    mt, path = matrix_table_with_rows_5_and_6_only()
+
+    def keep(m: hl.MatrixTable) -> hl.MatrixTable:
+        return m.filter_rows((m.row_idx == 5) | (m.row_idx == 6))
+
+    assert_same_rows_and_entries(keep(read_columnar(path)), keep(mt))
+
+
+def test_an_entry_file_whose_row_groups_differ_from_its_row_files_fails_an_interval_read():
+    mt = matrix_table(n_rows=12, n_partitions=1)
+    path = new_temp_file(extension='mt')
+    write_columnar(mt, path)
+    [(partition, _, _)] = data_files(path)
+    rewrite_with_one_row_pages(f'{path}/{partition["row_file"]["path"]}', 4)
+    rewrite_with_one_row_pages(f'{path}/{partition["entry_files"][0]["path"]}', 6)
+
+    with pytest.raises(FatalError, match='row groups'):
+        localized_entries(read_columnar_intervals(path, [hl.Interval(5, 6)]))
+
+
+@pytest.mark.parametrize('filter_intervals', [False, True])
+@pytest.mark.parametrize('intervals', INTERVALS.values(), ids=INTERVALS.keys())
+def test_an_interval_read_partitions_its_rows_as_a_native_read_does(intervals, filter_intervals):
+    mt = matrix_table(n_rows=12, n_partitions=3)
+    path = new_temp_file(extension='mt')
+    write_columnar(mt, path)
+    native_path = new_temp_file(extension='mt')
+    mt.write(native_path)
+
+    actual = read_columnar_intervals(path, intervals, filter_intervals)
+    expected = hl.read_matrix_table(native_path, _intervals=intervals, _filter_intervals=filter_intervals)
+    assert row_partitions(actual) == row_partitions(expected)
+    assert_same_rows_and_entries(actual, expected)
+
+
+def missing_row_keys_case() -> tuple:
+    """Row keys 0 to 7, then four missing row keys, which sort last."""
+    mt = matrix_table(n_rows=12, n_partitions=3)
+    mt = mt.key_rows_by(k=hl.or_missing(mt.row_idx < 8, mt.row_idx))
+    point = hl.tstruct(k=hl.tint32)
+    return mt, [hl.Interval(hl.Struct(k=5), hl.Struct(k=None), includes_end=True, point_type=point)]
+
+
+def locus_row_keys_case() -> tuple:
+    """Loci on a genome whose contig order, chr2, chr10, chr1, chrX, is not lexicographic."""
+    rg = custom_reference_genome()
+    contigs = ['chr1', 'chr10', 'chr2', 'chrX']
+    mt = matrix_table(n_rows=12, n_partitions=3)
+    mt = mt.key_rows_by(locus=hl.locus(hl.literal(contigs)[mt.row_idx % 4], mt.row_idx // 4 + 1, reference_genome=rg))
+    return mt, [hl.Interval(hl.Locus('chr10', 2, rg), hl.Locus('chr1', 2, rg), includes_end=True)]
+
+
+ROW_KEY_CASES = {
+    'up to and including missing row keys': missing_row_keys_case,
+    'locus row keys in contig order': locus_row_keys_case,
+}
+
+
+@pytest.mark.parametrize('case', ROW_KEY_CASES.values(), ids=ROW_KEY_CASES.keys())
+def test_an_interval_read_of_one_row_pages_gives_the_rows_whose_row_keys_are_in_the_intervals(case):
+    mt, intervals = case()
+    path = new_temp_file(extension='mt')
+    write_columnar(mt, path)
+    for partition, _, _ in data_files(path):
+        for file in [partition['row_file'], *partition['entry_files']]:
+            rewrite_with_one_row_pages(f'{path}/{file["path"]}', 2)
+
+    expected = hl.filter_intervals(mt, intervals)
+    assert expected.count_rows() > 0
+    assert_same_rows_and_entries(read_columnar_intervals(path, intervals), expected)

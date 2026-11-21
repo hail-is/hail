@@ -6,6 +6,7 @@ import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
 import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, EmitMethodBuilder, IEmitCode}
 import is.hail.expr.ir.defs.PartitionReader
+import is.hail.expr.ir.functions.UtilFunctions
 import is.hail.expr.ir.streams.StreamProducer
 import is.hail.io.fs.FS
 import is.hail.types.{RStruct, TypeWithRequiredness}
@@ -29,7 +30,10 @@ import org.json4s.{Extraction, JValue}
   * The file's footer must hold the same Arrow schema (spec section 3).
   *
   * The row's UID, `uidFieldName`, is the `rowIdField` field if there is one, and otherwise the
-  * row's position in the file. The context is `{path}`, the file's absolute path.
+  * row's position in the file. The context is `{path}`, the file's absolute path, and in a
+  * key-range read, which `keyRange` is for, also [[ColumnarKeyRange.contextFields]]. A key-range
+  * read reads only some row groups and pages, and the rows it gives must be filtered to the key
+  * intervals.
   *
   * Only the column chunks of requested fields are read, at any depth of nesting.
   */
@@ -38,9 +42,11 @@ case class ColumnarPartitionReader(
   arrowSchema: String,
   rowIdField: Option[String],
   uidFieldName: String,
+  keyRange: Option[ColumnarKeyRange] = None,
 ) extends PartitionReader {
 
-  override def contextType: TStruct = TStruct("path" -> TString)
+  override def contextType: TStruct =
+    TStruct(("path" -> TString) +: keyRange.toSeq.flatMap(_.contextFields): _*)
 
   private def dataFields: IndexedSeq[PField] =
     fileType.fields.filterNot(f => rowIdField.contains(f.name))
@@ -81,7 +87,9 @@ case class ColumnarPartitionReader(
 
       val parquetSchema = ColumnarSchema.toParquet(ColumnarFileSink.decodeSchema(arrowSchema))
       val plan = ColumnarReadPlan(fileType, parquetSchema, rowIdField, uidFieldName, requestedType)
-      val spec = ColumnarSourceSpec(arrowSchema, plan.leafPaths)
+      val spec = ColumnarSourceSpec(arrowSchema, plan.leafPaths, keyRange)
+      val keyRangeContext =
+        if (keyRange.isEmpty) None else Some(cb.memoizeField(ctxValue, "columnar_context"))
 
       val source = mb.genFieldThisRef[ColumnarFileSource]("columnar_source")
       val leaves = plan.leafPaths.indices.map(i =>
@@ -98,11 +106,20 @@ case class ColumnarPartitionReader(
         override def initialize(cb: EmitCodeBuilder, outerRegion: Value[Region]): Unit = {
           cb.assign(
             source,
-            cb.emb.getObject(spec).invoke[FS, String, ColumnarFileSource](
-              "open",
-              cb.emb.getFS,
-              path,
-            ),
+            keyRangeContext match {
+              case None =>
+                cb.emb.getObject(spec).invoke[FS, String, ColumnarFileSource](
+                  "open",
+                  cb.emb.getFS,
+                  path,
+                )
+              case Some(context) =>
+                cb.emb.getObject(spec).invoke[FS, AnyRef, ColumnarFileSource](
+                  "openKeyRange",
+                  cb.emb.getFS,
+                  UtilFunctions.svalueToJavaValue(cb, outerRegion, context, safe = true),
+                )
+            },
           )
           leaves.zipWithIndex.foreach { case (l, i) =>
             cb.assign(l, source.invoke[Int, ColumnarLeaf]("leaf", i))

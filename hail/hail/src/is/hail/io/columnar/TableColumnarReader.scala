@@ -3,18 +3,15 @@ package is.hail.io.columnar
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
 import is.hail.expr.ir._
-import is.hail.expr.ir.defs.{Literal, ReadPartition, ToStream}
-import is.hail.expr.ir.lowering.{TableStage, TableStageDependency}
+import is.hail.expr.ir.defs.{GetField, ReadPartition}
+import is.hail.expr.ir.lowering.TableStage
 import is.hail.io.fs.FS
 import is.hail.types.VirtualTypeWithReq
 import is.hail.types.physical._
 import is.hail.types.virtual._
-import is.hail.utils.fatal
+import is.hail.utils.{fatal, Interval}
 import is.hail.variant.ReferenceGenomeEnv
 
-import scala.collection.immutable.ArraySeq
-
-import org.apache.spark.sql.Row
 import org.json4s.{DefaultFormats, Formats, JObject, JString, JValue}
 
 object TableColumnarReader {
@@ -22,23 +19,32 @@ object TableColumnarReader {
   /** A reader of the columnar table at `path`. Its reference genomes must be equal to any of the
     * same name in `references`.
     */
-  def apply(fs: FS, references: ReferenceGenomeEnv, path: String): TableColumnarReader = {
+  def apply(fs: FS, references: ReferenceGenomeEnv, path: String): TableColumnarReader =
+    new TableColumnarReader(dataset(fs, references, path), None)
+
+  private def dataset(fs: FS, references: ReferenceGenomeEnv, path: String): ColumnarDataset = {
     val manifest = ColumnarManifest.read(fs, path)
     if (manifest.matrix.isDefined)
       fatal(s"columnar table '$path': it is a matrix table, not a table")
-    new TableColumnarReader(
-      new ColumnarDataset(
-        path,
-        manifest,
-        references.withReferences(manifest.referenceGenomes),
-        TableReader.uidFieldName,
-      )
+    new ColumnarDataset(
+      path,
+      manifest,
+      references.withReferences(manifest.referenceGenomes),
+      TableReader.uidFieldName,
     )
   }
 
+  /** A reader from its JSON: its `path`, and a key-range read, if any (see
+    * [[ColumnarReadIntervals.fromJValue]]).
+    */
   def fromJValue(fs: FS, references: ReferenceGenomeEnv, jv: JValue): TableColumnarReader = {
     implicit val formats: Formats = DefaultFormats
-    TableColumnarReader(fs, references, (jv \ "path").extract[String])
+    val path = (jv \ "path").extract[String]
+    val dataset = this.dataset(fs, references, path)
+    new TableColumnarReader(
+      dataset,
+      ColumnarReadIntervals.fromJValue(jv, dataset.references, dataset.keyType, path),
+    )
   }
 }
 
@@ -46,12 +52,23 @@ object TableColumnarReader {
   *
   * The key, partitioning and distinct keying come from the manifest, so the table is never
   * re-sorted. Row partitions with no rows are dropped. The row UID is the Row ID.
+  *
+  * A key-range read of `intervals` reads only the rows whose key is in them, and only the row
+  * partitions whose bounds overlap them (see [[ColumnarReadIntervals]]).
   */
-class TableColumnarReader private (dataset: ColumnarDataset) extends TableReaderWithExtraUID {
+class TableColumnarReader private (
+  dataset: ColumnarDataset,
+  val intervals: Option[ColumnarReadIntervals],
+) extends TableReaderWithExtraUID with ColumnarKeyRangeReader {
 
   def path: String = dataset.path
 
   override def pathsUsed: Seq[String] = FastSeq(path)
+
+  override def restrictedTo(intervals: IndexedSeq[Interval]): Option[TableColumnarReader] =
+    ColumnarReadIntervals.restrict(dataset.keyType, this.intervals, intervals).map(r =>
+      new TableColumnarReader(dataset, Some(r))
+    )
 
   override def partitionCounts: Option[IndexedSeq[Long]] = None
 
@@ -74,13 +91,15 @@ class TableColumnarReader private (dataset: ColumnarDataset) extends TableReader
 
   override def toJValue: JValue =
     JObject("name" -> JString("TableColumnarReader"), "path" -> JString(path))
+      .merge(ColumnarReadIntervals.toJValue(dataset.keyType, intervals))
 
-  override def renderShort(): String = s"(TableColumnarReader $path)"
+  override def renderShort(): String =
+    s"(TableColumnarReader $path${intervals.fold("")(i => s" (${i.intervals.length} intervals)")})"
 
-  override def hashCode(): Int = path.hashCode
+  override def hashCode(): Int = (path, intervals).##
 
   override def equals(that: Any): Boolean = that match {
-    case that: TableColumnarReader => path == that.path
+    case that: TableColumnarReader => path == that.path && intervals == that.intervals
     case _ => false
   }
 
@@ -90,16 +109,15 @@ class TableColumnarReader private (dataset: ColumnarDataset) extends TableReader
     dataset.globals(requestedGlobalsType)
 
   override def lower(ctx: ExecuteContext, requestedType: TableType): TableStage = {
-    val parts = dataset.nonEmptyPartitions(ctx)
-    TableStage(
+    val reader = dataset.forRead(dataset.rowsReader, intervals)
+    dataset.lower(
+      ctx,
       lowerGlobals(ctx, requestedType.globalType),
-      dataset.partitioner(fullType.keyType, parts),
-      TableStageDependency.none,
-      ToStream(Literal(
-        TArray(dataset.rowsReader.contextType),
-        ArraySeq.from(parts.map(p => Row(dataset.absolute(p.rowFile)))),
-      )),
-      ctx => ReadPartition(ctx, requestedType.rowType, dataset.rowsReader),
-    )
+      intervals,
+      requestedType.rowType,
+      reader.contextType,
+      r => dataset.readerContext(r.partition.rowFile, r),
+      GetField(_, "intervals"),
+    )(ReadPartition(_, _, reader))
   }
 }

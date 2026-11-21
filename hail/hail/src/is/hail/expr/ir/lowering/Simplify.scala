@@ -8,6 +8,7 @@ import is.hail.expr.ir.Scope.EVAL
 import is.hail.expr.ir.analyses.{ColumnCount, PartitionCounts, PartitionCountsOrColumnCount}
 import is.hail.expr.ir.defs._
 import is.hail.io.bgen.MatrixBGENReader
+import is.hail.io.columnar.ColumnarKeyRangeReader
 import is.hail.rvd.PartitionBoundOrdering
 import is.hail.types.tcoerce
 import is.hail.types.virtual._
@@ -2112,6 +2113,9 @@ object Simplify {
                   tr.spec,
                 ),
               ))
+
+            case TableRead(t, false, tr: ColumnarKeyRangeReader) if keep =>
+              tr.restrictedTo(intervals).map(TableRead(t, false, _))
 
             case TableRead(t, false, tr: TableNativeZippedReader)
                 if keep
