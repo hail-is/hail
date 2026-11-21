@@ -5,12 +5,8 @@ format specification (``dev-docs/hail-query/columnar-format-spec.md``).
 """
 
 import base64
-import io
-import json
 import secrets
-import struct
 from itertools import pairwise
-from typing import NamedTuple, Optional
 
 import numpy as np
 import pyarrow as pa
@@ -24,32 +20,27 @@ from hail.utils import FatalError, HailUserError, new_temp_file
 from hail.utils.java import Env
 from hail.utils.misc import is_committed
 
+from ..columnar_helpers import (
+    CUSTOM_REFERENCE_GENOME,
+    MANIFEST_FIELDS,
+    TYPE_CASES,
+    assert_has_type,
+    assert_same_dataset,
+    custom_reference_genome,
+    decode_schema,
+    field,
+    parse_extension,
+    read_manifest,
+    read_parquet_file,
+    required_by_index,
+    row_files,
+    to_python,
+)
 from ..helpers import resource
-
-MANIFEST_FIELDS = {
-    'format',
-    'version',
-    'kind',
-    'rows',
-    'globals',
-    'partitions',
-    'internal_fields',
-    'reference_genomes',
-}
 
 
 def write_columnar(ht: hl.Table, path: str, overwrite: bool = False) -> None:
     Env.backend().execute(ir.TableWrite(ht._tir, ir.TableColumnarWriter(path, overwrite)))
-
-
-def read_manifest(path: str) -> dict:
-    with hfs.open(f'{path}/manifest.json') as f:
-        return json.load(f)
-
-
-def read_parquet_file(path: str) -> pq.ParquetFile:
-    with hfs.open(path, 'rb') as f:
-        return pq.ParquetFile(io.BytesIO(f.read()))
 
 
 def keyed_table(n_rows: int = 10, n_partitions: int = 3) -> hl.Table:
@@ -89,21 +80,6 @@ def test_manifest_is_well_formed():
     assert not hfs.exists(f'{path}/_SUCCESS')
 
 
-def to_python(value):
-    """A collected Hail value as the plain Python value pyarrow's ``to_pylist`` gives."""
-    if isinstance(value, hl.Struct):
-        return {k: to_python(v) for k, v in value.items()}
-    if isinstance(value, list):
-        return [to_python(v) for v in value]
-    return value
-
-
-def row_files(path: str) -> list:
-    """Each row partition's partitions-table entry, with its row file."""
-    partitions = read_parquet_file(f'{path}/partitions.parquet').read().to_pylist()
-    return [(p, read_parquet_file(f'{path}/{p["row_file"]["path"]}')) for p in partitions]
-
-
 def test_rows_equal_collected_values_and_row_ids_encode_position():
     ht = keyed_table()
     path = new_temp_file(extension='ht')
@@ -119,20 +95,6 @@ def test_rows_equal_collected_values_and_row_ids_encode_position():
         rows.extend({k: v for k, v in r.items() if k != row_id} for r in part_rows)
 
     assert rows == [to_python(r) for r in ht.collect()]
-
-
-def field(name: str, typ: pa.DataType, field_id: int, nullable: bool = True) -> pa.Field:
-    return pa.field(name, typ, nullable, {b'PARQUET:field_id': str(field_id).encode()})
-
-
-def decode_schema(encoded: str) -> pa.Schema:
-    """Decodes a manifest ``schema``, checking that it is an encapsulated IPC Schema message."""
-    message = base64.b64decode(encoded, validate=True)
-    continuation, length = struct.unpack('<Ii', message[:8])
-    assert continuation == 0xFFFFFFFF
-    assert len(message) == 8 + length
-    assert len(message) % 8 == 0
-    return pa.ipc.read_schema(pa.py_buffer(message))
 
 
 KEYED_ROW_SCHEMA = pa.schema([
@@ -356,32 +318,6 @@ def test_row_id_field_name_does_not_collide_with_row_fields():
     ]
 
 
-EXTENSION_NAME = b'ARROW:extension:name'
-EXTENSION_METADATA = b'ARROW:extension:metadata'
-
-
-def parse_extension(f: pa.Field) -> tuple:
-    """The extension name and parsed metadata of a field whose extension type pyarrow doesn't know, which
-    pyarrow leaves in the Arrow field metadata. ``(None, None)`` for a field with no extension type."""
-    metadata = f.metadata or {}
-    if EXTENSION_NAME not in metadata:
-        return None, None
-    return metadata[EXTENSION_NAME].decode(), json.loads(metadata[EXTENSION_METADATA])
-
-
-def required_by_index(i: hl.Int32Expression, values: list, typ: hl.HailType) -> hl.Expression:
-    """``values[i]``, as an expression Hail infers to be required. Indexing a literal array would be
-    inferred optional."""
-    if isinstance(typ, (hl.tstruct, hl.ttuple)) and len(typ) == 0:
-        # Every value of an empty struct or tuple type is the same, so a switch's branches would all be the
-        # same literal, and Simplify rewrites an If whose branches are equal into one Hail infers optional.
-        return hl.literal(values[0], typ)
-    switch = hl.switch(i)
-    for j, v in enumerate(values[:-1]):
-        switch = switch.when(j, hl.literal(v, typ))
-    return switch.default(hl.literal(values[-1], typ))
-
-
 def write_typed_fields(values: list, typ: hl.HailType) -> tuple:
     """Writes a table whose row i has a required field ``x`` holding ``values[i]``, and a nullable field
     ``x_opt`` holding the same value in even rows and missing in odd rows. Returns the fields' Arrow
@@ -397,172 +333,17 @@ def write_typed_fields(values: list, typ: hl.HailType) -> tuple:
     return schema.field('x'), schema.field('x_opt'), [r['x'] for r in rows], [r['x_opt'] for r in rows]
 
 
-class TypeCase(NamedTuple):
-    """A Hail type, values of it, and the Arrow storage type, extension name, extension metadata and stored
-    values that spec section 5 gives for them.
-
-    pyarrow parses the metadata of a canonical extension type itself and doesn't expose it. For such a
-    type, ``extension_metadata`` is None and ``canonical_type`` is the type pyarrow parses the field to,
-    whose repr shows the parameters it parsed."""
-
-    typ: hl.HailType
-    values: list
-    storage: pa.DataType
-    extension_name: Optional[str]
-    extension_metadata: Optional[dict]
-    stored: list
-    canonical_type: Optional[str] = None
-
-
-# Each case is built when its test runs, since building some cases initializes Hail.
-TYPE_CASES = {
-    'call': lambda: TypeCase(
-        hl.tcall,
-        [hl.Call([0, 1]), hl.Call([1, 1]), hl.Call([0, 1], phased=True), hl.Call([1]), hl.Call([])],
-        pa.int32(),
-        'hail.call',
-        {'encoding': 1},
-        # (allele representation << 3) | (ploidy << 1) | phased, from spec section 5.3.
-        [(1 << 3) | 4, (2 << 3) | 4, (1 << 3) | 4 | 1, (1 << 3) | 2, 0],
-    ),
-    'locus': lambda: TypeCase(
-        hl.tlocus('GRCh37'),
-        [hl.Locus('1', 5), hl.Locus('2', 10), hl.Locus('X', 7), hl.Locus('MT', 16569)],
-        pa.int64(),
-        'hail.locus',
-        {'reference_genome': 'GRCh37', 'contigs': hl.get_reference('GRCh37').contigs},
-        # (contig_index << 32) | position, from spec section 5.2. X and MT are GRCh37's 23rd and 25th contigs.
-        [(0 << 32) | 5, (1 << 32) | 10, (22 << 32) | 7, (24 << 32) | 16569],
-    ),
-    'set': lambda: TypeCase(
-        hl.tset(hl.tint32),
-        [{3, 1, 2}, set(), {5}],
-        # Hail infers a literal's set elements to be optional.
-        pa.list_(pa.field('element', pa.int32())),
-        'hail.set',
-        {},
-        [[1, 2, 3], [], [5]],
-    ),
-    'tuple': lambda: TypeCase(
-        hl.ttuple(hl.tint32, hl.tstr),
-        [(1, 'a'), (2, None), (3, 'c')],
-        pa.struct([pa.field('0', pa.int32()), pa.field('1', pa.string())]),
-        'hail.tuple',
-        {},
-        [{'0': 1, '1': 'a'}, {'0': 2, '1': None}, {'0': 3, '1': 'c'}],
-    ),
-    # A present empty struct or tuple is true, and a missing one null (spec section 5.5).
-    'empty_struct': lambda: TypeCase(
-        hl.tstruct(),
-        [hl.Struct(), hl.Struct(), hl.Struct()],
-        pa.bool_(),
-        'hail.empty_struct',
-        {'tuple': False},
-        [True, True, True],
-    ),
-    'empty_tuple': lambda: TypeCase(
-        hl.ttuple(),
-        [(), (), ()],
-        pa.bool_(),
-        'hail.empty_struct',
-        {'tuple': True},
-        [True, True, True],
-    ),
-    'interval': lambda: TypeCase(
-        hl.tinterval(hl.tint32),
-        [hl.Interval(1, 5, True, False), hl.Interval(2, 3, False, True), hl.Interval(7, 7, True, True)],
-        pa.struct([
-            pa.field('start', pa.int32()),
-            pa.field('end', pa.int32()),
-            pa.field('includes_start', pa.bool_(), False),
-            pa.field('includes_end', pa.bool_(), False),
-        ]),
-        'hail.interval',
-        {},
-        [
-            {'start': 1, 'end': 5, 'includes_start': True, 'includes_end': False},
-            {'start': 2, 'end': 3, 'includes_start': False, 'includes_end': True},
-            {'start': 7, 'end': 7, 'includes_start': True, 'includes_end': True},
-        ],
-    ),
-    'dict': lambda: TypeCase(
-        hl.tdict(hl.tstr, hl.tint32),
-        [{'b': 2, 'a': None}, {}, {'c': 3}],
-        pa.map_(pa.field('key', pa.string(), False), pa.field('value', pa.int32()), keys_sorted=True),
-        None,
-        None,
-        [[('a', None), ('b', 2)], [], [('c', 3)]],
-    ),
-    'ndarray': lambda: TypeCase(
-        hl.tndarray(hl.tfloat64, 2),
-        [np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]), np.zeros((0, 2)), np.array([[7.0]])],
-        # pyarrow replaces the storage type of this canonical extension type with its own, which names
-        # list elements 'item' and makes every field nullable. ArrowSchemaConversionSuite and
-        # ColumnarSchemaSuite check the stored layout; that x_opt reads at all shows that shape is
-        # nullable (spec section 5.4).
-        pa.struct([pa.field('data', pa.list_(pa.float64())), pa.field('shape', pa.list_(pa.int32(), 2))]),
-        'arrow.variable_shape_tensor',
-        None,
-        [
-            {'data': [1.0, 2.0, 3.0, 4.0, 5.0, 6.0], 'shape': [2, 3]},
-            {'data': [], 'shape': [0, 2]},
-            {'data': [7.0], 'shape': [1, 1]},
-        ],
-        # No dim_names, permutation or uniform_shape.
-        canonical_type='extension<arrow.variable_shape_tensor[value_type=double, ndim=2]>',
-    ),
-}
-
-
 @pytest.mark.parametrize('case', TYPE_CASES.keys())
 def test_types_have_the_specified_extension_and_encoding(case):
     c = TYPE_CASES[case]()
     x, x_opt, stored, stored_opt = write_typed_fields(c.values, c.typ)
 
     for f in (x, x_opt):
-        if c.canonical_type is None:
-            assert parse_extension(f) == (c.extension_name, c.extension_metadata), f
-            storage_type = f.type
-        else:
-            assert isinstance(f.type, pa.BaseExtensionType), f
-            assert (f.type.extension_name, str(f.type)) == (c.extension_name, c.canonical_type), f
-            storage_type = f.type.storage_type
-        assert storage_type.equals(c.storage), f
+        assert_has_type(f, c)
     assert not x.nullable
     assert x_opt.nullable
     assert stored == c.stored
     assert stored_opt == [v if i % 2 == 0 else None for i, v in enumerate(c.stored)]
-
-
-# A non-builtin reference genome, defined as spec section 3.1 says. Its contig order is not
-# lexicographic: chr2 < chr10 < chr1 < chrX.
-CUSTOM_REFERENCE_GENOME = {
-    'name': 'ColumnarTestGenome',
-    'contigs': [
-        {'name': 'chr2', 'length': 1000},
-        {'name': 'chr10', 'length': 1000},
-        {'name': 'chr1', 'length': 1000},
-        {'name': 'chrX', 'length': 500},
-    ],
-    'xContigs': ['chrX'],
-    'yContigs': [],
-    'mtContigs': [],
-    'par': [{'start': {'contig': 'chrX', 'position': 1}, 'end': {'contig': 'chrX', 'position': 100}}],
-}
-
-
-def custom_reference_genome() -> hl.ReferenceGenome:
-    """``CUSTOM_REFERENCE_GENOME``, defined in Hail."""
-    definition = CUSTOM_REFERENCE_GENOME
-    return hl.ReferenceGenome(
-        definition['name'],
-        [c['name'] for c in definition['contigs']],
-        {c['name']: c['length'] for c in definition['contigs']},
-        x_contigs=definition['xContigs'],
-        y_contigs=definition['yContigs'],
-        mt_contigs=definition['mtContigs'],
-        par=[(p['start']['contig'], p['start']['position'], p['end']['position']) for p in definition['par']],
-    )
 
 
 def test_manifest_defines_only_non_builtin_reference_genomes():
@@ -652,42 +433,6 @@ def test_overwrite():
     assert sum(p['row_count'] for p in check_partitions_table(path)) == 5
 
 
-def without_schemas(manifest: dict) -> dict:
-    return {k: {**v, 'schema': None} if isinstance(v, dict) and 'schema' in v else v for k, v in manifest.items()}
-
-
-def assert_same_table(actual: str, expected: str) -> None:
-    """Compares two columnar tables by value. Row file paths may differ."""
-    actual_manifest = read_manifest(actual)
-    expected_manifest = read_manifest(expected)
-    assert without_schemas(actual_manifest) == without_schemas(expected_manifest)
-    for component in ('rows', 'globals'):
-        actual_schema = decode_schema(actual_manifest[component]['schema'])
-        assert actual_schema.equals(decode_schema(expected_manifest[component]['schema']), check_metadata=True)
-
-    actual_partitions = row_files(actual)
-    expected_partitions = row_files(expected)
-    assert len(actual_partitions) == len(expected_partitions)
-    for (actual_partition, actual_file), (expected_partition, expected_file) in zip(
-        actual_partitions, expected_partitions
-    ):
-        del actual_partition['row_file']['path'], expected_partition['row_file']['path']
-        assert actual_partition == expected_partition
-        assert actual_file.schema_arrow.equals(expected_file.schema_arrow, check_metadata=True)
-        assert actual_file.read().to_pylist() == expected_file.read().to_pylist()
-
-    partitions_schema = read_parquet_file(f'{actual}/partitions.parquet').schema_arrow
-    assert partitions_schema.equals(
-        read_parquet_file(f'{expected}/partitions.parquet').schema_arrow, check_metadata=True
-    )
-
-    if expected_manifest['globals']['file'] is not None:
-        actual_globals = read_parquet_file(f'{actual}/globals.parquet')
-        expected_globals = read_parquet_file(f'{expected}/globals.parquet')
-        assert actual_globals.schema_arrow.equals(expected_globals.schema_arrow, check_metadata=True)
-        assert actual_globals.read().to_pylist() == expected_globals.read().to_pylist()
-
-
 def all_types_values(rg: hl.ReferenceGenome) -> list:
     """For each type the columnar format can store, except binary, which Hail's Python API has no type
     for, its name, Hail type, and the value of row ``i`` of the ``all_types`` fixture, for ``i`` in 0
@@ -758,7 +503,7 @@ def test_output_matches_fixture(fixture, table):
     path = new_temp_file(extension='ht')
     write_columnar(table(), path)
 
-    assert_same_table(path, expected)
+    assert_same_dataset(path, expected)
 
 
 def read_columnar(path: str) -> hl.Table:

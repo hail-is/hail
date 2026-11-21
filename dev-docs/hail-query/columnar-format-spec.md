@@ -493,11 +493,12 @@ row group whole.
 This section is informative. It records where Hail 2's implementation falls short
 of this spec. Update it as the gaps close.
 
-Hail 2 has a table writer, `TableColumnarWriter`, and a table reader,
-`TableColumnarReader` (`is.hail.io.columnar`). They are a lowered `TableWriter`
+Hail 2 has a table writer, `TableColumnarWriter`, a matrix table writer,
+`MatrixColumnarWriter`, and a table reader, `TableColumnarReader`
+(`is.hail.io.columnar`). They are a lowered `TableWriter`, a lowered `MatrixWriter`
 and a lowered `TableReader`, so they run on every backend. They are private:
-Python reaches them only through `hail.ir.TableColumnarWriter` and
-`hail.ir.TableColumnarReader`, for tests.
+Python reaches them only through `hail.ir.TableColumnarWriter`,
+`hail.ir.MatrixColumnarWriter` and `hail.ir.TableColumnarReader`, for tests.
 
 ### 7.1 Implemented
 
@@ -524,6 +525,24 @@ For tables:
   reference genome. They are generated from this spec with pyarrow alone, and
   pyarrow conformance tests read Hail's output without Hail.
 
+For writing matrix tables, all of the above, and:
+
+- the manifest root for `"kind": "matrix_table"` (section 3): `cols`, `entries`
+  with the `dense` layout and one column block, and the `col_idx` and
+  `entry_valid` internal fields. The Row ID field's name doesn't collide with an
+  entry field's either, since entry files have it too. `reference_genomes` also
+  lists those of column and entry fields;
+- `entry_files` in the partitions table (section 4.1), entry files with the entry
+  validity list (section 4.3), and the columns file (section 4.4);
+- row groups (section 4.6.1). A row partition's row file and entry file end each
+  row group together, once the larger of the two buffers 128 MiB, parquet-java's
+  default target size, or before a row whose entries would exceed the leaf cap.
+  A row whose entries alone exceed the leaf cap fails the write. An entry field
+  with a list, set, dict or ndarray inside is counted with an upper bound on its
+  leaf values, so its row groups may end before it reaches the cap;
+- a fixture for a matrix table with missing entries and present entries with
+  missing fields (section 6).
+
 For reading tables:
 
 - the manifest root, rejecting another format, version, kind or container, and
@@ -549,15 +568,7 @@ For reading tables:
 
 ### 7.2 Gaps
 
-#### 7.2.1 Matrix tables
-
-Not implemented. Nothing writes `"kind": "matrix_table"`: no columns file, entry
-files, column blocks, `entry_valid` or `col_idx` fields, `entry_files` in the
-partitions table, or row-group alignment and leaf cap (section 4.6.1). Row groups
-use parquet-java's default target size (128 MiB), which section 4.6.1 allows for
-row files.
-
-#### 7.2.2 Reading
+#### 7.2.1 Reading
 
 Tables are read only through the private reader. `hl.read_table` and
 `TableIR.read` still fail on a directory that has a `manifest.json`. Matrix
@@ -565,10 +576,11 @@ tables are not read, so rejecting the `"long"` layout is not implemented. The
 reader doesn't report partition row counts to the optimizer, so counting a
 table iterates over its row files' footers.
 
-#### 7.2.3 Conformance fixtures
+#### 7.2.2 Conformance fixtures
 
-Section 6 lists fixtures that don't exist yet:
+Section 6 lists a fixture that doesn't exist yet: `binary`. Hail's Python API has
+no binary type, so the fixtures, which Hail's tests write from Python, can't
+include it.
 
-- a matrix table with missing entries and present entries with missing fields;
-- `binary`. Hail's Python API has no binary type, so the fixtures, which Hail's
-  tests write from Python, can't include it.
+Hail 2 can't read matrix tables (section 7.2.1), so its tests don't read the
+matrix table fixture yet. pyarrow tests do.

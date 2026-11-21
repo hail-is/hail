@@ -202,6 +202,7 @@ from .matrix_reader import (
 from .matrix_writer import (
     MatrixBGENWriter,
     MatrixBlockMatrixWriter,
+    MatrixColumnarWriter,
     MatrixGENWriter,
     MatrixNativeMultiWriter,
     MatrixNativePartitionedColumnsWriter,
@@ -379,6 +380,7 @@ __all__ = [
     'MatrixColsHead',
     'MatrixColsTable',
     'MatrixColsTail',
+    'MatrixColumnarWriter',
     'MatrixCount',
     'MatrixDistinctByRow',
     'MatrixEntriesTable',
