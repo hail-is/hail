@@ -2,28 +2,44 @@ package is.hail.io.columnar
 
 import is.hail.io.fs.{FS, SeekableDataInputStream}
 import is.hail.types.arrow.ExtensionTypes
-import is.hail.utils.fatal
+import is.hail.utils.{fatal, Interval}
 
 import scala.jdk.CollectionConverters._
 
 import org.apache.arrow.vector.types.pojo.Schema
-import org.apache.parquet.{ParquetReadOptions, VersionParser}
+import org.apache.parquet.ParquetReadOptions
 import org.apache.parquet.column.{ColumnDescriptor, ColumnReader}
-import org.apache.parquet.column.impl.ColumnReaderImpl
+import org.apache.parquet.column.impl.ColumnReadStoreImpl
 import org.apache.parquet.column.page.PageReadStore
 import org.apache.parquet.conf.PlainParquetConfiguration
 import org.apache.parquet.hadoop.ParquetFileReader
+import org.apache.parquet.internal.filter2.columnindex.RowRanges
 import org.apache.parquet.io.{DelegatingSeekableInputStream, InputFile, SeekableInputStream}
-import org.apache.parquet.io.api.PrimitiveConverter
+import org.apache.parquet.io.api.{Converter, GroupConverter, PrimitiveConverter}
+import org.apache.parquet.schema.{GroupType, MessageType}
 import org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName
+import org.apache.spark.sql.Row
 
 /** What a task needs to open a [[ColumnarFileSource]]: the Arrow schema the file must have, as a
-  * base64 encapsulated IPC message, and the Parquet paths of the leaf columns to read.
+  * base64 encapsulated IPC message, the Parquet paths of the leaf columns to read, and for a
+  * key-range read, the key.
   *
   * Arrow schemas aren't serializable, so this carries the encoded form to workers.
   */
-case class ColumnarSourceSpec(arrowSchema: String, leaves: IndexedSeq[IndexedSeq[String]]) {
-  def open(fs: FS, path: String): ColumnarFileSource = new ColumnarFileSource(fs, path, this)
+case class ColumnarSourceSpec(
+  arrowSchema: String,
+  leaves: IndexedSeq[IndexedSeq[String]],
+  keyRange: Option[ColumnarKeyRange],
+) {
+  def open(fs: FS, path: String): ColumnarFileSource = new ColumnarFileSource(fs, path, this, None)
+
+  /** Opens the file at `path` for a key-range read. `context` is the partition reader's context, a
+    * row of the file's path and [[ColumnarKeyRange.contextFields]].
+    */
+  def openKeyRange(fs: FS, context: AnyRef): ColumnarFileSource = {
+    val Row(path: String, rowFile: String, intervals: IndexedSeq[Interval @unchecked]) = context
+    new ColumnarFileSource(fs, path, this, Some((rowFile, intervals)))
+  }
 }
 
 object ColumnarFileSource {
@@ -41,6 +57,34 @@ object ColumnarFileSource {
   }
 
   private object NoConverter extends PrimitiveConverter
+
+  /** Converts the record of `t` to nothing: column readers need a converter for each leaf. */
+  private class NoGroupConverter(t: GroupType) extends GroupConverter {
+    private[this] val children: Array[Converter] = t.getFields.asScala.map { f =>
+      if (f.isPrimitive) NoConverter else new NoGroupConverter(f.asGroupType): Converter
+    }.toArray
+
+    override def getConverter(i: Int): Converter = children(i)
+
+    override def start(): Unit = {}
+
+    override def end(): Unit = {}
+  }
+
+  /** `interval` in the representation `partitionerContains` takes, as an interval of key prefixes.
+    */
+  private def fromIRRepresentation(interval: Interval): Interval = {
+    def prefix(p: Any): Row = {
+      val Row(key: Row, length: Int) = p
+      Row.fromSeq(key.toSeq.take(length))
+    }
+    Interval(
+      prefix(interval.start),
+      prefix(interval.end),
+      interval.includesStart,
+      interval.includesEnd,
+    )
+  }
 
   /** Opens the Parquet file at `path`, reading only its footer. */
   def openFile(fs: FS, path: String): ParquetFileReader =
@@ -72,16 +116,54 @@ object ColumnarFileSource {
   * Only the column chunks of the requested leaves are read. `nextRecord` buffers each leaf's
   * repetition levels, definition levels and values for the next record in a [[ColumnarLeaf]], so
   * emitted code can look ahead within a record, for example to find a list's length.
+  *
+  * In a key-range read, `keyRange` is the row partition's row file and its key intervals, in the
+  * representation `partitionerContains` takes. Only the rows [[ColumnarKeyRange.rowRanges]] picks
+  * are read, and only the pages that hold them.
   */
-final class ColumnarFileSource(fs: FS, path: String, spec: ColumnarSourceSpec) {
+final class ColumnarFileSource(
+  fs: FS,
+  path: String,
+  spec: ColumnarSourceSpec,
+  keyRange: Option[(String, IndexedSeq[Interval])],
+) {
   import ColumnarFileSource._
 
   private[this] val reader: ParquetFileReader = openFile(fs, path)
 
-  private[this] val descriptors: IndexedSeq[ColumnDescriptor] =
+  /** The rows of each row group of the row file open in `rowFileReader` that may hold keys in the
+    * key intervals of `keyRange`.
+    */
+  private[this] def pickRows(rowFileReader: ParquetFileReader, intervals: IndexedSeq[Interval])
+    : IndexedSeq[RowRanges] =
+    spec.keyRange.get.rowRanges(rowFileReader, intervals.map(fromIRRepresentation))
+
+  // The rows to read of each row group.
+  private[this] val rowRanges: IndexedSeq[RowRanges] =
     try {
       if (arrowSchema(reader, path) != ColumnarFileSink.decodeSchema(spec.arrowSchema))
         fatal(s"columnar reader: the Arrow schema of '$path' differs from its manifest's")
+      keyRange match {
+        case None => reader.getRowGroups.asScala.toIndexedSeq.map(ColumnarKeyRange.allRows)
+        case Some((rowFile, intervals)) if rowFile == path => pickRows(reader, intervals)
+        case Some((rowFile, intervals)) =>
+          val rowFileReader = openFile(fs, rowFile)
+          try {
+            def rowCounts(r: ParquetFileReader) = r.getRowGroups.asScala.map(_.getRowCount)
+            if (rowCounts(rowFileReader) != rowCounts(reader))
+              fatal(s"columnar reader: the row groups of '$path' differ from those of its row " +
+                s"file '$rowFile'")
+            pickRows(rowFileReader, intervals)
+          } finally rowFileReader.close()
+      }
+    } catch {
+      case e: Throwable =>
+        reader.close()
+        throw e
+    }
+
+  private[this] val descriptors: IndexedSeq[ColumnDescriptor] =
+    try {
       val schema = reader.getFileMetaData.getSchema
       val ds = spec.leaves.map { p =>
         if (!schema.containsPath(p.toArray))
@@ -96,18 +178,14 @@ final class ColumnarFileSource(fs: FS, path: String, spec: ColumnarSourceSpec) {
         throw e
     }
 
-  private[this] val writerVersion: VersionParser.ParsedVersion =
-    try VersionParser.parse(reader.getFileMetaData.getCreatedBy)
-    catch { case _: Exception => null }
+  private[this] val schema: MessageType = reader.getFileMetaData.getSchema
+
+  private[this] val converter: GroupConverter = new NoGroupConverter(schema)
 
   private[this] val leaves: Array[ColumnarLeaf] =
     descriptors.map(d =>
       new ColumnarLeaf(d.getMaxDefinitionLevel, d.getPrimitiveType.getPrimitiveTypeName)
     ).toArray
-
-  // parquet-java's readNextRowGroup skips row groups with no rows, so they are left out here too.
-  private[this] val rowGroupSizes: Array[Long] =
-    reader.getRowGroups.asScala.map(_.getRowCount).filter(_ > 0).toArray
 
   private[this] var nextRowGroup: Int = 0
   private[this] var recordsLeft: Long = 0
@@ -117,19 +195,23 @@ final class ColumnarFileSource(fs: FS, path: String, spec: ColumnarSourceSpec) {
   /** Buffers the next record of every leaf. False at the end of the file. */
   def nextRecord(): Boolean = {
     while (recordsLeft == 0) {
-      if (nextRowGroup == rowGroupSizes.length) return false
-      recordsLeft = rowGroupSizes(nextRowGroup)
+      if (nextRowGroup == rowRanges.length) return false
+      val i = nextRowGroup
       nextRowGroup += 1
+      val ranges = rowRanges(i)
+      recordsLeft = ranges.rowCount
       // With no leaves requested, records are only counted, and no column chunk is read.
-      if (leaves.nonEmpty) {
-        val pages: PageReadStore = reader.readNextRowGroup()
-        descriptors.indices.foreach { i =>
-          val pageReader = pages.getPageReader(descriptors(i))
-          leaves(i).reset(
-            new ColumnReaderImpl(descriptors(i), pageReader, NoConverter, writerVersion),
-            pageReader.getTotalValueCount,
-          )
-        }
+      if (recordsLeft > 0 && leaves.nonEmpty) {
+        val pages: PageReadStore =
+          if (recordsLeft == reader.getRowGroups.get(i).getRowCount) reader.readRowGroup(i)
+          else reader.readFilteredRowGroup(i, ranges)
+        val columns = new ColumnReadStoreImpl(
+          pages,
+          converter,
+          schema,
+          reader.getFileMetaData.getCreatedBy,
+        )
+        descriptors.indices.foreach(j => leaves(j).reset(columns.getColumnReader(descriptors(j))))
       }
     }
     leaves.foreach(_.fill())
@@ -148,7 +230,6 @@ final class ColumnarFileSource(fs: FS, path: String, spec: ColumnarSourceSpec) {
   */
 final class ColumnarLeaf(maxDefinitionLevel: Int, typeName: PrimitiveTypeName) {
   private[this] var column: ColumnReader = _
-  private[this] var columnValuesLeft: Long = 0
 
   private[this] var reps: Array[Int] = new Array[Int](8)
   private[this] var defs: Array[Int] = new Array[Int](8)
@@ -162,11 +243,9 @@ final class ColumnarLeaf(maxDefinitionLevel: Int, typeName: PrimitiveTypeName) {
   private[this] var size: Int = 0
   private[this] var pos: Int = 0
 
-  /** Starts reading `column`, a row group's column chunk holding `values` triples. */
-  private[columnar] def reset(column: ColumnReader, values: Long): Unit = {
+  /** Starts reading `column`, a row group's column chunk. */
+  private[columnar] def reset(column: ColumnReader): Unit =
     this.column = column
-    columnValuesLeft = values
-  }
 
   private[this] def grow(): Unit = {
     val n = reps.length * 2
@@ -202,8 +281,8 @@ final class ColumnarLeaf(maxDefinitionLevel: Int, typeName: PrimitiveTypeName) {
       }
       size += 1
       column.consume()
-      columnValuesLeft -= 1
-    } while (columnValuesLeft > 0 && column.getCurrentRepetitionLevel != 0)
+      // At the end of the column chunk, the repetition level is 0.
+    } while (column.getCurrentRepetitionLevel != 0)
   }
 
   /** The definition level at the cursor. */

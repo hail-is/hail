@@ -4,16 +4,14 @@ import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
 import is.hail.expr.ir._
 import is.hail.expr.ir.defs._
-import is.hail.expr.ir.lowering.{LowerMatrixIR, TableStage, TableStageDependency}
+import is.hail.expr.ir.lowering.{LowerMatrixIR, TableStage}
 import is.hail.io.fs.FS
 import is.hail.types.VirtualTypeWithReq
 import is.hail.types.arrow.ArrowSchemaConversion
 import is.hail.types.physical._
 import is.hail.types.virtual._
-import is.hail.utils.fatal
+import is.hail.utils.{fatal, Interval}
 import is.hail.variant.ReferenceGenomeEnv
-
-import scala.collection.immutable.ArraySeq
 
 import org.apache.spark.sql.Row
 import org.json4s.{DefaultFormats, Formats, JObject, JString, JValue}
@@ -24,24 +22,37 @@ object MatrixColumnarReader {
     * the same name in `references`.
     */
   def apply(fs: FS, references: ReferenceGenomeEnv, path: String): MatrixColumnarReader = {
+    val (dataset, matrix) = this.dataset(fs, references, path)
+    new MatrixColumnarReader(dataset, matrix, None)
+  }
+
+  private def dataset(fs: FS, references: ReferenceGenomeEnv, path: String)
+    : (ColumnarDataset, ColumnarMatrixComponents) = {
     val manifest = ColumnarManifest.read(fs, path)
     val matrix = manifest.matrix.getOrElse(
       fatal(s"columnar matrix table '$path': it is a table, not a matrix table")
     )
-    new MatrixColumnarReader(
-      new ColumnarDataset(
-        path,
-        manifest,
-        references.withReferences(manifest.referenceGenomes),
-        MatrixReader.rowUIDFieldName,
-      ),
-      matrix,
+    val dataset = new ColumnarDataset(
+      path,
+      manifest,
+      references.withReferences(manifest.referenceGenomes),
+      MatrixReader.rowUIDFieldName,
     )
+    (dataset, matrix)
   }
 
+  /** A reader from its JSON: its `path`, and a key-range read on the row key, if any (see
+    * [[ColumnarReadIntervals.fromJValue]]).
+    */
   def fromJValue(fs: FS, references: ReferenceGenomeEnv, jv: JValue): MatrixColumnarReader = {
     implicit val formats: Formats = DefaultFormats
-    MatrixColumnarReader(fs, references, (jv \ "path").extract[String])
+    val path = (jv \ "path").extract[String]
+    val (dataset, matrix) = this.dataset(fs, references, path)
+    new MatrixColumnarReader(
+      dataset,
+      matrix,
+      ColumnarReadIntervals.fromJValue(jv, dataset.references, dataset.keyType, path),
+    )
   }
 }
 
@@ -52,11 +63,15 @@ object MatrixColumnarReader {
   * list says so. Entry files are read only when entries are requested, and then only the lists of
   * the requested entry fields and the entry validity list. The row UID is the Row ID, and the
   * column UID the column index.
+  *
+  * A key-range read of `intervals` reads only the rows whose row key is in them, and only the row
+  * partitions whose bounds overlap them (see [[ColumnarReadIntervals]]).
   */
 class MatrixColumnarReader private (
   dataset: ColumnarDataset,
   matrix: ColumnarMatrixComponents,
-) extends MatrixHybridReader {
+  val intervals: Option[ColumnarReadIntervals],
+) extends MatrixHybridReader with ColumnarKeyRangeReader {
 
   def path: String = dataset.path
 
@@ -96,6 +111,11 @@ class MatrixColumnarReader private (
   )
 
   override def pathsUsed: Seq[String] = FastSeq(path)
+
+  override def restrictedTo(intervals: IndexedSeq[Interval]): Option[MatrixColumnarReader] =
+    ColumnarReadIntervals.restrict(dataset.keyType, this.intervals, intervals).map(r =>
+      new MatrixColumnarReader(dataset, matrix, Some(r))
+    )
 
   override def columnCount: Option[Int] = Some(matrix.colCount)
 
@@ -171,13 +191,15 @@ class MatrixColumnarReader private (
 
   override def toJValue: JValue =
     JObject("name" -> JString("MatrixColumnarReader"), "path" -> JString(path))
+      .merge(ColumnarReadIntervals.toJValue(dataset.keyType, intervals))
 
-  override def renderShort(): String = s"(MatrixColumnarReader $path)"
+  override def renderShort(): String =
+    s"(MatrixColumnarReader $path${intervals.fold("")(i => s" (${i.intervals.length} intervals)")})"
 
-  override def hashCode(): Int = path.hashCode
+  override def hashCode(): Int = (path, intervals).##
 
   override def equals(that: Any): Boolean = that match {
-    case that: MatrixColumnarReader => path == that.path
+    case that: MatrixColumnarReader => path == that.path && intervals == that.intervals
     case _ => false
   }
 
@@ -249,74 +271,81 @@ class MatrixColumnarReader private (
   }
 
   override def lower(ctx: ExecuteContext, requestedType: TableType): TableStage = {
-    val parts = dataset.nonEmptyPartitions(ctx)
     val rowType = requestedType.rowType
-    val globals = lowerGlobals(ctx, requestedType.globalType)
-    val partitioner = dataset.partitioner(fullType.keyType, parts)
-    if (!rowType.hasField(entriesField))
-      TableStage(
-        globals,
-        partitioner,
-        TableStageDependency.none,
-        ToStream(Literal(
-          TArray(dataset.rowsReader.contextType),
-          ArraySeq.from(parts.map(p => Row(dataset.absolute(p.rowFile)))),
-        )),
-        ctx => ReadPartition(ctx, rowType, dataset.rowsReader),
-      )
-    else {
-      val entryType = this.entryType(rowType)
-      val rowFileType = TStruct(
-        rowType.fields.filter(f => f.name != entriesField && f.name != uidFieldName).map(f =>
-          f.name -> f.typ
-        ) :+ (uidFieldName -> TInt64): _*
-      )
-      val entryFileType = TStruct(
-        (matrix.entryValidField -> TArray(TBoolean)) +:
-          entryType.fields.map(f => f.name -> TArray(f.typ)) :+
-          (entryFileUIDField -> TInt64): _*
-      )
-      val contextType = TStruct(
-        "rows" -> dataset.rowsReader.contextType,
-        "entries" -> entriesReader.contextType,
-      )
-      TableStage(
-        globals,
-        partitioner,
-        TableStageDependency.none,
-        ToStream(Literal(
-          TArray(contextType),
-          ArraySeq.from(parts.map { p =>
-            Row(Row(dataset.absolute(p.rowFile)), Row(dataset.absolute(p.entryFiles.head)))
-          }),
-        )),
-        ctx =>
-          zip2(
-            ReadPartition(GetField(ctx, "rows"), rowFileType, dataset.rowsReader),
-            ReadPartition(GetField(ctx, "entries"), entryFileType, entriesReader),
-            ArrayZipBehavior.AssertSameLength,
-          ) { (row, entries) =>
-            def rowId: IR = GetField(row, uidFieldName)
-            If(
-              rowId ceq GetField(entries, entryFileUIDField),
-              MakeStruct(rowType.fieldNames.map { name =>
-                name -> (
-                  if (name == entriesField) assembleEntries(entries, entryType)
-                  else GetField(row, name)
-                )
-              }),
-              Die(
-                strConcat(
-                  "columnar reader: an entry file's Row ID ",
-                  GetField(entries, entryFileUIDField),
-                  " differs from its row file's Row ID ",
-                  rowId,
-                  " at the same position",
-                ),
-                rowType,
-              ),
-            )
-          },
+    val readEntries = rowType.hasField(entriesField)
+    val rowFileReader = dataset.forRead(dataset.rowsReader, intervals)
+    val entryFileReader = dataset.forRead(entriesReader, intervals)
+    dataset.lower(
+      ctx,
+      lowerGlobals(ctx, requestedType.globalType),
+      intervals,
+      rowType,
+      TStruct(
+        FastSeq("rows" -> rowFileReader.contextType) ++
+          (if (readEntries) FastSeq("entries" -> entryFileReader.contextType) else FastSeq()): _*
+      ),
+      { r =>
+        val p = r.partition
+        val rows = dataset.readerContext(p.rowFile, r)
+        if (readEntries) Row(rows, dataset.readerContext(p.entryFiles.head, r)) else Row(rows)
+      },
+      ctx => GetField(GetField(ctx, "rows"), "intervals"),
+    ) { (ctx, readType) =>
+      val rows = ReadPartition(GetField(ctx, "rows"), _: TStruct, rowFileReader)
+      if (readEntries)
+        readRowsAndEntries(
+          readType,
+          rows,
+          ReadPartition(GetField(ctx, "entries"), _, entryFileReader),
+        )
+      else rows(readType)
+    }
+  }
+
+  /** The rows of type `rowType`, which includes the entries, of a row partition: the rows of its
+    * row file, read by `readRowFile` given a type, zipped with those of its entry file, read by
+    * `readEntryFile`.
+    */
+  private def readRowsAndEntries(
+    rowType: TStruct,
+    readRowFile: TStruct => IR,
+    readEntryFile: TStruct => IR,
+  ): IR = {
+    val entryType = this.entryType(rowType)
+    val rowFileType = TStruct(
+      rowType.fields.filter(f => f.name != entriesField && f.name != uidFieldName).map(f =>
+        f.name -> f.typ
+      ) :+ (uidFieldName -> TInt64): _*
+    )
+    val entryFileType = TStruct(
+      (matrix.entryValidField -> TArray(TBoolean)) +:
+        entryType.fields.map(f => f.name -> TArray(f.typ)) :+
+        (entryFileUIDField -> TInt64): _*
+    )
+    zip2(
+      readRowFile(rowFileType),
+      readEntryFile(entryFileType),
+      ArrayZipBehavior.AssertSameLength,
+    ) { (row, entries) =>
+      def rowId: IR = GetField(row, uidFieldName)
+      If(
+        rowId ceq GetField(entries, entryFileUIDField),
+        MakeStruct(rowType.fieldNames.map { name =>
+          name -> (
+            if (name == entriesField) assembleEntries(entries, entryType)
+            else GetField(row, name)
+          )
+        }),
+        Die(
+          strConcat(
+            "columnar reader: an entry file's Row ID ",
+            GetField(entries, entryFileUIDField),
+            " differs from its row file's Row ID ",
+            rowId,
+            " at the same position",
+          ),
+          rowType,
+        ),
       )
     }
   }

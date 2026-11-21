@@ -6,6 +6,7 @@ format specification (``dev-docs/hail-query/columnar-format-spec.md``).
 
 import base64
 import secrets
+from collections.abc import Callable
 from itertools import pairwise
 from typing import Optional
 
@@ -28,6 +29,7 @@ from ..columnar_helpers import (
     assert_has_type,
     assert_same_dataset,
     corrupt_column_chunks_except,
+    corrupt_pages_except,
     custom_reference_genome,
     decode_schema,
     drop_checksum,
@@ -36,6 +38,7 @@ from ..columnar_helpers import (
     read_manifest,
     read_parquet_file,
     required_by_index,
+    rewrite_with_one_row_pages,
     row_files,
     to_python,
 )
@@ -799,3 +802,212 @@ def test_reading_no_field_of_a_struct_keeps_whether_it_is_missing_and_its_length
     actual = project(read_columnar(resource('columnar/0.1/table/all_types')))
     expected = project(all_types_table())
     assert actual.collect() == expected.collect()
+
+
+# Key-range reads
+
+
+def read_columnar_intervals(path: str, intervals: list, filter_intervals: bool = False) -> hl.Table:
+    return hl.Table(ir.TableRead(ir.TableColumnarReader(path, intervals, filter_intervals)))
+
+
+def partitions(ht: hl.Table) -> list:
+    """The ``idx`` of each row of each partition of ``ht``."""
+    rows = ht.key_by()._map_partitions(
+        lambda p: hl.array([hl.struct(idx=p.map(lambda r: r.idx).to_array())])._to_stream()
+    )
+    return [r.idx for r in rows.collect()]
+
+
+INTERVALS = {
+    'inclusive start, exclusive end': [hl.Interval(3, 7)],
+    'exclusive start, inclusive end': [hl.Interval(3, 7, includes_start=False, includes_end=True)],
+    'spanning row partitions': [hl.Interval(2, 17, includes_end=True)],
+    'several': [hl.Interval(0, 2), hl.Interval(9, 11), hl.Interval(15, 30)],
+    'past the last key': [hl.Interval(100, 200)],
+    'struct points': [hl.Interval(hl.Struct(idx=4), hl.Struct(idx=12))],
+}
+
+
+@pytest.mark.parametrize('filter_intervals', [False, True])
+@pytest.mark.parametrize('intervals', INTERVALS.values(), ids=INTERVALS.keys())
+def test_an_interval_read_partitions_its_rows_as_a_native_read_does(intervals, filter_intervals):
+    """Without ``filter_intervals``, each interval is a partition; with it, the row partitions are kept,
+    narrowed to the intervals."""
+    ht = keyed_table(20, 4)
+    path = new_temp_file(extension='ht')
+    write_columnar(ht, path)
+    native_path = new_temp_file(extension='ht')
+    ht.write(native_path)
+
+    actual = read_columnar_intervals(path, intervals, filter_intervals)
+    expected = hl.read_table(native_path, _intervals=intervals, _filter_intervals=filter_intervals)
+    assert partitions(actual) == partitions(expected)
+
+
+def remove_row_files_except(path: str, keep: set) -> None:
+    """Removes the row files of the table's row partitions whose index is not in ``keep``."""
+    for i, file_path in enumerate(row_file_paths(path)):
+        if i not in keep:
+            hfs.remove(file_path)
+            drop_checksum(file_path)
+
+
+def table_with_partitions_1_and_2_only() -> tuple:
+    """A table of keys 0 to 19 in row partitions of 5, of which only partitions 1 and 2 can be read."""
+    ht = keyed_table(20, 4)
+    path = new_temp_file(extension='ht')
+    write_columnar(ht, path)
+    remove_row_files_except(path, {1, 2})
+    return ht, path
+
+
+def test_row_partitions_outside_the_intervals_are_not_read():
+    ht, path = table_with_partitions_1_and_2_only()
+    intervals = [hl.Interval(6, 12, includes_end=True)]
+
+    actual = read_columnar_intervals(path, intervals, filter_intervals=True)
+    assert actual.n_partitions() == 2
+    assert actual.collect() == hl.filter_intervals(ht, intervals).collect()
+
+
+def test_filter_intervals_on_the_key_reads_only_the_rows_in_the_intervals():
+    ht, path = table_with_partitions_1_and_2_only()
+    intervals = [hl.Interval(6, 12, includes_end=True)]
+
+    actual = hl.filter_intervals(read_columnar(path), intervals)
+    assert actual.collect() == hl.filter_intervals(ht, intervals).collect()
+
+
+def test_key_filters_that_hail_pushes_down_read_only_the_rows_they_keep():
+    ht, path = table_with_partitions_1_and_2_only()
+
+    def keep(t: hl.Table) -> hl.Table:
+        return t.filter((t.idx >= 6) & (t.idx < 12))
+
+    assert keep(read_columnar(path)).collect() == keep(ht).collect()
+
+
+def table_with_rows_5_and_6_only() -> tuple:
+    """A table of keys 0 to 11 in one row partition, of which only the rows of keys 5 and 6 can be
+    read. Its row groups hold keys 0-3, 4-7 and 8-11, and its pages one row each."""
+    ht = keyed_table(12, 1)
+    path = new_temp_file(extension='ht')
+    write_columnar(ht, path)
+    [file_path] = row_file_paths(path)
+    rewrite_with_one_row_pages(file_path, 4)
+    corrupt_pages_except(file_path, {5, 6})
+    return ht, path
+
+
+def test_row_groups_and_pages_outside_the_intervals_are_not_read():
+    ht, path = table_with_rows_5_and_6_only()
+    intervals = [hl.Interval(5, 6, includes_end=True)]
+
+    assert read_columnar_intervals(path, intervals).collect() == hl.filter_intervals(ht, intervals).collect()
+    # Reading any other row reads a zeroed page.
+    with pytest.raises(FatalError):
+        read_columnar_intervals(path, [hl.Interval(4, 5, includes_end=True)]).collect()
+
+
+def test_filter_intervals_on_the_key_reads_only_the_row_groups_and_pages_in_the_intervals():
+    ht, path = table_with_rows_5_and_6_only()
+    intervals = [hl.Interval(5, 6, includes_end=True)]
+
+    actual = hl.filter_intervals(read_columnar(path), intervals)
+    assert actual.collect() == hl.filter_intervals(ht, intervals).collect()
+
+
+def test_key_filters_that_hail_pushes_down_read_only_the_row_groups_and_pages_they_keep():
+    ht, path = table_with_rows_5_and_6_only()
+
+    def keep(t: hl.Table) -> hl.Table:
+        return t.filter((t.idx == 5) | (t.idx == 6))
+
+    assert keep(read_columnar(path)).collect() == keep(ht).collect()
+
+
+def missing_keys_case(intervals: list) -> Callable[[], tuple]:
+    """Keys 0 to 7, then four missing keys, which sort last."""
+
+    def case():
+        ht = hl.utils.range_table(12, n_partitions=3)
+        ht = ht.key_by(k=hl.or_missing(ht.idx < 8, ht.idx))
+        point = hl.tstruct(k=hl.tint32)
+        return ht, [hl.Interval(hl.Struct(k=s), hl.Struct(k=e), i, j, point_type=point) for s, e, i, j in intervals]
+
+    return case
+
+
+def locus_case() -> tuple:
+    """Loci on a genome whose contig order, chr2, chr10, chr1, chrX, is not lexicographic."""
+    rg = custom_reference_genome()
+    contigs = ['chr1', 'chr10', 'chr2', 'chrX']
+    ht = hl.utils.range_table(12, n_partitions=3)
+    ht = ht.key_by(locus=hl.locus(hl.literal(contigs)[ht.idx % 4], ht.idx // 4 + 1, reference_genome=rg))
+    return ht, [hl.Interval(hl.Locus('chr10', 2, rg), hl.Locus('chr1', 2, rg), includes_end=True)]
+
+
+def string_case(start: str, end: str) -> Callable[[], tuple]:
+    def case():
+        ht = hl.utils.range_table(12, n_partitions=3)
+        keys = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'z', '\u00e4', '\u00e9', '\U0001f600']
+        ht = ht.key_by(s=hl.literal(keys)[ht.idx])
+        return ht, [hl.Interval(start, end)]
+
+    return case
+
+
+def compound_key_case(intervals: list) -> Callable[[], tuple]:
+    """Keys (0, 'a'), (0, 'b'), (1, 'a'), ... (5, 'b')."""
+
+    def case():
+        ht = hl.utils.range_table(12, n_partitions=3)
+        ht = ht.key_by(k=ht.idx // 2, s=hl.if_else(ht.idx % 2 == 0, 'a', 'b'))
+        return ht, intervals
+
+    return case
+
+
+KEY_CASES = {
+    'up to and including missing keys': missing_keys_case([(5, None, True, True)]),
+    'only missing keys': missing_keys_case([(None, None, True, True)]),
+    'up to but excluding missing keys': missing_keys_case([(5, None, True, False)]),
+    'locus keys in contig order': locus_case,
+    'string keys': string_case('b', 'f'),
+    # A bound with a character above the surrogates, where Parquet's order of strings differs from Hail's.
+    'string keys with a supplementary character': string_case('h', '\U0001f600z'),
+    'a prefix of a compound key': compound_key_case([hl.Interval(hl.Struct(k=1), hl.Struct(k=3))]),
+    'a compound key, exclusively': compound_key_case([
+        hl.Interval(hl.Struct(k=1, s='a'), hl.Struct(k=3, s='b'), includes_start=False)
+    ]),
+}
+
+
+@pytest.mark.parametrize('pages', ['as written', 'one row per page'])
+@pytest.mark.parametrize('case', KEY_CASES.values(), ids=KEY_CASES.keys())
+def test_an_interval_read_gives_the_rows_whose_keys_are_in_the_intervals(case, pages):
+    ht, intervals = case()
+    path = new_temp_file(extension='ht')
+    write_columnar(ht, path)
+    if pages == 'one row per page':
+        for file_path in row_file_paths(path):
+            rewrite_with_one_row_pages(file_path, 2)
+
+    expected = hl.filter_intervals(ht, intervals).collect()
+    assert expected
+    assert read_columnar_intervals(path, intervals).collect() == expected
+
+
+def test_filter_intervals_on_an_interval_read_keeps_its_partitions_as_on_a_native_read():
+    ht = keyed_table(20, 4)
+    path = new_temp_file(extension='ht')
+    write_columnar(ht, path)
+    native_path = new_temp_file(extension='ht')
+    ht.write(native_path)
+    intervals = [hl.Interval(0, 8), hl.Interval(10, 15)]
+    restriction = [hl.Interval(5, 12)]
+
+    actual = hl.filter_intervals(read_columnar_intervals(path, intervals), restriction)
+    expected = hl.filter_intervals(hl.read_table(native_path, _intervals=intervals), restriction)
+    assert partitions(actual) == partitions(expected)
