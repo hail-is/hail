@@ -509,9 +509,13 @@ Hail 2 has a table writer, `TableColumnarWriter`, a matrix table writer,
 `MatrixColumnarWriter`, a table reader, `TableColumnarReader`, and a matrix table
 reader, `MatrixColumnarReader` (`is.hail.io.columnar`). They are a lowered
 `TableWriter`, a lowered `MatrixWriter`, a lowered `TableReader` and a lowered
-`MatrixReader`, so they run on every backend. They are private: Python reaches them
-only through `hail.ir.TableColumnarWriter`, `hail.ir.MatrixColumnarWriter`,
-`hail.ir.TableColumnarReader` and `hail.ir.MatrixColumnarReader`, for tests.
+`MatrixReader`, so they run on every backend. Python's public, experimental API
+reaches them: `Table.write`, `MatrixTable.write`, `Table.checkpoint` and
+`MatrixTable.checkpoint` write the columnar format given `format='columnar'`, with a
+warning that it is experimental. `hl.read_table` and `hl.read_matrix_table` read it
+when `manifest.json` exists (section 2.1). Tests also reach them through
+`hail.ir.TableColumnarWriter`, `hail.ir.MatrixColumnarWriter`,
+`hail.ir.TableColumnarReader` and `hail.ir.MatrixColumnarReader`.
 
 ### 7.1 Implemented
 
@@ -621,9 +625,8 @@ For key-range reads of tables and matrix tables:
 
 #### 7.2.1 Reading
 
-Tables and matrix tables are read only through the private readers.
-`hl.read_table`, `hl.read_matrix_table`, `TableIR.read` and `MatrixIR.read` still
-fail on a directory that has a `manifest.json`. The readers don't report partition
+`TableIR.read` and `MatrixIR.read`, which read datasets from Scala, still fail on a
+directory that has a `manifest.json`. The readers don't report partition
 row counts to the optimizer, so counting rows iterates over the row files'
 footers. The matrix table reader supports one column block, which is all a `0.1`
 writer writes (section 3), and fails on more. It assembles each row's entries from

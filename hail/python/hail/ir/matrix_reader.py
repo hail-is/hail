@@ -52,9 +52,9 @@ class MatrixNativeReader(MatrixReader):
 class MatrixColumnarReader(MatrixReader):
     """Reads a matrix table in the experimental columnar format.
 
-    Private: not part of Hail's public interface, and the format may change. Defines the matrix
-    table's non-builtin reference genomes, which must be equal to any already defined with the same
-    name.
+    Private: :func:`.read_matrix_table` uses it for a matrix table in the columnar format, and the
+    format may change. Unless `_load_refs` is false, defines the matrix table's non-builtin reference
+    genomes, which must be equal to any already defined with the same name.
 
     With `intervals`, reads only the rows whose row key is in them. Their points are the row key or
     a prefix of it, as structs or as the first row key field's values.
@@ -65,11 +65,12 @@ class MatrixColumnarReader(MatrixReader):
     them.
     """
 
-    @typecheck_method(path=str, intervals=nullable(sequenceof(anytype)), filter_intervals=bool)
-    def __init__(self, path, intervals=None, filter_intervals=False):
+    @typecheck_method(path=str, intervals=nullable(sequenceof(anytype)), filter_intervals=bool, _load_refs=bool)
+    def __init__(self, path, intervals=None, filter_intervals=False, _load_refs=True):
         self.path = path
-        for rg_config in hl.utils.java.Env.backend().load_references_from_dataset(path):
-            hl.ReferenceGenome._from_config(rg_config)
+        if _load_refs:
+            for rg_config in hl.utils.java.Env.backend().load_references_from_dataset(path):
+                hl.ReferenceGenome._from_config(rg_config)
         self.intervals, self._interval_type = impute_type_of_partition_interval_array(intervals)
         self.filter_intervals = filter_intervals
 
