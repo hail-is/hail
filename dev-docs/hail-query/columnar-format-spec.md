@@ -484,6 +484,20 @@ row and entry files always have a Row ID field (sections 4.2 and 4.3), the
 columns file always has its column index field (section 4.4), and an unkeyed
 table has no partition bounds (section 4.1).
 
+### 5.6 Forms reserved for the value boundary
+
+The [value boundary spec](value-boundary-spec.md) uses this type mapping for
+values that cross between Hail's Python library and the query engine, and adds
+three forms that are legal only there:
+
+- the `hail.dict` extension type, in any form;
+- `"sorted": false` in the extension metadata of `hail.set`;
+- a `hail.locus` whose extension metadata has `contigs_sha256` in place of
+  `contigs`.
+
+Writers MUST NOT write any of them to a data file, a manifest schema or the
+partitions table, and `0.x` readers MUST reject them there.
+
 ## 6. Conformance
 
 A set of fixture datasets is kept with Hail's tests. They are compared by value,
@@ -660,3 +674,9 @@ offsets couldn't read such a row group whole (section 6).
 Section 6 lists a fixture that doesn't exist yet: `binary`. Hail's Python API has
 no binary type, so the fixtures, which Hail's tests write from Python, can't
 include it.
+
+#### 7.2.4 Forms reserved for the value boundary
+
+The reader ignores keys it doesn't know in the extension metadata of `hail.set`,
+so it doesn't reject `"sorted": false` (section 5.6). It does reject `hail.dict`,
+as an unknown extension type, and a `hail.locus` with no `contigs`.
