@@ -69,7 +69,9 @@ from hail.utils.misc import (
     is_committed,
     plural,
     process_joins,
+    storage_format,
     storage_level,
+    warn_columnar_format_is_experimental,
     wrap_to_tuple,
 )
 from hail.utils.placement_tree import PlacementTree
@@ -1921,6 +1923,7 @@ class Table(BaseTable):
         _read_if_exists=bool,
         _intervals=nullable(sequenceof(anytype)),
         _filter_intervals=bool,
+        format=storage_format,
     )
     def checkpoint(
         self,
@@ -1931,6 +1934,8 @@ class Table(BaseTable):
         _read_if_exists: bool = False,
         _intervals=None,
         _filter_intervals=False,
+        *,
+        format: str = 'native',
     ) -> 'Table':
         """Checkpoint the table to disk by writing and reading.
 
@@ -1943,6 +1948,8 @@ class Table(BaseTable):
             effect.
         overwrite : bool
             If ``True``, overwrite an existing file at the destination.
+        format : str
+            ``'native'`` (the default) or ``'columnar'``.
 
         Returns
         -------
@@ -1950,6 +1957,8 @@ class Table(BaseTable):
 
 
         .. include:: _templates/write_warning.rst
+
+        .. include:: _templates/columnar_format.rst
 
         Notes
         -----
@@ -1964,7 +1973,7 @@ class Table(BaseTable):
         hl.current_backend().validate_file(output)
 
         if not _read_if_exists or not is_committed(output):
-            self.write(output=output, overwrite=overwrite, _codec_spec=_codec_spec)
+            self.write(output=output, overwrite=overwrite, _codec_spec=_codec_spec, format=format)
             _assert_type = self._type
             _load_refs = False
         else:
@@ -1978,8 +1987,16 @@ class Table(BaseTable):
             _load_refs=_load_refs,
         )
 
-    @typecheck_method(output=str, overwrite=bool, stage_locally=bool, _codec_spec=nullable(str))
-    def write(self, output: str, overwrite=False, stage_locally: bool = False, _codec_spec: Optional[str] = None):
+    @typecheck_method(output=str, overwrite=bool, stage_locally=bool, _codec_spec=nullable(str), format=storage_format)
+    def write(
+        self,
+        output: str,
+        overwrite=False,
+        stage_locally: bool = False,
+        _codec_spec: Optional[str] = None,
+        *,
+        format: str = 'native',
+    ):
         """Write to disk.
 
         Examples
@@ -1988,6 +2005,8 @@ class Table(BaseTable):
         >>> table1.write('output/table1.ht', overwrite=True)
 
         .. include:: _templates/write_warning.rst
+
+        .. include:: _templates/columnar_format.rst
 
         See Also
         --------
@@ -2002,11 +2021,21 @@ class Table(BaseTable):
             effect.
         overwrite : bool
             If ``True``, overwrite an existing file at the destination.
+        format : str
+            ``'native'`` (the default) or ``'columnar'``. :func:`.read_table`
+            reads either.
         """
 
         hl.current_backend().validate_file(output)
 
-        Env.backend().execute(ir.TableWrite(self._tir, ir.TableNativeWriter(output, overwrite, _codec_spec)))
+        if format == 'columnar':
+            if _codec_spec is not None:
+                raise ValueError("'Table.write': '_codec_spec' applies only to the native format")
+            warn_columnar_format_is_experimental()
+            writer = ir.TableColumnarWriter(output, overwrite)
+        else:
+            writer = ir.TableNativeWriter(output, overwrite, _codec_spec)
+        Env.backend().execute(ir.TableWrite(self._tir, writer))
 
     @typecheck_method(output=str, fields=sequenceof(str), overwrite=bool, stage_locally=bool, _codec_spec=nullable(str))
     def write_many(

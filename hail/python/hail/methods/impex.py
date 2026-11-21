@@ -46,7 +46,7 @@ from hail.typecheck import (
 from hail.utils import new_temp_file
 from hail.utils.deduplicate import deduplicate
 from hail.utils.java import Env, FatalError, info, jindexed_seq_args, warning
-from hail.utils.misc import plural, wrap_to_list
+from hail.utils.misc import is_columnar, plural, wrap_to_list
 
 from .import_lines_helpers import should_remove_line, split_lines
 
@@ -2697,6 +2697,10 @@ def read_matrix_table(
 ) -> MatrixTable:
     """Read in a :class:`.MatrixTable` written with :meth:`.MatrixTable.write`.
 
+    Reads a matrix table in either format :meth:`.MatrixTable.write` writes,
+    the native format or the experimental columnar format, and tells which from
+    the files at `path`.
+
     Parameters
     ----------
     path : :class:`str`
@@ -2713,9 +2717,13 @@ def read_matrix_table(
     if _intervals is not None and _n_partitions is not None:
         raise ValueError("'read_matrix_table' does not support both _intervals and _n_partitions")
 
+    if is_columnar(path):
+        reader = ir.MatrixColumnarReader(path, _intervals, _filter_intervals, _load_refs=False)
+    else:
+        reader = ir.MatrixNativeReader(path, _intervals, _filter_intervals)
     mt = MatrixTable(
         ir.MatrixRead(
-            ir.MatrixNativeReader(path, _intervals, _filter_intervals),
+            reader,
             _drop_cols,
             _drop_rows,
             drop_row_uids=not _create_row_uids,
@@ -3281,6 +3289,10 @@ def read_table(
 ) -> Table:
     """Read in a :class:`.Table` written with :meth:`.Table.write`.
 
+    Reads a table in either format :meth:`.Table.write` writes, the native
+    format or the experimental columnar format, and tells which from the files
+    at `path`.
+
     Parameters
     ----------
     path : :class:`str`
@@ -3296,7 +3308,10 @@ def read_table(
 
     if _intervals is not None and _n_partitions is not None:
         raise ValueError("'read_table' does not support both _intervals and _n_partitions")
-    tr = ir.TableNativeReader(path, _intervals, _filter_intervals)
+    if is_columnar(path):
+        tr = ir.TableColumnarReader(path, _intervals, _filter_intervals, _load_refs=False)
+    else:
+        tr = ir.TableNativeReader(path, _intervals, _filter_intervals)
     ht = Table(ir.TableRead(tr, False, drop_row_uids=not _create_row_uids, _assert_type=_assert_type))
 
     if _n_partitions:

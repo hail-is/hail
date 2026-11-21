@@ -46,6 +46,8 @@ from hail.utils.misc import (
     get_select_exprs,
     is_committed,
     process_joins,
+    storage_format,
+    warn_columnar_format_is_experimental,
     wrap_to_tuple,
 )
 
@@ -2706,6 +2708,7 @@ class MatrixTable(BaseTable):
         _filter_intervals=bool,
         _drop_cols=bool,
         _drop_rows=bool,
+        format=storage_format,
     )
     def checkpoint(
         self,
@@ -2718,6 +2721,8 @@ class MatrixTable(BaseTable):
         _filter_intervals=False,
         _drop_cols=False,
         _drop_rows=False,
+        *,
+        format: str = 'native',
     ) -> 'MatrixTable':
         """Checkpoint the matrix table to disk by writing and reading using a fast, but less space-efficient codec.
 
@@ -2730,6 +2735,8 @@ class MatrixTable(BaseTable):
             effect.
         overwrite : bool
             If ``True``, overwrite an existing file at the destination.
+        format : str
+            ``'native'`` (the default) or ``'columnar'``.
 
         Returns
         -------
@@ -2737,6 +2744,8 @@ class MatrixTable(BaseTable):
 
 
         .. include:: _templates/write_warning.rst
+
+        .. include:: _templates/columnar_format.rst
 
         Notes
         -----
@@ -2753,7 +2762,7 @@ class MatrixTable(BaseTable):
         hl.current_backend().validate_file(output)
 
         if not _read_if_exists or not is_committed(output):
-            self.write(output=output, overwrite=overwrite, _codec_spec=_codec_spec)
+            self.write(output=output, overwrite=overwrite, _codec_spec=_codec_spec, format=format)
             _assert_type = self._type
             _load_refs = False
         else:
@@ -2770,7 +2779,12 @@ class MatrixTable(BaseTable):
         )
 
     @typecheck_method(
-        output=str, overwrite=bool, stage_locally=bool, _codec_spec=nullable(str), _partitions=nullable(expr_any)
+        output=str,
+        overwrite=bool,
+        stage_locally=bool,
+        _codec_spec=nullable(str),
+        _partitions=nullable(expr_any),
+        format=storage_format,
     )
     def write(
         self,
@@ -2779,6 +2793,8 @@ class MatrixTable(BaseTable):
         stage_locally: bool = False,
         _codec_spec: Optional[str] = None,
         _partitions=None,
+        *,
+        format: str = 'native',
     ):
         """Write to disk.
 
@@ -2788,6 +2804,8 @@ class MatrixTable(BaseTable):
         >>> dataset.write('output/dataset.mt')
 
         .. include:: _templates/write_warning.rst
+
+        .. include:: _templates/columnar_format.rst
 
         See Also
         --------
@@ -2802,16 +2820,25 @@ class MatrixTable(BaseTable):
             effect.
         overwrite : bool
             If ``True``, overwrite an existing file at the destination.
+        format : str
+            ``'native'`` (the default) or ``'columnar'``.
+            :func:`.read_matrix_table` reads either.
         """
 
         hl.current_backend().validate_file(output)
 
-        if _partitions is not None:
-            _partitions, _partitions_type = hl.utils._dumps_partitions(_partitions, self.row_key.dtype)
+        if format == 'columnar':
+            for name, value in (('_codec_spec', _codec_spec), ('_partitions', _partitions)):
+                if value is not None:
+                    raise ValueError(f"'MatrixTable.write': '{name}' applies only to the native format")
+            warn_columnar_format_is_experimental()
+            writer = ir.MatrixColumnarWriter(output, overwrite)
         else:
-            _partitions_type = None
-
-        writer = ir.MatrixNativeWriter(output, overwrite, _codec_spec, _partitions, _partitions_type)
+            if _partitions is not None:
+                _partitions, _partitions_type = hl.utils._dumps_partitions(_partitions, self.row_key.dtype)
+            else:
+                _partitions_type = None
+            writer = ir.MatrixNativeWriter(output, overwrite, _codec_spec, _partitions, _partitions_type)
         Env.backend().execute(ir.MatrixWrite(self._mir, writer))
 
     class _Show:

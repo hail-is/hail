@@ -1065,3 +1065,59 @@ def test_filter_intervals_on_an_interval_read_keeps_its_partitions_as_on_a_nativ
     actual = hl.filter_intervals(read_columnar_intervals(path, intervals), restriction)
     expected = hl.filter_intervals(hl.read_table(native_path, _intervals=intervals), restriction)
     assert partitions(actual) == partitions(expected)
+
+
+def test_read_table_reads_a_table_written_in_the_columnar_format():
+    ht = keyed_table()
+    path = new_temp_file(extension='ht')
+    ht.write(path, format='columnar')
+
+    assert hfs.exists(f'{path}/manifest.json')
+    actual = hl.read_table(path)
+    assert list(actual.key) == list(ht.key)
+    assert actual._same(ht)
+
+
+@pytest.mark.parametrize('format', ['native', 'columnar'])
+def test_checkpoint_writes_the_table_in_the_format_and_reads_it_back(format):
+    ht = keyed_table()
+    path = new_temp_file(extension='ht')
+    actual = ht.checkpoint(path, format=format)
+
+    assert hfs.exists(f'{path}/manifest.json') == (format == 'columnar')
+    assert actual._same(ht)
+
+
+@pytest.mark.parametrize('format', ['native', 'columnar'])
+def test_checkpoint_reads_committed_output_instead_of_writing_it(format):
+    path = new_temp_file(extension='ht')
+    keyed_table().checkpoint(path, format=format)
+
+    actual = keyed_table().annotate(s='changed').checkpoint(path, format=format, _read_if_exists=True)
+    assert actual._same(keyed_table())
+
+
+def write_both_formats(ht: hl.Table) -> tuple:
+    path = new_temp_file(extension='ht')
+    ht.write(path, format='columnar')
+    native_path = new_temp_file(extension='ht')
+    ht.write(native_path)
+    return path, native_path
+
+
+@pytest.mark.parametrize('filter_intervals', [False, True])
+def test_read_table_with_intervals_partitions_columnar_rows_as_native_rows(filter_intervals):
+    path, native_path = write_both_formats(keyed_table(20, 4))
+    intervals = [hl.Interval(0, 8), hl.Interval(10, 15)]
+
+    actual = hl.read_table(path, _intervals=intervals, _filter_intervals=filter_intervals)
+    expected = hl.read_table(native_path, _intervals=intervals, _filter_intervals=filter_intervals)
+    assert partitions(actual) == partitions(expected)
+
+
+def test_read_table_with_n_partitions_repartitions_columnar_rows_as_native_rows():
+    path, native_path = write_both_formats(keyed_table(20, 2))
+
+    actual = hl.read_table(path, _n_partitions=5)
+    assert actual.n_partitions() == 5
+    assert partitions(actual) == partitions(hl.read_table(native_path, _n_partitions=5))
