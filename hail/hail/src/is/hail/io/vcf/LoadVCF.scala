@@ -1955,7 +1955,7 @@ class MatrixVCFReader(
     PCanonicalStruct(
       true,
       FastSeq(
-        "locus" -> PCanonicalLocus.schemaFromRG(referenceGenome, true),
+        "locus" -> PLocus.schemaFromRG(referenceGenome, true),
         "alleles" -> PCanonicalArray(PCanonicalString(true), true),
       )
         ++ rowValuePType.fields.map(f => f.name -> f.typ)
@@ -2186,7 +2186,7 @@ case class GVCFPartitionReader(
   lazy val fullRowPType: PCanonicalStruct = PCanonicalStruct(
     true,
     FastSeq(
-      ("locus", PCanonicalLocus.schemaFromRG(rg, true)),
+      ("locus", PLocus.schemaFromRG(rg, true)),
       ("alleles", PCanonicalArray(PCanonicalString(true), true)),
     )
       ++ rowValueType.fields.map(f => (f.name, f.typ))

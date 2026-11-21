@@ -16,7 +16,7 @@ import is.hail.expr.ir.lowering.Optimize.Flags.Optimize
 import is.hail.io.vcf.MatrixVCFReader
 import is.hail.linalg.DenseMatrix
 import is.hail.types.encoded.EType.Flags.UseUnstableEncodings
-import is.hail.types.physical.{PBaseStruct, PCanonicalArray, PType}
+import is.hail.types.physical.{PBaseStruct, PCanonicalArray, PStruct, PType}
 import is.hail.types.physical.stypes.PTypeReferenceSingleCodeType
 import is.hail.types.virtual._
 import is.hail.utils._
@@ -551,6 +551,29 @@ object TestUtils extends Logging {
       partitionsTypeStr,
     )
     MatrixRead(reader.fullMatrixTypeWithoutUIDs, dropSamples, false, reader)
+  }
+
+  /** The rows that `reader` reads for the row fields `fields` (all of them if none are given), and
+    * the PType of those rows. The reader's partitions are compiled and run in this JVM, one after
+    * another. Collecting a [[TableRead]] would re-encode the rows between stages, so the PType it
+    * returns is chosen by the decoder rather than by the reader.
+    */
+  def readRowsLocally(reader: TableReader, fields: String*)(implicit ctx: ExecuteContext)
+    : (PStruct, IndexedSeq[Row]) = {
+    val full = reader.fullType
+    val rowType = if (fields.isEmpty) full.rowType else full.rowType.select(fields.toIndexedSeq)._1
+    val requested = full.copy(rowType = rowType, key = FastSeq())
+    val stage = reader.lower(ctx, requested)
+    val ctxRef = Ref(freshName(), stage.ctxType)
+    val rows = StreamFlatMap(stage.contexts, ctxRef.name, stage.partition(ctxRef))
+    collectRowsLocally(Let(stage.letBindings ++ stage.broadcastVals, rows))
+  }
+
+  /** The rows of the stream `rows`, and the PType of those rows. */
+  def collectRowsLocally(rows: IR)(implicit ctx: ExecuteContext): (PStruct, IndexedSeq[Row]) = {
+    val Right((pt, off)) = unoptimized(CompileAndEvaluate._apply(_, ToArray(rows))): @unchecked
+    val rowsPType = pt.types(0).asInstanceOf[PCanonicalArray]
+    (rowsPType.elementType.asInstanceOf[PStruct], SafeRow(pt, off).getAs[IndexedSeq[Row]](0))
   }
 
   def measuringHighestTotalMemoryUsage[A](

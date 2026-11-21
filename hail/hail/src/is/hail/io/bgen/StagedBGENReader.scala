@@ -184,12 +184,12 @@ object StagedBGENReader {
       val structFieldCodes = ArraySeq.newBuilder[EmitCode]
 
       if (requestedType.hasField("locus")) {
-        // double-allocates the locus struct, but this is a very minor performance regression
-        // and will be removed soon
         val pc = requestedType.field("locus").typ match {
+          // The locus is valid or skipped by now, as the packed constructor needs. When struct
+          // loci are canonical, the locus is allocated here and again when the row is stored, a
+          // minor cost.
           case TLocus(rg) =>
-            val pt = SCanonicalLocusPointer(PCanonicalLocus(rg))
-            pt.pType.constructFromContigAndPosition(cb, region, contigRecoded, position)
+            PLocus.canonical(rg).constructFromContigAndPosition(cb, region, contigRecoded, position)
           case t: TStruct =>
             val contig = SJavaString.constructFromString(cb, region, contigRecoded)
             SStackStruct.constructFromArgs(

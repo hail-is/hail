@@ -22,6 +22,14 @@ object PLocus {
   def canonical(rg: ReferenceGenome, required: Boolean = false): PLocus =
     if (packedIsCanonical) PPackedLocus(rg, required) else PCanonicalLocus(rg, required)
 
+  /** The type of a locus field that may have no reference genome, such as one read from a file: the
+    * canonical locus type on `rg`, or a struct of contig and position without one.
+    */
+  def schemaFromRG(rg: Option[ReferenceGenome], required: Boolean = false): PType = rg match {
+    case Some(rg) => canonical(rg, required)
+    case None => PCanonicalLocus.representation(required)
+  }
+
   /** Runs `f` with packed (or struct) loci as the canonical locus representation. For tests only:
     * code compiled inside `f` must not outlive it.
     */

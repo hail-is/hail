@@ -12,16 +12,11 @@ import is.hail.types.physical.stypes.interfaces._
 import is.hail.variant._
 
 object PCanonicalLocus {
-  private def representation(required: Boolean): PCanonicalStruct = PCanonicalStruct(
+  private[physical] def representation(required: Boolean): PCanonicalStruct = PCanonicalStruct(
     required,
     "contig" -> PCanonicalString(required = true),
     "position" -> PInt32(required = true),
   )
-
-  def schemaFromRG(rg: Option[ReferenceGenome], required: Boolean = false): PType = rg match {
-    case Some(rg) => PCanonicalLocus(rg, required)
-    case None => representation(required)
-  }
 }
 
 final case class PCanonicalLocus(rg: ReferenceGenome, required: Boolean = false) extends PLocus {
