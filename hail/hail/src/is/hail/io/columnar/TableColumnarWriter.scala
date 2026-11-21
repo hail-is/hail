@@ -12,6 +12,7 @@ import is.hail.types.RTable
 import is.hail.types.physical._
 import is.hail.types.virtual._
 import is.hail.utils._
+import is.hail.variant.ReferenceGenome
 
 import scala.collection.immutable.ArraySeq
 
@@ -182,6 +183,7 @@ case class TableColumnarWriter(path: String, overwrite: Boolean = false) extends
       globalsSchema = ColumnarSchema.serialize(ColumnarSchema.fileSchema(globalPType, None)),
       hasGlobalsFile = globalsWriter.isDefined,
       rowIdField = rowIdField,
+      referenceGenomes = ColumnarSchema.nonBuiltinReferenceGenomes(ts.rowType, ts.globalType),
     )
     WriteMetadata(job, ColumnarTableCommit(path, overwrite, manifest, job.typ))
   }
@@ -194,6 +196,7 @@ case class ColumnarTableManifest(
   globalsSchema: String,
   hasGlobalsFile: Boolean,
   rowIdField: String,
+  referenceGenomes: IndexedSeq[ReferenceGenome],
 ) {
   import TableColumnarWriter._
 
@@ -216,7 +219,7 @@ case class ColumnarTableManifest(
       ),
       "partitions" -> fileRef(PartitionsFile),
       "internal_fields" -> JObject("row_id" -> JString(rowIdField)),
-      "reference_genomes" -> JArray(Nil),
+      "reference_genomes" -> JArray(referenceGenomes.map(_.toJSON).toList),
     )
 
   def write(fs: FS, path: String, distinctlyKeyed: Boolean): Unit =

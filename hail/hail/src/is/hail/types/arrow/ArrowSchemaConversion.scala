@@ -11,8 +11,10 @@ import org.apache.arrow.vector.types.pojo.{ArrowType, Field, FieldType, Schema}
 
 /** Conversion between Hail physical types and the Arrow schema of the columnar format.
   *
-  * Arrow nullability carries Hail requiredness at every level, with one exception: dict keys are
-  * always non-nullable, so a dict whose key type is optional reads back with a required key type.
+  * Arrow nullability carries Hail requiredness at every level, with two exceptions. Dict keys are
+  * always non-nullable, so a dict whose key type is optional reads back with a required key type. A
+  * tensor's `shape` is always nullable, though never null, because pyarrow can't read a
+  * non-nullable `fixed_size_list` under a null ancestor from Parquet.
   *
   * Both locus representations write the same Arrow type, whose storage is a packed locus, and a
   * locus always reads back as a [[PPackedLocus]].
@@ -36,10 +38,10 @@ object ArrowSchemaConversion {
   private val Float32 = new ArrowType.FloatingPoint(FloatingPointPrecision.SINGLE)
   private val Float64 = new ArrowType.FloatingPoint(FloatingPointPrecision.DOUBLE)
 
-  private val IntervalFieldNames =
+  val IntervalFieldNames: IndexedSeq[String] =
     IndexedSeq("start", "end", "includes_start", "includes_end")
 
-  private val TensorFieldNames = IndexedSeq("data", "shape")
+  val TensorFieldNames: IndexedSeq[String] = IndexedSeq("data", "shape")
 
   def toArrowSchema(t: PStruct): Schema =
     new Schema(t.fields.map(f => toArrowField(f.name, f.typ)).asJava)
@@ -78,9 +80,11 @@ object ArrowSchemaConversion {
             ArrowType.List.INSTANCE,
             child(ElementFieldName, t.elementType),
           ),
+          // Never null, but nullable: pyarrow can't read a non-nullable fixed_size_list under a
+          // null ancestor from Parquet (spec section 5.4).
           mkField(
             TensorFieldNames(1),
-            nullable = false,
+            nullable = true,
             new ArrowType.FixedSizeList(t.nDims),
             mkField(ElementFieldName, nullable = false, Int32),
           ),
@@ -225,7 +229,8 @@ object ArrowSchemaConversion {
           case t: ArrowType.FixedSizeList => t.getListSize
           case t => unsupported(s"tensor 'shape' must be a fixed_size_list, found $t")
         }
-        requiredChild(shape)
+        checkPlain(shape)
+        if (!shape.isNullable) unsupported("tensor 'shape' must be nullable")
         if (shape.getChildren.size != 1 || convert(shape.getChildren.get(0)) != PInt32(true))
           unsupported("tensor 'shape' must contain non-nullable int32")
         if (requiredChild(data).getType != ArrowType.List.INSTANCE || data.getChildren.size != 1)
