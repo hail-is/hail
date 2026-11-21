@@ -524,11 +524,12 @@ other type with an error naming the field: `tuple`, `set`, `dict`, `locus`,
   struct encodings (sections 5.2 to 5.5) are not implemented.
 
 The Hail-to-Arrow schema conversion (`is.hail.types.arrow.ArrowSchemaConversion`)
-already maps every type in section 5 except empty structs and tuples, which it
-maps to an Arrow `struct` with no fields instead of `hail.empty_struct`. Also
-missing are the Arrow-to-Parquet translation of `map`, `fixed_size_list` and
-extension types (through their storage types) in `ColumnarSchema.toParquet`, and
-value emission for those types in `ColumnarPartitionWriter`.
+maps every type in section 5, including empty structs and tuples as
+`hail.empty_struct` (section 5.5), and reads them back. Missing are the
+Arrow-to-Parquet translation of `map`, `fixed_size_list` and extension types
+(through their storage types, which includes `hail.empty_struct`'s `bool`) in
+`ColumnarSchema.toParquet`, and value emission for those types in
+`ColumnarPartitionWriter`.
 
 #### 7.2.3 Reading
 

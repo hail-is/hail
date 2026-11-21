@@ -23,6 +23,7 @@ object ExtensionTypes {
       IntervalExtensionType,
       TupleExtensionType,
       VariableShapeTensorExtensionType,
+      EmptyStructExtensionType.Prototype,
     ).foreach(ExtensionTypeRegistry.register)
 
   /** Registers every extension type with Arrow's global registry, so that schemas read by Arrow
@@ -95,6 +96,47 @@ object TupleExtensionType extends MarkerExtensionType("hail.tuple", ArrowType.St
   */
 object VariableShapeTensorExtensionType
     extends MarkerExtensionType("arrow.variable_shape_tensor", ArrowType.Struct.INSTANCE)
+
+object EmptyStructExtensionType {
+  val Name: String = "hail.empty_struct"
+
+  val Struct: EmptyStructExtensionType = new EmptyStructExtensionType(isTuple = false)
+  val Tuple: EmptyStructExtensionType = new EmptyStructExtensionType(isTuple = true)
+
+  private[arrow] val Prototype: EmptyStructExtensionType = Struct
+}
+
+/** A struct or tuple with no fields, which Parquet can't store as a group. Stored as a `bool`: a
+  * present value is `true` and a missing value is null. `isTuple` distinguishes `tuple()` from
+  * `struct{}`.
+  */
+final class EmptyStructExtensionType(val isTuple: Boolean) extends HailExtensionType {
+  override def extensionName(): String = EmptyStructExtensionType.Name
+
+  override def storageType(): ArrowType = ArrowType.Bool.INSTANCE
+
+  override def extensionEquals(other: ArrowType.ExtensionType): Boolean =
+    other match {
+      case o: EmptyStructExtensionType => o.isTuple == isTuple
+      case _ => false
+    }
+
+  override def serialize(): String =
+    JsonMethods.compact(JObject("tuple" -> JBool(isTuple)))
+
+  override def deserialize(storageType: ArrowType, serializedData: String): ArrowType = {
+    checkStorageType(storageType)
+    parseMetadata(serializedData) \ "tuple" match {
+      case JBool(true) => EmptyStructExtensionType.Tuple
+      case JBool(false) => EmptyStructExtensionType.Struct
+      case _ => throw new InvalidExtensionMetadataException(
+          s"$extensionName: missing or invalid 'tuple': $serializedData"
+        )
+    }
+  }
+
+  override def toString: String = s"EmptyStructExtensionType(tuple=$isTuple)"
+}
 
 object CallExtensionType {
   val Name: String = "hail.call"
