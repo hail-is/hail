@@ -396,7 +396,7 @@ when there are no parameters.
 | `locus<RG>` | `int64` | `hail.locus` | `{"reference_genome": RG, "contigs": [...]}` |
 | `interval<T>` | `struct<start: T, end: T, includes_start: bool, includes_end: bool>` | `hail.interval` | `{}` |
 | `call` | `int32` | `hail.call` | `{"encoding": 1}` |
-| `ndarray<T, N>` | `struct<data: list<T>, shape: fixed_size_list<int32>[N]>` | `arrow.variable_shape_tensor` | per the Arrow canonical extension spec |
+| `ndarray<T, N>`, `T` numeric or `bool` (section 5.4) | `struct<data: list<T>, shape: fixed_size_list<int32>[N]>` | `arrow.variable_shape_tensor` | per the Arrow canonical extension spec |
 | RNG state | not storable | | |
 
 ### 5.1 Dicts
@@ -439,6 +439,12 @@ The allele representation depends on ploidy:
 ### 5.4 NDArray
 
 Data is stored row-major. `shape` has length *N*, the number of dimensions.
+
+`T` MUST be `int32`, `int64`, `float32`, `float64` or `bool`, and writers MUST
+fail on an ndarray of any other element type. Arrow's tensor extension types
+require a fixed-width value type with no extension type, and Arrow's readers
+(pyarrow 26) refuse to read a file whose tensor holds structs, tuples,
+intervals or calls.
 Each dimension MUST fit in an `int32`; writers MUST fail on an ndarray with a
 longer dimension.
 
@@ -514,8 +520,9 @@ For tables:
   Parquet nodes, `ARROW:schema` in the footer, statistics, the page index, and
   zstd;
 - every type in section 5, with its encoding and extension metadata, including
-  the missing dict key check (section 5.1). A field holding RNG state fails the
-  write with an error naming the field;
+  the missing dict key check (section 5.1). A field holding RNG state, or an
+  ndarray of an element type section 5.4 excludes, fails the write with an error
+  naming the field;
 - fixtures for a keyed table, an unkeyed table, a table with no globals, and a
   table with every type that Hail's Python API can create, as required and
   nullable fields and nested in structs and arrays, with loci on a non-builtin
