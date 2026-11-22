@@ -233,9 +233,22 @@ def is_columnar(path: str) -> bool:
     return Env.fs().is_file(f'{path}/manifest.json')
 
 
-def warn_columnar_format_is_experimental() -> None:
-    """Warns at the caller's first frame outside Hail, so Python's default filter shows the warning
+class ColumnarFormatWarning(UserWarning):
+    """The warning that the columnar format is experimental, which :func:`add_warning_filters` shows
     once for each place user code writes the columnar format."""
+
+
+def add_warning_filters() -> None:
+    """Appends Hail's warning filters, so filters set before importing Hail take precedence. The
+    columnar format's warning is shown once for each place that writes the format, as Python's
+    default filter shows warnings, and every other warning once in all."""
+    warnings.filterwarnings('default', category=ColumnarFormatWarning, append=True)
+    warnings.filterwarnings('once', append=True)
+
+
+def warn_columnar_format_is_experimental() -> None:
+    """Warns at the caller's first frame outside Hail, so the warning is shown once for each place
+    user code writes the columnar format."""
     import decorator
 
     import hailtop
@@ -248,6 +261,7 @@ def warn_columnar_format_is_experimental() -> None:
     warnings.warn(
         'The columnar format is experimental. Its 0.x versions make no compatibility guarantee: '
         f'a later version of Hail may not read what this one writes. See {COLUMNAR_FORMAT_SPEC}',
+        ColumnarFormatWarning,
         skip_file_prefixes=tuple(p + os.sep for p in packages),
     )
 
