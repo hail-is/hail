@@ -266,6 +266,21 @@ def test_a_row_whose_entries_exceed_a_cap_fails_the_write(n_cols, entry, caps, m
     assert not is_committed(path)
 
 
+@pytest.mark.parametrize(
+    'annotate, message',
+    [
+        (lambda mt: mt.annotate_rows(**{'__row_uid': mt.row_idx}), "row field '__row_uid' can't be stored"),
+        (lambda mt: mt.annotate_cols(**{'__col_uid': mt.col_idx}), "column field '__col_uid' can't be stored"),
+    ],
+)
+def test_a_field_named_like_a_uid_fails_the_write(annotate, message):
+    mt = annotate(hl.utils.range_matrix_table(2, 2, n_partitions=1))
+    path = new_temp_file(extension='mt')
+    with pytest.raises(FatalError, match=message):
+        write_columnar(mt, path)
+    assert not is_committed(path)
+
+
 def hail_entries(mt: hl.MatrixTable) -> list:
     """The present entries of ``mt``, each with its row's and its column's fields, as Hail gives them."""
     return [to_python(e) for e in mt.entries().collect()]
