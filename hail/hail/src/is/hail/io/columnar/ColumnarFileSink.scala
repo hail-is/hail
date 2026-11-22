@@ -225,7 +225,9 @@ final class ColumnarRowGroups(targetBytes: Long) {
 
   // The buffered size is summed over every leaf of every file, so it is checked only once enough
   // records may have been written to reach the target, estimated from the average record size, as
-  // parquet-java's `ParquetWriter` does.
+  // parquet-java's `ParquetWriter` does. The estimate is only as good as the records it averages,
+  // so the next check is never more records away than have been written: a few small records
+  // followed by large ones can't defer it for long.
   private[this] var nextSizeCheck: Long = 1
 
   def add(sink: ColumnarFileSink): Unit = sinks += sink
@@ -246,7 +248,7 @@ final class ColumnarRowGroups(targetBytes: Long) {
         nextSizeCheck =
           records + math.min(
             math.max((targetBytes - size) / recordSize / 2, 1),
-            MaxRecordsBetweenChecks,
+            math.min(records, MaxRecordsBetweenChecks),
           )
         false
       }
