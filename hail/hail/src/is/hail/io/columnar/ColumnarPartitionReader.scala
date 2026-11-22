@@ -486,7 +486,14 @@ private class ColumnarValueEmitter(leaves: IndexedSeq[Value[ColumnarLeaf]], regi
       dim
     }
     val data = read(cb, n.data).getOrAssert(cb).asIndexable
-    val size = shape.foldLeft[Code[Long]](1L)(_ * _)
+    /* Each dimension is below 2^31, so a product saturated at 2^31 cannot overflow, and the
+     * saturated */
+    // value never equals the data's length, an Int. A zero dimension still gives a product of zero.
+    val size = cb.newLocal[Long]("columnar_ndarray_size", 1L)
+    shape.foreach { dim =>
+      cb.assign(size, size * dim)
+      cb.if_(size > Int.MaxValue.toLong, cb.assign(size, Int.MaxValue.toLong + 1L))
+    }
     cb.if_(
       data.loadLength.toL cne size,
       cb._fatal("columnar reader: an ndarray's data does not match its shape"),

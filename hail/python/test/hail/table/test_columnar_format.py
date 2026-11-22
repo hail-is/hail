@@ -1044,6 +1044,18 @@ def test_an_ndarray_with_a_negative_dimension_fails_the_read():
         read_columnar(path).collect()
 
 
+def test_an_ndarray_whose_shape_overflows_fails_the_read():
+    ht = hl.utils.range_table(1, n_partitions=1)
+    ht = ht.annotate(x=hl.nd.array([[[1.0]]]))
+    path = new_temp_file(extension='ht')
+    write_columnar(ht, path)
+    # 2^22 * 2^22 * 2^20 wraps to 0 in a 64-bit product.
+    rewrite_ndarray_row_file(path, 3, [], [1 << 22, 1 << 22, 1 << 20])
+
+    with pytest.raises(FatalError, match='does not match its shape'):
+        read_columnar(path).collect()
+
+
 def test_round_trip_of_a_table_keyed_by_locus():
     rg = custom_reference_genome()
     contigs = ['chr1', 'chr10', 'chr2', 'chrX']
