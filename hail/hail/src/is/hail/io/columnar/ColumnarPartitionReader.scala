@@ -481,7 +481,9 @@ private class ColumnarValueEmitter(leaves: IndexedSeq[Value[ColumnarLeaf]], regi
       cb._fatal(s"columnar reader: an ndarray's shape does not have ${n.pt.nDims} dimensions"),
     )
     val shape = (0 until n.pt.nDims).map { i =>
-      cb.memoize(shapeArray.loadElement(cb, i).getOrAssert(cb).asInt.value.toL)
+      val dim = cb.memoize(shapeArray.loadElement(cb, i).getOrAssert(cb).asInt.value.toL)
+      cb.if_(dim < 0L, cb._fatal("columnar reader: an ndarray's shape has a negative dimension"))
+      dim
     }
     val data = read(cb, n.data).getOrAssert(cb).asIndexable
     val size = shape.foldLeft[Code[Long]](1L)(_ * _)

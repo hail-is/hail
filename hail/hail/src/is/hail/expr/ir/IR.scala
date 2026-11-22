@@ -411,6 +411,7 @@ package defs {
         new TStructSerializer(rgs) +
         new TypeSerializer(rgs) +
         new PTypeSerializer(rgs) +
+        new PStructSerializer(rgs) +
         new ETypeSerializer +
         new AvroSchemaSerializer +
         new ReferenceGenomeNameSerializer(rgs)

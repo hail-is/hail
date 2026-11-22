@@ -78,21 +78,23 @@ final class ColumnarFileSource(fs: FS, path: String, spec: ColumnarSourceSpec) {
 
   private[this] val reader: ParquetFileReader = openFile(fs, path)
 
-  try
-    if (arrowSchema(reader, path) != ColumnarFileSink.decodeSchema(spec.arrowSchema))
-      fatal(s"columnar reader: the Arrow schema of '$path' differs from its manifest's")
-  catch {
-    case e: Throwable =>
-      reader.close()
-      throw e
-  }
-
-  private[this] val descriptors: IndexedSeq[ColumnDescriptor] = {
-    val schema = reader.getFileMetaData.getSchema
-    spec.leaves.map(p => schema.getColumnDescription(p.toArray))
-  }
-
-  reader.setRequestedSchema(descriptors.asJava)
+  private[this] val descriptors: IndexedSeq[ColumnDescriptor] =
+    try {
+      if (arrowSchema(reader, path) != ColumnarFileSink.decodeSchema(spec.arrowSchema))
+        fatal(s"columnar reader: the Arrow schema of '$path' differs from its manifest's")
+      val schema = reader.getFileMetaData.getSchema
+      val ds = spec.leaves.map { p =>
+        if (!schema.containsPath(p.toArray))
+          fatal(s"columnar reader: '$path' has no Parquet column ${p.mkString(".")}")
+        schema.getColumnDescription(p.toArray)
+      }
+      reader.setRequestedSchema(ds.asJava)
+      ds
+    } catch {
+      case e: Throwable =>
+        reader.close()
+        throw e
+    }
 
   private[this] val writerVersion: VersionParser.ParsedVersion =
     try VersionParser.parse(reader.getFileMetaData.getCreatedBy)
@@ -175,6 +177,11 @@ final class ColumnarLeaf(maxDefinitionLevel: Int, typeName: PrimitiveTypeName) {
   }
 
   private[columnar] def fill(): Unit = {
+    // Drop the previous record's values, so that slots this record leaves unset hold no stale ones.
+    if (binaries != null) {
+      var i = 0
+      while (i < size) { binaries(i) = null; i += 1 }
+    }
     size = 0
     pos = 0
     do {
