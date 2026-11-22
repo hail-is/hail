@@ -2,4 +2,5 @@
 - run all tests: `./mill 'hail.test'`
 - run all tests in one test suite: `./mill 'hail.test.testOnly' is.hail.expr.ir.IRSuite`
 - run all tests in one test suite matching a glob: `./mill 'hail.test.testOnly' is.hail.expr.ir.IRSuite -- -methods '*.testStr*'`
+- run python tests: `cd python && python -m pytest test/hail/<path>`; `HAIL_QUERY_BACKEND=local|spark` picks the backend
 </important>
