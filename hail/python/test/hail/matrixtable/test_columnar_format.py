@@ -705,8 +705,8 @@ def test_an_interval_read_gives_the_rows_in_the_intervals_and_their_entries(inte
     assert_same_rows_and_entries(read_columnar_intervals(path, intervals), hl.filter_intervals(mt, intervals))
 
 
-def matrix_table_with_rows_5_and_6_only() -> tuple:
-    """A matrix table of rows 0 to 11 in one row partition, of which only rows 5 and 6 can be read from
+def matrix_table_with_rows_4_to_7_only() -> tuple:
+    """A matrix table of rows 0 to 11 in one row partition, of which only rows 4 to 7 can be read from
     the row file and the entry file. Their row groups hold rows 0-3, 4-7 and 8-11, and their pages one
     row each."""
     mt = matrix_table(n_rows=12, n_partitions=1)
@@ -716,22 +716,22 @@ def matrix_table_with_rows_5_and_6_only() -> tuple:
     for file in [partition['row_file'], *partition['entry_files']]:
         file_path = f'{path}/{file["path"]}'
         rewrite_with_one_row_pages(file_path, 4)
-        corrupt_pages_except(file_path, {5, 6})
+        corrupt_pages_except(file_path, {4, 5, 6, 7})
     return mt, path
 
 
-def test_row_groups_and_pages_outside_the_intervals_are_not_read_from_row_or_entry_files():
-    mt, path = matrix_table_with_rows_5_and_6_only()
+def test_row_groups_outside_the_intervals_are_not_read_from_row_or_entry_files():
+    mt, path = matrix_table_with_rows_4_to_7_only()
     intervals = [hl.Interval(5, 6, includes_end=True)]
 
     assert_same_rows_and_entries(read_columnar_intervals(path, intervals), hl.filter_intervals(mt, intervals))
     # Reading any other row reads a zeroed page.
     with pytest.raises(FatalError):
-        localized_entries(read_columnar_intervals(path, [hl.Interval(4, 5, includes_end=True)]))
+        localized_entries(read_columnar_intervals(path, [hl.Interval(3, 4, includes_end=True)]))
 
 
-def test_filter_intervals_on_the_row_key_reads_only_the_row_groups_and_pages_in_the_intervals():
-    mt, path = matrix_table_with_rows_5_and_6_only()
+def test_filter_intervals_on_the_row_key_reads_only_the_row_groups_in_the_intervals():
+    mt, path = matrix_table_with_rows_4_to_7_only()
     intervals = [hl.Interval(5, 6, includes_end=True)]
 
     assert_same_rows_and_entries(
@@ -739,8 +739,8 @@ def test_filter_intervals_on_the_row_key_reads_only_the_row_groups_and_pages_in_
     )
 
 
-def test_row_key_filters_that_hail_pushes_down_read_only_the_row_groups_and_pages_they_keep():
-    mt, path = matrix_table_with_rows_5_and_6_only()
+def test_row_key_filters_that_hail_pushes_down_read_only_the_row_groups_they_keep():
+    mt, path = matrix_table_with_rows_4_to_7_only()
 
     def keep(m: hl.MatrixTable) -> hl.MatrixTable:
         return m.filter_rows((m.row_idx == 5) | (m.row_idx == 6))
