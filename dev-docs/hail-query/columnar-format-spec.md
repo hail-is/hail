@@ -360,7 +360,13 @@ These apply to every data file:
   hold more than 2^30 values. Leaf values for an entry field are counted as rows ×
   *n* for a primitive `T`, and more for nested `T` such as `list<int32>`. This
   keeps every row group readable by Arrow readers that use 32-bit list offsets.
-- Subject to the leaf cap, writers SHOULD aim for a target row-group byte size. The
+- **Byte cap:** within any row group, no single `utf8` or `binary` leaf field of
+  an entry file may hold more than 2^31 − 1 bytes. This keeps every row group
+  readable by Arrow readers that use 32-bit binary offsets, which Arrow's Parquet
+  reader (pyarrow 26) can't split for nested fields. Without it, a
+  dictionary-encoded string field could stay well under the target byte size
+  below while its values add up to more than 2 GiB.
+- Subject to the leaf and byte caps, writers SHOULD aim for a target row-group byte size. The
   target is not fixed by this spec.
 
 ## 5. Type mapping
@@ -543,10 +549,12 @@ For writing matrix tables, all of the above, and:
   validity list (section 4.3), and the columns file (section 4.4);
 - row groups (section 4.6.1). A row partition's row file and entry file end each
   row group together, once the larger of the two buffers 128 MiB, parquet-java's
-  default target size, or before a row whose entries would exceed the leaf cap.
-  A row whose entries alone exceed the leaf cap fails the write. An entry field
-  with a list, set, dict or ndarray inside is counted with an upper bound on its
-  leaf values, so its row groups may end before it reaches the cap;
+  default target size, or before a row whose entries would exceed the leaf cap
+  or the byte cap. A row whose entries alone exceed either cap fails the write.
+  An entry field with a list, set, dict or ndarray inside is counted with an
+  upper bound on its leaf values, and an entry field with several string or
+  binary leaves with the sum of their bytes, so its row groups may end before it
+  reaches a cap;
 - a fixture for a matrix table with missing entries and present entries with
   missing fields (section 6).
 
