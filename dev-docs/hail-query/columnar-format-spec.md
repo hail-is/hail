@@ -513,9 +513,8 @@ reader, `MatrixColumnarReader` (`is.hail.io.columnar`). They are a lowered
 reaches them: `Table.write`, `MatrixTable.write`, `Table.checkpoint` and
 `MatrixTable.checkpoint` write the columnar format given `format='columnar'`, with a
 warning that it is experimental. `hl.read_table` and `hl.read_matrix_table` read it
-when `manifest.json` exists (section 2.1). Tests also reach them through
-`hail.ir.TableColumnarWriter`, `hail.ir.MatrixColumnarWriter`,
-`hail.ir.TableColumnarReader` and `hail.ir.MatrixColumnarReader`.
+when `manifest.json` exists (section 2.1). Tests also reach them through the
+private Python classes of the same names in `hail.ir`.
 
 ### 7.1 Implemented
 
@@ -570,9 +569,9 @@ For reading tables:
   missing or unknown fields (section 3). The table reader rejects a matrix
   table. A directory without `manifest.json` is not a table, and files the
   manifest doesn't reference are never opened (sections 2 and 2.1);
-- `reference_genomes`: the Python reader defines each non-builtin reference
-  genome in the session, and fails on one that differs from a reference genome
-  of the same name already defined (section 3.1);
+- `reference_genomes`: `hl.read_table` and `hl.read_matrix_table` define each
+  non-builtin reference genome in the session, and fail on one that differs
+  from a reference genome of the same name already defined (section 3.1);
 - the partitions table, rejecting fields that don't match `kind` and
   `rows.key`, and bounds whose types differ from the key fields' (section 4.1).
   The key, the partitioning from the bounds, and `distinctly_keyed` are read

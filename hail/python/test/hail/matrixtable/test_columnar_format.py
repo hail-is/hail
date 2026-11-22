@@ -440,7 +440,7 @@ def test_column_and_entry_fields_have_the_specified_extension_and_encoding(case)
 
 
 def read_columnar(path: str) -> hl.MatrixTable:
-    return hl.MatrixTable(ir.MatrixRead(ir.MatrixColumnarReader(path)))
+    return hl.read_matrix_table(path)
 
 
 def assert_reads_as(path: str, expected: hl.MatrixTable) -> None:
@@ -671,7 +671,7 @@ def test_a_matrix_table_is_not_a_table():
 
 
 def read_columnar_intervals(path: str, intervals: list, filter_intervals: bool = False) -> hl.MatrixTable:
-    return hl.MatrixTable(ir.MatrixRead(ir.MatrixColumnarReader(path, intervals, filter_intervals)))
+    return hl.read_matrix_table(path, _intervals=intervals, _filter_intervals=filter_intervals)
 
 
 def row_partitions(mt: hl.MatrixTable) -> list:

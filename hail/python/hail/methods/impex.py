@@ -2718,7 +2718,7 @@ def read_matrix_table(
         raise ValueError("'read_matrix_table' does not support both _intervals and _n_partitions")
 
     if is_columnar(path):
-        reader = ir.MatrixColumnarReader(path, _intervals, _filter_intervals, _load_refs=False)
+        reader = ir.MatrixColumnarReader(path, _intervals, _filter_intervals)
     else:
         reader = ir.MatrixNativeReader(path, _intervals, _filter_intervals)
     mt = MatrixTable(
@@ -3309,7 +3309,7 @@ def read_table(
     if _intervals is not None and _n_partitions is not None:
         raise ValueError("'read_table' does not support both _intervals and _n_partitions")
     if is_columnar(path):
-        tr = ir.TableColumnarReader(path, _intervals, _filter_intervals, _load_refs=False)
+        tr = ir.TableColumnarReader(path, _intervals, _filter_intervals)
     else:
         tr = ir.TableNativeReader(path, _intervals, _filter_intervals)
     ht = Table(ir.TableRead(tr, False, drop_row_uids=not _create_row_uids, _assert_type=_assert_type))
