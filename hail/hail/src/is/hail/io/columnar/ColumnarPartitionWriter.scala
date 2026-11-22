@@ -34,19 +34,26 @@ object ColumnarPartitionWriter {
   /** The most values a leaf field of an entry file may hold in one row group (spec section 4.6.1).
     */
   val MaxLeafCap: Long = 1L << 30
+
+  /** The most bytes a string or binary leaf field of an entry file may hold in one row group (spec
+    * section 4.6.1).
+    */
+  val MaxByteCap: Long = Int.MaxValue.toLong
 }
 
 /** The entries of a matrix table, which a [[ColumnarPartitionWriter]] writes to an entry file
   * beside each row file, in the dense layout with one column block (spec section 4.3).
   *
   * Each row holds its entries in field `field`, an array of `entryType` with one element per
-  * column. `leafCap` is the most values a leaf field of an entry file may hold in one row group.
+  * column. `leafCap` is the most values a leaf field of an entry file may hold in one row group,
+  * and `byteCap` the most bytes a string or binary leaf field may hold in one.
   */
 case class ColumnarEntries(
   field: String,
   entryType: PStruct,
   entryValidField: String,
   leafCap: Long,
+  byteCap: Long,
 ) {
 
   /** The fields of an entry file after the Row ID: the entry validity list, then one list per entry
@@ -186,7 +193,7 @@ case class ColumnarPartitionWriter(
         val entryRow = entryFile.map(_.load(cb, row))
         cb.if_(
           rowGroups.invoke[Long]("recordCount") > 0L && (
-            entryRow.fold[Code[Boolean]](const(false))(_.exceedsLeafCap(cb)) ||
+            entryRow.fold[Code[Boolean]](const(false))(_.exceedsCaps(cb)) ||
               rowGroups.invoke[Boolean]("checkFull")
           ), {
             cb += rowGroups.invoke[Unit]("endRowGroup")
@@ -229,12 +236,15 @@ case class ColumnarPartitionWriter(
       )
     }
 
-  /** Writes each row's entries to an entry file, and tracks how many values the leaf fields of the
-    * current row group hold, to keep them within the leaf cap (spec section 4.6.1).
+  /** Writes each row's entries to an entry file, and tracks how many values, and how many string
+    * and binary bytes, the leaf fields of the current row group hold, to keep them within the leaf
+    * and byte caps (spec section 4.6.1).
     *
     * Values are counted per leaf group: the entry validity list and every entry field with no list
     * inside share one, and every other entry field has one of its own. A leaf group's count bounds
-    * the count of each of its leaf fields from above, and is exact for the first leaf group.
+    * the count of each of its leaf fields from above, and is exact for the first leaf group. Bytes
+    * are counted per entry field that holds strings or binaries, summed over its leaves, which
+    * bounds the bytes of each of them from above.
     */
   private class EntryFileWriter(
     cb: EmitCodeBuilder,
@@ -253,8 +263,13 @@ case class ColumnarPartitionWriter(
     private[this] val nestedLeaves =
       nestedFields.map(f => cb.newLocal[Long](s"leaves_${f.name}", 0L))
 
+    private[this] val binaryFields = e.entryType.fields.filter(f => hasBinary(f.typ))
+
+    private[this] val binaryBytes =
+      binaryFields.map(f => cb.newLocal[Long](s"bytes_${f.name}", 0L))
+
     def startRowGroup(cb: EmitCodeBuilder): Unit =
-      (flatLeaves +: nestedLeaves).foreach(cb.assign(_, 0L))
+      (flatLeaves +: (nestedLeaves ++ binaryBytes)).foreach(cb.assign(_, 0L))
 
     /** Loads `row`'s entries, failing unless there is one per column. */
     def load(cb: EmitCodeBuilder, row: SBaseStructValue): EntryRow = {
@@ -279,7 +294,34 @@ case class ColumnarPartitionWriter(
           " columns",
         ),
       )
-      new EntryRow(entries, nestedFields.map(f => fieldLeaves(cb, f, entries)))
+      new EntryRow(
+        entries,
+        nestedFields.map(f => fieldLeaves(cb, f, entries)),
+        binaryFields.map(f => fieldBytes(cb, f, entries)),
+      )
+    }
+
+    /** An upper bound on the bytes each string or binary leaf of entry field `f` holds for one
+      * row's `entries`.
+      */
+    private[this] def fieldBytes(cb: EmitCodeBuilder, f: PField, entries: SIndexableValue)
+      : Value[Long] = {
+      val total = cb.newLocal[Long](s"rowBytes_${f.name}", 0L)
+      entries.forEachDefined(cb) { (cb, _, entry) =>
+        entry.asBaseStruct.loadField(cb, f.index).consume(
+          cb,
+          {},
+          v => cb.assign(total, total + binaryByteCount(cb, f.typ, v)),
+        )
+      }
+      cb.if_(
+        total > e.byteCap,
+        cb._fatal(
+          s"columnar writer: the entries of one row hold more than ${e.byteCap} bytes of " +
+            s"strings or binaries in entry field '${f.name}', which can't be stored"
+        ),
+      )
+      total
     }
 
     /** An upper bound on the values each leaf of entry field `f` holds for one row's `entries`. */
@@ -305,13 +347,20 @@ case class ColumnarPartitionWriter(
       max(cb, total, 1L)
     }
 
-    class EntryRow(entries: SIndexableValue, rowNestedLeaves: IndexedSeq[Value[Long]]) {
+    class EntryRow(
+      entries: SIndexableValue,
+      rowNestedLeaves: IndexedSeq[Value[Long]],
+      rowBinaryBytes: IndexedSeq[Value[Long]],
+    ) {
 
-      /** Whether adding this row to the current row group would exceed the leaf cap. */
-      def exceedsLeafCap(cb: EmitCodeBuilder): Code[Boolean] =
-        (flatLeaves +: nestedLeaves).zip(flatRowLeaves +: rowNestedLeaves)
+      /** Whether adding this row to the current row group would exceed the leaf or byte cap. */
+      def exceedsCaps(cb: EmitCodeBuilder): Code[Boolean] = {
+        val leaves = (flatLeaves +: nestedLeaves).zip(flatRowLeaves +: rowNestedLeaves)
           .map { case (group, row) => (group + row) > e.leafCap }
-          .reduce(_ || _)
+        val bytes = binaryBytes.zip(rowBinaryBytes)
+          .map { case (group, row) => (group + row) > e.byteCap }
+        (leaves ++ bytes).reduce(_ || _)
+      }
 
       def write(cb: EmitCodeBuilder, rowId: Value[Long]): Unit = {
         cb += sink.invoke[Unit]("startRecord")
@@ -344,8 +393,8 @@ case class ColumnarPartitionWriter(
         cb += sink.invoke[Unit]("endRecord")
 
         cb.assign(flatLeaves, flatLeaves + flatRowLeaves)
-        nestedLeaves.zip(rowNestedLeaves).foreach { case (group, row) =>
-          cb.assign(group, group + row)
+        (nestedLeaves ++ binaryBytes).zip(rowNestedLeaves ++ rowBinaryBytes).foreach {
+          case (group, row) => cb.assign(group, group + row)
         }
       }
     }
@@ -359,6 +408,48 @@ case class ColumnarPartitionWriter(
     case t: PInterval => isFlat(t.pointType)
     case t: PBaseStruct => t.types.forall(isFlat)
     case _ => true
+  }
+
+  /** Whether `t` holds strings or binaries, at any depth. */
+  private def hasBinary(t: PType): Boolean = t match {
+    case _: PString | _: PBinary => true
+    case t: PContainer => hasBinary(t.elementType)
+    case t: PInterval => hasBinary(t.pointType)
+    case t: PBaseStruct => t.types.exists(hasBinary)
+    case _ => false
+  }
+
+  /** The bytes of the strings and binaries in the present value `v` of `t`, summed over all of its
+    * leaves.
+    */
+  private def binaryByteCount(cb: EmitCodeBuilder, t: PType, v: SValue): Value[Long] = {
+    def optional(t: PType, v: IEmitCode, total: Settable[Long]): Unit =
+      v.consume(cb, {}, v => cb.assign(total, total + binaryByteCount(cb, t, v)))
+
+    t match {
+      case t if !hasBinary(t) => const(0L)
+      case _: PString => cb.memoize(v.asString.toBytes(cb).loadLength(cb).toL)
+      case _: PBinary => cb.memoize(v.asBinary.loadLength(cb).toL)
+      case t: PContainer =>
+        val total = cb.newLocal[Long]("bytes", 0L)
+        v.asIndexable.forEachDefined(cb) { (cb, _, elt) =>
+          cb.assign(total, total + binaryByteCount(cb, t.elementType, elt))
+        }
+        total
+      case t: PInterval =>
+        val i = v.asInterval
+        val total = cb.newLocal[Long]("bytes", 0L)
+        optional(t.pointType, i.loadStart(cb), total)
+        optional(t.pointType, i.loadEnd(cb), total)
+        total
+      case t: PBaseStruct =>
+        val s = v.asBaseStruct
+        val total = cb.newLocal[Long]("bytes", 0L)
+        t.fields.filter(f => hasBinary(f.typ)).foreach { f =>
+          optional(f.typ, s.loadField(cb, f.index), total)
+        }
+        total
+    }
   }
 
   private def max(cb: EmitCodeBuilder, a: Code[Long], b: Code[Long]): Value[Long] =

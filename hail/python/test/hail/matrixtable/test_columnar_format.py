@@ -34,9 +34,13 @@ from ..helpers import resource
 
 
 def write_columnar(
-    mt: hl.MatrixTable, path: str, overwrite: bool = False, leaf_cap: int = ir.MatrixColumnarWriter.LEAF_CAP
+    mt: hl.MatrixTable,
+    path: str,
+    overwrite: bool = False,
+    leaf_cap: int = ir.MatrixColumnarWriter.LEAF_CAP,
+    byte_cap: int = ir.MatrixColumnarWriter.BYTE_CAP,
 ) -> None:
-    Env.backend().execute(ir.MatrixWrite(mt._mir, ir.MatrixColumnarWriter(path, overwrite, leaf_cap)))
+    Env.backend().execute(ir.MatrixWrite(mt._mir, ir.MatrixColumnarWriter(path, overwrite, leaf_cap, byte_cap)))
 
 
 def matrix_table(n_rows: int = 6, n_cols: int = 4, n_partitions: int = 2) -> hl.MatrixTable:
@@ -198,21 +202,47 @@ def test_row_groups_end_at_the_leaf_cap_of_a_nested_entry_field():
     assert [e['a'] for e in entries] == [[list(range(i))] * 2 for i in range(5)]
 
 
+def test_row_groups_end_at_the_byte_cap_of_a_string_entry_field():
+    # Each row has 2 entries holding the same 4-byte string, which dictionary encoding stores in far
+    # fewer bytes, so the target size never ends a row group. The string's leaf holds 8 bytes per
+    # row, and a byte cap of 20 fits 2 rows in a row group.
+    mt = hl.utils.range_matrix_table(5, 2, n_partitions=1)
+    mt = mt.annotate_entries(s='PASS')
+    path = new_temp_file(extension='mt')
+    write_columnar(mt, path, byte_cap=20)
+
+    ((_, row_file, (entry_file,)),) = data_files(path)
+    assert row_group_sizes(row_file) == row_group_sizes(entry_file) == [2, 2, 1]
+    assert [e['s'] for e in read_row_groups(entry_file).to_pylist()] == [['PASS'] * 2] * 5
+
+
 @pytest.mark.parametrize(
-    'n_cols, entry, message',
+    'n_cols, entry, caps, message',
     [
         # 4 values per row in every leaf.
-        (4, lambda mt: hl.struct(x=mt.col_idx), "more than 3 values in each entry field.*there are 4 columns"),
+        (
+            4,
+            lambda mt: hl.struct(x=mt.col_idx),
+            {'leaf_cap': 3},
+            "more than 3 values in each entry field.*there are 4 columns",
+        ),
         # Row 2 has 2 arrays of length 2, which is 4 values in the array's leaf.
-        (2, lambda mt: hl.struct(a=hl.range(mt.row_idx)), "more than 3 values in entry field 'a'"),
+        (2, lambda mt: hl.struct(a=hl.range(mt.row_idx)), {'leaf_cap': 3}, "more than 3 values in entry field 'a'"),
+        # 3 entries of 2 strings of 2 bytes each, which is 12 bytes counted against the struct.
+        (
+            3,
+            lambda mt: hl.struct(t=hl.struct(u='ab', v='cd')),
+            {'byte_cap': 10},
+            "more than 10 bytes of strings or binaries in entry field 't'",
+        ),
     ],
 )
-def test_a_row_whose_entries_exceed_the_leaf_cap_fails_the_write(n_cols, entry, message):
+def test_a_row_whose_entries_exceed_a_cap_fails_the_write(n_cols, entry, caps, message):
     mt = hl.utils.range_matrix_table(3, n_cols, n_partitions=1)
     mt = mt.select_entries(**entry(mt))
     path = new_temp_file(extension='mt')
     with pytest.raises(FatalError, match=message):
-        write_columnar(mt, path, leaf_cap=3)
+        write_columnar(mt, path, **caps)
     assert not is_committed(path)
 
 

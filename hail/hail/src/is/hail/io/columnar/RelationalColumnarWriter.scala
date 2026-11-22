@@ -75,7 +75,8 @@ object RelationalColumnarWriter {
 
   /** What a matrix table adds to a table: its columns, which the stage holds in the global field
     * `colsField`, and its entries, which each row holds in the field `entriesField`. `leafCap` is
-    * the most values a leaf field of an entry file may hold in one row group.
+    * the most values a leaf field of an entry file may hold in one row group, and `byteCap` the
+    * most bytes a string or binary leaf field may hold in one.
     */
   case class MatrixParts(
     colsField: String,
@@ -84,6 +85,7 @@ object RelationalColumnarWriter {
     entriesField: String,
     entryPType: PStruct,
     leafCap: Long,
+    byteCap: Long,
   )
 
   /** Writes `stage` in the columnar format, as a table keyed by `key`, or as a matrix table given
@@ -142,6 +144,7 @@ object RelationalColumnarWriter {
           m.entryPType.fieldNames :+ rowIdField,
         ),
         m.leafCap,
+        m.byteCap,
       )
     }
     val rowWriter = ColumnarPartitionWriter(path, rowPType, key, Some(rowIdField), entries)
