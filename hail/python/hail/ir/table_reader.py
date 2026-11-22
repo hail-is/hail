@@ -53,8 +53,7 @@ class TableColumnarReader(TableReader):
     """Reads a table in the experimental columnar format.
 
     Private: :func:`.read_table` uses it for a table in the columnar format, and the format may
-    change. Unless `_load_refs` is false, defines the table's non-builtin reference genomes, which
-    must be equal to any already defined with the same name.
+    change. As with :class:`.TableNativeReader`, the caller defines the table's reference genomes.
 
     With `intervals`, reads only the rows whose key is in them. Their points are the key or a prefix
     of it, as structs or as the first key field's values.
@@ -65,12 +64,9 @@ class TableColumnarReader(TableReader):
     them.
     """
 
-    @typecheck_method(path=str, intervals=nullable(sequenceof(anytype)), filter_intervals=bool, _load_refs=bool)
-    def __init__(self, path, intervals=None, filter_intervals=False, _load_refs=True):
+    @typecheck_method(path=str, intervals=nullable(sequenceof(anytype)), filter_intervals=bool)
+    def __init__(self, path, intervals=None, filter_intervals=False):
         self.path = path
-        if _load_refs:
-            for rg_config in hl.utils.java.Env.backend().load_references_from_dataset(path):
-                hl.ReferenceGenome._from_config(rg_config)
         self.intervals, self._interval_type = impute_type_of_partition_interval_array(intervals)
         self.filter_intervals = filter_intervals
 

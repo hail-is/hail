@@ -524,7 +524,7 @@ def test_output_matches_fixture(fixture, table):
 
 
 def read_columnar(path: str) -> hl.Table:
-    return hl.Table(ir.TableRead(ir.TableColumnarReader(path)))
+    return hl.read_table(path)
 
 
 def assert_reads_as(path: str, expected: hl.Table) -> None:
@@ -810,7 +810,7 @@ def test_reading_no_field_of_a_struct_keeps_whether_it_is_missing_and_its_length
 
 
 def read_columnar_intervals(path: str, intervals: list, filter_intervals: bool = False) -> hl.Table:
-    return hl.Table(ir.TableRead(ir.TableColumnarReader(path, intervals, filter_intervals)))
+    return hl.read_table(path, _intervals=intervals, _filter_intervals=filter_intervals)
 
 
 def partitions(ht: hl.Table) -> list:
