@@ -216,6 +216,20 @@ def test_row_groups_end_at_the_byte_cap_of_a_string_entry_field():
     assert [e['s'] for e in read_row_groups(entry_file).to_pylist()] == [['PASS'] * 2] * 5
 
 
+def test_the_byte_cap_counts_each_string_leaf_of_a_struct_entry_field_on_its_own():
+    # Each row has 3 entries of a struct of 2 strings of 2 bytes each: 6 bytes per row in each
+    # string's leaf, so a byte cap of 12 fits 2 rows in a row group, though the struct holds 12
+    # bytes per row in all.
+    mt = hl.utils.range_matrix_table(3, 3, n_partitions=1)
+    mt = mt.select_entries(t=hl.struct(u='ab', v='cd'))
+    path = new_temp_file(extension='mt')
+    write_columnar(mt, path, byte_cap=12)
+
+    ((_, row_file, (entry_file,)),) = data_files(path)
+    assert row_group_sizes(row_file) == row_group_sizes(entry_file) == [2, 1]
+    assert [e['t'] for e in read_row_groups(entry_file).to_pylist()] == [[{'u': 'ab', 'v': 'cd'}] * 3] * 3
+
+
 @pytest.mark.parametrize(
     'n_cols, entry, caps, message',
     [
@@ -228,10 +242,10 @@ def test_row_groups_end_at_the_byte_cap_of_a_string_entry_field():
         ),
         # Row 2 has 2 arrays of length 2, which is 4 values in the array's leaf.
         (2, lambda mt: hl.struct(a=hl.range(mt.row_idx)), {'leaf_cap': 3}, "more than 3 values in entry field 'a'"),
-        # 3 entries of 2 strings of 2 bytes each, which is 12 bytes counted against the struct.
+        # 3 entries of a struct whose first string has 4 bytes, which is 12 bytes in its leaf.
         (
             3,
-            lambda mt: hl.struct(t=hl.struct(u='ab', v='cd')),
+            lambda mt: hl.struct(t=hl.struct(u='abcd', v='x')),
             {'byte_cap': 10},
             "more than 10 bytes of strings or binaries in entry field 't'",
         ),

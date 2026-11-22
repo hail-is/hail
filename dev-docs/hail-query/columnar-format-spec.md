@@ -553,8 +553,9 @@ For writing matrix tables, all of the above, and:
   or the byte cap. A row whose entries alone exceed either cap fails the write.
   An entry field with a list, set, dict or ndarray inside is counted with an
   upper bound on its leaf values, and an entry field with several string or
-  binary leaves with the sum of their bytes, so its row groups may end before it
-  reaches a cap;
+  binary leaves with an upper bound on the bytes of each, so its row groups may
+  end before it reaches a cap. A row is rejected by the same bounds, so a row
+  that exceeds the bound without exceeding a cap also fails the write;
 - a fixture for a matrix table with missing entries and present entries with
   missing fields (section 6).
 
@@ -591,7 +592,16 @@ tables are not read, so rejecting the `"long"` layout is not implemented. The
 reader doesn't report partition row counts to the optimizer, so counting a
 table iterates over its row files' footers.
 
-#### 7.2.2 Conformance fixtures
+#### 7.2.2 Row groups
+
+The leaf and byte caps (section 4.6.1) apply only to entry files, and the writer
+enforces them only there. Row files and the columns file end row groups only at
+the target size, so a nested field whose values encode compactly, such as a list
+of long repeated strings under dictionary encoding, could hold more than 2^30
+values or 2^31 − 1 bytes in one leaf of a row group. Arrow readers with 32-bit
+offsets couldn't read such a row group whole (section 6).
+
+#### 7.2.3 Conformance fixtures
 
 Section 6 lists a fixture that doesn't exist yet: `binary`. Hail's Python API has
 no binary type, so the fixtures, which Hail's tests write from Python, can't
