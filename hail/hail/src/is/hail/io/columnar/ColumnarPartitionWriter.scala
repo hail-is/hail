@@ -243,8 +243,8 @@ case class ColumnarPartitionWriter(
     * Values are counted per leaf group: the entry validity list and every entry field with no list
     * inside share one, and every other entry field has one of its own. A leaf group's count bounds
     * the count of each of its leaf fields from above, and is exact for the first leaf group. Bytes
-    * are counted per entry field that holds strings or binaries, summed over its leaves, which
-    * bounds the bytes of each of them from above.
+    * are counted per entry field that holds strings or binaries, with a bound on the bytes of each
+    * of its leaves.
     */
   private class EntryFileWriter(
     cb: EmitCodeBuilder,
@@ -419,12 +419,17 @@ case class ColumnarPartitionWriter(
     case _ => false
   }
 
-  /** The bytes of the strings and binaries in the present value `v` of `t`, summed over all of its
-    * leaves.
+  /** An upper bound on the bytes of strings or binaries that any one leaf of `t`'s Parquet
+    * translation holds for the present value `v`. The elements of a container share its leaves, so
+    * their bytes add up; the fields of a struct, and the endpoints of an interval, don't, so the
+    * bound is the largest of theirs.
     */
   private def binaryByteCount(cb: EmitCodeBuilder, t: PType, v: SValue): Value[Long] = {
-    def optional(t: PType, v: IEmitCode, total: Settable[Long]): Unit =
-      v.consume(cb, {}, v => cb.assign(total, total + binaryByteCount(cb, t, v)))
+    def optional(t: PType, v: => IEmitCode): Value[Long] = {
+      val bytes = cb.newLocal[Long]("bytes", 0L)
+      v.consume(cb, {}, v => cb.assign(bytes, binaryByteCount(cb, t, v)))
+      bytes
+    }
 
     t match {
       case t if !hasBinary(t) => const(0L)
@@ -438,17 +443,12 @@ case class ColumnarPartitionWriter(
         total
       case t: PInterval =>
         val i = v.asInterval
-        val total = cb.newLocal[Long]("bytes", 0L)
-        optional(t.pointType, i.loadStart(cb), total)
-        optional(t.pointType, i.loadEnd(cb), total)
-        total
+        max(cb, optional(t.pointType, i.loadStart(cb)), optional(t.pointType, i.loadEnd(cb)))
       case t: PBaseStruct =>
         val s = v.asBaseStruct
-        val total = cb.newLocal[Long]("bytes", 0L)
-        t.fields.filter(f => hasBinary(f.typ)).foreach { f =>
-          optional(f.typ, s.loadField(cb, f.index), total)
+        t.fields.filter(f => hasBinary(f.typ)).foldLeft[Value[Long]](const(0L)) { (acc, f) =>
+          max(cb, acc, optional(f.typ, s.loadField(cb, f.index)))
         }
-        total
     }
   }
 
