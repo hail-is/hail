@@ -177,7 +177,7 @@ del builtins
 
 ir.register_aggregators()
 
-import warnings
+from hail.utils.misc import add_warning_filters
 
-warnings.filterwarnings('once', append=True)
-del warnings
+add_warning_filters()
+del add_warning_filters
