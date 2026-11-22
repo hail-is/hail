@@ -34,11 +34,13 @@ from ..columnar_helpers import (
     decode_schema,
     drop_checksum,
     field,
+    page_ranges,
     parse_extension,
     read_manifest,
     read_parquet_file,
     required_by_index,
     rewrite_with_one_row_pages,
+    rewrite_with_small_pages,
     row_files,
     to_python,
 )
@@ -888,43 +890,66 @@ def test_key_filters_that_hail_pushes_down_read_only_the_rows_they_keep():
     assert keep(read_columnar(path)).collect() == keep(ht).collect()
 
 
-def table_with_rows_5_and_6_only() -> tuple:
-    """A table of keys 0 to 11 in one row partition, of which only the rows of keys 5 and 6 can be
+def table_with_rows_4_to_7_only() -> tuple:
+    """A table of keys 0 to 11 in one row partition, of which only the rows of keys 4 to 7 can be
     read. Its row groups hold keys 0-3, 4-7 and 8-11, and its pages one row each."""
     ht = keyed_table(12, 1)
     path = new_temp_file(extension='ht')
     write_columnar(ht, path)
     [file_path] = row_file_paths(path)
     rewrite_with_one_row_pages(file_path, 4)
-    corrupt_pages_except(file_path, {5, 6})
+    corrupt_pages_except(file_path, {4, 5, 6, 7})
     return ht, path
 
 
-def test_row_groups_and_pages_outside_the_intervals_are_not_read():
-    ht, path = table_with_rows_5_and_6_only()
+def test_row_groups_outside_the_intervals_are_not_read():
+    ht, path = table_with_rows_4_to_7_only()
     intervals = [hl.Interval(5, 6, includes_end=True)]
 
     assert read_columnar_intervals(path, intervals).collect() == hl.filter_intervals(ht, intervals).collect()
     # Reading any other row reads a zeroed page.
     with pytest.raises(FatalError):
-        read_columnar_intervals(path, [hl.Interval(4, 5, includes_end=True)]).collect()
+        read_columnar_intervals(path, [hl.Interval(3, 4, includes_end=True)]).collect()
 
 
-def test_filter_intervals_on_the_key_reads_only_the_row_groups_and_pages_in_the_intervals():
-    ht, path = table_with_rows_5_and_6_only()
+def test_filter_intervals_on_the_key_reads_only_the_row_groups_in_the_intervals():
+    ht, path = table_with_rows_4_to_7_only()
     intervals = [hl.Interval(5, 6, includes_end=True)]
 
     actual = hl.filter_intervals(read_columnar(path), intervals)
     assert actual.collect() == hl.filter_intervals(ht, intervals).collect()
 
 
-def test_key_filters_that_hail_pushes_down_read_only_the_row_groups_and_pages_they_keep():
-    ht, path = table_with_rows_5_and_6_only()
+def test_key_filters_that_hail_pushes_down_read_only_the_row_groups_they_keep():
+    ht, path = table_with_rows_4_to_7_only()
 
     def keep(t: hl.Table) -> hl.Table:
         return t.filter((t.idx == 5) | (t.idx == 6))
 
     assert keep(read_columnar(path)).collect() == keep(ht).collect()
+
+
+def test_a_read_of_rows_whose_pages_end_at_different_rows_in_each_column_pairs_their_values():
+    # The int64 key's pages hold keys 0-1, 2-3 and 4, and the int32 payload's pages hold rows 0-2 and
+    # 3-4. Reading keys 0, 1 and 4 alone, from the pages that hold them, paired key 4 with row 2's
+    # payload (apache/parquet-java#3747).
+    ht = hl.utils.range_table(5, n_partitions=1)
+    ht = ht.key_by(k=hl.int64(ht.idx)).drop('idx')
+    ht = ht.annotate(x=hl.int32(ht.k * 10))
+    path = new_temp_file(extension='ht')
+    write_columnar(ht, path)
+    [file_path] = row_file_paths(path)
+    rewrite_with_small_pages(file_path, 12)
+    schema = read_parquet_file(file_path).schema_arrow
+    assert [len(page_ranges(file_path, 0, schema.get_field_index(f))) for f in ['k', 'x']] == [3, 2]
+
+    point = hl.tint64
+    intervals = [
+        hl.Interval(0, 1, includes_end=True, point_type=point),
+        hl.Interval(4, 4, includes_end=True, point_type=point),
+    ]
+    actual = read_columnar_intervals(path, intervals, filter_intervals=True)
+    assert actual.collect() == hl.filter_intervals(ht, intervals).collect()
 
 
 def missing_keys_case(intervals: list) -> Callable[[], tuple]:

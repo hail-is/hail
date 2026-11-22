@@ -9,7 +9,6 @@ import org.apache.arrow.vector.types.pojo.Schema
 import org.apache.parquet.ParquetReadOptions
 import org.apache.parquet.column.{ColumnDescriptor, ColumnReader}
 import org.apache.parquet.column.impl.ColumnReadStoreImpl
-import org.apache.parquet.column.page.PageReadStore
 import org.apache.parquet.conf.PlainParquetConfiguration
 import org.apache.parquet.hadoop.ParquetFileReader
 import org.apache.parquet.internal.filter2.columnindex.RowRanges
@@ -115,8 +114,15 @@ object ColumnarFileSource {
   * emitted code can look ahead within a record, for example to find a list's length.
   *
   * In a key-range read, `keyRange` is the row partition's row file and its key intervals, in the
-  * representation `partitionerContains` takes. Only the rows [[ColumnarKeyRange.rowRanges]] picks
-  * are read, and only the pages that hold them.
+  * representation `partitionerContains` takes. Only the row groups in which
+  * [[ColumnarKeyRange.rowRanges]] picks rows are read, each in full, and the caller filters their
+  * rows to the intervals.
+  *
+  * Row groups are read in full, not just the pages that hold the rows picked, because parquet-java
+  * 1.16's `SynchronizingColumnReader` can pair one column's value with another row's when the
+  * picked rows' pages of two columns end at different rows (apache/parquet-java#3747). TODO: once
+  * Hail depends on a parquet-java release with the fix (1.19), read only the pages that hold the
+  * rows picked, with `readFilteredRowGroup`.
   */
 final class ColumnarFileSource(
   fs: FS,
@@ -195,15 +201,12 @@ final class ColumnarFileSource(
       if (nextRowGroup == rowRanges.length) return false
       val i = nextRowGroup
       nextRowGroup += 1
-      val ranges = rowRanges(i)
-      recordsLeft = ranges.rowCount
+      recordsLeft =
+        if (rowRanges(i).rowCount == 0) 0L else reader.getRowGroups.get(i).getRowCount
       // With no leaves requested, records are only counted, and no column chunk is read.
       if (recordsLeft > 0 && leaves.nonEmpty) {
-        val pages: PageReadStore =
-          if (recordsLeft == reader.getRowGroups.get(i).getRowCount) reader.readRowGroup(i)
-          else reader.readFilteredRowGroup(i, ranges)
         val columns = new ColumnReadStoreImpl(
-          pages,
+          reader.readRowGroup(i),
           converter,
           schema,
           reader.getFileMetaData.getCreatedBy,

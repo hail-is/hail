@@ -365,6 +365,28 @@ def rewrite_with_one_row_pages(file_path: str, rows_per_row_group: int) -> None:
     drop_checksum(file_path)
 
 
+def rewrite_with_small_pages(file_path: str, data_page_size: int) -> None:
+    """Rewrites the Parquet file at ``file_path`` with pyarrow in one row group, with data pages that
+    end once they hold ``data_page_size`` bytes, with no dictionary pages, with statistics and the
+    page index. Columns of different widths get pages that end at different rows. The file keeps its
+    Arrow schema."""
+    table = read_parquet_file(file_path).read()
+    with hfs.open(file_path, 'wb') as out:
+        pq.write_table(
+            table,
+            out,
+            row_group_size=table.num_rows,
+            data_page_size=data_page_size,
+            write_batch_size=1,
+            use_dictionary=False,
+            write_statistics=True,
+            write_page_index=True,
+            store_schema=True,
+            compression='zstd',
+        )
+    drop_checksum(file_path)
+
+
 def _varint(buf: bytes, pos: int) -> tuple:
     value = shift = 0
     while True:
