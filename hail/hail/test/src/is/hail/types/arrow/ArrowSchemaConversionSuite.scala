@@ -14,10 +14,35 @@ import scala.jdk.CollectionConverters._
 
 import java.nio.ByteBuffer
 
+import org.apache.arrow.memory.BufferAllocator
+import org.apache.arrow.vector.FieldVector
 import org.apache.arrow.vector.types.FloatingPointPrecision
-import org.apache.arrow.vector.types.pojo.{ArrowType, DictionaryEncoding, Field, FieldType, Schema}
+import org.apache.arrow.vector.types.pojo.{
+  ArrowType, DictionaryEncoding, ExtensionTypeRegistry, Field, FieldType, Schema,
+}
 import org.junit.jupiter.api.Test
 import org.scalacheck.Prop.forAll
+
+/** An extension type that is not Hail's class, standing in for the class another Hail jar on the
+  * same JVM would register under one of Hail's extension names.
+  */
+private class ForeignExtensionType(name: String, storage: ArrowType)
+    extends ArrowType.ExtensionType {
+  override def extensionName(): String = name
+
+  override def storageType(): ArrowType = storage
+
+  override def extensionEquals(other: ArrowType.ExtensionType): Boolean = other eq this
+
+  override def serialize(): String = "{}"
+
+  override def deserialize(storageType: ArrowType, serializedData: String): ArrowType =
+    new ForeignExtensionType(name, storageType)
+
+  override def getNewVector(name: String, fieldType: FieldType, allocator: BufferAllocator)
+    : FieldVector =
+    throw new UnsupportedOperationException
+}
 
 class ArrowSchemaConversionSuite {
 
@@ -120,9 +145,39 @@ class ArrowSchemaConversionSuite {
   def testRoundTripThroughIpcSchema(t: PType): Unit = {
     val schema = new Schema(FastSeq(toField(t)).asJava)
     val bytes = schema.serializeAsMessage()
+    // Nothing is registered with Arrow, so `read` has storage types and extension metadata where
+    // `schema` has extension types. Both serialize to the same message.
     val read = Schema.deserializeMessage(ByteBuffer.wrap(bytes))
-    assertEq(read, schema)
+    assertEq(read.serializeAsMessage().toSeq, bytes.toSeq)
     assertEq(fromField(read.getFields.get(0)), t)
+  }
+
+  // Hail jars that share a Query-on-Batch worker JVM share Arrow's static registry, so a type one
+  // jar registered would be what every other jar's schemas decode to.
+  @Test def testRegistersNoExtensionTypes(): Unit = {
+    roundTripTypes().foreach(t => fromField(toField(t)))
+    for (
+      name <- Seq(
+        "hail.call",
+        "hail.locus",
+        "hail.set",
+        "hail.interval",
+        "hail.tuple",
+        "arrow.variable_shape_tensor",
+      )
+    )
+      assert(ExtensionTypeRegistry.lookup(name) == null, name)
+  }
+
+  @Test def testForeignExtensionTypeRegisteredUnderHailName(): Unit = {
+    val foreign = new ForeignExtensionType("hail.call", new ArrowType.Int(32, true))
+    val bytes = new Schema(FastSeq(toField(PCanonicalCall(false))).asJava).serializeAsMessage()
+    ExtensionTypeRegistry.register(foreign)
+    try {
+      val read = Schema.deserializeMessage(ByteBuffer.wrap(bytes)).getFields.get(0)
+      assert(read.getType.isInstanceOf[ForeignExtensionType])
+      assertEq(fromField(read), PCanonicalCall(false))
+    } finally ExtensionTypeRegistry.unregister(foreign)
   }
 
   // Hail -> Arrow -> Hail is not the identity, since loci read back packed and dict keys read back
@@ -536,6 +591,60 @@ class ArrowSchemaConversionSuite {
   )
 
   @Test def testUnsupportedArrowFieldsDataProvider(): Unit = unsupportedArrowFields(): Unit
+
+  // A field as Arrow decodes it when no extension type is registered under its name.
+  private def decoded(
+    name: String,
+    t: ArrowType,
+    extensionName: String,
+    extensionMetadata: Option[String],
+  ): Field = {
+    val metadata = Map(ArrowType.ExtensionType.EXTENSION_METADATA_KEY_NAME -> extensionName) ++
+      extensionMetadata.map(ArrowType.ExtensionType.EXTENSION_METADATA_KEY_METADATA -> _)
+    new Field(name, new FieldType(true, t, null, metadata.asJava), FastSeq.empty[Field].asJava)
+  }
+
+  def invalidExtensionFields() = ArraySeq[(Field, String)](
+    decoded(
+      "x",
+      new ArrowType.Int(32, true),
+      "hail.call",
+      Some("{}"),
+    ) -> "missing or invalid 'encoding'",
+    decoded(
+      "x",
+      new ArrowType.Int(32, true),
+      "hail.call",
+      Some("not json"),
+    ) -> "metadata is not valid JSON",
+    decoded(
+      "x",
+      new ArrowType.Int(32, true),
+      "hail.call",
+      Some("[1]"),
+    ) -> "metadata is not a JSON object",
+    decoded("x", new ArrowType.Int(32, true), "hail.call", None) -> "metadata is not valid JSON",
+    decoded(
+      "x",
+      new ArrowType.Int(64, true),
+      "hail.call",
+      Some("""{"encoding":1}"""),
+    ) -> "expected storage type",
+    decoded(
+      "x",
+      new ArrowType.Int(64, true),
+      "hail.locus",
+      Some("""{"reference_genome":"small"}"""),
+    ) ->
+      "missing or invalid 'contigs'",
+    decoded("x", ArrowType.Utf8.INSTANCE, "hail.set", Some("{}")) -> "expected storage type",
+  )
+
+  @Test def testInvalidExtensionFieldsDataProvider(): Unit = invalidExtensionFields(): Unit
+
+  @ParameterizedTest("invalidExtensionFields")
+  def testInvalidExtensionField(f: Field, reason: String): Unit =
+    interceptFatal(s"field 'x' .* is not part of the columnar format: .*$reason")(fromField(f))
 
   @ParameterizedTest("unsupportedArrowFields")
   def testUnsupportedArrowField(f: Field): Unit =
