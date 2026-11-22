@@ -184,12 +184,13 @@ class ColumnarSchemaSuite {
     assertEq(actual, expected)
   }
 
-  @Test def testEveryTypeButRngStateIsSupported(): Unit = {
+  @Test def testEveryTypeButRngStateAndNonNumericNDArraysIsSupported(): Unit = {
     ColumnarSchema.checkSupported(
       "row",
       TStruct(
         "d" -> TDict(TString, TInt32),
         "nd" -> TNDArray(TFloat64, Nat(2)),
+        "ndb" -> TNDArray(TBoolean, Nat(1)),
         "l" -> TLocus(ReferenceGenome.builtinReferences()("GRCh37")),
         "c" -> TCall,
         "s" -> TSet(TInt32),
@@ -209,6 +210,19 @@ class ColumnarSchemaSuite {
         TStruct("a" -> TArray(TStruct("x" -> TInt32, "rng" -> TRNGState))),
       )
     }
+
+  @Test def testNDArrayOfNonNumericElementsIsRejectedWithItsPath(): Unit =
+    FastSeq(TStruct("x" -> TInt32), TTuple(TInt32), TStruct.empty, TInterval(TInt32), TCall)
+      .foreach { elementType =>
+        interceptFatal(
+          "row field 'a\\[\\]\\.nd' has type .*, which can't be stored: an ndarray's elements"
+        ) {
+          ColumnarSchema.checkSupported(
+            "row",
+            TStruct("a" -> TArray(TStruct("nd" -> TNDArray(elementType, Nat(1))))),
+          )
+        }
+      }
 
   @Test def testOnlyNonBuiltinReferenceGenomesAreListedByName(): Unit = {
     val grch37 = ReferenceGenome.builtinReferences()("GRCh37")

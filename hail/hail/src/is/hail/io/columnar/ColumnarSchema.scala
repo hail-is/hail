@@ -27,15 +27,28 @@ object ColumnarSchema {
   /** The Arrow field metadata key holding a field's Parquet field ID. */
   val FieldIdKey: String = "PARQUET:field_id"
 
-  /** Fails if any field of `t`, at any depth, holds RNG state, the one Hail type that can't be
-    * stored (spec section 5).
+  /** Fails if any field of `t`, at any depth, holds RNG state, or an ndarray whose elements aren't
+    * numeric or bool: the Hail types that can't be stored (spec sections 5 and 5.4).
     */
   def checkSupported(what: String, t: TStruct): Unit = {
     def check(path: String, t: Type): Unit = t match {
       case TRNGState => fatal(s"$what field '$path' has type $t, which can't be stored")
+      case t: TNDArray if !isTensorElement(t.elementType) =>
+        fatal(
+          s"$what field '$path' has type $t, which can't be stored: an ndarray's elements must " +
+            "be numeric or bool"
+        )
       case t => components(t).foreach { case (suffix, c) => check(path + suffix, c) }
     }
     t.fields.foreach(f => check(f.name, f.typ))
+  }
+
+  /** Whether `t` can be an element of Arrow's tensor extension types, whose readers require a
+    * fixed-width value type with no extension type: a struct or an extension's storage won't do.
+    */
+  private def isTensorElement(t: Type): Boolean = t match {
+    case TInt32 | TInt64 | TFloat32 | TFloat64 | TBoolean => true
+    case _ => false
   }
 
   /** The types `t` is directly made of, each with the suffix that extends a field's path to it. A
