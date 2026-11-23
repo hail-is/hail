@@ -59,7 +59,8 @@ async def developer_branch_status(wb: WatchedBranch, db: Database, frozen: bool)
         'deploy_state': wb.deploy_state,
         'deploy_batch_id': _deploy_batch_id(wb),
         'merge_candidate': merge_candidate,
-        'n_prs': len(prs),
+        # Upper-stack PRs too, so this matches the PR list
+        'n_prs': len(prs) + len(wb.stacked_prs),
         'last_update': last_update,
         'merge_paused_reason': wb.merge_paused_reason(frozen),
         'pending_merge': (
