@@ -11,7 +11,7 @@ import is.hail.expr.ir.defs.{
   InsertFields, MakeStruct, MakeTuple, Ref, Str, StreamAgg, StreamAggScan, StreamRange,
   TableAggregate, ToArray, ToStream,
 }
-import is.hail.expr.ir.lowering.{DArrayLowering, LowerTableIR, LoweringAnalyses}
+import is.hail.expr.ir.lowering.{DArrayLowering, LowerTableIR, LoweringContext}
 import is.hail.types.virtual._
 import is.hail.variant.Call2
 
@@ -1392,8 +1392,8 @@ class AggregatorsSuite {
       }(_ + _),
     )
 
-    val analyses = LoweringAnalyses.apply(myTableIR, ctx)
-    val myLoweredTableIR = LowerTableIR(myTableIR, DArrayLowering.All, ctx, analyses)
+    val myLoweredTableIR =
+      LowerTableIR(myTableIR, DArrayLowering.All, LoweringContext(ctx, myTableIR))
 
     assertEvalsTo(myLoweredTableIR, 4950)
   }

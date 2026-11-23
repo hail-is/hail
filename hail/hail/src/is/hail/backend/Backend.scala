@@ -3,7 +3,7 @@ package is.hail.backend
 import is.hail.backend.Backend.PartitionFn
 import is.hail.backend.spark.SparkBackend
 import is.hail.expr.ir.{Compiled, IR, SortField, TableIR, TableReader}
-import is.hail.expr.ir.lowering.{LoweringAnalyses, TableStage, TableStageDependency}
+import is.hail.expr.ir.lowering.{LoweringContext, TableStage, TableStageDependency}
 import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.types.RTable
 import is.hail.types.encoded.EType
@@ -91,20 +91,7 @@ abstract class Backend extends Closeable {
   ): TableReader =
     lowerDistributedSort(ctx, stage, sortFields, rt, None)
 
-  final def lowerDistributedSort(
-    ctx: ExecuteContext,
-    inputIR: TableIR,
-    sortFields: IndexedSeq[SortField],
-    rt: RTable,
-    nPartitions: Option[Int] = None,
-  ): TableReader = {
-    val analyses = LoweringAnalyses.apply(inputIR, ctx)
-    val inputStage = tableToTableStage(ctx, inputIR, analyses)
-    lowerDistributedSort(ctx, inputStage, sortFields, rt, nPartitions)
-  }
-
-  def tableToTableStage(ctx: ExecuteContext, inputIR: TableIR, analyses: LoweringAnalyses)
-    : TableStage
+  def tableToTableStage(lctx: LoweringContext, inputIR: TableIR): TableStage
 
   def execute(ctx: ExecuteContext, ir: IR): Either[Unit, (PTuple, Long)]
 

@@ -122,9 +122,9 @@ class LowerDistributedSortSuite {
     ctx.local(flags = ctx.flags + ("shuffle_cutoff_to_local_sort" -> "40")) { implicit ctx =>
       val lowerSorted =
         eval {
-          val analyses = LoweringAnalyses(tir, ctx)
-          val rt = analyses.requirednessAnalysis.lookup(tir).asInstanceOf[RTable]
-          val stage = LowerTableIR.applyTable(tir, DArrayLowering.All, ctx, analyses)
+          val lctx = LoweringContext(ctx, tir)
+          val rt = lctx.requiredness.lookup(tir).asInstanceOf[RTable]
+          val stage = LowerTableIR.applyTable(tir, DArrayLowering.All, lctx)
 
           LowerDistributedSort
             .distributedSort(ctx, stage, sortFields, rt)
@@ -137,8 +137,7 @@ class LowerDistributedSortSuite {
       val unsorted =
         eval {
           val ir = collect(tir)
-          val analyses = LoweringAnalyses(ir, ctx)
-          LowerTableIR.apply(ir, DArrayLowering.All, ctx, analyses)
+          LowerTableIR.apply(ir, DArrayLowering.All, LoweringContext(ctx, ir))
         }
           .asInstanceOf[Row](0)
           .asInstanceOf[IndexedSeq[Row]]
