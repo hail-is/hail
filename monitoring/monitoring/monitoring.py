@@ -19,6 +19,7 @@ from gear import (
     Database,
     SystemPermission,
     UserData,
+    check_csrf_token,
     json_response,
     setup_aiohttp_session,
     transaction,
@@ -486,7 +487,7 @@ async def openapi(request):
 
 
 def run():
-    app = web.Application()
+    app = web.Application(middlewares=[check_csrf_token])
     setup_aiohttp_session(app)
 
     setup_aiohttp_jinja2(app, 'monitoring')
