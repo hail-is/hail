@@ -158,15 +158,6 @@ object Binds {
   ): E[A] =
     e.empty.bind(EVAL, FastSeq(cname -> ctx, gname -> globals))
 
-  // TableAggregate's query
-  def tableAggregate[E[_]: Scopes, A](e: E[A], global: A, row: A): E[A] = {
-    import TableIR.{globalName, rowName}
-    e.empty
-      .create(AGG)
-      .bind(AGG, FastSeq(globalName -> global, rowName -> row))
-      .bind(EVAL, FastSeq(globalName -> global))
-  }
-
   // MatrixAggregate's query
   def matrixAggregate[E[_]: Scopes, A](e: E[A], global: A, sa: A, va: A, g: A): E[A] = {
     import MatrixIR.{colName, entryName, globalName, rowName}
@@ -184,8 +175,14 @@ object Binds {
   def tableGen[E[_]: Scopes, A](e: E[A], cname: Name, gname: Name, ctx: A, globals: A): E[A] =
     e.empty.bind(EVAL, FastSeq(cname -> ctx, gname -> globals))
 
-  def tableMapGlobals[E[_]: Scopes, A](e: E[A], global: A, row: A): E[A] =
-    tableAggregate(e, global, row)
+  // TableMapGlobals' newGlobals
+  def tableMapGlobals[E[_]: Scopes, A](e: E[A], global: A, row: A): E[A] = {
+    import TableIR.{globalName, rowName}
+    e.empty
+      .create(AGG)
+      .bind(AGG, FastSeq(globalName -> global, rowName -> row))
+      .bind(EVAL, FastSeq(globalName -> global))
+  }
 
   // TableMapRows' newRow
   def tableMapRows[E[_]: Scopes, A](e: E[A], global: A, row: A): E[A] = {

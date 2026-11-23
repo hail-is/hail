@@ -2,6 +2,7 @@ import collections
 import itertools
 import pprint
 import shutil
+import warnings
 from typing import Callable, ClassVar, Dict, List, Optional, Sequence, Union, overload
 
 import numpy as np
@@ -1900,16 +1901,26 @@ class Table(BaseTable):
         any
             Aggregated value dependent on `expr`.
         """
-        expr = to_expr(expr)
-        base, _ = self._process_joins(expr)
-        analyze('Table.aggregate', expr, self._global_indices, {self._row_axis})
-
-        agg_ir = ir.TableAggregate(base._tir, expr._ir)
+        agg_expr = self._aggregate(to_expr(expr))
 
         if _localize:
-            return Env.backend().execute(hl.ir.MakeTuple([agg_ir]))[0]
+            return hl.eval(agg_expr)
 
-        return construct_expr(agg_ir, expr.dtype)
+        warnings.warn(
+            "Table.aggregate(expr, _localize=False) is deprecated; aggregate into a global\n"
+            "field instead.\n"
+            "    # to use the value on this table, as `ht.name`:\n"
+            "    ht = ht.annotate_globals(name=expr)\n"
+            "    # to use the value on another table:\n"
+            "    ht.select_globals(name=expr).index_globals().name",
+            DeprecationWarning,
+            stacklevel=4,
+        )
+        return agg_expr
+
+    def _aggregate(self, expr, caller='Table.aggregate') -> Expression:
+        globals_table = self._select_globals(caller, hl.struct(__result=expr))
+        return globals_table.index_globals()['__result']
 
     @typecheck_method(
         output=str,
@@ -4000,21 +4011,16 @@ class Table(BaseTable):
                 "  all table fields found in one of 'row_key', 'col_key', 'row_fields', 'col_fields'"
             )
 
-        col_data = hl.rbind(
-            hl.array(
-                ht.aggregate(
-                    hl.agg.group_by(ht.row.select(*col_key), hl.agg.take(ht.row.select(*col_fields), 1)[0]),
-                    _localize=False,
-                )
-            ),
-            lambda data: hl.struct(
-                data=data, key_to_index=hl.dict(hl.range(0, hl.len(data)).map(lambda i: (data[i][0], i)))
-            ),
-        )
-
         col_data_uid = Env.get_uid()
+        ht = ht.annotate_globals(**{
+            col_data_uid: hl.rbind(
+                hl.array(hl.agg.group_by(ht.row.select(*col_key), hl.agg.take(ht.row.select(*col_fields), 1)[0])),
+                lambda data: hl.struct(
+                    data=data, key_to_index=hl.dict(hl.range(0, hl.len(data)).map(lambda i: (data[i][0], i)))
+                ),
+            )
+        })
         ht = ht.drop(*col_fields)
-        ht = ht.annotate_globals(**{col_data_uid: col_data})
 
         entries_uid = Env.get_uid()
         ht = (

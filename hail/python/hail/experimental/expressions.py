@@ -10,14 +10,13 @@ def write_expression(expr, path, overwrite=False):
     """Write an Expression.
 
     In the same vein as Python's pickle, write out an expression
-    that does not have a source (such as one that comes from
-    Table.aggregate with _localize=False).
+    (such as a table's global field).
 
     Example
     -------
     >>> ht = hl.utils.range_table(100).annotate(x=hl.rand_norm())
-    >>> mean_norm = ht.aggregate(hl.agg.mean(ht.x), _localize=False)
-    >>> mean_norm
+    >>> ht = ht.annotate_globals(mean_norm=hl.agg.mean(ht.x))
+    >>> mean_norm = ht.mean_norm
     >>> hl.eval(mean_norm)
     >>> hl.experimental.write_expression(mean_norm, 'output/expression.he')
 

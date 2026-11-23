@@ -3238,7 +3238,10 @@ class IRSuite {
 
     val table = TableRange(3, 2)
     val count = ApplyAggOp(Count())()
-    assertEvalsTo(TableAggregate(table, MakeStruct(IndexedSeq("foo" -> count))), RowSeq(3L))
+    assertEvalsTo(
+      table.aggregate((_, _) => makestruct("foo" -> count)),
+      RowSeq(3L),
+    )
   }
 
   @Test def testMatrixAggregate(implicit ctx: ExecuteContext): Unit = {
@@ -3610,8 +3613,8 @@ class IRSuite {
       TableCount(table),
       MatrixCount(mt),
       TableGetGlobals(table),
+      table.aggregate((_, _) => makestruct("foo" -> count)),
       TableCollect(TableKeyBy(table, FastSeq())),
-      TableAggregate(table, MakeStruct(IndexedSeq("foo" -> count))),
       TableToValueApply(table, ForceCountTable()),
       MatrixToValueApply(mt, ForceCountMatrixTable()),
       TableWrite(table, TableNativeWriter("/path/to/data.ht")),
@@ -4098,14 +4101,13 @@ class IRSuite {
   @Test def testAggLet(implicit ctx: ExecuteContext): Unit = {
     implicit val execStrats = ExecStrategy.interpretOnly
     val t = TableRange(2, 2)
-    val ir = TableAggregate(
-      t,
-      aggBindIR(GetField(Ref(TableIR.rowName, t.typ.rowType), "idx").toL + I64(1)) { a =>
+    val ir = t.aggregate { (_, row) =>
+      aggBindIR(row.get("idx").toL + I64(1)) { a =>
         aggBindIR(a * I64(2))(b => ApplyAggOp(Max())(b * b)) + aggBindIR(a * I64(3)) { c =>
           ApplyAggOp(Sum())(c * c)
         }
-      },
-    )
+      }
+    }
 
     assertEvalsTo(ir, 61L)
   }
@@ -4122,10 +4124,7 @@ class IRSuite {
         FastSeq("n" -> TableCount(TableRange(5, 1))),
       ),
     )
-    val ir = TableAggregate(
-      mapped,
-      ApplyAggOp(Sum())(GetField(Ref(TableIR.rowName, mapped.typ.rowType), "n")),
-    )
+    val ir = mapped.aggregate((_, row) => ApplyAggOp(Sum())(row.get("n")))
     assertEvalsTo(ir, 15L)
   }
 

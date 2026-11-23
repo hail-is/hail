@@ -34,7 +34,6 @@ object ChildEnv {
       case Family.Collection => getCollection(e, ir, cs, i)(v)
       case Family.Agg => getAgg(e, ir, cs, i)(v)
       case Family.NDArray => getNDArray(e, ir, cs, i)(v)
-      case Family.RelationalToValue => getRelationalToValue(e, ir, cs, i)(v)
       case Family.Table => getTable(e, ir, cs, i)(v)
       case Family.Matrix => getMatrix(e, ir, cs, i)(v)
       case Family.BlockMatrix => getBlockMatrix(e, ir, i)(v)
@@ -181,19 +180,6 @@ object ChildEnv {
       case Tag.NDArrayMap2 =>
         val x = ir.asInstanceOf[NDArrayMap2]
         ndArrayMap2(e, i, x.lName, x.rName, cs)(v)
-      case _ => e
-    }
-
-  private def getRelationalToValue[E[_]: Scopes, A](
-    e: E[A],
-    ir: BaseIR,
-    cs: IndexedSeq[BaseIR],
-    i: Int,
-  )(
-    v: (Name, Type) => A
-  ): E[A] =
-    (ir.tag.toInt: @switch) match {
-      case Tag.TableAggregate => tableAggregate(e, i, cs)(v)
       case _ => e
     }
 
@@ -777,19 +763,6 @@ object ChildEnv {
         v(gname, typ(children(1))),
       )
     else e
-
-  def tableAggregate[E[_]: Scopes, A](
-    e: E[A],
-    i: Int,
-    children: IndexedSeq[BaseIR],
-  )(
-    v: (Name, Type) => A
-  ): E[A] =
-    if (i == 0) e.empty
-    else {
-      val t = tableType(children(0))
-      Binds.tableAggregate(e, tableGlobal(v, t), tableRow(v, t))
-    }
 
   def matrixAggregate[E[_]: Scopes, A](
     e: E[A],

@@ -487,16 +487,15 @@ class Aggregators2Suite {
 
     // test inside of aggregation
     val tr = TableRange(10000, 5)
-    val ta = TableAggregate(
-      tr,
+    val ta = tr.aggregate((_, row) =>
       ApplyAggOp(
         FastSeq(19),
         FastSeq(
-          invoke("str", TString, GetField(Ref(TableIR.rowName, tr.typ.rowType), "idx")),
-          I32(9999) - GetField(Ref(TableIR.rowName, tr.typ.rowType), "idx"),
+          row.get("idx").invoke("str", TString),
+          I32(9999) - row.get("idx"),
         ),
         TakeBy(),
-      ),
+      )
     )
 
     assertEvalsTo(ta, ArraySeq.tabulate(19)(i => (9999 - i).toString))(

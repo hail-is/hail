@@ -2,13 +2,12 @@ package is.hail.rvd
 
 import is.hail.annotations._
 import is.hail.asm4s.HailClassLoader
-import is.hail.backend.{ExecuteContext, HailTaskContext}
+import is.hail.backend.ExecuteContext
 import is.hail.backend.spark.{SparkBackend, SparkTaskContext}
 import is.hail.collection.FastSeq
 import is.hail.collection.implicits._
 import is.hail.expr.ir.InferPType
 import is.hail.expr.ir.PruneDeadFields.isSupertype
-import is.hail.expr.ir.agg.AggExecuteContextExtensions
 import is.hail.io._
 import is.hail.io.index.IndexWriter
 import is.hail.rvd.RVD.RichIteratorLong
@@ -701,72 +700,6 @@ class RVD(
     val newPartitioner = partitioner.copy(rangeBounds = keep.map(partitioner.rangeBounds))
 
     RVD(typ, newPartitioner, crdd.subsetPartitions(keep))
-  }
-
-  def combine[U: ClassTag, T: ClassTag](
-    execCtx: ExecuteContext,
-    mkZero: (HailClassLoader, HailTaskContext) => T,
-    itF: (HailClassLoader, Int, RVDContext, Iterator[Long]) => T,
-    deserialize: (HailClassLoader, HailTaskContext) => (U => T),
-    serialize: (HailClassLoader, HailTaskContext, T) => U,
-    combOp: (HailClassLoader, HailTaskContext, T, T) => T,
-    commutative: Boolean,
-    tree: Boolean,
-  ): T = {
-    var reduced = crdd.cmapPartitionsWithIndex[U] { (i, hcl, ctx, it) =>
-      Iterator.single(
-        serialize(
-          hcl,
-          SparkTaskContext.get(),
-          itF(hcl, i, ctx, it),
-        )
-      )
-    }
-
-    if (tree) {
-      val depth = treeAggDepth(getNumPartitions, execCtx.branchingFactor)
-      val scale = math.max(
-        math.ceil(math.pow(getNumPartitions.toDouble, 1.0 / depth)).toInt,
-        2,
-      )
-
-      var i = 0
-      while (reduced.getNumPartitions > scale) {
-        val nParts = reduced.getNumPartitions
-        val newNParts = nParts / scale
-        logger.info(s"starting tree aggregate stage $i ($nParts => $newNParts partitions)")
-        reduced = reduced
-          .mapPartitionsWithIndex { (i, it) =>
-            it.map(x => (itemPartition(i, nParts, newNParts), (i, x)))
-          }
-          .partitionBy(new Partitioner {
-            override def getPartition(key: Any): Int = key.asInstanceOf[Int]
-            override def numPartitions: Int = newNParts
-          })
-          .cmapPartitions { (hcl, _, it) =>
-            val htc = SparkTaskContext.get()
-            var acc = mkZero(hcl, htc)
-            it.foreach { case (_, (_, v)) =>
-              acc = combOp(hcl, htc, acc, deserialize(hcl, htc)(v))
-            }
-            Iterator.single(serialize(hcl, htc, acc))
-          }
-        i += 1
-      }
-    }
-
-    val ac = Combiner(
-      mkZero(execCtx.theHailClassLoader, execCtx.taskContext),
-      (acc1: T, acc2: T) => combOp(execCtx.theHailClassLoader, execCtx.taskContext, acc1, acc2),
-      commutative,
-      true,
-    )
-    sparkContext.runJob(
-      reduced.run,
-      (it: Iterator[U]) => singletonElement(it),
-      (i, x: U) => ac.combine(i, deserialize(execCtx.theHailClassLoader, execCtx.taskContext)(x)),
-    )
-    ac.result()
   }
 
   def count(): Long =

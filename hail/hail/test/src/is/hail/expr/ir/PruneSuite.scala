@@ -1262,13 +1262,6 @@ class PruneSuite {
       ArraySeq(mat.typ),
     )
 
-  @Test def testTableAggregateMemo(implicit ctx: ExecuteContext): Unit =
-    checkMemo(
-      TableAggregate(tab, tableRefBoolean(tab.typ, "global.g1")),
-      TBoolean,
-      ArraySeq(subsetTable(tab.typ, "global.g1"), null),
-    )
-
   @Test def testMatrixAggregateMemo(implicit ctx: ExecuteContext): Unit =
     checkMemo(
       MatrixAggregate(mat, matrixRefBoolean(mat.typ, "global.g1")),
@@ -1970,18 +1963,6 @@ class PruneSuite {
           "test",
           NA(TString),
         )((ctx, glob) => MakeTuple.ordered(FastSeq(ctx, glob)))
-      },
-    )
-  }
-
-  @Test def testTableAggregateRebuild(implicit ctx: ExecuteContext): Unit = {
-    val ta = TableAggregate(tr, ApplyAggOp(PrevNonnull())(tableRefBoolean(tr.typ, "row.2")))
-    checkRebuild(
-      ta,
-      TBoolean,
-      (_: BaseIR, r: BaseIR) => {
-        val ir = r.asInstanceOf[TableAggregate]
-        ir.child.typ == subsetTable(tr.typ, "row.2")
       },
     )
   }

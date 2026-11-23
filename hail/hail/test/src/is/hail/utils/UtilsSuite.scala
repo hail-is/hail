@@ -158,41 +158,6 @@ class UtilsSuite {
   @Test def toMapUniqueSmallDupes(): Unit =
     assertEq(toMapIfUnique(Seq(1 -> 2, 6 -> 6, 10 -> 2))(x => x % 5), Left(Map(1 -> Seq(1, 6))))
 
-  @Test def testItemPartition(): Unit = {
-    def test(n: Int, k: Int): Unit = {
-      val a = new Array[Int](k)
-      var prevj = 0
-      for (i <- 0 until n) {
-        val j = itemPartition(i, n, k)
-
-        assert(j >= 0)
-        assert(j < k)
-        a(j) += 1
-
-        assert(prevj <= j)
-        prevj = j
-      }
-      val p = partition(n, k)
-      assert(a sameElements p)
-    }
-
-    test(0, 0)
-    test(0, 4)
-    test(2, 4)
-    test(2, 5)
-    test(12, 4)
-    test(12, 5)
-  }
-
-  @Test def testTreeAggDepth(): Unit = {
-    assertEq(treeAggDepth(20, 20), 1)
-    assertEq(treeAggDepth(20, 19), 2)
-    assertEq(treeAggDepth(399, 20), 2)
-    assertEq(treeAggDepth(400, 20), 2)
-    assertEq(treeAggDepth(401, 20), 3)
-    assertEq(treeAggDepth(0, 20), 1)
-  }
-
   @Test def testMerge(): Unit = {
     val lt: (Int, Int) => Boolean =
       _ < _

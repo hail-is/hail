@@ -4832,9 +4832,7 @@ def ld_prune(call_expr, r2=0.2, bp_window_size=1000000, memory_per_core=256, kee
     else:
         fields = ['locus']
 
-    info = locally_pruned_table.aggregate(
-        hl.agg.collect(locally_pruned_table.row.select('idx', *fields)), _localize=False
-    )
+    info = locally_pruned_table._aggregate(hl.agg.collect(locally_pruned_table.row.select('idx', *fields)))
     info = hl.sorted(info, key=lambda x: x.idx)
 
     entries = entries.annotate_globals(info=info)
@@ -4865,9 +4863,7 @@ def ld_prune(call_expr, r2=0.2, bp_window_size=1000000, memory_per_core=256, kee
     )
 
     locally_pruned_table = locally_pruned_table.annotate_globals(
-        variants_to_remove=variants_to_remove.aggregate(
-            hl.agg.collect_as_set(variants_to_remove.node.idx), _localize=False
-        )
+        variants_to_remove=variants_to_remove._aggregate(hl.agg.collect_as_set(variants_to_remove.node.idx))
     )
     return (
         locally_pruned_table.filter(

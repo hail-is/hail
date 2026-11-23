@@ -1160,9 +1160,6 @@ class Pretty(
         case _: Switch =>
           if (i > 0) some()
           else None
-        case _: TableAggregate =>
-          if (i == 1) tableBlockArgs
-          else None
         case _: TableAggregateByKey =>
           if (i == 1) tableBlockArgs
           else None

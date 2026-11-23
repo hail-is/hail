@@ -20,6 +20,20 @@ class ExistsSuite {
     assert(!ContainsAgg(ir))
   }
 
+  @Test def testContainsNonCommutativeAggInStreamAggStream(): Unit = {
+    val ir =
+      ApplyAggOp(Collect())(0)
+        .stream
+        .streamAgg(_ => ApplyAggOp(Count())())
+
+    assert(ContainsNonCommutativeAgg(ir))
+  }
+
+  @Test def testContainsNonCommutativeAggNotInStreamAggQuery(): Unit = {
+    val ir = StreamRange(0, 10, 1).streamAgg(ApplyAggOp(Collect())(_))
+    assert(!ContainsNonCommutativeAgg(ir))
+  }
+
   @Test def testContainsScanInStreamAggScanStream(): Unit = {
     val ir =
       ApplyScanOp(Collect())(0)

@@ -1603,7 +1603,7 @@ def qq(
         assert isinstance(source, MatrixTable)
         ht = source.select_rows(p_value=pvals, **hover_fields, **label_by_col).rows()
     ht = ht.key_by().select('p_value', *hover_fields, *label_by_col).key_by('p_value')
-    n = ht.aggregate(aggregators.count(), _localize=False)
+    n = ht._aggregate(aggregators.count())
     ht = ht.annotate(observed_p=-hail.log10(ht['p_value']), expected_p=-hail.log10((hail.scan.count() + 1) / n))
     if 'p' not in hover_fields:
         hover_fields['p_value'] = ht['p_value']

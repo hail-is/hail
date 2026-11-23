@@ -43,7 +43,7 @@ object NormalizeNames {
       true
     case _: MatrixIR | _: TableIR =>
       false
-    case _: TableAggregate | _: MatrixAggregate =>
+    case _: MatrixAggregate =>
       false
     case _: IR | _: BlockMatrixIR =>
       true

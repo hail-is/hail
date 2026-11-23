@@ -1,10 +1,9 @@
 package is.hail.expr.ir
 
-import is.hail.expr.ir.defs.{MatrixAggregate, TableAggregate}
+import is.hail.expr.ir.defs.MatrixAggregate
 
 object MapIR {
   def apply(f: IR => IR)(ir: IR): IR = ir match {
-    case ta: TableAggregate => ta
     case ma: MatrixAggregate => ma
     case _ => ir.mapChildren {
         case c: IR => f(c)

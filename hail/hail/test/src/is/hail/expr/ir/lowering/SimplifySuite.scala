@@ -22,7 +22,7 @@ import org.scalactic.{Equivalence, Prettifier}
 import org.scalatest.matchers.{MatchResult, Matcher}
 import org.scalatest.matchers.dsl.MatcherFactory1
 import org.scalatest.matchers.must.Matchers.not
-import org.scalatest.matchers.should.Matchers.{a, convertToAnyShouldWrapper, matchPattern}
+import org.scalatest.matchers.should.Matchers.{a, convertToAnyShouldWrapper}
 
 class SimplifySuite {
 
@@ -78,7 +78,7 @@ class SimplifySuite {
         simplifiableIR,
       )
 
-    assertEvalsTo(TableAggregate(checksRepartitioningIR, IRAggCount), 1L)
+    assertEvalsTo(checksRepartitioningIR.aggregate((_, _) => IRAggCount), 1L)
   }
 
   lazy val base = Literal(TStruct("1" -> TInt32, "2" -> TInt32), RowSeq(1, 2))
@@ -371,15 +371,6 @@ class SimplifySuite {
     val tir = MatrixColsTable(mir)
 
     tir should simplifyTo(tir)
-  }
-
-  @Test def testTableAggregateKeepsOrderUnderAggFold(implicit ctx: ExecuteContext): Unit = {
-    val ordered = TableOrderBy(TableRange(10, 3), FastSeq(SortField("idx", Descending)))
-    val idx = GetField(Ref(TableIR.rowName, ordered.typ.rowType), "idx")
-    val query = aggFoldIR(I32(0))(acc => acc * I32(2) + idx)((l, r) => l * I32(2) + r)
-    Simplify(ctx, TableAggregate(ordered, query)) should matchPattern {
-      case TableAggregate(_: TableOrderBy, _) =>
-    }
   }
 
   @Test def testFilterColsPushesThroughMapEntries(implicit ctx: ExecuteContext): Unit = {
@@ -775,9 +766,69 @@ class SimplifySuite {
   @Test def testTableGetGlobalsOfAggregatingTableMapGlobals(implicit ctx: ExecuteContext): Unit = {
     val table = TableRange(10, 3)
     def newGlobals = makestruct("n" -> ApplyAggOp(Count())())
-    // Simplify also drops the key under a TableAggregate
+    // Simplify also drops the key under an aggregating TableMapGlobals
     table.mapGlobals((_, _) => newGlobals).getGlobals should
-      simplifyTo(table.keyBy(FastSeq()).aggregate((_, _) => newGlobals))
+      simplifyTo(table.keyBy(FastSeq()).mapGlobals((_, _) => newGlobals).getGlobals)
+  }
+
+  def testAggregateKeyAndOrder() = {
+    val keyed: TableIR = TableRange(10, 3)
+    val unkeyed: TableIR = keyed.keyBy(FastSeq())
+    def descending(t: TableIR): TableIR = TableOrderBy(t, FastSeq(SortField("idx", Descending)))
+
+    def count(t: TableIR): IR =
+      t.aggregate((_, _) => ApplyAggOp(Count())())
+    def collect(t: TableIR): IR =
+      t.aggregate((_, row) => ApplyAggOp(Collect())(row.get("idx")))
+    def fold(t: TableIR): IR =
+      t.aggregate((_, row) =>
+        aggFoldIR(I32(0))(acc => acc * I32(2) + row.get("idx"))((l, r) => l * I32(2) + r)
+      )
+    def countAndStreamAgg(t: TableIR): IR =
+      t.aggregate((_, _) =>
+        makestruct(
+          "n" -> ApplyAggOp(Count())(),
+          "xs" -> StreamRange(0, 3, 1).streamAgg(ApplyAggOp(Collect())(_)),
+        )
+      )
+
+    Seq(
+      count(descending(keyed)) -> count(unkeyed),
+      count(descending(unkeyed)) -> count(unkeyed),
+      collect(keyed) -> collect(keyed),
+      fold(descending(keyed)) -> fold(descending(keyed)),
+      countAndStreamAgg(keyed) -> countAndStreamAgg(unkeyed),
+    )
+  }
+
+  @ParameterizedTest
+  def testAggregateKeyAndOrder(input: IR, expected: IR)(implicit ctx: ExecuteContext): Unit =
+    input should simplifyTo(expected)
+
+  @Test def testGlobalsAggFusesMapRows(implicit ctx: ExecuteContext): Unit = {
+    def addX(row: Atom): IR = makestruct("idx" -> row.get("idx"), "x" -> (row.get("idx") + 1))
+    def sumX(row: Atom): IR = makestruct("sum" -> ApplyAggOp(Sum())(row.get("x").toL))
+
+    val unkeyed = TableRange(10, 3).keyBy(FastSeq())
+    val mapped = unkeyed.mapRows((_, row) => addX(row)).mapGlobals((_, row) => sumX(row)).getGlobals
+    mapped should
+      simplifyTo(unkeyed.mapGlobals((_, row) => aggBindIR(addX(row))(sumX)).getGlobals)
+    assertEvalsTo(mapped.get("sum"), 55L)
+
+    val keyed = TableRange(10, 3)
+    val keyedMapped =
+      keyed.mapRows((_, row) => addX(row)).mapGlobals((_, row) => sumX(row)).getGlobals
+    keyedMapped should simplifyTo(
+      keyed.keyBy(FastSeq()).mapGlobals((_, row) => aggBindIR(addX(row))(sumX)).getGlobals
+    )
+    assertEvalsTo(keyedMapped.get("sum"), 55L)
+
+    val withScan = unkeyed
+      .mapRows((_, _) => makestruct("x" -> ApplyScanOp(Count())()))
+      .mapGlobals((_, row) => makestruct("sum" -> ApplyAggOp(Sum())(row.get("x"))))
+      .getGlobals
+    withScan should simplifyTo(withScan)
+    assertEvalsTo(withScan.get("sum"), 45L)
   }
 
   @Test def testNestedFilterIntervals(implicit ctx: ExecuteContext): Unit = {

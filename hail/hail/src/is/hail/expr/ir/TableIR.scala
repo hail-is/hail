@@ -123,7 +123,7 @@ final class TableIROps(val tir: TableIR) extends AnyVal {
       .toDict
 
   def aggregate(f: (Atom, Atom) => IR): IR =
-    TableAggregate(tir, f(global, row))
+    mapGlobals((g, r) => makestruct("__result" -> f(g, r))).getGlobals.get("__result")
 }
 
 object TableLiteral {

@@ -129,16 +129,6 @@ package object utils extends ErrorHandling with Logging {
 
   def triangle(n: Int): Int = (n * (n + 1)) / 2
 
-  def treeAggDepth(nPartitions: Int, branchingFactor: Int): Int = {
-    require(nPartitions >= 0)
-    require(branchingFactor > 0)
-
-    if (nPartitions == 0)
-      return 1
-
-    math.ceil(math.log(nPartitions.toDouble) / math.log(branchingFactor.toDouble)).toInt
-  }
-
   def simpleAssert(p: Boolean): Unit =
     if (!p) throw new AssertionError
 
@@ -527,25 +517,6 @@ package object utils extends ErrorHandling with Logging {
     val x = it.next()
     assert(!it.hasNext)
     x
-  }
-
-  // return partition of the ith item
-  def itemPartition(i: Int, n: Int, k: Int): Int = {
-    assert(n >= 0)
-    assert(k > 0)
-    assert(i >= 0 && i < n)
-    val minItemsPerPartition = n / k
-    val r = n % k
-    if (r == 0)
-      i / minItemsPerPartition
-    else {
-      val maxItemsPerPartition = minItemsPerPartition + 1
-      val crossover = maxItemsPerPartition * r
-      if (i < crossover)
-        i / maxItemsPerPartition
-      else
-        r + ((i - crossover) / minItemsPerPartition)
-    }
   }
 
   def partition(n: Int, k: Int): IndexedSeq[Int] = {

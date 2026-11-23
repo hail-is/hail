@@ -52,7 +52,7 @@ object LowerMatrixIR extends Logging {
   //   MatrixMapRows: aggs (over the row's entries) stay where they are; the body is wrapped in
   //     a StreamAgg over the row's entries. That StreamAgg has no scan scope, so scans (over
   //     earlier rows) are lifted out of it, to the top of the TableMapRows body.
-  //   MatrixMapCols: aggs (over each col's entries) are lifted into RunAgg, a TableAggregate
+  //   MatrixMapCols: aggs (over each col's entries) are lifted into RunAgg, a TableMapGlobals
   //     over all rows that computes every col's aggs in one pass. Scans (over earlier cols)
   //     are lifted into RunScan, a StreamAggScan over the cols array. Both run once, before
   //     the map over cols.
@@ -378,7 +378,7 @@ object LowerMatrixIR extends Logging {
               case StreamAggScan(a, name, query) =>
                 StreamAggScan(lift(a, extendEnv(env, ir, 0), builder), name, query)
 
-              case _: TableAggregate | _: MatrixAggregate =>
+              case _: MatrixAggregate =>
                 ir
 
               case _ =>
@@ -612,7 +612,7 @@ object LowerMatrixIR extends Logging {
           case StreamAggScan(a, name, query) =>
             StreamAggScan(lift(a, extendEnv(env, ir, 0), scanBindings, aggBindings), name, query)
 
-          case _: TableAggregate | _: MatrixAggregate =>
+          case _: MatrixAggregate =>
             ir
 
           case _ =>

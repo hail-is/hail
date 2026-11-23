@@ -8,10 +8,10 @@ import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
 import is.hail.expr.ir.defs.{
   AggFilter, AggGroupBy, ApplyAggOp, ApplyBinaryPrimOp, ApplyScanOp, ArrayRef, GetField, I32,
-  InsertFields, MakeStruct, MakeTuple, Ref, Str, StreamAgg, StreamAggScan, StreamRange,
-  TableAggregate, ToArray, ToStream,
+  InsertFields, MakeStruct, MakeTuple, Ref, Str, StreamAgg, StreamAggScan, StreamRange, ToArray,
+  ToStream,
 }
-import is.hail.expr.ir.lowering.{DArrayLowering, LowerTableIR, LoweringContext}
+import is.hail.expr.ir.lowering.{DArrayLowering, LowerToCDA, LoweringContext}
 import is.hail.types.virtual._
 import is.hail.variant.Call2
 
@@ -1385,15 +1385,12 @@ class AggregatorsSuite {
     )(foo => aggFoldIR(I32(0))(_ + GetField(foo, "idx"))(_ + _))
     assertEvalsTo(myIR, 4950)
 
-    val myTableIR = TableAggregate(
-      TableRange(100, 5),
-      aggFoldIR(I32(0)) { bar =>
-        bar + GetField(Ref(TableIR.rowName, TStruct("idx" -> TInt32)), "idx")
-      }(_ + _),
-    )
+    val myTableIR = TableRange(100, 5).aggregate { (_, row) =>
+      aggFoldIR(I32(0))(bar => bar + row.get("idx"))(_ + _)
+    }
 
     val myLoweredTableIR =
-      LowerTableIR(myTableIR, DArrayLowering.All, LoweringContext(ctx, myTableIR))
+      LowerToCDA.lower(myTableIR, DArrayLowering.All, LoweringContext(ctx, myTableIR))
 
     assertEvalsTo(myLoweredTableIR, 4950)
   }
@@ -1456,15 +1453,14 @@ class AggregatorsSuite {
         InsertFields(Ref(TableIR.rowName, tir.typ.rowType), FastSeq("aStr" -> Str("foo"))),
       )
     tir = TableMapGlobals(tir, MakeStruct(FastSeq("n" -> I32(5))))
-    val x = TableAggregate(
-      tir,
-      bindIR(GetField(Ref(TableIR.globalName, tir.typ.globalType), "n")) { n =>
+    val x = tir.aggregate { (global, row) =>
+      global.get("n").bind { n =>
         MakeTuple.ordered(FastSeq(
           n,
-          ApplyAggOp(Take(), n)(GetField(Ref(TableIR.rowName, tir.typ.rowType), "idx")),
+          ApplyAggOp(Take(), n)(row.get("idx")),
         ))
-      },
-    )
+      }
+    }
 
     assertEvalsTo(
       x,

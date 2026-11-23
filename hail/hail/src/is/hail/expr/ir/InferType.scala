@@ -275,8 +275,6 @@ object InferType {
         fd
       case TableCount(_) => TInt64
       case MatrixCount(_) => TTuple(TInt64, TInt32)
-      case TableAggregate(_, query) =>
-        query.typ
       case MatrixAggregate(_, query) =>
         query.typ
       case _: TableWrite => TVoid

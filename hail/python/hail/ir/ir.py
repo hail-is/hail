@@ -3317,46 +3317,6 @@ class TableCollect(IR):
         return tstruct(**{'rows': tarray(self.child.typ.row_type), 'global': self.child.typ.global_type})
 
 
-class TableAggregate(IR):
-    @typecheck_method(child=TableIR, query=IR)
-    def __init__(self, child, query):
-        if query.uses_randomness:
-            child = child.handle_randomness(default_row_uid)
-            uid = GetField(Ref('row', child.typ.row_type), default_row_uid)
-            if query.uses_value_randomness:
-                query = Let('__rng_state', RNGStateLiteral(), query)
-            if query.uses_agg_randomness(is_scan=False):
-                query = AggLet('__rng_state', RNGSplit(RNGStateLiteral(), uid), query, is_scan=False)
-        else:
-            child = child.handle_randomness(None)
-        super().__init__(child, query)
-        self.child = child
-        self.query = query
-
-    @typecheck_method(child=TableIR, query=IR)
-    def copy(self, child, query):
-        return TableAggregate(child, query)
-
-    def _compute_type(self, env, agg_env, deep_typecheck):
-        self.child.compute_type(deep_typecheck)
-        self.query.compute_type(self.child.typ.global_env(), self.child.typ.row_env(), deep_typecheck)
-        return self.query.typ
-
-    def renderable_new_block(self, i: int):
-        return i == 1
-
-    def renderable_bindings(self, i, default_value=None):
-        if i == 1:
-            env = self.child.typ.global_env(default_value)
-            env[BaseIR.agg_capability] = default_value
-            return env
-        else:
-            return {}
-
-    def renderable_agg_bindings(self, i, default_value=None):
-        return self.child.typ.row_env(default_value) if i == 1 else {}
-
-
 class MatrixCount(IR):
     @typecheck_method(child=MatrixIR)
     def __init__(self, child):

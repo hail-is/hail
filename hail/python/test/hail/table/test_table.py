@@ -1604,8 +1604,18 @@ class Tests(unittest.TestCase):
 
     def test_aggregate_localize_false(self):
         ht = hl.utils.range_table(10)
-        ht = ht.annotate(y=ht.idx + ht.aggregate(hl.agg.max(ht.idx), _localize=False))
+        with pytest.warns(DeprecationWarning, match='annotate_globals') as record:
+            max_idx = ht.aggregate(hl.agg.max(ht.idx), _localize=False)
+        assert record[0].filename == __file__
+        assert max_idx._ir.base_search(lambda x: isinstance(x, ir.TableGetGlobals))
+        assert max_idx._ir.base_search(lambda x: isinstance(x, ir.TableMapGlobals))
+        ht = ht.annotate(y=ht.idx + max_idx)
         assert ht.y.collect() == [x + 9 for x in range(10)]
+
+        with pytest.warns(DeprecationWarning, match='annotate_globals') as pos_record:
+            min_idx = ht.aggregate(hl.agg.min(ht.idx), False)
+        assert pos_record[0].filename == __file__
+        assert hl.eval(min_idx) == 0
 
     def test_collect_localize_false(self):
         ht = hl.utils.range_table(10)
@@ -2512,6 +2522,57 @@ def test_annotate_globals_rejects_unaggregated_row_field():
     ht = hl.utils.range_table(10, 3)
     with pytest.raises(ExpressionException, match='scope violation'):
         ht.annotate_globals(x=ht.idx)
+
+
+def test_table_aggregate_missing_scalar_and_join():
+    empty = hl.utils.range_table(10).filter(False)
+    assert empty.aggregate(hl.agg.min(empty.idx)) is None
+    assert empty.aggregate(hl.missing(hl.tint32)) is None
+    assert empty.aggregate(5) == 5
+
+    ht1 = hl.utils.range_table(5, 2)
+    ht2 = hl.utils.range_table(5, 2)
+    ht2 = ht2.annotate(v=ht2.idx * 2)
+    assert ht1.aggregate(hl.agg.sum(ht2[ht1.idx].v)) == 20
+
+
+def test_table_aggregate_randomness_with_row_struct():
+    ht = hl.utils.range_table(10, 3)
+    res = ht.aggregate(hl.agg.collect((ht.row, hl.rand_int64())))
+    assert [row for row, _ in res] == [hl.Struct(idx=i) for i in range(10)]
+    assert len({r for _, r in res}) == 10
+
+    r_val = ht.aggregate(hl.rand_int64())
+    assert isinstance(r_val, int)
+
+    res_both = ht.aggregate(hl.agg.collect((ht.row, hl.rand_int64())).map(lambda x: (x[0], x[1], hl.rand_int64())))
+    assert [r for r, _, _ in res_both] == [hl.Struct(idx=i) for i in range(10)]
+    assert len({r1 for _, r1, _ in res_both}) == 10
+    assert len({r2 for _, _, r2 in res_both}) == 10
+
+
+def test_annotate_globals_and_downstream_row_randomness():
+    ht = hl.utils.range_table(10, 3)
+    ht1 = ht.annotate_globals(x=hl.agg.collect((ht.row, hl.rand_int64()))).annotate(r=hl.rand_int64())
+    assert_unique_uids(ht1)
+    g1 = hl.eval(ht1.x)
+    assert [row for row, _ in g1] == [hl.Struct(idx=i) for i in range(10)]
+    assert len({r for _, r in g1}) == 10
+    assert len(set(ht1.r.collect())) == 10
+
+    ht2 = ht.annotate_globals(rows=hl.agg.collect(ht.row)).annotate(r=hl.rand_int64())
+    assert_unique_uids(ht2)
+    assert hl.eval(ht2.rows) == [hl.Struct(idx=i) for i in range(10)]
+    assert len(set(ht2.r.collect())) == 10
+
+
+def test_table_aggregate_error_preserves_caller():
+    ht1 = hl.utils.range_table(5)
+    ht2 = hl.utils.range_table(5)
+    with pytest.raises(ExpressionException, match="scope violation: 'Table.aggregate'"):
+        ht1.aggregate(ht1.idx)
+    with pytest.raises(ExpressionException, match="'Table.aggregate': source mismatch"):
+        ht1.aggregate(hl.agg.sum(ht2.idx))
 
 
 def test_table_randomness_explode():
