@@ -13,7 +13,7 @@ export function CopyableValue({ value }: { value: string }): JSX.Element {
   return (
     <span className="inline-flex items-center gap-1.5">
       <span className="font-mono">{value}</span>
-      <button onClick={handleCopy} title="Copy to clipboard" className="text-zinc-400 hover:text-zinc-700">
+      <button type="button" onClick={handleCopy} title="Copy to clipboard" className="text-zinc-400 hover:text-zinc-700">
         {copied ? '✓' : '⧉'}
       </button>
     </span>

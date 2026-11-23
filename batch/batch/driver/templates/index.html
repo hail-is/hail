@@ -1,11 +1,6 @@
 {% extends "layout.html" %}
 {% block title %}Batch Status{% endblock %}
 {% block content %}
-  {% if userdata['system_permissions']['access_developer_environments'] %}
-  <div>
-    <a href="{{ auth_base_url }}/user" class="text-sm text-sky-600 hover:underline">Try new layout</a>
-  </div>
-  {% endif %}
   <h1>Globals</h1>
   <div class="attributes">
     <div>instance ID: {{ instance_id }}</div>

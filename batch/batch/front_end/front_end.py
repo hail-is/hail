@@ -2341,7 +2341,7 @@ async def ui_batch(request, userdata, batch_id):
     db: Database = app['db']
 
     # If the user has enabled the React UI, render the React page:
-    if request.cookies.get('hail_react_ui') == '1':
+    if request.cookies.get('hail_react_ui_trial') == '1':
         page_context = {'batch_id': batch_id}
         return await render_template('batch', request, userdata, 'batch_react.html', page_context)
 
@@ -2450,7 +2450,7 @@ async def ui_delete_batch(request: web.Request, _, batch_id: int) -> NoReturn:
 @catch_ui_error_in_dev
 async def ui_batches(request: web.Request, userdata: UserData) -> web.Response:
     # If the user has enabled the React UI, render the React page:
-    if request.cookies.get('hail_react_ui') == '1':
+    if request.cookies.get('hail_react_ui_trial') == '1':
         return await render_template('batch', request, userdata, 'batches_react.html', {})
 
     session = await aiohttp_session.get_session(request)
@@ -2930,7 +2930,7 @@ async def ui_get_job(request, userdata, batch_id):
     job_id = int(request.match_info['job_id'])
 
     # If the user has enabled the React UI, render the React page:
-    if request.cookies.get('hail_react_ui') == '1':
+    if request.cookies.get('hail_react_ui_trial') == '1':
         page_context = {
             'batch_id': batch_id,
             'job_id': job_id,

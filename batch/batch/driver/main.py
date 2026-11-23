@@ -959,7 +959,7 @@ HAVING n_ready_jobs + n_running_jobs > 0;
 @web_security_headers_inline_styles
 @auth.authenticated_users_with_permission(SystemPermission.READ_DEPLOYED_SYSTEM_STATE)
 async def get_index(request, userdata):
-    if request.cookies.get('hail_react_ui') == '1':
+    if request.cookies.get('hail_react_ui_trial') == '1':
         return await render_template(
             'batch-driver',
             request,

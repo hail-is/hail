@@ -2,14 +2,14 @@ import { ReactNode } from 'react';
 import { CopyPasteToken } from './CopyPasteToken';
 import { CopyableValue } from './CopyableValue';
 
-const REACT_UI_COOKIE = 'hail_react_ui';
+const REACT_UI_COOKIE = 'hail_react_ui_trial';
 
 function csrfToken(): string {
   return document.head.querySelector('meta[name="csrf"]')?.getAttribute('value') ?? '';
 }
 
-function disableReactUi() {
-  document.cookie = `${REACT_UI_COOKIE}=; max-age=0; path=/; SameSite=Lax`;
+function disableReactUi(cookieAttrs: string) {
+  document.cookie = `${REACT_UI_COOKIE}=; max-age=0; ${cookieAttrs}`;
   location.reload();
 }
 
@@ -41,6 +41,7 @@ interface UserPageProps {
   gsaDisplayName: string;
   trialBpName: string;
   supportEmail: string;
+  reactUiCookieAttrs: string;
 }
 
 export function UserPage({
@@ -49,6 +50,7 @@ export function UserPage({
   gsaDisplayName,
   trialBpName,
   supportEmail,
+  reactUiCookieAttrs,
 }: UserPageProps): JSX.Element {
   return (
     <div id="profile" className="vcentered space-y-2">
@@ -56,7 +58,7 @@ export function UserPage({
         <div className="space-y-2">
           <p><b>Logged in as: </b><CopyableValue value={username} /></p>
           <p className="pl-4 text-sm text-zinc-500">
-            – <button onClick={() => { logout(authBaseUrl); }} className="text-sky-600 hover:underline">Log out</button>
+            – <button type="button" onClick={() => { logout(authBaseUrl); }} className="text-sky-600 hover:underline">Log out</button>
           </p>
           <p><b>Google Service Account: </b><CopyableValue value={gsaDisplayName} /></p>
           <p><b>Trial Billing Project: </b><CopyableValue value={trialBpName} /></p>
@@ -70,7 +72,7 @@ export function UserPage({
       <Section title="User Settings">
         <p className="text-sm">
           <b>UI style:</b> new layout <span className="text-xs align-middle text-amber-600">[In Development]</span>{' '}
-          · <button onClick={disableReactUi} className="text-sky-600 hover:underline">Back to classic layout</button>
+          · <button type="button" onClick={() => { disableReactUi(reactUiCookieAttrs); }} className="text-sky-600 hover:underline">Back to classic layout</button>
         </p>
         <ul className="list-disc pl-5 space-y-2 text-sm text-zinc-600 mt-2">
           <li>

@@ -329,7 +329,7 @@ async def get_pr(request: web.Request, userdata: UserData) -> web.Response:
         raise web.HTTPNotFound()
     wb = watched_branches[watched_branch_index]
 
-    if request.cookies.get('hail_react_ui') == '1':
+    if request.cookies.get('hail_react_ui_trial') == '1':
         return await render_template(
             'ci',
             request,
@@ -1834,7 +1834,6 @@ def run():
     app.on_cleanup.append(on_cleanup)
 
     setup_common_static_routes(routes)
-    routes.static('/ci/static/js', f'{CI_ROOT}/static/js')
     routes.static('/ci/static/compiled-js', f'{CI_ROOT}/static/compiled-js')
     app.add_routes(routes)
     app.router.add_get("/metrics", server_stats)

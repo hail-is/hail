@@ -53,7 +53,7 @@ export function CopyPasteToken({ authBaseUrl }: { authBaseUrl: string }): JSX.El
       <span className="inline-flex items-center gap-2">
         <CopyableValue value={token} />
         <span className="text-xs text-zinc-400">(expires in {formatCountdown(remainingSeconds)})</span>
-        <button onClick={() => { void fetchToken(); }} className="text-sm text-sky-600 hover:underline">
+        <button type="button" onClick={() => { void fetchToken(); }} className="text-sm text-sky-600 hover:underline">
           Request another
         </button>
       </span>
@@ -63,7 +63,7 @@ export function CopyPasteToken({ authBaseUrl }: { authBaseUrl: string }): JSX.El
   return (
     <span className="inline-flex items-center gap-2">
       {tokenExpired && <span className="text-sm text-zinc-500">Expired ·</span>}
-      <button onClick={() => { void fetchToken(); }} className="text-sm text-sky-600 hover:underline">
+      <button type="button" onClick={() => { void fetchToken(); }} className="text-sm text-sky-600 hover:underline">
         Request
       </button>
     </span>

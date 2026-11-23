@@ -8,6 +8,7 @@ if (rootEl) {
   const gsaDisplayName = rootEl.dataset.gsaDisplayName ?? '';
   const trialBpName = rootEl.dataset.trialBpName ?? '';
   const supportEmail = rootEl.dataset.supportEmail ?? '';
+  const reactUiCookieAttrs = rootEl.dataset.reactUiCookieAttrs ?? '';
 
   const root = createRoot(rootEl);
   root.render(
@@ -17,6 +18,7 @@ if (rootEl) {
       gsaDisplayName={gsaDisplayName}
       trialBpName={trialBpName}
       supportEmail={supportEmail}
+      reactUiCookieAttrs={reactUiCookieAttrs}
     />
   );
 }

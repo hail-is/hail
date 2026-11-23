@@ -10,7 +10,6 @@ import { formatDuration, formatTimestamp } from '../../shared/timeUtils';
 import { QueryBuilder } from '../../shared/QueryBuilder';
 import { jobQueryFields } from '../../shared/queryFields';
 import { useBatchDetails } from '../hooks/useBatchDetails';
-import { disableReactUi } from '../../shared/reactUiCookie';
 
 interface Props {
   basePath: string;
@@ -218,16 +217,6 @@ export function BatchDetailsPage({ basePath, batchId }: Props): JSX.Element {
           Batch {batchId}{batch.attributes?.name ? <span className="text-zinc-400"> ({batch.attributes.name})</span> : null}
         </span>
       </nav>
-      <div className="mt-1 text-sm">
-        <button
-          type="button"
-          onClick={disableReactUi}
-          className="text-sky-600 hover:underline cursor-pointer"
-        >
-          Back to classic layout
-        </button>
-      </div>
-
       <div className="flex flex-wrap justify-around pt-6 gap-y-4">
         <div className="drop-shadow-sm w-full md:basis-2/3 lg:basis-1/3">
           <ul className="border border-collapse divide-y bg-slate-50 rounded">

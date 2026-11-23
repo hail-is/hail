@@ -12,7 +12,6 @@ import { SpinnerIcon } from '../../shared/SpinnerIcon';
 import { QueryBuilder } from '../../shared/QueryBuilder';
 import { batchQueryFields } from '../../shared/queryFields';
 import { defaultBatchQuery, useBatchList } from '../hooks/useBatchList';
-import { disableReactUi } from '../../shared/reactUiCookie';
 import { formatDuration } from '../../shared/timeUtils';
 
 interface Props {
@@ -356,15 +355,6 @@ export function BatchesPage({ basePath, username }: Props): JSX.Element {
           <nav className="flex items-center gap-2 text-xl font-light text-zinc-800 flex-wrap">
             <span>Batches</span>
           </nav>
-          <div className="mt-1 text-sm">
-            <button
-              type="button"
-              onClick={disableReactUi}
-              className="text-sky-600 hover:underline cursor-pointer"
-            >
-              Back to classic layout
-            </button>
-          </div>
         </div>
         {refreshActive && (
           <div className="w-44 shrink-0 border rounded bg-slate-50 px-3 py-2">
