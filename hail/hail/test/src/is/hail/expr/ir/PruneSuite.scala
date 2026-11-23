@@ -490,6 +490,20 @@ class PruneSuite {
     )
   }
 
+  def testTableMapGlobalsAggregationMemo() = FastSeq(false, true)
+
+  // PrevNonnull depends on row order, so the child keeps its key even when the output drops it
+  @ParameterizedTest
+  def testTableMapGlobalsAggregationMemo(dropKey: Boolean)(implicit ctx: ExecuteContext): Unit = {
+    val tmg = tab.mapGlobals((_, _) =>
+      makestruct("foo" -> ApplyAggOp(PrevNonnull())(tableRefBoolean(tab.typ, "row.2")))
+    )
+    val requested =
+      if (dropKey) subsetTable(tmg.typ, "global.foo", "NO_KEY")
+      else subsetTable(tmg.typ, "global.foo")
+    checkMemo(tmg, requested, ArraySeq(subsetTable(tab.typ, "row.2"), null))
+  }
+
   @Test def testMatrixColsTableMemo(implicit ctx: ExecuteContext): Unit = {
     val mct = MatrixColsTable(mat)
     checkMemo(
@@ -1315,6 +1329,25 @@ class PruneSuite {
         TypeCheck(ctx, tmg.newGlobals, PruneDeadFields.relationalTypeToEnv(tmg.child.typ))
         tmg.child.typ == subsetTable(tr.typ, "global.g1")
       },
+    )
+  }
+
+  def testTableMapGlobalsAggregationRebuild() = FastSeq(false, true)
+
+  @ParameterizedTest
+  def testTableMapGlobalsAggregationRebuild(dropKey: Boolean)(implicit ctx: ExecuteContext)
+    : Unit = {
+    val tmg = tr.mapGlobals((_, _) =>
+      makestruct("foo" -> ApplyAggOp(PrevNonnull())(tableRefBoolean(tr.typ, "row.2")))
+    )
+    val requested =
+      if (dropKey) subsetTable(tmg.typ, "global.foo", "NO_KEY")
+      else subsetTable(tmg.typ, "global.foo")
+    checkRebuild(
+      tmg,
+      requested,
+      (_: BaseIR, r: BaseIR) =>
+        r.asInstanceOf[TableMapGlobals].child.typ == subsetTable(tr.typ, "row.2"),
     )
   }
 

@@ -947,29 +947,6 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
     )
   }
 
-  def mapGlobals(newGlobals: IR): TableValue = {
-    val (Some(PTypeReferenceSingleCodeType(resultPType: PStruct)), f) =
-      Compile[AsmFunction2RegionLongLong](
-        ctx,
-        FastSeq((
-          TableIR.globalName,
-          SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(globals.t)),
-        )),
-        FastSeq(classInfo[Region], LongInfo),
-        LongInfo,
-        Coalesce(FastSeq(
-          newGlobals,
-          Die("Internal error: TableMapGlobals: globals missing", newGlobals.typ),
-        )),
-      )
-
-    val resultOff =
-      f(ctx.theHailClassLoader, ctx.fs, ctx.taskContext, ctx.r)(ctx.r, globals.value.offset)
-    val newType = typ.copy(globalType = newGlobals.typ.asInstanceOf[TStruct])
-
-    copy(typ = newType, globals = BroadcastRow(ctx, RegionValue(ctx.r, resultOff), resultPType))
-  }
-
   def mapPartitions(globalName: Name, partitionStreamName: Name, body: IR, allowedOverlap: Int)
     : TableValue = {
     val rowPType = rvd.rowPType

@@ -25,12 +25,12 @@ object LowerTableKeyByAndAggregate {
               val ts =
                 child
                   .keyBy(FastSeq())
-                  .mapGlobals { global =>
+                  .mapGlobals((global, _) =>
                     makestruct(
                       "__old_global" -> global,
                       "__init_state" -> RunAgg(aggs.init, aggSigs.valuesOp, aggSigs.states),
                     )
-                  }.mapPartitions() { (global, partStream) =>
+                  ).mapPartitions() { (global, partStream) =>
                     Let(
                       FastSeq(TableIR.globalName -> global.get("__old_global")),
                       StreamBufferedAggregate(
@@ -91,7 +91,7 @@ object LowerTableKeyByAndAggregate {
                       },
                     )
                   }
-                  .mapGlobals(_.get("__old_global"))
+                  .mapGlobals((g, _) => g.get("__old_global"))
               }
             case _ => None
           },
