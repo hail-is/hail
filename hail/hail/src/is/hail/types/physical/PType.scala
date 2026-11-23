@@ -45,7 +45,7 @@ object PType {
       case TString => PCanonicalString(required)
       case TCall => PCanonicalCall(required)
       case TRNGState => StoredSTypePType(SRNGState(None), required)
-      case t: TLocus => PCanonicalLocus(t.rg, required)
+      case t: TLocus => PLocus.canonical(t.rg, required)
       case t: TInterval =>
         PCanonicalInterval(canonical(t.pointType, innerRequired, innerRequired), required)
       case t: TArray =>
@@ -93,7 +93,7 @@ object PType {
       case t: PBinary => PCanonicalBinary(t.required)
       case t: PString => PCanonicalString(t.required)
       case t: PCall => PCanonicalCall(t.required)
-      case t: PLocus => PCanonicalLocus(t.rg, t.required)
+      case t: PLocus => PLocus.canonical(t.rg, t.required)
       case t: PInterval => PCanonicalInterval(canonical(t.pointType), t.required)
       case t: PArray => PCanonicalArray(canonical(t.elementType), t.required)
       case t: PSet => PCanonicalSet(canonical(t.elementType), t.required)
@@ -227,7 +227,7 @@ object PType {
         case TFloat64 => PFloat64(requiredVector(ri))
         case t: TInterval =>
           PCanonicalInterval(canonical(t.pointType, ri + 1, ci), requiredVector(ri))
-        case t: TLocus => PCanonicalLocus(t.rg, requiredVector(ri))
+        case t: TLocus => PLocus.canonical(t.rg, requiredVector(ri))
         case TCall => PCanonicalCall(requiredVector(ri))
         case t: TNDArray =>
           PCanonicalNDArray(canonical(t.elementType, ri + 1, ci), t.nDims, requiredVector(ri))
