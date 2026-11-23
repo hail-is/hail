@@ -3099,9 +3099,9 @@ class Worker:
         self.fs = RouterAsyncFS()
         self.file_store = FileStore(self.fs, BATCH_LOGS_STORAGE_URI, INSTANCE_ID)
 
-        self.instance_token = os.environ['ACTIVATION_TOKEN']
+        self.activation_token = os.environ['ACTIVATION_TOKEN']
         # None until activation: the activation token is in VM metadata, so it must not open the API
-        self.active_instance_token: Optional[str] = None
+        self.instance_token: Optional[str] = None
 
         self.cloudfuse_mount_manager = ReadOnlyCloudfuseManager()
 
@@ -3162,7 +3162,11 @@ class Worker:
         return await self._jvmpools_by_cores[jvm.n_cores].return_broken_jvm(jvm)
 
     async def headers(self) -> Dict[str, str]:
-        headers = {'X-Hail-Instance-Name': NAME, 'X-Hail-Instance-Token': self.instance_token}
+        assert self.instance_token is not None
+        return await self._driver_headers(self.instance_token)
+
+    async def _driver_headers(self, token: str) -> Dict[str, str]:
+        headers = {'X-Hail-Instance-Name': NAME, 'X-Hail-Instance-Token': token}
         if isinstance(CLOUD_WORKER_API, TerraAzureWorkerAPI):
             headers.update(await CLOUD_WORKER_API.extra_hail_headers())
         return headers
@@ -3360,7 +3364,7 @@ class Worker:
     async def run(self):
         app = web.Application(
             client_max_size=HTTP_CLIENT_MAX_SIZE,
-            middlewares=[instance_token_middleware(lambda: self.active_instance_token, frozenset({'/healthcheck'}))],
+            middlewares=[instance_token_middleware(lambda: self.instance_token)],
         )
         app.add_routes([
             web.post('/api/v1alpha/kill', self.kill),
@@ -3417,6 +3421,9 @@ class Worker:
         # monitoring loops will recover.  If the driver is
         # gone (e.g. testing a PR), this would go into an
         # infinite loop and the instance won't be deleted.
+        if self.instance_token is None:
+            # never activated, so the driver would reject this anyway
+            return
         await self.client_session.post(
             deploy_config.url('batch-driver', '/api/v1alpha/instances/deactivate'), headers=await self.headers()
         )
@@ -3565,10 +3572,9 @@ class Worker:
             self.client_session.post_read_json,
             deploy_config.url('batch-driver', '/api/v1alpha/instances/activate'),
             json={'ip_address': os.environ['IP_ADDRESS']},
-            headers=await self.headers(),
+            headers=await self._driver_headers(self.activation_token),
         )
         self.instance_token = resp_json['token']
-        self.active_instance_token = self.instance_token
         self.active = True
         self.last_updated = time_msecs()
         log.info('activated')

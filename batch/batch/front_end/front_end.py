@@ -485,7 +485,7 @@ async def _get_job_container_log_from_worker(
             f'http://{ip_address}:5000/api/v1alpha/batches/{batch_id}/jobs/{job_id}/log/{container}',
             headers=worker_api_headers(instance_token),
         )
-    except aiohttp.ClientResponseError:
+    except Exception:
         log.exception(f'while getting log for {(batch_id, job_id)}')
         return b'ERROR: encountered a problem while fetching the log'
 
@@ -588,7 +588,7 @@ async def _get_job_resource_usage_from_record(
                 task: ResourceUsageMonitor.decode_to_df(base64.b64decode(encoded_df))
                 for task, encoded_df in data.items()
             }
-        except aiohttp.ClientResponseError:
+        except Exception:
             log.exception(f'while getting resource usage for {(batch_id, job_id)}')
             return {task: None for task in tasks}
     else:
@@ -715,9 +715,12 @@ async def _get_full_job_status(app, record):
             headers=worker_api_headers(record['instance_token']),
         )
     except aiohttp.ClientResponseError as e:
-        if e.status == 404:
-            return None
-        raise
+        if e.status != 404:
+            log.exception(f'while getting status for {(batch_id, job_id)}')
+        return None
+    except Exception:
+        log.exception(f'while getting status for {(batch_id, job_id)}')
+        return None
 
 
 @routes.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/log')

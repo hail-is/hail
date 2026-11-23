@@ -503,6 +503,10 @@ async def schedule_job(app, record, instance):
         )
         await instance.mark_healthy()
     except aiohttp.ClientResponseError as e:
+        if e.status == 401:
+            # the worker rejected our instance token; count it so a mis-wired token gets the worker reaped
+            await instance.incr_failed_request_count()
+            raise
         await instance.mark_healthy()
         if e.status == 403:
             log.info(f'attempt {attempt_id} already exists for job {id} on {instance}, aborting')

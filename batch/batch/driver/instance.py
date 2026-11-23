@@ -285,7 +285,9 @@ VALUES (%s, %s);
     async def check_is_active_and_healthy(self):
         if self._state == 'active' and self.ip_address:
             try:
-                async with self.client_session.get(f'http://{self.ip_address}:5000/healthcheck') as resp:
+                async with self.client_session.get(
+                    f'http://{self.ip_address}:5000/healthcheck', headers=worker_api_headers(self.token)
+                ) as resp:
                     actual_name = (await resp.json()).get('name')
                     if actual_name and actual_name != self.name:
                         return False

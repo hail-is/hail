@@ -2,7 +2,7 @@
 per-instance secret the worker presents to the driver."""
 
 import hmac
-from typing import Callable, Dict, FrozenSet, Optional
+from typing import Callable, Dict, Optional
 
 from aiohttp import web
 from aiohttp.typedefs import Handler, Middleware
@@ -14,16 +14,16 @@ def worker_api_headers(instance_token: str) -> Dict[str, str]:
     return {INSTANCE_TOKEN_HEADER: instance_token}
 
 
-def instance_token_middleware(
-    get_instance_token: Callable[[], Optional[str]], unauthenticated_paths: FrozenSet[str]
-) -> Middleware:
+def instance_token_middleware(get_instance_token: Callable[[], Optional[str]]) -> Middleware:
     @web.middleware
     async def middleware(request: web.Request, handler: Handler) -> web.StreamResponse:
-        if request.path not in unauthenticated_paths:
-            expected = get_instance_token()
-            provided = request.headers.get(INSTANCE_TOKEN_HEADER)
-            if expected is None or provided is None or not hmac.compare_digest(provided.encode(), expected.encode()):
-                raise web.HTTPUnauthorized()
+        expected = get_instance_token()
+        if expected is None:
+            # Not yet activated: callers retry 503s, matching the handlers' own not-active response
+            raise web.HTTPServiceUnavailable()
+        provided = request.headers.get(INSTANCE_TOKEN_HEADER)
+        if provided is None or not hmac.compare_digest(provided.encode(), expected.encode()):
+            raise web.HTTPUnauthorized()
         return await handler(request)
 
     return middleware
