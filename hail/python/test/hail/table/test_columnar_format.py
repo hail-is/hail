@@ -929,6 +929,18 @@ def test_key_filters_that_hail_pushes_down_read_only_the_row_groups_they_keep():
     assert keep(read_columnar(path)).collect() == keep(ht).collect()
 
 
+def test_a_read_of_many_intervals_in_one_row_partition_keeps_the_rows_in_them():
+    # The read's Parquet predicate ORs a term for each interval. Nesting them in a chain overflowed
+    # the stack at a few thousand.
+    ht = keyed_table(20_000, 1)
+    path = new_temp_file(extension='ht')
+    write_columnar(ht, path)
+    intervals = [hl.Interval(k, k, includes_end=True) for k in range(0, 20_000, 2)]
+
+    actual = read_columnar_intervals(path, intervals, filter_intervals=True)
+    assert actual.collect() == hl.filter_intervals(ht, intervals).collect()
+
+
 def test_a_read_of_rows_whose_pages_end_at_different_rows_in_each_column_pairs_their_values():
     # The int64 key's pages hold keys 0-1, 2-3 and 4, and the int32 payload's pages hold rows 0-2 and
     # 3-4. Reading keys 0, 1 and 4 alone, from the pages that hold them, paired key 4 with row 2's

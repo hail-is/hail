@@ -146,7 +146,9 @@ case class ColumnarKeyRange(keyType: TStruct) {
       case None => blocks.map(ColumnarKeyRange.allRows)
       case Some(Seq()) => blocks.map(_ => RowRanges.EMPTY)
       case Some(disjuncts) =>
-        val p = disjuncts.reduce[FilterPredicate](FilterApi.or)
+        val p = ColumnarKeyRange.or(disjuncts)
+        // `FilterCompat.get` rewrites the predicate and logs it, so call it once.
+        lazy val filter = FilterCompat.get(p)
         val path = ColumnPath.get(keyField)
         blocks.map { b =>
           if (b.getRowCount == 0 || StatisticsFilter.canDrop(p, b.getColumns)) RowRanges.EMPTY
@@ -157,7 +159,7 @@ case class ColumnarKeyRange(keyType: TStruct) {
             if (columnIndex == null || offsetIndex == null) ColumnarKeyRange.allRows(b)
             else
               ColumnIndexFilter.calculateRowRanges(
-                FilterCompat.get(p),
+                filter,
                 new ColumnIndexStore {
                   override def getColumnIndex(c: ColumnPath): ColumnIndex =
                     if (c == path) columnIndex else null
@@ -261,6 +263,16 @@ case class ColumnarKeyRange(keyType: TStruct) {
 }
 
 object ColumnarKeyRange {
+
+  /** The disjunction of the nonempty `ps`, as a balanced tree. Parquet visits predicates
+    * recursively, so a chain of thousands of `or`s overflows the stack.
+    */
+  private def or(ps: IndexedSeq[FilterPredicate]): FilterPredicate =
+    if (ps.length == 1) ps(0)
+    else {
+      val (l, r) = ps.splitAt(ps.length / 2)
+      FilterApi.or(or(l), or(r))
+    }
 
   /** Every row of the row group `b`. */
   def allRows(b: BlockMetaData): RowRanges =
