@@ -182,17 +182,17 @@ case class ColumnarKeyRange(keyType: TStruct) {
     keyType.types(0) match {
       case TInt32 | TCall =>
         Some(intervals.flatMap(disjunct(
-          FilterApi.intColumn(keyField),
+          new TopLevelColumn(keyField, classOf[java.lang.Integer]),
           v => Int.box(v.asInstanceOf[Int]),
         )))
       case TInt64 =>
         Some(intervals.flatMap(disjunct(
-          FilterApi.longColumn(keyField),
+          new TopLevelColumn(keyField, classOf[java.lang.Long]),
           v => Long.box(v.asInstanceOf[Long]),
         )))
       case t: TLocus =>
         Some(intervals.flatMap(disjunct(
-          FilterApi.longColumn(keyField),
+          new TopLevelColumn(keyField, classOf[java.lang.Long]),
           { v =>
             val l = v.asInstanceOf[Locus]
             Long.box(PLocus.pack(t.rg.getContigIndex(l.contig), l.position))
@@ -202,7 +202,7 @@ case class ColumnarKeyRange(keyType: TStruct) {
       // orders agree on comparisons with a string of characters below the surrogates.
       case TString if bounds(intervals).forall(_.asInstanceOf[String].forall(_ < 0xd800)) =>
         Some(intervals.flatMap(disjunct(
-          FilterApi.binaryColumn(keyField),
+          new TopLevelColumn(keyField, classOf[Binary]),
           v => Binary.fromString(v.asInstanceOf[String]),
         )))
       case _ => None
@@ -266,6 +266,13 @@ object ColumnarKeyRange {
   def allRows(b: BlockMetaData): RowRanges =
     if (b.getRowCount == 0) RowRanges.EMPTY else RowRanges.createSingle(b.getRowCount)
 }
+
+/** A Parquet filter column for the top-level field `name`, whose values are of class `cls`.
+  * `FilterApi`'s column factories split their argument on dots, so for a field whose name has one
+  * they name a different column, which the statistics filter treats as missing.
+  */
+final private class TopLevelColumn[T <: Comparable[T]](name: String, cls: Class[T])
+    extends Operators.Column[T](ColumnPath.get(name), cls) with Operators.SupportsLtGt
 
 /** A reader of a columnar table or matrix table that can do a key-range read. */
 trait ColumnarKeyRangeReader extends TableReader {
