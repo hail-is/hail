@@ -994,6 +994,19 @@ def compound_key_case(intervals: list) -> Callable[[], tuple]:
     return case
 
 
+def dotted_key_case(key: Callable[[hl.Int32Expression], hl.Expression]) -> Callable[[], tuple]:
+    """Keys ``key(0)`` to ``key(11)`` in a field named ``a.b``, which Parquet's filter API would read
+    as the field ``b`` of a struct ``a``, and the interval from ``key(3)`` to ``key(9)``."""
+
+    def case():
+        ht = hl.utils.range_table(12, n_partitions=3)
+        ht = ht.key_by(**{'a.b': key(ht.idx)}).drop('idx')
+        start, end = hl.eval((key(hl.int32(3)), key(hl.int32(9))))
+        return ht, [hl.Interval(hl.Struct(**{'a.b': start}), hl.Struct(**{'a.b': end}), point_type=ht.key.dtype)]
+
+    return case
+
+
 KEY_CASES = {
     'up to and including missing keys': missing_keys_case([(5, None, True, True)]),
     'only missing keys': missing_keys_case([(None, None, True, True)]),
@@ -1006,6 +1019,10 @@ KEY_CASES = {
     'a compound key, exclusively': compound_key_case([
         hl.Interval(hl.Struct(k=1, s='a'), hl.Struct(k=3, s='b'), includes_start=False)
     ]),
+    'int32 keys named with a dot': dotted_key_case(lambda i: i),
+    'int64 keys named with a dot': dotted_key_case(hl.int64),
+    'locus keys named with a dot': dotted_key_case(lambda i: hl.locus('1', i + 1)),
+    'string keys named with a dot': dotted_key_case(lambda i: hl.literal('abcdefghijkl')[i]),
 }
 
 
