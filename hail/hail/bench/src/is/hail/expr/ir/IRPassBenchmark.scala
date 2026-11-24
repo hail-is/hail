@@ -9,7 +9,6 @@ import is.hail.expr.ir.defs._
 import is.hail.expr.ir.lowering.{ForwardLets, IrMetadata, RewriteBottomUp}
 import is.hail.io.reference.RgAttachments
 import is.hail.types.virtual.TInt32
-import is.hail.utils.lazily
 
 import scala.collection.mutable
 
@@ -64,7 +63,6 @@ class IRPassBenchmark {
       PersistedCoercerCache = ImmutableMap.empty,
       taskContext = taskContext,
       memo = mutable.HashMap.empty,
-      fsBc = lazily(shared.fsBc),
     )
     ir = IRPassBenchmark.build(shape)
   }

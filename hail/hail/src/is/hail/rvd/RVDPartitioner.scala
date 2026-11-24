@@ -1,6 +1,7 @@
 package is.hail.rvd
 
 import is.hail.annotations._
+import is.hail.backend.BroadcastValue
 import is.hail.collection.FastSeq
 import is.hail.collection.implicits._
 import is.hail.expr.ir.defs.Literal
@@ -11,8 +12,7 @@ import is.hail.utils._
 import scala.collection.immutable.ArraySeq
 
 import org.apache.commons.lang3.builder.HashCodeBuilder
-import org.apache.spark.{Partitioner, SparkContext}
-import org.apache.spark.broadcast.Broadcast
+import org.apache.spark.Partitioner
 import org.apache.spark.sql.Row
 
 class RVDPartitioner(
@@ -87,28 +87,6 @@ class RVDPartitioner(
     b.append(kType)
     rangeBounds.foreach(b.append)
     b.toHashCode
-  }
-
-  @transient @volatile var partitionerBc: Broadcast[RVDPartitioner] = _
-
-  def broadcast(sc: SparkContext): Broadcast[RVDPartitioner] = {
-    if (partitionerBc == null) {
-      synchronized {
-        if (partitionerBc == null)
-          partitionerBc = sc.broadcast(this)
-      }
-    }
-    partitionerBc
-  }
-
-  def sparkPartitioner(sc: SparkContext): Partitioner = {
-    val selfBc = broadcast(sc)
-
-    new Partitioner {
-      override def numPartitions: Int = selfBc.value.numPartitions
-
-      override def getPartition(key: Any): Int = selfBc.value.lowerBound(key)
-    }
   }
 
   // Key manipulation
@@ -300,6 +278,12 @@ class RVDPartitioner(
 }
 
 object RVDPartitioner extends Logging {
+  def sparkPartitioner(partitionerBc: BroadcastValue[RVDPartitioner]): Partitioner =
+    new Partitioner {
+      override def numPartitions: Int = partitionerBc.value.numPartitions
+      override def getPartition(key: Any): Int = partitionerBc.value.lowerBound(key)
+    }
+
   def empty(typ: TStruct): RVDPartitioner =
     new RVDPartitioner(typ, ArraySeq.empty)
 

@@ -60,7 +60,7 @@ case class RVDTableReader(rvd: RVD, globals: IR, rt: RTable) extends TableReader
         PruneDeadFields.upcast(ctx, In(0, rowEmitType), requestedType.rowType),
       )
 
-    val fsBc = ctx.fsBc
+    val fsBc = ctx.backend.broadcast(ctx.fs)
     TableExecuteIntermediate(TableValue(
       ctx,
       requestedType,
@@ -167,7 +167,7 @@ object TableStageToRVD {
 
     val bcValsSpec = TypedCodecSpec(ctx, bcValsPType, BufferSpec.wireSpec)
     val encodedBcVals =
-      sparkContext.broadcast(bcValsSpec.encodeValue(ctx, bcValsPType, gbPType.loadField(gbAddr, 1)))
+      ctx.backend.broadcast(bcValsSpec.encodeValue(ctx, bcValsPType, gbPType.loadField(gbAddr, 1)))
     val (decodedBcValsPType: PStruct, makeBcDec) =
       bcValsSpec.buildDecoder(ctx, bcValsPType.virtualType)
 
@@ -208,7 +208,7 @@ object TableStageToRVD {
       NormalizeNames()(ctx, body),
     )
 
-    val fsBc = ctx.fsBc
+    val fsBc = ctx.backend.broadcast(ctx.fs)
 
     val sparkDeps = ts.dependency
       .deps
