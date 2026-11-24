@@ -15,6 +15,7 @@ import is.hail.expr.ir.defs.ArrayZipBehavior.ArrayZipBehavior
 import is.hail.expr.ir.functions._
 import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.io.bgen.MatrixBGENReader
+import is.hail.io.columnar.{ColumnarPartitionReader, ColumnarSchema}
 import is.hail.linalg.BlockMatrix
 import is.hail.methods._
 import is.hail.rvd.{PartitionBoundOrdering, RVD, RVDPartitioner}
@@ -3647,6 +3648,23 @@ class IRSuite {
             PCanonicalStruct("foo" -> PInt32(), "bar" -> PCanonicalString()),
             BufferSpec.default,
           ),
+          "rowUID",
+        ),
+      ),
+      ReadPartition(
+        MakeStruct(ArraySeq("path" -> Str("foo"))),
+        TStruct("foo" -> TInt32, "rowUID" -> TInt64),
+        ColumnarPartitionReader(
+          PCanonicalStruct(
+            "__row_id" -> PInt64(true),
+            "foo" -> PInt32(),
+            "bar" -> PCanonicalString(),
+          ),
+          ColumnarSchema.serialize(ColumnarSchema.fileSchema(
+            PCanonicalStruct("foo" -> PInt32(), "bar" -> PCanonicalString()),
+            Some("__row_id"),
+          )),
+          Some("__row_id"),
           "rowUID",
         ),
       ),

@@ -83,6 +83,12 @@ case class TableColumnarWriter(path: String, overwrite: Boolean = false) extends
     assert(stage.key.startsWith(key), s"table key $key is not a prefix of ${stage.key}")
     ColumnarSchema.checkSupported("row", stage.rowType)
     ColumnarSchema.checkSupported("global", stage.globalType)
+    // The reader adds a row UID field under this name, so a table with such a field can't be read.
+    if (stage.rowType.hasField(TableReader.uidFieldName))
+      fatal(
+        s"columnar writer: row field '${TableReader.uidFieldName}' can't be stored, " +
+          "as table readers reserve that name for row UIDs"
+      )
 
     val rowPType = r.rowType.canonicalPType(stage.rowType).asInstanceOf[PStruct]
     val globalPType = r.globalType.canonicalPType(stage.globalType).asInstanceOf[PStruct]

@@ -7,6 +7,7 @@ format specification (``dev-docs/hail-query/columnar-format-spec.md``).
 import base64
 import io
 import json
+import secrets
 import struct
 from itertools import pairwise
 from typing import NamedTuple, Optional
@@ -641,6 +642,15 @@ def test_a_missing_dict_key_fails_the_write():
     assert not is_committed(path)
 
 
+def test_a_row_field_named_like_the_row_uid_fails_the_write():
+    ht = hl.utils.range_table(1)
+    ht = ht.annotate(**{'__row_uid': ht.idx})
+    path = new_temp_file(extension='ht')
+    with pytest.raises(FatalError, match="row field '__row_uid' can't be stored"):
+        write_columnar(ht, path)
+    assert not is_committed(path)
+
+
 def test_overwrite():
     path = new_temp_file(extension='ht')
     write_columnar(hl.utils.range_table(3), path)
@@ -742,15 +752,15 @@ def no_globals_table() -> hl.Table:
     return ht.annotate(s=hl.str(ht.idx))
 
 
-@pytest.mark.parametrize(
-    'fixture, table',
-    [
-        ('keyed', lambda: keyed_table(6, 2)),
-        ('unkeyed', lambda: keyed_table(6, 2).key_by()),
-        ('no_globals', no_globals_table),
-        ('all_types', all_types_table),
-    ],
-)
+FIXTURES = [
+    ('keyed', lambda: keyed_table(6, 2)),
+    ('unkeyed', lambda: keyed_table(6, 2).key_by()),
+    ('no_globals', no_globals_table),
+    ('all_types', all_types_table),
+]
+
+
+@pytest.mark.parametrize('fixture, table', FIXTURES)
 def test_output_matches_fixture(fixture, table):
     expected = resource(f'columnar/0.1/table/{fixture}')
     check_partitions_table(expected)
@@ -758,3 +768,319 @@ def test_output_matches_fixture(fixture, table):
     write_columnar(table(), path)
 
     assert_same_table(path, expected)
+
+
+def read_columnar(path: str) -> hl.Table:
+    return hl.Table(ir.TableRead(ir.TableColumnarReader(path)))
+
+
+def assert_reads_as(path: str, expected: hl.Table) -> None:
+    """The columnar table at ``path`` reads as ``expected``: the same key, types, values and row order."""
+    actual = read_columnar(path)
+    assert list(actual.key) == list(expected.key)
+    assert actual._same(expected)
+    assert actual.aggregate(hl.agg.collect(actual.idx)) == expected.aggregate(hl.agg.collect(expected.idx))
+
+
+@pytest.mark.parametrize('fixture, table', FIXTURES)
+def test_fixture_reads_as_the_table_it_holds(fixture, table):
+    assert_reads_as(resource(f'columnar/0.1/table/{fixture}'), table())
+
+
+@pytest.mark.parametrize('case', TYPE_CASES.keys())
+def test_round_trip_preserves_values(case):
+    c = TYPE_CASES[case]()
+    ht = hl.utils.range_table(len(c.values), n_partitions=2)
+    ht = ht.annotate(x=required_by_index(ht.idx, c.values, c.typ))
+    ht = ht.annotate(x_opt=hl.or_missing(ht.idx % 2 == 0, ht.x), x_arr=hl.array([ht.x, hl.missing(c.typ)]))
+    path = new_temp_file(extension='ht')
+    write_columnar(ht, path)
+
+    assert_reads_as(path, ht)
+
+
+def test_round_trip_of_every_type_preserves_values():
+    ht = all_types_table()
+    path = new_temp_file(extension='ht')
+    write_columnar(ht, path)
+
+    assert_reads_as(path, ht)
+
+
+def local_path(path: str) -> str:
+    """``path``, a file in a local temporary directory, as a path Python's ``open`` takes."""
+    return path.removeprefix('file://')
+
+
+def drop_checksum(file_path: str) -> None:
+    """Removes the checksum file Hadoop's local file system keeps beside ``file_path``, which would fail
+    reads of a file changed outside Hadoop."""
+    directory, name = local_path(file_path).rsplit('/', 1)
+    crc = f'{directory}/.{name}.crc'
+    if hfs.exists(crc):
+        hfs.remove(crc)
+
+
+def row_file_paths(path: str) -> list:
+    return [f'{path}/{p["row_file"]["path"]}' for p, _ in row_files(path)]
+
+
+def corrupt_column_chunks_except(file_path: str, keep: set) -> None:
+    """Overwrites with zeros every column chunk of the Parquet file at ``file_path`` whose leaf column
+    path is not in ``keep``. Reading a zeroed chunk fails."""
+    with hfs.open(file_path, 'rb') as f:
+        data = bytearray(f.read())
+    metadata = pq.ParquetFile(io.BytesIO(data)).metadata
+    for i in range(metadata.num_row_groups):
+        row_group = metadata.row_group(i)
+        for j in range(row_group.num_columns):
+            column = row_group.column(j)
+            if column.path_in_schema in keep:
+                continue
+            start = column.dictionary_page_offset if column.has_dictionary_page else column.data_page_offset
+            data[start : start + column.total_compressed_size] = bytes(column.total_compressed_size)
+    with hfs.open(file_path, 'wb') as f:
+        f.write(data)
+    drop_checksum(file_path)
+
+
+def test_projection_reads_only_the_requested_fields_column_chunks():
+    ht = keyed_table(6, 2)
+    path = new_temp_file(extension='ht')
+    write_columnar(ht, path)
+    for file_path in row_file_paths(path):
+        corrupt_column_chunks_except(file_path, {'idx', 's', 'st.x'})
+
+    def project(t: hl.Table) -> hl.Table:
+        return t.select('s', x=t.st.x)
+
+    assert project(read_columnar(path)).collect() == project(ht).collect()
+    # Reading any other field reads a zeroed chunk.
+    with pytest.raises(FatalError):
+        read_columnar(path).select('f64').collect()
+
+
+def test_files_the_manifest_does_not_reference_are_ignored():
+    ht = keyed_table(6, 2)
+    path = new_temp_file(extension='ht')
+    write_columnar(ht, path)
+    # A failed task's output: a copy of a row file under another name, which would duplicate its rows.
+    first_row_file = row_file_paths(path)[0]
+    hfs.copy(first_row_file, first_row_file.replace('-0000-4', '-1111-4', 1).replace('.parquet', '-orphan.parquet'))
+    with hfs.open(f'{path}/rows/garbage.parquet', 'wb') as f:
+        f.write(b'not parquet')
+
+    assert_reads_as(path, ht)
+
+
+def test_key_and_partitioning_come_from_the_manifest():
+    path = resource('columnar/0.1/table/keyed')
+    ht = read_columnar(path)
+
+    assert list(ht.key) == ['idx']
+    assert ht.n_partitions() == 2
+    assert ht.aggregate(hl.agg.collect(ht.idx)) == list(range(6))
+
+
+def test_row_partitions_with_no_rows_are_dropped():
+    # The predicate is on a string so that it isn't pushed into the range table's partitioning.
+    ht = hl.utils.range_table(10, n_partitions=5)
+    ht = ht.filter(hl.literal({'0', '1', '8', '9'}).contains(hl.str(ht.idx)))
+    path = new_temp_file(extension='ht')
+    write_columnar(ht, path)
+    assert sum(p['row_count'] == 0 for p in check_partitions_table(path)) == 3
+
+    actual = read_columnar(path)
+    assert actual.n_partitions() == 2
+    assert actual._same(ht)
+
+
+def unique_reference_genome_name() -> str:
+    return f'ColumnarRead{secrets.token_hex(4)}'
+
+
+def write_with_reference_genome(name: str) -> str:
+    """Writes a table with a locus field on a new reference genome ``name``, which is then removed from the
+    session. Returns the table's path."""
+    rg = hl.ReferenceGenome(name, ['b', 'a'], {'b': 100, 'a': 50})
+    ht = hl.utils.range_table(2)
+    ht = ht.annotate(l=hl.locus(hl.literal(['a', 'b'])[ht.idx], ht.idx + 1, reference_genome=rg))
+    path = new_temp_file(extension='ht')
+    write_columnar(ht, path)
+    Env.backend().remove_reference(name)
+    return path
+
+
+def test_reading_defines_the_tables_reference_genomes():
+    name = unique_reference_genome_name()
+    path = write_with_reference_genome(name)
+
+    ht = read_columnar(path)
+    assert hl.get_reference(name).contigs == ['b', 'a']
+    assert hl.get_reference(name).lengths == {'b': 100, 'a': 50}
+    assert ht.aggregate(hl.agg.collect((ht.l.contig, ht.l.position))) == [('a', 1), ('b', 2)]
+    Env.backend().remove_reference(name)
+
+
+def test_a_reference_genome_that_differs_from_the_sessions_fails_the_read():
+    name = unique_reference_genome_name()
+    path = write_with_reference_genome(name)
+    hl.ReferenceGenome(name, ['a'], {'a': 50})
+    try:
+        with pytest.raises(FatalError, match='a different reference with that name already exists'):
+            read_columnar(path)
+    finally:
+        Env.backend().remove_reference(name)
+
+
+def rewrite_row_file(path: str, f) -> None:
+    """Rewrites the table's first row file with pyarrow, replacing its table ``t`` with ``f(t)``. The file
+    keeps its Arrow schema."""
+    file_path = row_file_paths(path)[0]
+    table = read_parquet_file(file_path).read()
+    with hfs.open(file_path, 'wb') as out:
+        pq.write_table(f(table), out, store_schema=True)
+    drop_checksum(file_path)
+
+
+def write_row_file_with_manifest_schema(path: str, table: pa.Table) -> None:
+    """Replaces the table's first row file with ``table``, with the manifest's Arrow schema in its footer
+    in place of ``table``'s, so the file passes the reader's Arrow schema check whatever it holds."""
+    file_path = row_file_paths(path)[0]
+    with hfs.open(file_path, 'wb') as out, pq.ParquetWriter(out, table.schema, store_schema=False) as writer:
+        writer.write_table(table)
+        writer.add_key_value_metadata({'ARROW:schema': read_manifest(path)['rows']['schema']})
+    drop_checksum(file_path)
+
+
+def rewrite_ndarray_row_file(path: str, n_dims: int, data: list, shape: Optional[list]) -> None:
+    """Replaces the first row file of a one-row table whose ``x`` is an ``n_dims``-dimensional ndarray of
+    float64 with one whose ``x`` has ``data`` and ``shape``."""
+    # pyarrow writes its own storage type for a canonical tensor, so the file is written from its storage
+    # type, with the manifest's Arrow schema in its footer.
+    stored = read_parquet_file(row_file_paths(path)[0]).schema_arrow
+    x = pa.struct([
+        pa.field('data', pa.list_(pa.field('element', pa.float64(), False)), False),
+        pa.field('shape', pa.list_(pa.field('element', pa.int32(), False), n_dims)),
+    ])
+    schema = pa.schema([stored.field('__row_id'), stored.field('idx'), pa.field('x', x, stored.field('x').nullable)])
+    table = pa.table({'__row_id': [0], 'idx': [0], 'x': [{'data': data, 'shape': shape}]}, schema=schema)
+    write_row_file_with_manifest_schema(path, table)
+
+
+def test_row_groups_with_no_rows_are_read():
+    ht = keyed_table(6, 2)
+    path = new_temp_file(extension='ht')
+    write_columnar(ht, path)
+    file_path = row_file_paths(path)[0]
+    table = read_parquet_file(file_path).read()
+    with hfs.open(file_path, 'wb') as out, pq.ParquetWriter(out, table.schema, store_schema=True) as writer:
+        writer.write_table(table.slice(0, 0))
+        writer.write_table(table)
+        writer.write_table(table.slice(0, 0))
+    drop_checksum(file_path)
+    metadata = read_parquet_file(file_path).metadata
+    assert [metadata.row_group(i).num_rows for i in range(metadata.num_row_groups)] == [0, 3, 0]
+
+    assert_reads_as(path, ht)
+
+
+def test_a_row_file_whose_schema_differs_from_the_manifest_fails_the_read():
+    ht = keyed_table(6, 2)
+    path = new_temp_file(extension='ht')
+    write_columnar(ht, path)
+    rewrite_row_file(path, lambda t: t.drop_columns(['ms']))
+
+    with pytest.raises(FatalError, match='differs from its manifest'):
+        read_columnar(path).collect()
+
+
+def test_a_row_file_missing_a_parquet_column_fails_the_read():
+    ht = keyed_table(6, 2)
+    path = new_temp_file(extension='ht')
+    write_columnar(ht, path)
+    table = read_parquet_file(row_file_paths(path)[0]).read()
+    write_row_file_with_manifest_schema(
+        path, table.rename_columns(['renamed' if name == 's' else name for name in table.column_names])
+    )
+
+    with pytest.raises(FatalError, match=r"has no Parquet column s\b"):
+        read_columnar(path).collect()
+
+
+def test_an_empty_struct_stored_as_false_fails_the_read():
+    ht = hl.utils.range_table(2, n_partitions=1)
+    ht = ht.annotate(x=hl.struct())
+    path = new_temp_file(extension='ht')
+    write_columnar(ht, path)
+    rewrite_row_file(
+        path, lambda t: t.set_column(t.schema.get_field_index('x'), t.schema.field('x'), pa.array([True, False]))
+    )
+
+    with pytest.raises(FatalError, match='stored as false'):
+        read_columnar(path).collect()
+
+
+def test_a_present_ndarray_with_a_null_shape_fails_the_read():
+    ht = hl.utils.range_table(1, n_partitions=1)
+    ht = ht.annotate(x=hl.nd.array([1.0, 2.0]))
+    path = new_temp_file(extension='ht')
+    write_columnar(ht, path)
+    rewrite_ndarray_row_file(path, 1, [1.0, 2.0], None)
+
+    with pytest.raises(FatalError, match='null shape'):
+        read_columnar(path).collect()
+
+
+def test_an_ndarray_with_a_negative_dimension_fails_the_read():
+    ht = hl.utils.range_table(1, n_partitions=1)
+    ht = ht.annotate(x=hl.nd.array([[1.0], [2.0]]))
+    path = new_temp_file(extension='ht')
+    write_columnar(ht, path)
+    # The product of the dimensions is the data's length.
+    rewrite_ndarray_row_file(path, 2, [1.0, 2.0], [-1, -2])
+
+    with pytest.raises(FatalError, match='negative dimension'):
+        read_columnar(path).collect()
+
+
+def test_an_ndarray_whose_shape_overflows_fails_the_read():
+    ht = hl.utils.range_table(1, n_partitions=1)
+    ht = ht.annotate(x=hl.nd.array([[[1.0]]]))
+    path = new_temp_file(extension='ht')
+    write_columnar(ht, path)
+    # 2^22 * 2^22 * 2^20 wraps to 0 in a 64-bit product.
+    rewrite_ndarray_row_file(path, 3, [], [1 << 22, 1 << 22, 1 << 20])
+
+    with pytest.raises(FatalError, match='does not match its shape'):
+        read_columnar(path).collect()
+
+
+def test_round_trip_of_a_table_keyed_by_locus():
+    rg = custom_reference_genome()
+    contigs = ['chr1', 'chr10', 'chr2', 'chrX']
+    ht = hl.utils.range_table(8, n_partitions=3)
+    ht = ht.key_by(locus=hl.locus(hl.literal(contigs)[ht.idx % 4], ht.idx // 4 + 1, reference_genome=rg))
+    path = new_temp_file(extension='ht')
+    write_columnar(ht, path)
+
+    actual = read_columnar(path)
+    assert actual._same(ht)
+    # In the genome's contig order, chr2, chr10, chr1, chrX, not lexicographic order.
+    assert actual.aggregate(hl.agg.collect(actual.locus.contig)) == [
+        c for c in ['chr2', 'chr10', 'chr1', 'chrX'] for _ in (1, 2)
+    ]
+
+
+def test_reading_no_field_of_a_struct_keeps_whether_it_is_missing_and_its_length():
+    def project(t: hl.Table) -> hl.Table:
+        n = t.struct_nested
+        return t.select(
+            defined=hl.is_defined(t.struct_opt),
+            n_opt_arr=hl.len(n.opt_arr),
+            defined_elements=n.opt_arr.map(hl.is_defined),
+        )
+
+    actual = project(read_columnar(resource('columnar/0.1/table/all_types')))
+    expected = project(all_types_table())
+    assert actual.collect() == expected.collect()

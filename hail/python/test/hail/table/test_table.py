@@ -2825,8 +2825,8 @@ def test_checkpoint_read_if_exists_keeps_committed_columnar_dataset():
     fs = hl.current_backend().fs
     with fs.open(f'{path}/manifest.json', 'w') as f:
         f.write('{}')
-    # The native reader cannot read this stub, but it must not be replaced by a rewrite.
-    with pytest.raises(hl.utils.FatalError, match='metadata.json.gz is missing'):
+    # This stub is rejected as a malformed columnar manifest, but it must not be replaced by a rewrite.
+    with pytest.raises(hl.utils.FatalError, match="expected 'hail-columnar'"):
         hl.utils.range_table(5).checkpoint(path, overwrite=True, _read_if_exists=True)
     assert fs.exists(f'{path}/manifest.json')
     assert not fs.exists(f'{path}/_SUCCESS')
