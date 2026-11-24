@@ -54,19 +54,39 @@ class TableColumnarReader(TableReader):
 
     Private: not part of Hail's public interface, and the format may change. Defines the table's
     non-builtin reference genomes, which must be equal to any already defined with the same name.
+
+    With `intervals`, reads only the rows whose key is in them. Their points are the key or a prefix
+    of it, as structs or as the first key field's values.
+
+    As with ``read_table(_intervals=...)``, each interval is then a partition, holding its rows from
+    every row partition it overlaps, and the intervals must be sorted and must not overlap. With
+    `filter_intervals`, the row partitions that overlap the intervals are kept instead, narrowed to
+    them.
     """
 
-    @typecheck_method(path=str)
-    def __init__(self, path):
+    @typecheck_method(path=str, intervals=nullable(sequenceof(anytype)), filter_intervals=bool)
+    def __init__(self, path, intervals=None, filter_intervals=False):
         self.path = path
         for rg_config in hl.utils.java.Env.backend().load_references_from_dataset(path):
             hl.ReferenceGenome._from_config(rg_config)
+        self.intervals, self._interval_type = impute_type_of_partition_interval_array(intervals)
+        self.filter_intervals = filter_intervals
 
     def render(self):
-        return escape_str(json.dumps({'name': 'TableColumnarReader', 'path': self.path}))
+        reader = {'name': 'TableColumnarReader', 'path': self.path}
+        if self.intervals is not None:
+            reader['intervals'] = self._interval_type._convert_to_json(self.intervals)
+            reader['intervalPointType'] = self._interval_type.element_type.point_type._parsable_string()
+            reader['filterIntervals'] = self.filter_intervals
+        return escape_str(json.dumps(reader))
 
     def __eq__(self, other):
-        return isinstance(other, TableColumnarReader) and other.path == self.path
+        return (
+            isinstance(other, TableColumnarReader)
+            and other.path == self.path
+            and other.intervals == self.intervals
+            and other.filter_intervals == self.filter_intervals
+        )
 
 
 class TextTableReader(TableReader):

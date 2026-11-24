@@ -602,6 +602,21 @@ For reading matrix tables, all of the above, and:
   the column index field itself is never read;
 - reading the matrix table fixture (section 6).
 
+For key-range reads of tables and matrix tables:
+
+- the readers take key intervals and read only the rows whose key is in them. As
+  with `read_table(_intervals=...)`, each interval is then a partition of the
+  read. With `filter_intervals`, the row partitions that overlap the intervals
+  are kept instead, narrowed to them. Interval filters and key filters on a
+  read become key-range reads with `filter_intervals`, as they do for native
+  reads;
+- row partitions are chosen from the partitions table's bounds (section 4.1).
+  Within them, row groups are chosen from the first key field's column
+  statistics and page index (section 4.6), and read in full. The rows read are
+  then filtered to the intervals. An entry file reads the same row groups as its
+  row file, chosen from the row file's statistics and page index, and the read
+  fails if the two files' row groups differ (section 4.6.1).
+
 ### 7.2 Gaps
 
 #### 7.2.1 Reading
@@ -614,6 +629,20 @@ footers. The matrix table reader supports one column block, which is all a `0.1`
 writer writes (section 3), and fails on more. It assembles each row's entries from
 the lists it reads, so it holds each requested entry field's list for a row in
 memory alongside the entries built from it.
+
+Key-range reads choose row groups only from the first key field's statistics and
+page index, and only when it is an `int32`, `int64`, call, locus or string. String
+keys are pruned only when no interval bound's first key field has a character at
+or above U+D800. Parquet orders strings by their UTF-8 bytes and Hail by their
+UTF-16 code units, and the two orders agree whenever one of the two strings
+compared has no such character. Other key types read every row group of the row
+partitions chosen. An entry file's read reads its row file's footer and page index
+again to choose its row groups.
+
+Key-range reads read every page of the row groups they choose. parquet-java 1.16,
+reading only some pages of two columns whose pages end at different rows, can pair
+one column's value with another row's (apache/parquet-java#3747), and no release
+has the fix yet.
 
 #### 7.2.2 Row groups
 

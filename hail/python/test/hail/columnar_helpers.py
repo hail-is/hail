@@ -343,3 +343,161 @@ def corrupt_column_chunks_except(file_path: str, keep: set) -> None:
     with hfs.open(file_path, 'wb') as f:
         f.write(data)
     drop_checksum(file_path)
+
+
+def rewrite_with_one_row_pages(file_path: str, rows_per_row_group: int) -> None:
+    """Rewrites the Parquet file at ``file_path`` with pyarrow in row groups of ``rows_per_row_group``
+    rows and data pages of one row, with no dictionary pages, with statistics and the page index. The
+    file keeps its Arrow schema."""
+    table = read_parquet_file(file_path).read()
+    with hfs.open(file_path, 'wb') as out:
+        pq.write_table(
+            table,
+            out,
+            row_group_size=rows_per_row_group,
+            max_rows_per_page=1,
+            use_dictionary=False,
+            write_statistics=True,
+            write_page_index=True,
+            store_schema=True,
+            compression='zstd',
+        )
+    drop_checksum(file_path)
+
+
+def rewrite_with_small_pages(file_path: str, data_page_size: int) -> None:
+    """Rewrites the Parquet file at ``file_path`` with pyarrow in one row group, with data pages that
+    end once they hold ``data_page_size`` bytes, with no dictionary pages, with statistics and the
+    page index. Columns of different widths get pages that end at different rows. The file keeps its
+    Arrow schema."""
+    table = read_parquet_file(file_path).read()
+    with hfs.open(file_path, 'wb') as out:
+        pq.write_table(
+            table,
+            out,
+            row_group_size=table.num_rows,
+            data_page_size=data_page_size,
+            write_batch_size=1,
+            use_dictionary=False,
+            write_statistics=True,
+            write_page_index=True,
+            store_schema=True,
+            compression='zstd',
+        )
+    drop_checksum(file_path)
+
+
+def _varint(buf: bytes, pos: int) -> tuple:
+    value = shift = 0
+    while True:
+        b = buf[pos]
+        pos += 1
+        value |= (b & 0x7F) << shift
+        shift += 7
+        if not b & 0x80:
+            return value, pos
+
+
+def _zigzag(n: int) -> int:
+    return (n >> 1) ^ -(n & 1)
+
+
+def _skip_thrift(buf: bytes, pos: int, typ: int) -> int:
+    """The position after a Thrift compact protocol value of type ``typ`` at ``pos``."""
+    if typ in (1, 2):  # a boolean, held in its field header
+        return pos
+    if typ == 3:
+        return pos + 1
+    if typ in (4, 5, 6):
+        return _varint(buf, pos)[1]
+    if typ == 7:
+        return pos + 8
+    if typ == 8:
+        length, pos = _varint(buf, pos)
+        return pos + length
+    if typ in (9, 10):
+        header = buf[pos]
+        pos += 1
+        size, element = header >> 4, header & 0x0F
+        if size == 15:
+            size, pos = _varint(buf, pos)
+        for _ in range(size):
+            pos = pos + 1 if element in (1, 2) else _skip_thrift(buf, pos, element)
+        return pos
+    if typ == 11:
+        size, pos = _varint(buf, pos)
+        if size == 0:
+            return pos
+        kinds = buf[pos]
+        pos += 1
+        for _ in range(size):
+            pos = _skip_thrift(buf, pos, kinds >> 4)
+            pos = _skip_thrift(buf, pos, kinds & 0x0F)
+        return pos
+    if typ == 12:
+        return _thrift_struct(buf, pos)[1]
+    raise ValueError(f'unknown Thrift compact type {typ}')
+
+
+def _thrift_struct(buf: bytes, pos: int) -> tuple:
+    """Reads the Thrift compact protocol struct at ``pos``. Returns the values of its integer fields
+    by field ID, and the position after the struct."""
+    values = {}
+    field_id = 0
+    while True:
+        header = buf[pos]
+        pos += 1
+        if header == 0:
+            return values, pos
+        delta, typ = header >> 4, header & 0x0F
+        if delta:
+            field_id += delta
+        else:
+            raw, pos = _varint(buf, pos)
+            field_id = _zigzag(raw)
+        if typ in (5, 6):
+            raw, end = _varint(buf, pos)
+            values[field_id] = _zigzag(raw)
+        else:
+            end = _skip_thrift(buf, pos, typ)
+        pos = end
+
+
+def page_ranges(file_path: str, row_group: int, column: int) -> list:
+    """The (offset, length) of each page, header included, of a column chunk of the Parquet file at
+    ``file_path``, in file order."""
+    chunk = read_parquet_file(file_path).metadata.row_group(row_group).column(column)
+    start = chunk.dictionary_page_offset if chunk.has_dictionary_page else chunk.data_page_offset
+    end = start + chunk.total_compressed_size
+    with open(local_path(file_path), 'rb') as f:
+        f.seek(start)
+        buf = f.read(chunk.total_compressed_size)
+    ranges = []
+    pos = 0
+    while start + pos < end:
+        # PageHeader field 3 is compressed_page_size.
+        header, header_end = _thrift_struct(buf, pos)
+        page_end = header_end + header[3]
+        ranges.append((start + pos, page_end - pos))
+        pos = page_end
+    return ranges
+
+
+def corrupt_pages_except(file_path: str, keep: set) -> None:
+    """Overwrites with zeros every page of the Parquet file at ``file_path``, written by
+    ``rewrite_with_one_row_pages``, that holds a row whose index in the file is not in ``keep``."""
+    metadata = read_parquet_file(file_path).metadata
+    corrupt = []
+    first_row = 0
+    for i in range(metadata.num_row_groups):
+        n_rows = metadata.row_group(i).num_rows
+        for j in range(metadata.num_columns):
+            ranges = page_ranges(file_path, i, j)
+            assert len(ranges) == n_rows, 'pages must hold one row each'
+            corrupt += [r for row, r in enumerate(ranges, start=first_row) if row not in keep]
+        first_row += n_rows
+    with open(local_path(file_path), 'r+b') as f:
+        for offset, length in corrupt:
+            f.seek(offset)
+            f.write(b'\0' * length)
+    drop_checksum(file_path)
