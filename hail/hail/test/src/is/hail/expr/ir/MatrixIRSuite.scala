@@ -443,28 +443,33 @@ class MatrixIRSuite {
     assertThrows[AssertionError](collectRows(mapped), error)
   }
 
-  def testInitArgReadsResultOnRows() =
-    initArgsReadingResult(isScan = false)(
-      Ref(MatrixIR.colName, TStruct("col_idx" -> TInt32)).get("col_idx")
-    ) ++ initArgsReadingResult(isScan = true)(
-      Ref(MatrixIR.rowName, TStruct("row_idx" -> TInt32)).get("row_idx")
-    )
+  // Extract rejects an agg init arg that reads a result. `liftScans` rejects a scan's, and
+  // names the result it read.
+  private val aggResultError = "init argument depends on an aggregation result"
+  private val scanResultError = "scan init argument depends on a scan result: "
+
+  def testInitArgReadsResultOnRows() = {
+    def rowIdx = Ref(MatrixIR.rowName, TStruct("row_idx" -> TInt32)).get("row_idx")
+    def colIdx = Ref(MatrixIR.colName, TStruct("col_idx" -> TInt32)).get("col_idx")
+    initArgsReadingResult(isScan = false)(colIdx).map(_ -> aggResultError) ++
+      initArgsReadingResult(isScan = true)(rowIdx).map(_ -> scanResultError)
+  }
 
   @ParameterizedTest
-  def testInitArgReadsResultOnRows(v: IR)(implicit ctx: ExecuteContext): Unit = {
+  def testInitArgReadsResultOnRows(v: IR, error: String)(implicit ctx: ExecuteContext): Unit = {
     // Without the optimiser, which can forward a binding into an init arg and change the error.
     implicit val execStrats: Set[ExecStrategy] = ExecStrategy.unoptimizedRelational
     val mt = rangeMatrix(5, 3, Some(2))
     val row = Ref(MatrixIR.rowName, mt.typ.rowType)
     val mapped = MatrixMapRows(mt, InsertFields(row, FastSeq("v" -> v)))
-    assertFatal(collectRows(mapped), "depends on an? (aggregation|scan) result")
+    assertFatal(collectRows(mapped), error)
   }
 
   def testInitArgReadsResultOnCols() = {
     def rowIdx = Ref(MatrixIR.rowName, TStruct("row_idx" -> TInt32)).get("row_idx")
     def colIdx = Ref(MatrixIR.colName, TStruct("col_idx" -> TInt32)).get("col_idx")
-    initArgsReadingResult(isScan = false)(rowIdx).map(_ -> "depends on an aggregation result") ++
-      initArgsReadingResult(isScan = true)(colIdx).map(_ -> "depends on a scan result")
+    initArgsReadingResult(isScan = false)(rowIdx).map(_ -> aggResultError) ++
+      initArgsReadingResult(isScan = true)(colIdx).map(_ -> scanResultError)
   }
 
   @ParameterizedTest
@@ -478,8 +483,8 @@ class MatrixIRSuite {
   }
 
   /* Init args that read `global` or EVAL bindings in newCol: directly, transitively, one binding
-   * `n` copied into the agg init bindings and moved into the scan init bindings, inside a
-   * combinator body, and after a SCAN (AGG) binding in the same Block. */
+   * `n` read by both an agg and a scan, inside a combinator body, and after a SCAN (AGG) binding in
+   * the same Block. */
   def testInitArgBoundInNewCol() = {
     def rowIdx = Ref(MatrixIR.rowName, TStruct("row_idx" -> TInt32)).get("row_idx")
     def colIdx = Ref(MatrixIR.colName, TStruct("col_idx" -> TInt32)).get("col_idx")
@@ -628,6 +633,21 @@ class MatrixIRSuite {
     assertEq(cols.toSeq, (0 until 5).map(i => RowSeq(i, 3L * i)))
   }
 
+  // the second aggregation reads `a`, which the first one computed
+  @Test def testChainedAggsOnCols(implicit ctx: ExecuteContext): Unit = {
+    val mt = rangeMatrix(3, 5, Some(2))
+    def col = Ref(MatrixIR.colName, mt.typ.colType)
+    val mt1 = MatrixMapCols(mt, col.insert("a" -> ApplyAggOp(Sum())(col.get("col_idx").toL)), None)
+
+    def col1 = Ref(MatrixIR.colName, mt1.typ.colType)
+    def row = Ref(MatrixIR.rowName, mt1.typ.rowType)
+    val b = ApplyAggOp(Sum())(col1.get("a") + row.get("row_idx").toL)
+    val cols = getCols(MatrixMapCols(mt1, col1.insert("b" -> b), None))
+
+    // a = 3 rows * col_idx; b = sum over row_idx 0, 1, 2 of (a + row_idx)
+    assertEq(cols.toSeq, (0 until 5).map(i => RowSeq(i, 3L * i, 9L * i + 3)))
+  }
+
   @Test def testAggBlockBindingOnCols(implicit ctx: ExecuteContext): Unit = {
     val mt = rangeMatrix(3, 5, Some(2))
     val col = Ref(MatrixIR.colName, mt.typ.colType)
@@ -651,21 +671,22 @@ class MatrixIRSuite {
       n <- nRows.toI
       t <- op(n)
     } yield t)
-    val ops = FastSeq[IR => IR](
-      n => ApplyAggOp(Take(), n)(rowIdx),
-      n => ApplyScanOp(Take(), n)(colIdx),
+    // `n_rows` is an aggregation result: Extract rejects the agg, `liftScans` the scan.
+    val ops = FastSeq[(IR => IR, String)](
+      (n => ApplyAggOp(Take(), n)(rowIdx), "init argument depends on an aggregation result"),
+      (n => ApplyScanOp(Take(), n)(colIdx), "init argument refers to n_rows"),
     )
-    ops.flatMap(op => FastSeq(op(nRows.toI), viaEval(op)))
+    ops.flatMap { case (op, error) => FastSeq((op(nRows.toI), error), (viaEval(op), error)) }
   }
 
   @ParameterizedTest
-  def testInitArgReadsNRowsOnCols(v: IR)(implicit ctx: ExecuteContext): Unit = {
+  def testInitArgReadsNRowsOnCols(v: IR, error: String)(implicit ctx: ExecuteContext): Unit = {
     // Without the optimiser, which can forward a binding into an init arg and change the error.
     implicit val execStrats: Set[ExecStrategy] = ExecStrategy.unoptimizedRelational
     val mt = rangeMatrix(3, 5, Some(2))
     val col = Ref(MatrixIR.colName, mt.typ.colType)
     val mapped = MatrixMapCols(mt, InsertFields(col, FastSeq("v" -> v)), None)
-    assertFatal(collectCols(mapped), "init argument refers to n_rows")
+    assertFatal(collectCols(mapped), error)
   }
 
   // Init args that read the row or a loop variable, directly or through an EVAL binding.
@@ -694,16 +715,20 @@ class MatrixIRSuite {
     assertFatal(collectRows(mapped), error)
   }
 
-  // Init args that read the col or a loop variable.
+  // Init args that read the col or a loop variable. Extract rejects the aggs: it sees the col
+  // as an element of the cols array, under a fresh name. `liftScans` rejects the scan.
   def testInitArgReadsVaryingOnCols() = {
     def rowIdx = Ref(MatrixIR.rowName, TStruct("row_idx" -> TInt32)).get("row_idx")
     def colIdx = Ref(MatrixIR.colName, TStruct("col_idx" -> TInt32)).get("col_idx")
     FastSeq(
-      (ApplyAggOp(Take(), colIdx)(rowIdx), "init argument refers to sa"),
+      (
+        ApplyAggOp(Take(), colIdx)(rowIdx),
+        "init argument refers to .*, which varies per element",
+      ),
       (ApplyScanOp(Take(), colIdx)(colIdx), "init argument refers to sa"),
       (
         ToArray(mapIR(rangeIR(3))(i => ApplyAggOp(Take(), i)(rowIdx))),
-        "init argument refers to .*, which can't leave newCol",
+        "init argument refers to .*, which varies per element",
       ),
     )
   }

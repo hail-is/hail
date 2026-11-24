@@ -822,6 +822,24 @@ class TableIRSuite {
     )
   }
 
+  def testHeadAndTailRunChildLetsOnce(): ArraySeq[TableIR] = {
+    val mapped = TableRange(10, 3).mapGlobals((_, _) => makestruct("n" -> ApplyAggOp(Count())()))
+    ArraySeq(TableHead(mapped, 3L), TableTail(mapped, 3L))
+  }
+
+  @ParameterizedTest
+  def testHeadAndTailRunChildLetsOnce(ir: TableIR)(implicit ctx: ExecuteContext): Unit = {
+    val stage = LowerTableIR.applyTable(ir, DArrayLowering.All, LoweringContext(ctx, ir))
+
+    val jobs =
+      stage.letBindings.flatMap { case (_, v) =>
+        IRTraversal.preOrder(v).filter(_.isInstanceOf[CollectDistributedArray])
+      }
+
+    assert(jobs.isEmpty)
+    assertEvalsTo(collect(ir).get("global"), RowSeq(10L))
+  }
+
   @Test def testTableHead(implicit ctx: ExecuteContext): Unit = {
     val t = TStruct(
       "rows" -> TArray(TStruct("a" -> TInt32, "b" -> TString)),
