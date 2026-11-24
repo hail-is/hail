@@ -1,4 +1,4 @@
-from typing import Any, Dict, FrozenSet, Generic, Optional, Tuple, Type, TypeVar, Union
+from typing import Any, Dict, FrozenSet, Generic, List, Optional, Tuple, Type, TypeVar, Union
 
 from hailtop.aiocloud.aiogoogle import GCSRequesterPaysConfiguration
 
@@ -24,6 +24,12 @@ class GCSRequesterPaysFSCache(Generic[FS]):
             fs = self._fs_constructor(**kwargs)
             self._dict[frozen_key] = fs
         return fs
+
+    def pop_all(self) -> List[FS]:
+        """Remove and return every cached FS, so the caller can close them."""
+        fses = list(self._dict.values())
+        self._dict.clear()
+        return fses
 
     def _freeze_key(self, gcs_requester_pays_configuration: MaybeGCSRequesterPaysConfiguration) -> FrozenKey:
         if isinstance(gcs_requester_pays_configuration, tuple):

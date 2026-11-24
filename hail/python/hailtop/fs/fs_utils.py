@@ -1,4 +1,7 @@
+import atexit
 import io
+import logging
+import os
 from typing import List, Optional
 
 from hailtop.aiocloud.aiogoogle import GCSRequesterPaysConfiguration
@@ -7,7 +10,30 @@ from hailtop.utils.gcs_requester_pays import GCSRequesterPaysFSCache
 from .router_fs import RouterFS
 from .stat_result import FileListEntry
 
+log = logging.getLogger('hailtop.fs')
+
 _fses = GCSRequesterPaysFSCache(fs_constructor=RouterFS)
+
+
+def _close_fses() -> None:
+    # Nothing else closes these FSes, and aiohttp warns about every session left open when the
+    # interpreter exits. atexit handlers run before daemon threads stop, so the Hail event loop is
+    # still running and can close them.
+    for fs in _fses.pop_all():
+        try:
+            fs.close()
+        except Exception:
+            log.exception('failed to close a hailtop.fs filesystem at exit')
+
+
+def _forget_fses_after_fork() -> None:
+    # A forked child's FSes belong to the parent's event loop, so the child can neither use nor close them.
+    _fses.pop_all()
+
+
+atexit.register(_close_fses)
+if hasattr(os, 'register_at_fork'):  # not on Windows
+    os.register_at_fork(after_in_child=_forget_fses_after_fork)
 
 
 def open(
