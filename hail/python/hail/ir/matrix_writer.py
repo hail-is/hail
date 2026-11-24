@@ -55,6 +55,46 @@ class MatrixNativeWriter(MatrixWriter):
         )
 
 
+class MatrixColumnarWriter(MatrixWriter):
+    """Writes a matrix table in the experimental columnar format.
+
+    Private: not part of Hail's public interface, and its output format may change.
+
+    ``leaf_cap`` is the most values a leaf field of an entry file may hold in one row group, and
+    ``byte_cap`` the most bytes a string or binary leaf field may hold in one. They are at most the
+    spec's caps, 2^30 and 2^31 - 1, and tests lower them.
+    """
+
+    LEAF_CAP = 2**30
+    BYTE_CAP = 2**31 - 1
+
+    @typecheck_method(path=str, overwrite=bool, leaf_cap=int, byte_cap=int)
+    def __init__(self, path, overwrite, leaf_cap=LEAF_CAP, byte_cap=BYTE_CAP):
+        self.path = path
+        self.overwrite = overwrite
+        self.leaf_cap = leaf_cap
+        self.byte_cap = byte_cap
+
+    def render(self):
+        writer = {
+            'name': 'MatrixColumnarWriter',
+            'path': self.path,
+            'overwrite': self.overwrite,
+            'leafCap': self.leaf_cap,
+            'byteCap': self.byte_cap,
+        }
+        return escape_str(json.dumps(writer))
+
+    def __eq__(self, other):
+        return (
+            isinstance(other, MatrixColumnarWriter)
+            and other.path == self.path
+            and other.overwrite == self.overwrite
+            and other.leaf_cap == self.leaf_cap
+            and other.byte_cap == self.byte_cap
+        )
+
+
 class MatrixVCFWriter(MatrixWriter):
     @typecheck_method(
         path=str,
