@@ -1,0 +1,21 @@
+apiVersion: elbv2.k8s.aws/v1beta1
+kind: TargetGroupBinding
+metadata:
+  name: gateway-http
+spec:
+  serviceRef:
+    name: gateway
+    port: 80
+  targetGroupARN: "{{ global.gateway_http_target_group_arn }}"
+  targetType: ip
+---
+apiVersion: elbv2.k8s.aws/v1beta1
+kind: TargetGroupBinding
+metadata:
+  name: gateway-https
+spec:
+  serviceRef:
+    name: gateway
+    port: 443
+  targetGroupARN: "{{ global.gateway_https_target_group_arn }}"
+  targetType: ip

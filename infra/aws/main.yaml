@@ -15,6 +15,15 @@ Parameters:
   SubnetCidrBlockC:
     Type: String
     Description: CIDR block within the VPC for the third subnet the cluster will run in
+  PublicSubnetCidrBlockA:
+    Type: String
+    Description: CIDR block within the VPC for the first public subnet for external LBs
+  PublicSubnetCidrBlockB:
+    Type: String
+    Description: CIDR block within the VPC for the second public subnet for external LBs
+  PublicSubnetCidrBlockC:
+    Type: String
+    Description: CIDR block within the VPC for the third public subnet for external LBs
   PublicAccessIpList:
     Type: CommaDelimitedList
     Description: List of public IPs allowed to access the cluster
@@ -42,6 +51,9 @@ Resources:
           aws_region: !Ref AWS::Region
           docker_prefix: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/hail"
           dockerhub_prefix: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/dockerhubproxy"
+          internal_gateway_target_group_arn: !Ref VdcInternalGatewayHttpTargetGroup
+          gateway_http_target_group_arn: !Ref VdcGatewayHttpTargetGroup
+          gateway_https_target_group_arn: !Ref VdcGatewayHttpsTargetGroup
           kubernetes_server_url: !GetAtt VdcCluster.Endpoint
           organization_domain: !Ref OrganizationDomain
 
@@ -322,6 +334,42 @@ Resources:
           Value: "1"
         - Key: "hail-batch-worker"
           Value: "true"
+  VdcPublicSubnetA:
+    Type: "AWS::EC2::Subnet"
+    Properties:
+      MapPublicIpOnLaunch: false
+      VpcId: !Ref VdcVpc
+      AvailabilityZone: !Select [0, !GetAZs ""]
+      CidrBlock: !Ref PublicSubnetCidrBlockA
+      Tags:
+        - Key: "kubernetes.io/cluster/vdc"
+          Value: "shared"
+        - Key: "kubernetes.io/role/elb"
+          Value: "1"
+  VdcPublicSubnetB:
+    Type: "AWS::EC2::Subnet"
+    Properties:
+      MapPublicIpOnLaunch: false
+      VpcId: !Ref VdcVpc
+      AvailabilityZone: !Select [1, !GetAZs ""]
+      CidrBlock: !Ref PublicSubnetCidrBlockB
+      Tags:
+        - Key: "kubernetes.io/cluster/vdc"
+          Value: "shared"
+        - Key: "kubernetes.io/role/elb"
+          Value: "1"
+  VdcPublicSubnetC:
+    Type: "AWS::EC2::Subnet"
+    Properties:
+      MapPublicIpOnLaunch: false
+      VpcId: !Ref VdcVpc
+      AvailabilityZone: !Select [2, !GetAZs ""]
+      CidrBlock: !Ref PublicSubnetCidrBlockC
+      Tags:
+        - Key: "kubernetes.io/cluster/vdc"
+          Value: "shared"
+        - Key: "kubernetes.io/role/elb"
+          Value: "1"
   VdcInternetGateway:
     Type: "AWS::EC2::InternetGateway"
   VdcInternetGatewayAttachment:
@@ -329,6 +377,33 @@ Resources:
     Properties:
       VpcId: !Ref VdcVpc
       InternetGatewayId: !Ref VdcInternetGateway
+  VdcPublicRouteTable:
+    Type: "AWS::EC2::RouteTable"
+    Properties:
+      VpcId: !Ref VdcVpc
+  VdcPublicInternetAccessRoute:
+    Type: "AWS::EC2::Route"
+    DependsOn: VdcInternetGatewayAttachment
+    Properties:
+      RouteTableId: !Ref VdcPublicRouteTable
+      DestinationCidrBlock: "0.0.0.0/0"
+      GatewayId: !Ref VdcInternetGateway
+  VdcPublicSubnetARouteTableAssociation:
+    Type: "AWS::EC2::SubnetRouteTableAssociation"
+    Properties:
+      RouteTableId: !Ref VdcPublicRouteTable
+      SubnetId: !Ref VdcPublicSubnetA
+  VdcPublicSubnetBRouteTableAssociation:
+    Type: "AWS::EC2::SubnetRouteTableAssociation"
+    Properties:
+      RouteTableId: !Ref VdcPublicRouteTable
+      SubnetId: !Ref VdcPublicSubnetB
+  VdcPublicSubnetCRouteTableAssociation:
+    Type: "AWS::EC2::SubnetRouteTableAssociation"
+    Properties:
+      RouteTableId: !Ref VdcPublicRouteTable
+      SubnetId: !Ref VdcPublicSubnetC
+
   VdcOutboundNat:
     Type: "AWS::EC2::NatGateway"
     DependsOn: VdcInternetGatewayAttachment
@@ -372,6 +447,171 @@ Resources:
       VpcId: !Ref VdcVpc
       RouteTableIds:
         - !Ref VdcRouteTable
+
+  # Load balancers for gateway and internal gateway services
+
+  VdcInternalGatewayLoadBalancer:
+    Type: "AWS::ElasticLoadBalancingV2::LoadBalancer"
+    Properties:
+      Name: "internal-gateway"
+      Type: "network"
+      Scheme: "internal"
+      IpAddressType: "ipv4"
+      Subnets:
+        - !Ref VdcSubnetA
+        - !Ref VdcSubnetB
+        - !Ref VdcSubnetC
+      SecurityGroups:
+        - !Ref VdcInternalGatewayLoadBalancerSecurityGroup
+      LoadBalancerAttributes:
+        - Key: "load_balancing.cross_zone.enabled"
+          Value: "true"
+  VdcInternalGatewayLoadBalancerSecurityGroup:
+    Type: "AWS::EC2::SecurityGroup"
+    Properties:
+      GroupName: "internal-gateway"
+      GroupDescription: "Security group for the internal gateway load balancer"
+      VpcId: !Ref VdcVpc
+      SecurityGroupIngress:
+        - Description: "Allows HTTP from within the VPC"
+          IpProtocol: "tcp"
+          FromPort: 80
+          ToPort: 80
+          CidrIp: !Ref VpcCidrBlock
+  VdcInternalGatewayHttpTargetIngress:
+    Type: "AWS::EC2::SecurityGroupIngress"
+    Properties:
+      Description: "Allows the internal gateway load balancer to reach internal-gateway pods over HTTP"
+      GroupId: !GetAtt VdcCluster.ClusterSecurityGroupId
+      IpProtocol: "tcp"
+      FromPort: 8080
+      ToPort: 8080
+      SourceSecurityGroupId: !Ref VdcInternalGatewayLoadBalancerSecurityGroup
+  VdcInternalGatewayHttpTargetGroup:
+    Type: "AWS::ElasticLoadBalancingV2::TargetGroup"
+    Properties:
+      Name: "internal-gateway-http"
+      Protocol: "TCP"
+      Port: 8080
+      TargetType: "ip"
+      VpcId: !Ref VdcVpc
+      HealthCheckProtocol: "TCP"
+  VdcInternalGatewayHttpListener:
+    Type: "AWS::ElasticLoadBalancingV2::Listener"
+    Properties:
+      LoadBalancerArn: !Ref VdcInternalGatewayLoadBalancer
+      Protocol: "TCP"
+      Port: 80
+      DefaultActions:
+        - Type: "forward"
+          TargetGroupArn: !Ref VdcInternalGatewayHttpTargetGroup
+
+  VdcGatewayLoadBalancer:
+    Type: "AWS::ElasticLoadBalancingV2::LoadBalancer"
+    DependsOn: VdcPublicInternetAccessRoute
+    Properties:
+      Name: "gateway"
+      Type: "network"
+      Scheme: "internet-facing"
+      IpAddressType: "ipv4"
+      Subnets:
+        - !Ref VdcPublicSubnetA
+        - !Ref VdcPublicSubnetB
+        - !Ref VdcPublicSubnetC
+      SecurityGroups:
+        - !Ref VdcGatewayLoadBalancerSecurityGroup
+      LoadBalancerAttributes:
+        - Key: "load_balancing.cross_zone.enabled"
+          Value: "false"
+  VdcGatewayLoadBalancerSecurityGroup:
+    Type: "AWS::EC2::SecurityGroup"
+    Properties:
+      GroupName: "gateway"
+      GroupDescription: "Security group for the gateway load balancer"
+      VpcId: !Ref VdcVpc
+      SecurityGroupIngress:
+        - Description: "Allows HTTP from the internet"
+          IpProtocol: "tcp"
+          FromPort: 80
+          ToPort: 80
+          CidrIp: "0.0.0.0/0"
+        - Description: "Allows HTTPS from the internet"
+          IpProtocol: "tcp"
+          FromPort: 443
+          ToPort: 443
+          CidrIp: "0.0.0.0/0"
+  VdcGatewayBootstrapHttpTargetIngress:
+    Type: "AWS::EC2::SecurityGroupIngress"
+    Properties:
+      Description: "Allows the gateway load balancer to reach bootstrap gateway pods over HTTP"
+      GroupId: !GetAtt VdcCluster.ClusterSecurityGroupId
+      IpProtocol: "tcp"
+      FromPort: 80
+      ToPort: 80
+      SourceSecurityGroupId: !Ref VdcGatewayLoadBalancerSecurityGroup
+  VdcGatewayBootstrapHttpsTargetIngress:
+    Type: "AWS::EC2::SecurityGroupIngress"
+    Properties:
+      Description: "Allows the gateway load balancer to reach bootstrap gateway pods over HTTPS"
+      GroupId: !GetAtt VdcCluster.ClusterSecurityGroupId
+      IpProtocol: "tcp"
+      FromPort: 443
+      ToPort: 443
+      SourceSecurityGroupId: !Ref VdcGatewayLoadBalancerSecurityGroup
+  VdcGatewayHttpTargetIngress:
+    Type: "AWS::EC2::SecurityGroupIngress"
+    Properties:
+      Description: "Allows the gateway load balancer to reach gateway pods over HTTP"
+      GroupId: !GetAtt VdcCluster.ClusterSecurityGroupId
+      IpProtocol: "tcp"
+      FromPort: 8080
+      ToPort: 8080
+      SourceSecurityGroupId: !Ref VdcGatewayLoadBalancerSecurityGroup
+  VdcGatewayHttpsTargetIngress:
+    Type: "AWS::EC2::SecurityGroupIngress"
+    Properties:
+      Description: "Allows the gateway load balancer to reach gateway pods over HTTPS"
+      GroupId: !GetAtt VdcCluster.ClusterSecurityGroupId
+      IpProtocol: "tcp"
+      FromPort: 8443
+      ToPort: 8443
+      SourceSecurityGroupId: !Ref VdcGatewayLoadBalancerSecurityGroup
+  VdcGatewayHttpTargetGroup:
+    Type: "AWS::ElasticLoadBalancingV2::TargetGroup"
+    Properties:
+      Name: "gateway-http"
+      Protocol: "TCP"
+      Port: 8080
+      TargetType: "ip"
+      VpcId: !Ref VdcVpc
+      HealthCheckProtocol: "TCP"
+  VdcGatewayHttpsTargetGroup:
+    Type: "AWS::ElasticLoadBalancingV2::TargetGroup"
+    Properties:
+      Name: "gateway-https"
+      Protocol: "TCP"
+      Port: 8443
+      TargetType: "ip"
+      VpcId: !Ref VdcVpc
+      HealthCheckProtocol: "TCP"
+  VdcGatewayHttpListener:
+    Type: "AWS::ElasticLoadBalancingV2::Listener"
+    Properties:
+      LoadBalancerArn: !Ref VdcGatewayLoadBalancer
+      Protocol: "TCP"
+      Port: 80
+      DefaultActions:
+        - Type: "forward"
+          TargetGroupArn: !Ref VdcGatewayHttpTargetGroup
+  VdcGatewayHttpsListener:
+    Type: "AWS::ElasticLoadBalancingV2::Listener"
+    Properties:
+      LoadBalancerArn: !Ref VdcGatewayLoadBalancer
+      Protocol: "TCP"
+      Port: 443
+      DefaultActions:
+        - Type: "forward"
+          TargetGroupArn: !Ref VdcGatewayHttpsTargetGroup
 
   VdcArtifactRepositoryTemplate:
     Type: "AWS::ECR::RepositoryCreationTemplate"
@@ -695,4 +935,4 @@ Outputs:
     Value: !GetAtt VdcClusterNodegroupRole.Arn
     Description: "ARN of IAM role associated with cluster nodes"
     Export:
-      Name: VdcNodeRole
+      Name: VdcNodeRoleArn

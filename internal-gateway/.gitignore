@@ -1,4 +1,5 @@
 /deployment.yaml.out
 /service.yaml.out
+/target-group-bindings.yaml.out
 /rds.yaml
 /cds.yaml

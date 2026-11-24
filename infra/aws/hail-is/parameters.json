@@ -20,6 +20,18 @@
     "ParameterValue": "172.31.32.0/20"
   },
   {
+    "ParameterKey": "PublicSubnetCidrBlockA",
+    "ParameterValue": "172.31.48.0/27"
+  },
+  {
+    "ParameterKey": "PublicSubnetCidrBlockB",
+    "ParameterValue": "172.31.48.32/27"
+  },
+  {
+    "ParameterKey": "PublicSubnetCidrBlockC",
+    "ParameterValue": "172.31.48.64/27"
+  },
+  {
     "ParameterKey": "PublicAccessIpList",
     "ParameterValue": "69.173.64.0/18, 69.173.64.0/19, 69.173.96.0/19, 69.173.95.0/24, 69.173.97.0/24"
   },
