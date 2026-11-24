@@ -205,17 +205,36 @@ class TableMapGlobals(TableIR):
 
     def _handle_randomness(self, uid_field_name):
         new_globals = self.new_globals
-        if new_globals.uses_randomness:
+        if new_globals.uses_value_randomness:
             new_globals = ir.Let('__rng_state', ir.RNGStateLiteral(), new_globals)
 
-        return TableMapGlobals(self.child.handle_randomness(uid_field_name), new_globals)
+        if new_globals.uses_agg_randomness(is_scan=False):
+            row_uid = uid_field_name or default_row_uid
+            child = self.child.handle_randomness(row_uid)
+            uid, old_row = unpack_uid(child.typ.row_type, row_uid)
+            new_globals = ir.AggLet('row', old_row, new_globals, is_scan=False)
+            new_globals = ir.AggLet('__rng_state', ir.RNGSplit(ir.RNGStateLiteral(), uid), new_globals, is_scan=False)
+            with_uid = TableMapGlobals(child, new_globals)
+            result = with_uid if uid_field_name else TableMapRows(with_uid, old_row)
+        else:
+            child = self.child.handle_randomness(uid_field_name)
+            if uid_field_name is not None and 'row' in new_globals.free_agg_vars:
+                _, old_row = unpack_uid(child.typ.row_type, uid_field_name)
+                new_globals = ir.AggLet('row', old_row, new_globals, is_scan=False)
+            result = TableMapGlobals(child, new_globals)
+
+        return result
 
     def _compute_type(self, deep_typecheck):
-        self.new_globals.compute_type(self.child.typ.global_env(), None, deep_typecheck)
+        self.child.compute_type(deep_typecheck)
+        self.new_globals.compute_type(self.child.typ.global_env(), self.child.typ.row_env(), deep_typecheck)
         return hl.ttable(self.new_globals.typ, self.child.typ.row_type, self.child.typ.row_key)
 
     def renderable_bindings(self, i, default_value=None):
-        return self.child.typ.global_env(default_value) if i == 1 else {}
+        return {**self.child.typ.global_env(default_value), BaseIR.agg_capability: default_value} if i == 1 else dict()
+
+    def renderable_agg_bindings(self, i, default_value=None):
+        return self.child.typ.row_env(default_value) if i == 1 else dict()
 
 
 class TableExplode(TableIR):
