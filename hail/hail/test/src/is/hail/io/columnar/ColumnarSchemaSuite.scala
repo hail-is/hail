@@ -2,6 +2,10 @@ package is.hail.io.columnar
 
 import is.hail.TestUtils._
 import is.hail.collection.FastSeq
+import is.hail.expr.Nat
+import is.hail.types.physical._
+import is.hail.types.virtual._
+import is.hail.variant.ReferenceGenome
 
 import scala.jdk.CollectionConverters._
 
@@ -112,6 +116,136 @@ class ColumnarSchemaSuite {
     val actual = ColumnarSchema.toParquet(schema)
     assertEq(actual.toString, expected.toString)
     assertEq(actual, expected)
+  }
+
+  @Test def testParquetSchemaOfMapsTensorsAndExtensionTypes(): Unit = {
+    val rg = ReferenceGenome("small", FastSeq("1", "2"), Map("1" -> 10, "2" -> 10))
+    val schema = ColumnarSchema.fileSchema(
+      PCanonicalStruct(
+        true,
+        "d" -> PCanonicalDict(PCanonicalString(), PInt32(), false),
+        "nd" -> PCanonicalNDArray(PFloat64(true), 2, true),
+        "l" -> PCanonicalLocus(rg, true),
+        "c" -> PCanonicalCall(false),
+        "s" -> PCanonicalSet(PInt32(true), false),
+        "i" -> PCanonicalInterval(PInt32(true), true),
+        "t" -> PCanonicalTuple(false, PInt32(true), PCanonicalString(false)),
+        "e" -> PCanonicalStruct(false),
+        "et" -> PCanonicalTuple(true),
+      ),
+      None,
+    )
+
+    val expected = MessageTypeParser.parseMessageType(
+      """message schema {
+        |  optional group d (MAP) = 1 {
+        |    repeated group key_value {
+        |      required binary key (STRING) = 2;
+        |      optional int32 value = 3;
+        |    }
+        |  }
+        |  required group nd = 4 {
+        |    required group data (LIST) = 5 {
+        |      repeated group list {
+        |        required double element = 6;
+        |      }
+        |    }
+        |    optional group shape (LIST) = 7 {
+        |      repeated group list {
+        |        required int32 element = 8;
+        |      }
+        |    }
+        |  }
+        |  required int64 l = 9;
+        |  optional int32 c = 10;
+        |  optional group s (LIST) = 11 {
+        |    repeated group list {
+        |      required int32 element = 12;
+        |    }
+        |  }
+        |  required group i = 13 {
+        |    required int32 start = 14;
+        |    required int32 end = 15;
+        |    required boolean includes_start = 16;
+        |    required boolean includes_end = 17;
+        |  }
+        |  optional group t = 18 {
+        |    required int32 0 = 19;
+        |    optional binary 1 (STRING) = 20;
+        |  }
+        |  optional boolean e = 21;
+        |  required boolean et = 22;
+        |}
+        |""".stripMargin
+    )
+
+    val actual = ColumnarSchema.toParquet(schema)
+    assertEq(actual.toString, expected.toString)
+    assertEq(actual, expected)
+
+    // A decoded schema has storage types and extension metadata where `schema` has extension
+    // types, since Hail registers none with Arrow.
+    val decoded = ColumnarFileSink.decodeSchema(ColumnarSchema.serialize(schema))
+    assertEq(ColumnarSchema.toParquet(decoded), expected)
+  }
+
+  @Test def testEveryTypeButRngStateAndNonNumericNDArraysIsSupported(): Unit = {
+    ColumnarSchema.checkSupported(
+      "row",
+      TStruct(
+        "d" -> TDict(TString, TInt32),
+        "nd" -> TNDArray(TFloat64, Nat(2)),
+        "ndb" -> TNDArray(TBoolean, Nat(1)),
+        "l" -> TLocus(ReferenceGenome.builtinReferences()("GRCh37")),
+        "c" -> TCall,
+        "s" -> TSet(TInt32),
+        "i" -> TInterval(TLocus(ReferenceGenome.builtinReferences()("GRCh38"))),
+        "t" -> TTuple(TInt32, TString),
+        "e" -> TStruct.empty,
+        "et" -> TTuple(),
+        "a" -> TArray(TStruct("x" -> TStruct.empty)),
+      ),
+    )
+  }
+
+  @Test def testRngStateIsRejectedWithItsPath(): Unit =
+    interceptFatal("global field 'a\\[\\]\\.rng' has type rng_state, which can't be stored") {
+      ColumnarSchema.checkSupported(
+        "global",
+        TStruct("a" -> TArray(TStruct("x" -> TInt32, "rng" -> TRNGState))),
+      )
+    }
+
+  @Test def testNDArrayOfNonNumericElementsIsRejectedWithItsPath(): Unit =
+    FastSeq(TStruct("x" -> TInt32), TTuple(TInt32), TStruct.empty, TInterval(TInt32), TCall)
+      .foreach { elementType =>
+        interceptFatal(
+          "row field 'a\\[\\]\\.nd' has type .*, which can't be stored: an ndarray's elements"
+        ) {
+          ColumnarSchema.checkSupported(
+            "row",
+            TStruct("a" -> TArray(TStruct("nd" -> TNDArray(elementType, Nat(1))))),
+          )
+        }
+      }
+
+  @Test def testOnlyNonBuiltinReferenceGenomesAreListedByName(): Unit = {
+    val grch37 = ReferenceGenome.builtinReferences()("GRCh37")
+    val custom = ReferenceGenome("custom", FastSeq("1", "2"), Map("1" -> 10, "2" -> 10))
+    assertEq(
+      ColumnarSchema.nonBuiltinReferenceGenomes(
+        TStruct("l" -> TLocus(grch37), "i" -> TArray(TInterval(TLocus(custom)))),
+        TStruct("nd" -> TNDArray(TFloat64, Nat(1)), "l" -> TLocus(custom)),
+      ),
+      FastSeq(custom),
+    )
+  }
+
+  @Test def testANonBuiltinReferenceGenomeWithABuiltinNameIsRejected(): Unit = {
+    val impostor = ReferenceGenome("GRCh37", FastSeq("1"), Map("1" -> 10))
+    interceptFatal("reference genome 'GRCh37' has the name of a builtin reference genome") {
+      ColumnarSchema.nonBuiltinReferenceGenomes(TStruct("l" -> TLocus(impostor)))
+    }
   }
 
   @Test def testSchemaIsAnEncapsulatedIpcMessageInBase64(): Unit = {

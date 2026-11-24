@@ -10,10 +10,13 @@ import is.hail.expr.ir.orderings.CodeOrdering
 import is.hail.expr.ir.streams.StreamProducer
 import is.hail.io.fs.FS
 import is.hail.types.{BaseTypeWithRequiredness, RIterable, RStruct, TypeWithRequiredness}
+import is.hail.types.arrow.ArrowSchemaConversion
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.{EmitType, SType, SValue}
 import is.hail.types.physical.stypes.concrete.SJavaString
-import is.hail.types.physical.stypes.interfaces.SBaseStructValue
+import is.hail.types.physical.stypes.interfaces.{
+  SBaseStructValue, SIndexableValue, SIntervalValue, SNDArray, SNDArrayValue,
+}
 import is.hail.types.physical.stypes.primitives.{SBooleanValue, SInt64Value}
 import is.hail.types.virtual._
 
@@ -194,6 +197,178 @@ case class ColumnarPartitionWriter(
       v => field(cb, sink, name, index)(writeValue(cb, sink, t, v, path)),
     )
 
+  /** Emits a group holding the repeated field `name`, which has values if `nonEmpty`. `body` emits
+    * the values, each a group.
+    */
+  private def repeated(
+    cb: EmitCodeBuilder,
+    sink: Value[ColumnarFileSink],
+    name: String,
+    nonEmpty: Code[Boolean],
+  )(
+    body: => Unit
+  ): Unit =
+    group(cb, sink) {
+      // A repeated field with no values must not be started at all.
+      cb.if_(nonEmpty, field(cb, sink, name, 0)(body))
+    }
+
+  /** Emits the standard three-level LIST encoding of a list that has elements if `nonEmpty`. `body`
+    * emits the elements, each with [[listElement]] or [[missingListElement]].
+    */
+  private def list(
+    cb: EmitCodeBuilder,
+    sink: Value[ColumnarFileSink],
+    nonEmpty: Code[Boolean],
+  )(
+    body: => Unit
+  ): Unit =
+    repeated(cb, sink, ColumnarSchema.ParquetListName, nonEmpty)(body)
+
+  /** Emits a present list element, whose value `body` emits. */
+  private def listElement(cb: EmitCodeBuilder, sink: Value[ColumnarFileSink])(body: => Unit): Unit =
+    group(cb, sink)(field(cb, sink, ArrowSchemaConversion.ElementFieldName, 0)(body))
+
+  private def missingListElement(cb: EmitCodeBuilder, sink: Value[ColumnarFileSink]): Unit =
+    group(cb, sink)(())
+
+  /** Emits an array or set as a LIST. */
+  private def writeList(
+    cb: EmitCodeBuilder,
+    sink: Value[ColumnarFileSink],
+    elementType: PType,
+    a: SIndexableValue,
+    elementPath: String,
+  ): Unit =
+    list(cb, sink, a.loadLength > 0) {
+      a.forEachDefinedOrMissing(cb)(
+        (cb, _) =>
+          if (elementType.required)
+            cb._fatal(s"columnar writer: required field '$elementPath' is missing")
+          else
+            missingListElement(cb, sink),
+        (cb, _, element) =>
+          listElement(cb, sink)(writeValue(cb, sink, elementType, element, elementPath)),
+      )
+    }
+
+  /** Emits a dict as a MAP, failing on a missing dict key (spec section 5.1). */
+  private def writeDict(
+    cb: EmitCodeBuilder,
+    sink: Value[ColumnarFileSink],
+    t: PDict,
+    d: SIndexableValue,
+    path: String,
+  ): Unit = {
+    val (keyName, valueName) =
+      (ArrowSchemaConversion.KeyFieldName, ArrowSchemaConversion.ValueFieldName)
+    repeated(cb, sink, ColumnarSchema.ParquetMapEntriesName, d.loadLength > 0) {
+      d.forEachDefined(cb) { (cb, _, entry) =>
+        val kv = entry.asBaseStruct
+        group(cb, sink) {
+          kv.loadField(cb, 0).consume(
+            cb,
+            cb._fatal(
+              s"columnar writer: field '$path' has a missing dict key, which can't be stored. " +
+                "Filter the missing dict key out before writing."
+            ),
+            key =>
+              field(cb, sink, keyName, 0) {
+                writeValue(cb, sink, t.keyType, key, s"$path.$keyName")
+              },
+          )
+          writeField(
+            cb,
+            sink,
+            valueName,
+            1,
+            t.valueType,
+            kv.loadField(cb, 1),
+            s"$path.$valueName",
+          )
+        }
+      }
+    }
+  }
+
+  private def writeInterval(
+    cb: EmitCodeBuilder,
+    sink: Value[ColumnarFileSink],
+    t: PInterval,
+    i: SIntervalValue,
+    path: String,
+  ): Unit = {
+    val IndexedSeq(start, end, includesStart, includesEnd) =
+      ArrowSchemaConversion.IntervalFieldNames
+    group(cb, sink) {
+      writeField(cb, sink, start, 0, t.pointType, i.loadStart(cb), s"$path.$start")
+      writeField(cb, sink, end, 1, t.pointType, i.loadEnd(cb), s"$path.$end")
+      field(cb, sink, includesStart, 2) {
+        cb += sink.invoke[Boolean, Unit]("addBoolean", i.includesStart)
+      }
+      field(cb, sink, includesEnd, 3) {
+        cb += sink.invoke[Boolean, Unit]("addBoolean", i.includesEnd)
+      }
+    }
+  }
+
+  /** Emits an ndarray as Arrow's variable shape tensor: its data row-major, whatever its strides,
+    * and its shape (spec section 5.4).
+    */
+  private def writeNDArray(
+    cb: EmitCodeBuilder,
+    sink: Value[ColumnarFileSink],
+    t: PNDArray,
+    nd: SNDArrayValue,
+    path: String,
+  ): Unit = {
+    val shape = nd.shapes
+    val IndexedSeq(dataName, shapeName) = ArrowSchemaConversion.TensorFieldNames
+    shape.foreach { dim =>
+      cb.if_(
+        dim > Int.MaxValue.toLong,
+        cb._fatal(
+          s"columnar writer: an ndarray in field '$path' has a dimension longer than " +
+            s"${Int.MaxValue}, which can't be stored"
+        ),
+      )
+    }
+    group(cb, sink) {
+      field(cb, sink, dataName, 0) {
+        list(cb, sink, SNDArray.numElements(shape) > 0L) {
+          SNDArray.forEachIndexRowMajor(cb, shape, "columnar_writer_ndarray") { (cb, idx) =>
+            listElement(cb, sink) {
+              writeValue(cb, sink, t.elementType, nd.loadElement(idx, cb), s"$path[]")
+            }
+          }
+        }
+      }
+      field(cb, sink, shapeName, 1) {
+        list(cb, sink, const(t.nDims > 0)) {
+          shape.foreach { dim =>
+            listElement(cb, sink)(cb += sink.invoke[Int, Unit]("addInt", dim.toI))
+          }
+        }
+      }
+    }
+  }
+
+  /** Emits a struct or tuple with fields as a group. A tuple's fields are named by their tuple
+    * indices, as in its Arrow type.
+    */
+  private def writeStruct(
+    cb: EmitCodeBuilder,
+    sink: Value[ColumnarFileSink],
+    t: PBaseStruct,
+    s: SBaseStructValue,
+    path: String,
+  ): Unit =
+    group(cb, sink) {
+      t.fields.foreach { f =>
+        writeField(cb, sink, f.name, f.index, f.typ, s.loadField(cb, f.index), s"$path.${f.name}")
+      }
+    }
+
   private def writeValue(
     cb: EmitCodeBuilder,
     sink: Value[ColumnarFileSink],
@@ -211,45 +386,16 @@ case class ColumnarPartitionWriter(
         cb += sink.invoke[Array[Byte], Unit]("addBinary", v.asString.toBytes(cb).loadBytes(cb))
       case _: PBinary =>
         cb += sink.invoke[Array[Byte], Unit]("addBinary", v.asBinary.loadBytes(cb))
-      case t: PArray =>
-        val a = v.asIndexable
-        val elementPath = s"$path[]"
-        group(cb, sink) {
-          cb.if_(
-            a.loadLength > 0,
-            field(cb, sink, "list", 0) {
-              a.forEachDefinedOrMissing(cb)(
-                { (cb, _) =>
-                  if (t.elementType.required)
-                    cb._fatal(s"columnar writer: required field '$elementPath' is missing")
-                  group(cb, sink)(())
-                },
-                { (cb, _, element) =>
-                  group(cb, sink) {
-                    field(cb, sink, "element", 0) {
-                      writeValue(cb, sink, t.elementType, element, elementPath)
-                    }
-                  }
-                },
-              )
-            },
-          )
-        }
-      case t: PStruct =>
-        val s = v.asBaseStruct
-        group(cb, sink) {
-          t.fields.foreach { f =>
-            writeField(
-              cb,
-              sink,
-              f.name,
-              f.index,
-              f.typ,
-              s.loadField(cb, f.name),
-              s"$path.${f.name}",
-            )
-          }
-        }
+      case _: PCall => cb += sink.invoke[Int, Unit]("addInt", v.asCall.canonicalCall(cb))
+      case _: PLocus => cb += sink.invoke[Long, Unit]("addLong", v.asLocus.packed(cb))
+      case t: PInterval => writeInterval(cb, sink, t, v.asInterval, path)
+      case t: PNDArray => writeNDArray(cb, sink, t, v.asNDArray, path)
+      case t: PDict => writeDict(cb, sink, t, v.asIndexable, path)
+      // An array or set; a dict is matched above.
+      case t: PContainer => writeList(cb, sink, t.elementType, v.asIndexable, s"$path[]")
+      // Parquet can't store a group with no fields (spec section 5.5).
+      case t: PBaseStruct if t.size == 0 => cb += sink.invoke[Boolean, Unit]("addBoolean", true)
+      case t: PBaseStruct => writeStruct(cb, sink, t, v.asBaseStruct, path)
     }
 }
 

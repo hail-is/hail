@@ -408,7 +408,7 @@ class ArrowSchemaConversionSuite {
         ),
         node(
           "shape",
-          false,
+          true,
           new ArrowType.FixedSizeList(3),
           leaf("element", false, new ArrowType.Int(32, true)),
         ),
@@ -511,7 +511,7 @@ class ArrowSchemaConversionSuite {
       ),
       node(
         "shape",
-        false,
+        true,
         new ArrowType.FixedSizeList(1),
         leaf("element", false, new ArrowType.Int(32, true)),
       ),
@@ -525,6 +525,24 @@ class ArrowSchemaConversionSuite {
         false,
         ArrowType.List.INSTANCE,
         leaf("element", false, new LocusExtensionType(small.name, small.contigs)),
+      ),
+      node(
+        "shape",
+        true,
+        new ArrowType.FixedSizeList(1),
+        leaf("element", false, new ArrowType.Int(32, true)),
+      ),
+    ),
+    // shape must be nullable (spec section 5.4)
+    node(
+      "x",
+      true,
+      VariableShapeTensorExtensionType,
+      node(
+        "data",
+        false,
+        ArrowType.List.INSTANCE,
+        leaf("element", false, new ArrowType.Int(32, true)),
       ),
       node(
         "shape",
@@ -636,7 +654,7 @@ class ArrowSchemaConversionSuite {
       ),
       node(
         "shape",
-        false,
+        true,
         new ArrowType.FixedSizeList(1),
         leaf("element", false, new ArrowType.Int(32, true)),
       ),
@@ -653,7 +671,7 @@ class ArrowSchemaConversionSuite {
       ),
       withExtensionMetadata(
         "shape",
-        false,
+        true,
         new ArrowType.FixedSizeList(1),
         leaf("element", false, new ArrowType.Int(32, true)),
       ),
