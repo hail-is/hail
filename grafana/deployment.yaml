@@ -236,8 +236,6 @@ spec:
            limits:
              cpu: "1"
              memory: "200M"
-         ports:
-          - containerPort: 3000
        - name: envoy
          image: "{{ global.docker_prefix }}/envoyproxy/envoy:v1.33.0"
          command:
@@ -284,6 +282,8 @@ metadata:
 data:
   grafana.ini: |
     [server]
+    # Only reachable through the envoy sidecar, which enforces Hail auth
+    http_addr = 127.0.0.1
 {% if deploy %}
     domain = grafana.{{ global.domain }}
 {% else %}
