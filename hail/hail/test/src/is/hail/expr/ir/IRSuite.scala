@@ -3974,6 +3974,20 @@ class IRSuite {
     assert(x2 == x)
   }
 
+  @Test def testParserKeepsEvalAndAggBindingsOfOneNameApart(implicit ctx: ExecuteContext): Unit = {
+    val x = Name("x")
+    val y = Ref(Name("y"), TInt32)
+    val block = Block(
+      FastSeq(
+        Binding(x, Str("a")),
+        Binding(x, I32(1), Scope.AGG),
+        Binding(y.name, Ref(x, TInt32), Scope.AGG),
+      ),
+      maketuple(Ref(x, TString), ApplyAggOp(Collect())(y)),
+    )
+    testValueIRParser(block, BindingEnv.empty[Type].createAgg)
+  }
+
   // A relational writer names the reference genomes it writes, as types do, and reads them back as
   // the reference genomes in scope.
   @Test def testRelationalWriterNamesItsReferenceGenomes(implicit ctx: ExecuteContext): Unit = {
