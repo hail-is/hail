@@ -12,7 +12,6 @@ object Exists {
       true
     else
       node.children.exists {
-        case child: TableAggregate => visitor(child)
         case child: MatrixAggregate => visitor(child)
         case child: IR => inIR(child, visitor)
         case _ => false
@@ -62,7 +61,6 @@ object ContainsAgg {
         case Binding(_, _, Scope.AGG) => true
         case Binding(_, value, _) => ContainsAgg(value)
       } || ContainsAgg(body)
-    case _: TableAggregate => false
     case _: MatrixAggregate => false
     case StreamAgg(a, _, _) => ContainsAgg(a)
     case _ => root.children.exists {
@@ -102,8 +100,8 @@ object ContainsNonCommutativeAgg {
   def apply(root: IR): Boolean = root match {
     case ApplyAggOp(_, _, op) => !AggIsCommutative(op)
     case AggFold(_, _, _, _, _, false) => true
-    case _: TableAggregate => false
     case _: MatrixAggregate => false
+    case StreamAgg(a, _, _) => ContainsNonCommutativeAgg(a)
     case _ => root.children.exists {
         case child: IR => ContainsNonCommutativeAgg(child)
         case _ => false
@@ -118,7 +116,6 @@ object ContainsScan {
         case Binding(_, _, Scope.SCAN) => true
         case Binding(_, value, _) => ContainsScan(value)
       } || ContainsScan(body)
-    case _: TableAggregate => false
     case _: MatrixAggregate => false
     case StreamAggScan(a, _, _) => ContainsScan(a)
     case _ => root.children.exists {

@@ -373,7 +373,7 @@ def _krylov_factorization(A: TallSkinnyMatrix, V0, p, compute_U=False, compute_V
 
     for j in range(0, p):
         info(f"krylov_factorization: Beginning iteration {j + 1}/{p}")
-        G_i = t.aggregate(hl.agg.ndarray_sum(A_expr.T @ (A_expr @ G_i)), _localize=False)
+        G_i = t._aggregate(hl.agg.ndarray_sum(A_expr.T @ (A_expr @ G_i)))
         G_i = hl.nd.qr(G_i)[0]._persist()
         g_list.append(G_i)
 
@@ -391,10 +391,10 @@ def _krylov_factorization(A: TallSkinnyMatrix, V0, p, compute_U=False, compute_V
     if compute_U:
         temp_file_name = hl.utils.new_temp_file("_krylov_factorization_intermediate", "ht")
         t = t.checkpoint(temp_file_name)
-        AV_local = t.aggregate(hl.nd.vstack(hl.agg.collect(t.AV)), _localize=False)
+        AV_local = t._aggregate(hl.nd.vstack(hl.agg.collect(t.AV)))
         U, R = hl.nd.qr(AV_local)._persist()
     else:
-        Rs = t.aggregate(hl.nd.vstack(hl.agg.collect(hl.nd.qr(t.AV)[1])), _localize=False)
+        Rs = t._aggregate(hl.nd.vstack(hl.agg.collect(hl.nd.qr(t.AV)[1])))
         R = hl.nd.qr(Rs)[1]._persist()
         U = None
 

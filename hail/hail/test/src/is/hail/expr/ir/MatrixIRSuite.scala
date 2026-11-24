@@ -14,8 +14,8 @@ import is.hail.expr.ir.TestUtils._
 import is.hail.expr.ir.defs.{
   AggFilter, AggGroupBy, Apply, ApplyAggOp, ApplyScanOp, ArrayMaximalIndependentSet, Binding, Block,
   GetField, I32, I64, InsertFields, Let, Literal, MakeArray, MakeTuple, MatrixAggregate,
-  MatrixMultiWrite, MatrixWrite, RNGSplit, RNGSplitStatic, RNGStateLiteral, Ref, TableAggregate,
-  TableCollect, ToArray, ToStream, True,
+  MatrixMultiWrite, MatrixWrite, RNGSplit, RNGSplitStatic, RNGStateLiteral, Ref, TableCollect,
+  ToArray, ToStream, True,
 }
 import is.hail.types.virtual._
 import is.hail.utils._
@@ -572,14 +572,14 @@ class MatrixIRSuite {
     assertEvalsTo(collectCols(mapped), expected)
   }
 
-  /* IR that runs its own aggregation: TableAggregate, MatrixAggregate (lowered to TableAggregate
+  /* IR that runs its own aggregation: TableMapGlobals, MatrixAggregate (lowered to TableMapGlobals
    * before lifting), StreamAgg and StreamAggScan. Lifting leaves their queries alone and lifts a
    * scan in the stream argument. Each case sits beside an outer `agg.count()`, which is 3. */
   private def nestedAggContexts(idx: IR)(implicit ctx: ExecuteContext) = {
     def outer(x: IR): IR = maketuple(x, ApplyAggOp(Count())())
     def prevs: IR = ToStream(ApplyScanOp(Collect())(idx))
     FastSeq[(IR, Int => Any)](
-      (outer(TableAggregate(TableRange(4, 1), ApplyAggOp(Count())())), _ => RowSeq(4L, 3L)),
+      (outer(TableRange(4, 1).aggregate((_, _) => ApplyAggOp(Count())())), _ => RowSeq(4L, 3L)),
       (
         outer(MatrixAggregate(rangeMatrix(2, 3, Some(1)), ApplyAggOp(Count())())),
         _ => RowSeq(6L, 3L),

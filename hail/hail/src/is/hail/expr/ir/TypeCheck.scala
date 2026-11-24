@@ -721,9 +721,6 @@ object TypeCheck extends Logging {
 
   private def checkRelationalToValue(ir: BaseIR): Unit =
     (ir.tag.toInt: @switch) match {
-      case Tag.TableAggregate =>
-        val x = ir.asInstanceOf[TableAggregate]
-        assert(x.typ == x.query.typ)
       case Tag.TableCollect =>
         val x = ir.asInstanceOf[TableCollect]
         assert(x.child.typ.key.isEmpty)

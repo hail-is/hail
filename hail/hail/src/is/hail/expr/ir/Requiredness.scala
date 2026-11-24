@@ -335,8 +335,6 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
       case BlockMatrixMap2(leftChild, rightChild, leftName, rightName, _, _) =>
         addBlockMatrixElementBinding(leftName, leftChild)
         addBlockMatrixElementBinding(rightName, rightChild)
-      case TableAggregate(c, _) =>
-        addTableBinding(c)
       case TableFilter(child, _) =>
         addTableBinding(child)
       case TableMapRows(child, _) =>
@@ -851,7 +849,6 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
       case RunAggScan(array, _, _, _, result, _) =>
         requiredness.union(lookup(array).required)
         tcoerce[RIterable](requiredness).elementType.unionFrom(lookup(result))
-      case TableAggregate(_, q) => requiredness.unionFrom(lookup(q))
       case TableGetGlobals(c) => requiredness.unionFrom(lookup(c).globalType)
       case TableCollect(c) =>
         val cReq = lookup(c)

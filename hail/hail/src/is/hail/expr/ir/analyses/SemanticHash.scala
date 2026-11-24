@@ -338,7 +338,6 @@ case object SemanticHash extends Logging {
           _: StreamTakeWhile |
           _: Switch |
           _: TableGetGlobals |
-          _: TableAggregate |
           _: TableAggregateByKey |
           _: TableCollect |
           _: TableCount |

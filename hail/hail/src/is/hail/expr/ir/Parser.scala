@@ -1378,11 +1378,6 @@ object IRParser {
         table_ir(ctx)(it).map(TableGetGlobals)
       case "TableCollect" =>
         table_ir(ctx)(it).map(TableCollect)
-      case "TableAggregate" =>
-        for {
-          child <- table_ir(ctx)(it)
-          query <- ir_value_expr(ctx)(it)
-        } yield TableAggregate(child, query)
       case "TableToValueApply" =>
         val config = string_literal(it)
         table_ir(ctx)(it).map { child =>

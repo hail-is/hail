@@ -1706,16 +1706,6 @@ object PruneDeadFields extends Logging {
       case BlockMatrixToValueApply(child, _) =>
         memoizeBlockMatrixIR(ctx, child, child.typ, memo)
 
-      case TableAggregate(child, _) =>
-        val states = recurMaxWithBindings(ir, 1)
-        val (globalState, rowState) = (states(TableIR.globalName), states(TableIR.rowName))
-        val dep = TableType(
-          key = child.typ.key,
-          rowType = rowState.requireFields(child.typ.key).newStructType,
-          globalType = globalState.newStructType,
-        )
-        memoizeTableIR(ctx, child, dep, memo)
-
       case MatrixAggregate(child, _) =>
         val states = recurMaxWithBindings(ir, 1)
         val globalState = states(MatrixIR.globalName)

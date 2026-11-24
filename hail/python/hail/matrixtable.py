@@ -2231,11 +2231,11 @@ class MatrixTable(BaseTable):
         rows_table = ir.MatrixRowsTable(base._mir)
         subst_query = ir.subst(expr._ir, {}, {'va': ir.Ref('row', rows_table.typ.row_type)})
 
-        agg_ir = ir.TableAggregate(rows_table, subst_query)
-        if _localize:
-            return Env.backend().execute(ir.MakeTuple([agg_ir]))[0]
-        else:
-            return construct_expr(agg_ir, expr.dtype)
+        # Not Table._aggregate: it would process the joins in `subst_query` a second time, and
+        # their join functions need a MatrixTable.
+        globals_table = Table(ir.TableMapGlobals(rows_table, ir.MakeStruct([('__result', subst_query)])))
+        agg_expr = globals_table.index_globals()['__result']
+        return hl.eval(agg_expr) if _localize else agg_expr
 
     @typecheck_method(expr=expr_any, _localize=bool)
     def aggregate_cols(self, expr, _localize=True) -> Any:

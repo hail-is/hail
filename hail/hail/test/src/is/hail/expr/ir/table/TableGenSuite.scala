@@ -9,8 +9,7 @@ import is.hail.collection.FastSeq
 import is.hail.expr.ir._
 import is.hail.expr.ir.TestUtils._
 import is.hail.expr.ir.defs.{
-  Atom, ErrorIDs, GetField, MakeStream, MakeStruct, Ref, Str, StreamRange, TableAggregate,
-  TableGetGlobals,
+  Atom, ErrorIDs, GetField, MakeStream, MakeStruct, Str, StreamRange, TableCount, TableGetGlobals,
 }
 import is.hail.rvd.RVDPartitioner
 import is.hail.types.virtual._
@@ -163,11 +162,7 @@ class TableGenSuite {
       }
     )
 
-    val TableAggregate(pruned, _) =
-      PruneDeadFields(
-        ctx,
-        TableAggregate(start, IRAggCollect(Ref(TableIR.rowName, start.typ.rowType))),
-      )
+    val TableCount(pruned) = PruneDeadFields(ctx, TableCount(start))
 
     pruned.typ should not be start.typ
     pruned.typ.globalType shouldBe TStruct()

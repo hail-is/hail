@@ -234,7 +234,6 @@ class SemanticHashSuite {
         },
       ArraySeq(
         TableGetGlobals,
-        TableAggregate(_, I32(0)),
         TableAggregateByKey(_, MakeStruct(FastSeq())),
         TableKeyByAndAggregate(
           _,

@@ -2,6 +2,7 @@ import math
 import operator
 import random
 import unittest
+import warnings
 
 import pytest
 
@@ -2613,3 +2614,18 @@ def test_checkpoint_read_if_exists_keeps_committed_columnar_dataset():
         hl.utils.range_matrix_table(5, 2).checkpoint(path, overwrite=True, _read_if_exists=True)
     assert fs.exists(f'{path}/manifest.json')
     assert not fs.exists(f'{path}/_SUCCESS')
+
+
+def test_matrix_aggregate_rows_randomness_and_unlocalized():
+    mt = hl.utils.range_matrix_table(10, 3, 2)
+    res = mt.aggregate_rows(hl.agg.collect((mt.row, hl.rand_int64())))
+    assert [row for row, _ in res] == [hl.Struct(row_idx=i) for i in range(10)]
+    assert len({r for _, r in res}) == 10
+
+    assert isinstance(mt.aggregate_rows(hl.rand_int64()), int)
+
+    with warnings.catch_warnings(record=True) as record:
+        warnings.simplefilter('always', DeprecationWarning)
+        lazy_count = mt.aggregate_rows(hl.agg.count(), _localize=False)
+    assert not [w for w in record if issubclass(w.category, DeprecationWarning)]
+    assert hl.eval(lazy_count) == 10

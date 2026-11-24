@@ -213,7 +213,7 @@ def filter_samples(
         samples = hl.Table.parallelize(samples.map(lambda s: hl.struct(s=s)), key='s')
     if not list(samples[x].dtype for x in samples.key) == [hl.tstr]:
         raise TypeError(f'invalid key: {samples.key.dtype}')
-    samples_to_keep = samples.aggregate(hl.agg.collect_as_set(samples.key[0]), _localize=False)._persist()
+    samples_to_keep = samples._aggregate(hl.agg.collect_as_set(samples.key[0]))._persist()
     reference_data = vds.reference_data.filter_cols(samples_to_keep.contains(vds.reference_data.col_key[0]), keep=keep)
     reference_data = reference_data.filter_rows(hl.agg.count() > 0)
     variant_data = vds.variant_data.filter_cols(samples_to_keep.contains(vds.variant_data.col_key[0]), keep=keep)
@@ -473,7 +473,7 @@ def _parameterized_filter_intervals(vds: 'VariantDataset', intervals, keep: bool
                 f"found {list(intervals.key.dtype.values())}"
             )
         intervals_table = intervals
-        intervals = hl.literal(intervals.aggregate(hl.agg.collect(intervals.key[0]), _localize=False))
+        intervals = hl.literal(intervals._aggregate(hl.agg.collect(intervals.key[0])))
 
     if mode == 'unchecked_filter_both':
         return VariantDataset(

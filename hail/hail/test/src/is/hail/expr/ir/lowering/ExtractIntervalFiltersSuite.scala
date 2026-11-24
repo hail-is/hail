@@ -1101,10 +1101,7 @@ class ExtractIntervalFiltersSuite {
       RowSeq(0, null, true),
     )
 
-    val count = TableAggregate(
-      TableRange(10, 1),
-      ApplyAggOp(Count())(),
-    )
+    val count = TableRange(10, 1).aggregate((_, _) => ApplyAggOp(Count())())
     print(count.typ)
     val filter = gt(count, Cast(k1, TInt64))
     check(filter, ref1, k1Full, testRows, filter, FastSeq(Interval(RowSeq(), RowSeq(), true, true)))

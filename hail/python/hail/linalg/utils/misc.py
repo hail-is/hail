@@ -217,7 +217,10 @@ def locus_windows(locus_expr, radius, coord_expr=None, _localize=True):
         hl.case().when(last_pos >= 0, contig_group_expr).or_error("locus_windows: 'locus_expr' has length 0")
     )
 
-    contig_groups = locus_expr._aggregation_method()(checked_contig_groups, _localize=False)
+    if isinstance(locus_expr._indices.source, hl.Table):
+        contig_groups = locus_expr._indices.source._aggregate(checked_contig_groups)
+    else:
+        contig_groups = locus_expr._aggregation_method()(checked_contig_groups, _localize=False)
 
     coords = hl.sorted(hl.array(contig_groups)).map(lambda t: t[1])
     starts_and_stops = hl._locus_windows_per_contig(coords, radius)

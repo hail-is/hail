@@ -89,7 +89,6 @@ object CanLowerEfficiently {
         case TableToValueApply(_, TableCalculateNewPartitions(_)) =>
         case TableToValueApply(_, f: TableToValueFunction) =>
           fail(s"TableToValueApply: no lowering for ${f.getClass.getName}")
-        case TableAggregate(_, _) =>
         case TableCollect(_) =>
         case TableGetGlobals(_) =>
 

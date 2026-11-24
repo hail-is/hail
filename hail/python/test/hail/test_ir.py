@@ -70,7 +70,7 @@ def value_irs():
     block_matrix_read = ir.BlockMatrixRead(ir.BlockMatrixNativeReader(resource('blockmatrix_example/0')))
 
     def aggregate(x):
-        return ir.TableAggregate(table, x)
+        return ir.GetField(ir.TableGetGlobals(ir.TableMapGlobals(table, ir.MakeStruct([('x', x)]))), 'x')
 
     return [
         i,
@@ -152,7 +152,6 @@ def value_irs():
         ir.TableCollect(ir.TableKeyBy(table, [], False)),
         ir.TableToValueApply(table, {'name': 'ForceCountTable'}),
         ir.MatrixToValueApply(matrix_read, {'name': 'ForceCountMatrixTable'}),
-        ir.TableAggregate(table, ir.MakeStruct([('foo', ir.ApplyAggOp('Collect', [], [ir.I32(0)]))])),
         ir.TableWrite(table, ir.TableNativeWriter(new_temp_file(), False, "fake_codec_spec$$")),
         ir.TableWrite(table, ir.TableTextWriter(new_temp_file(), None, True, "concatenated", ",")),
         ir.MatrixAggregate(matrix_read, ir.MakeStruct([('foo', ir.ApplyAggOp('Collect', [], [ir.I32(0)]))])),
@@ -179,7 +178,7 @@ def value_irs():
     ]
 
 
-static_len_value_irs = 81
+static_len_value_irs = 80
 
 
 @pytest.fixture(params=range(static_len_value_irs))
@@ -638,17 +637,17 @@ class CSETests(unittest.TestCase):
         agg = ir.ApplyAggOp('AggOp', [], [inner_sum])
         outer_sum = ir.ApplyBinaryPrimOp('+', agg, agg)
         filter = ir.AggFilter(ir.TrueIR(), outer_sum, False)
-        table_agg = ir.TableAggregate(table, ir.MakeTuple([outer_sum, filter]))
+        table_agg = ir.TableMapGlobals(table, ir.MakeStruct([('a', ir.MakeTuple([outer_sum, filter]))]))
         expected = (
-            '(TableAggregate (TableRange 5 1)'
+            '(TableMapGlobals (TableRange 5 1)'
             ' (AggLet __cse_1 False (GetField idx (Ref row))'
             ' (AggLet __cse_3 False (ApplyBinaryPrimOp `+` (Ref __cse_1) (Ref __cse_1))'
             ' (Let eval __cse_2 (ApplyAggOp AggOp () ((Ref __cse_3)))'
-            ' (MakeTuple (0 1)'
+            ' (MakeStruct (a (MakeTuple (0 1)'
             ' (ApplyBinaryPrimOp `+` (Ref __cse_2) (Ref __cse_2))'
             ' (AggFilter False (True)'
             ' (Let eval __cse_4 (ApplyAggOp AggOp () ((Ref __cse_3)))'
-            ' (ApplyBinaryPrimOp `+` (Ref __cse_4) (Ref __cse_4)))))))))'
+            ' (ApplyBinaryPrimOp `+` (Ref __cse_4) (Ref __cse_4)))))))))))'
         )
         assert expected == CSERenderer()(table_agg)
 

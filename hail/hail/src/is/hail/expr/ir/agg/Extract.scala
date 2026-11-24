@@ -1,12 +1,11 @@
 package is.hail.expr.ir.agg
 
-import is.hail.annotations.{Region, RegionPool, RegionValue}
+import is.hail.annotations.{Region, RegionPool}
 import is.hail.asm4s._
 import is.hail.backend.{ExecuteContext, HailTaskContext}
 import is.hail.backend.spark.{unsafeHailClassLoaderForSparkWorkers, SparkTaskContext}
 import is.hail.collection.FastSeq
 import is.hail.collection.implicits.toRichIterable
-import is.hail.expr.ir
 import is.hail.expr.ir._
 import is.hail.expr.ir.Scopes.ScopesSyntax
 import is.hail.expr.ir.defs._
@@ -324,61 +323,6 @@ class AggSignatures(val sigs: IndexedSeq[PhysicalAggSig]) {
           f2.storeAggsToRegion()
           f2.getSerializedAgg(0)
         }
-    }
-  }
-
-  // Takes ownership of both input regions, and returns ownership of region in
-  // resulting RegionValue.
-  def combOpF(ctx: ExecuteContext, spec: BufferSpec)
-    : (HailClassLoader, HailTaskContext, RegionValue, RegionValue) => RegionValue = {
-    val fb = ir.EmitFunctionBuilder[AsmFunction4RegionLongRegionLongLong](
-      ctx,
-      "combOpF3",
-      FastSeq[ParamType](classInfo[Region], LongInfo, classInfo[Region], LongInfo),
-      LongInfo,
-    )
-
-    val leftAggRegion = fb.genFieldThisRef[Region]("agg_combine_left_top_region")
-    val leftAggOff = fb.genFieldThisRef[Long]("agg_combine_left_off")
-    val rightAggRegion = fb.genFieldThisRef[Region]("agg_combine_right_top_region")
-    val rightAggOff = fb.genFieldThisRef[Long]("agg_combine_right_off")
-
-    fb.emit(EmitCodeBuilder.scopedCode(fb.emb) { cb =>
-      cb.assign(leftAggRegion, fb.getCodeParam[Region](1))
-      cb.assign(leftAggOff, fb.getCodeParam[Long](2))
-      cb.assign(rightAggRegion, fb.getCodeParam[Region](3))
-      cb.assign(rightAggOff, fb.getCodeParam[Long](4))
-
-      val leftStates = StateTuple(states.map(s => AggStateSig.getState(s, fb.ecb)))
-      val leftAggState = new TupleAggregatorState(fb.ecb, leftStates, leftAggRegion, leftAggOff)
-      val rightStates = StateTuple(states.map(s => AggStateSig.getState(s, fb.ecb)))
-      val rightAggState =
-        new TupleAggregatorState(fb.ecb, rightStates, rightAggRegion, rightAggOff)
-
-      leftStates.createStates(cb)
-      leftAggState.load(cb)
-
-      rightStates.createStates(cb)
-      rightAggState.load(cb)
-
-      for (i <- 0 until nAggs) {
-        val rvAgg = Extract.getAgg(sigs(i))
-        rvAgg.combOp(ctx, cb, leftAggRegion, leftAggState.states(i), rightAggState.states(i))
-      }
-
-      leftAggState.store(cb)
-      rightAggState.store(cb)
-      leftAggOff
-    })
-
-    val f = fb.resultWithIndex()
-    val fsBc = ctx.fsBc
-
-    { (hcl: HailClassLoader, htc: HailTaskContext, l: RegionValue, r: RegionValue) =>
-      val comb = f(hcl, fsBc.value, htc, l.region)
-      l.setOffset(comb(l.region, l.offset, r.region, r.offset))
-      r.region.invalidate()
-      l
     }
   }
 }

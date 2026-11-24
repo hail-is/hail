@@ -134,11 +134,11 @@ class InvariantSuite {
         TableCount(TableRange(0, 1).mapRows((_, row) => row)),
         ToArray(StreamMap(rangeIR(5), TableIR.rowName, Ref(TableIR.rowName, TInt32))),
       )),
-      // StreamMap binds 'row', TableAggregate below it re-binds it in its fresh query scope
+      // StreamMap binds 'row', TableMapGlobals below it re-binds it in its fresh query scope
       StreamMap(
         rangeIR(5),
         TableIR.rowName,
-        TableAggregate(TableRange(0, 1), ApplyAggOp(Count())()),
+        TableRange(0, 1).aggregate((_, _) => ApplyAggOp(Count())()),
       ),
     )
 
@@ -149,10 +149,10 @@ class InvariantSuite {
     )
 
   @Test def testUniquelyNamedKeptNamesMayRepeat(implicit ctx: ExecuteContext): Unit =
-    // TableMapRows and TableAggregate both bind 'global' and 'row'
+    // TableMapRows and TableMapGlobals both bind 'global' and 'row'
     UniquelyNamed.verify(
       ctx,
-      TableAggregate(TableRange(0, 1).mapRows((_, row) => row), ApplyAggOp(Count())()),
+      TableRange(0, 1).mapRows((_, row) => row).aggregate((_, _) => ApplyAggOp(Count())()),
     )
 
   @Test def testNoSharedNodes(implicit ctx: ExecuteContext): Unit = {

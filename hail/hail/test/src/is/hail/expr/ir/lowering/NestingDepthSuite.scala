@@ -81,7 +81,12 @@ class NestingDepthSuite {
 
     val created = {
       val b = Block(FastSeq(), I32(0))
-      FastSeq((TableAggregate(TableRange(1, 1), ApplyAggOp(Collect())(b)), b, Scope.EVAL, 1))
+      FastSeq((
+        TableRange(1, 1).aggregate((_, _) => ApplyAggOp(Collect())(b)),
+        b,
+        Scope.EVAL,
+        0,
+      ))
     }
 
     FastSeq(

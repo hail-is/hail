@@ -130,8 +130,7 @@ object Simplify {
         countRules(ir)
 
       case _: TableGetGlobals |
-          _: TableCollect |
-          _: TableAggregate =>
+          _: TableCollect =>
         tableValueRules(ir)
 
       case _ =>
@@ -1153,7 +1152,6 @@ object Simplify {
                         }
                       case SelectFields(`r`, fds) => fds.forall(f => !nfSet.contains(f))
                       case `r` => false
-                      case _: TableAggregate => true
                       case _: MatrixAggregate => true
                       case _ => ir1.children
                           .zipWithIndex
@@ -1200,7 +1198,6 @@ object Simplify {
                       ),
                       fds,
                     )
-                  case ta: TableAggregate => ta
                   case ma: MatrixAggregate => ma
                   case _ =>
                     ir1.mapChildrenWithEnv(BindingEnv.empty[Unit].createAgg.createScan)((_, _) =>
@@ -1322,19 +1319,9 @@ object Simplify {
 
           case TableExplode(c, path) =>
             Some(
-              TableAggregate(
-                c,
-                ApplyAggOp(
-                  FastSeq(),
-                  FastSeq(ArrayLen(CastToArray(path.foldLeft[IR](Ref(
-                    TableIR.rowName,
-                    c.typ.rowType,
-                  )) {
-                    case (comb, s) => GetField(comb, s)
-                  })).toL),
-                  Sum(),
-                ),
-              )
+              c.aggregate { (_, row) =>
+                ApplyAggOp(Sum())(ArrayLen(CastToArray(path.foldLeft[IR](row)(_.get(_)))).toL)
+              }
             )
 
           case TableRead(_, false, r: MatrixBGENReader) if r.params.includedVariants.isEmpty =>
@@ -1412,13 +1399,27 @@ object Simplify {
           case TableMapRows(c, _) =>
             Some(TableGetGlobals(c))
 
-          case TableMapGlobals(c, newGlobals) =>
-            Some(
-              if (ContainsAgg(newGlobals)) TableAggregate(c, newGlobals)
-              else bindIR(TableGetGlobals(c)) { ref =>
-                Subst(newGlobals, BindingEnv.eval(TableIR.globalName -> ref))
-              }
-            )
+          case TableMapGlobals(c, newGlobals) if !ContainsAgg(newGlobals) =>
+            Some(bindIR(TableGetGlobals(c)) { ref =>
+              Subst(newGlobals, BindingEnv.eval(TableIR.globalName -> ref))
+            })
+
+          case TableMapGlobals(TableMapRows(mapChild, newRow), newGlobals)
+              if !ContainsScan(newRow) =>
+            Some(TableGetGlobals(TableMapGlobals(
+              mapChild,
+              aggBindIR(newRow) { row =>
+                Subst(newGlobals, BindingEnv(agg = Some(Env[IR](TableIR.rowName -> row))))
+              },
+            )))
+
+          case TableMapGlobals(c, newGlobals)
+              if c.typ.key.nonEmpty && !ContainsNonCommutativeAgg(newGlobals) =>
+            Some(TableGetGlobals(TableMapGlobals(TableKeyBy(c, FastSeq(), false), newGlobals)))
+
+          case TableMapGlobals(TableOrderBy(orderChild, _), newGlobals)
+              if !ContainsNonCommutativeAgg(newGlobals) =>
+            Some(TableGetGlobals(TableMapGlobals(orderChild, newGlobals)))
 
           case TableExplode(c, _) =>
             Some(TableGetGlobals(c))
@@ -1473,51 +1474,6 @@ object Simplify {
           case _ =>
             None
         }
-
-      case TableAggregate(child, query) =>
-        child match {
-          case _ if child.typ.key.nonEmpty && !ContainsNonCommutativeAgg(query) =>
-            Some(TableAggregate(TableKeyBy(child, FastSeq(), false), query))
-
-          case TableOrderBy(orderChild, _) if !ContainsNonCommutativeAgg(query) =>
-            if (orderChild.typ.key.isEmpty) Some(TableAggregate(orderChild, query))
-            else Some(TableAggregate(TableKeyBy(orderChild, FastSeq(), false), query))
-
-          case TableMapRows(mapChild, newRow) if !ContainsScan(newRow) =>
-            val uid = freshName()
-            Some(TableAggregate(
-              mapChild,
-              AggLet(
-                uid,
-                newRow,
-                Subst(
-                  query,
-                  BindingEnv(agg = Some(Env(TableIR.rowName -> Ref(uid, newRow.typ)))),
-                ),
-                isScan = false,
-              ),
-            ))
-
-          case _ =>
-            None
-        }
-
-      // NOTE: The below rule should be reintroduced when it is possible to put an ArrayAgg
-      // inside a TableAggregate
-      // case TableAggregate(TableParallelize(rowsAndGlobal, _), query) =>
-      //   rowsAndGlobal match {
-      // match because we currently don't optimize MakeStruct through Let, and this is a common
-      // pattern
-      //     case MakeStruct(Seq((_, rows), (_, global))) =>
-      //       Let("global", global, ArrayAgg(rows, "row", query))
-      //     case other =>
-      //       val uid = genUID()
-      //       Let(uid,
-      //         rowsAndGlobal,
-      //         Let("global",
-      //           GetField(Ref(uid, rowsAndGlobal.typ), "global"),
-      //           ArrayAgg(GetField(Ref(uid, rowsAndGlobal.typ), "rows"), "row", query)))
-      //   }
 
       case _ =>
         None

@@ -1356,7 +1356,6 @@ object Main {
     r += node(Random, "RNGSplitStatic", in("state", child), in("staticUid", att("Long")))
     r += node(Random, "RNGStateLiteral")
 
-    r += node(RelationalToValue, "TableAggregate", tableChild, in("query", child))
     r += node(RelationalToValue, "TableCollect", tableChild)
     r += node(RelationalToValue, "TableCount", tableChild)
     r += node(RelationalToValue, "TableGetGlobals", tableChild)

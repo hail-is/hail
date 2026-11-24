@@ -8,7 +8,6 @@ object InterpretableButNotCompilable {
     case _: TableCount => true
     case _: TableGetGlobals => true
     case _: TableCollect => true
-    case _: TableAggregate => true
     case _: MatrixAggregate => true
     case _: TableWrite => true
     case _: MatrixWrite => true
@@ -30,7 +29,6 @@ object Compilable {
       case _: TableCount => false
       case _: TableGetGlobals => false
       case _: TableCollect => false
-      case _: TableAggregate => false
       case _: MatrixAggregate => false
       case _: TableWrite => false
       case _: MatrixWrite => false

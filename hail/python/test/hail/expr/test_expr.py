@@ -535,7 +535,7 @@ class Tests(unittest.TestCase):
 
     def test_agg_nesting(self):
         t = hl.utils.range_table(10)
-        aggregated_count = t.aggregate(hl.agg.count(), _localize=False)  # 10
+        aggregated_count = t.select_globals(n=hl.agg.count()).index_globals().n  # 10
 
         filter_count = t.aggregate(hl.agg.filter(aggregated_count == 10, hl.agg.count()))
         self.assertEqual(filter_count, 10)
@@ -4130,7 +4130,7 @@ class Tests(unittest.TestCase):
         with hl.TemporaryDirectory(ensure_exists=False) as f:
             hl.utils.range_table(10).write(f, overwrite=True)
             ht = hl.read_table(f)
-            count1 = ht.aggregate(hl.agg.count(), _localize=False)._persist()
+            count1 = ht.select_globals(n=hl.agg.count()).index_globals().n._persist()
             assert hl.eval(count1) == 10
 
             hl.utils.range_table(100).write(f, overwrite=True)
@@ -4278,9 +4278,9 @@ def test_error_from_cdf():
 def test_cdf_combine(cdf_test_data):
     t = cdf_test_data
     t1 = t.filter(t.x < 0)
-    cdf1 = t1.aggregate(hl.agg.approx_cdf(t1.idx, 200, _raw=True), _localize=False)
+    cdf1 = t1.select_globals(cdf=hl.agg.approx_cdf(t1.idx, 200, _raw=True)).index_globals().cdf
     t2 = t.filter(t.x >= 0)
-    cdf2 = t2.aggregate(hl.agg.approx_cdf(t2.idx, 200, _raw=True), _localize=False)
+    cdf2 = t2.select_globals(cdf=hl.agg.approx_cdf(t2.idx, 200, _raw=True)).index_globals().cdf
     cdf = _cdf_combine(200, cdf1, cdf2)
     cdf = hl.eval(_result_from_raw_cdf(cdf))
     error = cdf_max_observed_error(cdf)
@@ -4435,7 +4435,7 @@ def test_stream_randomness():
     a = t.collect()
     assert len(set(a)) == 10
 
-    # test TableAggregate
+    # test Table.aggregate
     t = hl.utils.range_table(10)
     a = t.aggregate(hl.agg.collect(hl.rand_int64()).map(lambda x: x + hl.rand_int64()))
     assert len(set(a)) == 10

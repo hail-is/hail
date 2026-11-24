@@ -5,7 +5,7 @@ import is.hail.collection.implicits.toRichIterable
 import is.hail.expr.ir.{Memoized => M}
 import is.hail.expr.ir.defs.{
   AggGroupBy, ApplyAggOp, ApplyScanOp, ArrayLen, F64, I32, I64, Literal, MakeArray, MakeStream,
-  MakeStruct, MakeTuple, NA, Ref, TableAggregate, TableCollect, ToDict, ToSet, ToStream,
+  MakeStruct, MakeTuple, NA, TableCollect, ToDict, ToSet, ToStream,
 }
 import is.hail.types.virtual._
 import is.hail.variant.Call
@@ -14,13 +14,7 @@ object TestUtils {
   def rangeKT: TableIR = TableKeyBy(TableRange(20, 4), FastSeq())
 
   def collect(tir: TableIR): IR =
-    TableAggregate(
-      tir,
-      MakeStruct(FastSeq(
-        "rows" -> IRAggCollect(Ref(TableIR.rowName, tir.typ.rowType)),
-        "global" -> Ref(TableIR.globalName, tir.typ.globalType),
-      )),
-    )
+    tir.mapGlobals((g, r) => makestruct("rows" -> IRAggCollect(r), "global" -> g)).getGlobals
 
   def collectNoKey(tir: TableIR): IR = TableCollect(tir)
 

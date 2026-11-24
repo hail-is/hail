@@ -875,9 +875,6 @@ object LowerTableIR extends Logging {
       case TableCollect(child) =>
         lower(child).collectWithGlobals("table_collect")
 
-      case TableAggregate(child, query) =>
-        lower(child).aggregate(lctx, query)
-
       case TableToValueApply(child, NPartitionsTable()) =>
         lower(child).getNumPartitions()
 

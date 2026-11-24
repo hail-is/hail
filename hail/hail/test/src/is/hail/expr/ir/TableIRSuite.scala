@@ -12,7 +12,7 @@ import is.hail.expr.ir.TestUtils._
 import is.hail.expr.ir.analyses.PartitionCounts
 import is.hail.expr.ir.defs._
 import is.hail.expr.ir.lowering.{
-  DArrayLowering, ExecuteRelational, LowerTableIR, LoweringContext, Optimize,
+  DArrayLowering, ExecuteRelational, LowerTableIR, LowerToCDA, LoweringContext, Optimize,
 }
 import is.hail.methods.{ForceCountTable, NPartitionsTable}
 import is.hail.rvd.RVDPartitioner
@@ -322,7 +322,7 @@ class TableIRSuite {
     val expected = ArraySeq.tabulate(20)(i => RowSeq(i, i.toLong))
     assertEvalsTo(
       ArraySort(
-        ToStream(TableAggregate(newTable, IRAggCollect(Ref(TableIR.rowName, newRow.typ)))),
+        newTable.aggregate((_, row) => IRAggCollect(row)).stream,
         True(),
       ),
       expected,
@@ -340,7 +340,7 @@ class TableIRSuite {
     val expected = ArraySeq.tabulate(20)(i => RowSeq(i, ArraySeq.range(0, i)))
     assertEvalsTo(
       ArraySort(
-        ToStream(TableAggregate(newTable, IRAggCollect(Ref(TableIR.rowName, newRow.typ)))),
+        newTable.aggregate((_, row) => IRAggCollect(row)).stream,
         True(),
       ),
       expected,
@@ -1630,13 +1630,12 @@ class TableIRSuite {
         tir,
         InsertFields(Ref(TableIR.rowName, tir.typ.rowType), FastSeq("aStr" -> Str("foo"))),
       )
-    val x = TableAggregate(
-      tir,
+    val x = tir.aggregate { (_, row) =>
       MakeTuple.ordered(FastSeq(
-        ApplyAggOp(Collect())(Ref(TableIR.rowName, tir.typ.rowType)),
-        ApplyAggOp(Take(), I32(5))(GetField(Ref(TableIR.rowName, tir.typ.rowType), "idx")),
-      )),
-    )
+        ApplyAggOp(Collect())(row),
+        ApplyAggOp(Take(), I32(5))(row.get("idx")),
+      ))
+    }
 
     assertEvalsTo(
       x,
@@ -1665,13 +1664,12 @@ class TableIRSuite {
         FastSeq("nDArrayA" -> nDArray1, "nDArrayB" -> nDArray2),
       ),
     )
-    val x = TableAggregate(
-      tir,
+    val x = tir.aggregate { (_, row) =>
       ApplyAggOp(NDArrayMultiplyAdd())(
-        GetField(Ref(TableIR.rowName, tir.typ.rowType), "nDArrayA"),
-        GetField(Ref(TableIR.rowName, tir.typ.rowType), "nDArrayB"),
-      ),
-    )
+        row.get("nDArrayA"),
+        row.get("nDArrayB"),
+      )
+    }
     assertEvalsTo(x, SafeNDArray(Vector(2, 2), IndexedSeq(24.0, 24.0, 24.0, 24.0)))
   }
 
@@ -1688,7 +1686,7 @@ class TableIRSuite {
         ))),
       ),
     )
-    val x = TableAggregate(tir, ApplyAggOp(Collect())(Ref(TableIR.rowName, tir.typ.rowType)))
+    val x = tir.aggregate((_, row) => ApplyAggOp(Collect())(row))
 
     assertEvalsTo(
       x,
@@ -1736,7 +1734,7 @@ class TableIRSuite {
 
   @ParameterizedTest
   def testTableAggregateTransitiveInitArg(v: IR)(implicit ctx: ExecuteContext): Unit =
-    assertEvalsTo(TableAggregate(TableRange(5, 2), v), RowSeq(FastSeq(0), 2))
+    assertEvalsTo(TableRange(5, 2).aggregate((_, _) => v), RowSeq(FastSeq(0), 2))
 
   // Init args that read a loop variable or an APE index.
   def testTableAggregateInitArgReadsVarying() = {
@@ -1752,7 +1750,7 @@ class TableIRSuite {
     // Without the optimiser, which can forward a binding into an init arg and change the error.
     implicit val execStrats: Set[ExecStrategy] = ExecStrategy.unoptimizedRelational
     assertFatal(
-      TableAggregate(TableRange(5, 2), v),
+      TableRange(5, 2).aggregate((_, _) => v),
       "init argument refers to .*, which varies per element",
     )
   }
@@ -1764,7 +1762,7 @@ class TableIRSuite {
   def testTableAggregateInitArgReadsAggResult(v: IR)(implicit ctx: ExecuteContext): Unit = {
     // Without the optimiser, which can forward a binding into an init arg and change the error.
     implicit val execStrats: Set[ExecStrategy] = ExecStrategy.unoptimizedRelational
-    assertFatal(TableAggregate(TableRange(5, 2), v), "depends on an aggregation result")
+    assertFatal(TableRange(5, 2).aggregate((_, _) => v), "depends on an aggregation result")
   }
 
   def testTableScanInitArgReadsScanResult() =
@@ -1817,14 +1815,11 @@ class TableIRSuite {
       globalType = TStruct(),
       key = IndexedSeq("locus"),
     )
-    val irToLower = TableAggregate(
-      TableRead(tableType, false, reader),
-      MakeTuple.ordered(FastSeq(
-        ApplyAggOp(Collect())(GetField(Ref(TableIR.rowName, tableType.rowType), "rsid"))
-      )),
+    val irToLower = TableRead(tableType, false, reader).aggregate((_, row) =>
+      maketuple(ApplyAggOp(Collect())(row.get("rsid")))
     )
     val optimized = Optimize(ctx, irToLower)
-    LowerTableIR(optimized, DArrayLowering.All, LoweringContext(ctx, optimized)): Unit
+    LowerToCDA.lower(optimized, DArrayLowering.All, LoweringContext(ctx, optimized)): Unit
   }
 
   @Test def testTableMapPartitions(implicit ctx: ExecuteContext): Unit = {

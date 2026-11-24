@@ -169,9 +169,6 @@ object NestingDepth {
             initOpArgs.foreach(computeIR(_, depth.noScan))
             seqOpArgs.foreach(computeIR(_, depth.promoteScan))
           // the query's agg scope is new, as in StreamAgg
-          case TableAggregate(child, query) =>
-            computeChildren(child)
-            computeIR(query, ScopedDepth(0, 1, 0))
           case MatrixAggregate(child, query) =>
             computeChildren(child)
             computeIR(query, ScopedDepth(0, 1, 0))
