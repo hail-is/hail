@@ -1,6 +1,7 @@
 import base64
 import copy
 import json
+import math
 from collections import defaultdict
 from typing import Callable, Optional, TypeVar, cast
 
@@ -91,6 +92,14 @@ class I64(IR):
         return tint64
 
 
+def _java_float_str(x):
+    if math.isnan(x):
+        return 'NaN'
+    if math.isinf(x):
+        return 'Infinity' if x > 0 else '-Infinity'
+    return x
+
+
 class F32(IR):
     @typecheck_method(x=numeric)
     def __init__(self, x):
@@ -104,7 +113,7 @@ class F32(IR):
         return F32(self.x)
 
     def head_str(self):
-        return self.x
+        return _java_float_str(self.x)
 
     def _compute_type(self, env, agg_env, deep_typecheck):
         return tfloat32
@@ -123,7 +132,7 @@ class F64(IR):
         return F64(self.x)
 
     def head_str(self):
-        return self.x
+        return _java_float_str(self.x)
 
     def _compute_type(self, env, agg_env, deep_typecheck):
         return tfloat64

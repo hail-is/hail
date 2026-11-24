@@ -1,8 +1,9 @@
 package is.hail.compatibility
 
 import is.hail.collection.FastSeq
-import is.hail.expr.ir.{IRParser, PunctuationToken, TokenIterator}
+import is.hail.expr.ir.{IRParser, TokenIterator}
 import is.hail.expr.ir.IRParser._
+import is.hail.expr.ir.Token.Punc
 import is.hail.types.TypeStringSerializer
 import is.hail.types.encoded._
 import is.hail.types.virtual._
@@ -12,7 +13,7 @@ object LegacyEncodedTypeParser {
 
   def legacy_type_expr(rgs: ReferenceGenomeEnv)(it: TokenIterator): (Type, EType) = {
     val req = it.head match {
-      case x: PunctuationToken if x.value == "+" =>
+      case Punc("+") =>
         punctuation(it, "+")
         true
       case _ => false
@@ -87,7 +88,7 @@ object LegacyEncodedTypeParser {
       case "Tuple" =>
         punctuation(it, "[")
         val types =
-          repsepUntil(it, legacy_type_expr(rgs), PunctuationToken(","), PunctuationToken("]"))
+          repsepUntil(it, legacy_type_expr(rgs), Punc(","), Punc("]"))
         punctuation(it, "]")
         (
           TTuple(types.map(_._1): _*),
@@ -101,8 +102,8 @@ object LegacyEncodedTypeParser {
         val args = repsepUntil(
           it,
           struct_field(legacy_type_expr(rgs)),
-          PunctuationToken(","),
-          PunctuationToken("}"),
+          Punc(","),
+          Punc("}"),
         )
         punctuation(it, "}")
         val (vFields, eFields) = args.zipWithIndex.map { case ((id, (vt, et)), i) =>
@@ -129,6 +130,7 @@ object LegacyEncodedTypeParser {
         identifier(it, "row")
         punctuation(it, ":")
         val (rowType: TStruct, rowEType) = legacy_type_expr(rgs)(it)
+        punctuation(it, "}")
         (rowType, rowEType, partitionKey ++ restKey)
     }
   }
