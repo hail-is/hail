@@ -13,6 +13,7 @@ import is.hail.expr.ir.streams.StreamProducer
 import is.hail.io.{AbstractTypedCodecSpec, BufferSpec, TypedCodecSpec}
 import is.hail.io.avro.{AvroPartitionReader, AvroSchemaSerializer}
 import is.hail.io.bgen.BgenPartitionReader
+import is.hail.io.columnar.{ColumnarPartitionWriter, ColumnarTableCommit, ColumnarTableManifest}
 import is.hail.io.vcf.{GVCFPartitionReader, VCFHeaderInfo}
 import is.hail.rvd.RVDSpecMaker
 import is.hail.types.{tcoerce, RIterable, RStruct, TypeWithRequiredness}
@@ -474,6 +475,7 @@ package defs {
             classOf[VCFPartitionWriter],
             classOf[GenSampleWriter],
             classOf[GenVariantWriter],
+            classOf[ColumnarPartitionWriter],
             classOf[AbstractTypedCodecSpec],
             classOf[TypedCodecSpec],
           ),
@@ -508,6 +510,8 @@ package defs {
             classOf[TableTextFinalizer],
             classOf[VCFExportFinalizer],
             classOf[SimpleMetadataWriter],
+            classOf[ColumnarTableCommit],
+            classOf[ColumnarTableManifest],
             classOf[RVDSpecMaker],
             classOf[AbstractTypedCodecSpec],
             classOf[TypedCodecSpec],
