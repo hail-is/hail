@@ -5,7 +5,7 @@ import os
 import re
 import typing
 from contextlib import AsyncExitStack
-from typing import List, NoReturn, Optional, Union
+from typing import Any, Dict, List, NoReturn, Optional, Union
 from urllib.parse import urlparse
 
 import aiohttp_session
@@ -78,6 +78,12 @@ AUTH_ROOT = os.path.dirname(os.path.abspath(__file__))
 is_test_deployment = DEFAULT_NAMESPACE != 'default'
 
 deploy_config = get_deploy_config()
+
+# Shared by every service's host like the session cookie (gear/session.py), so opting in here
+# applies to batch and ci too. Set and cleared in the browser; both must use the same attributes.
+REACT_UI_TRIAL_COOKIE_ATTRS = (
+    f'Domain={deploy_config._domain}; Path={deploy_config._base_path or "/"}; SameSite=Lax; Secure'
+)
 
 routes = web.RouteTableDef()
 
@@ -543,7 +549,23 @@ async def create_user(request: web.Request, _) -> web.Response:
 @web_security_headers_login_page
 @auth.maybe_authenticated_user
 async def user_page(request: web.Request, userdata: Optional[UserData]) -> web.Response:
-    context_dict = {'cloud': CLOUD, **({'next_page': request.query['next']} if 'next' in request.query else {})}
+    if userdata and request.cookies.get('hail_react_ui_trial') == '1':
+        # display_name/trial_bp_name aren't declared on UserData, but are present on the underlying
+        # DB row (see users.html/user.html, which read them the same way via Jinja).
+        raw_userdata = typing.cast(Dict[str, Any], userdata)
+        page_context = {
+            'username': userdata['username'],
+            'gsa_display_name': raw_userdata['display_name'],
+            'trial_bp_name': raw_userdata['trial_bp_name'],
+            'react_ui_cookie_attrs': REACT_UI_TRIAL_COOKIE_ATTRS,
+        }
+        return await render_template('auth', request, userdata, 'user_react.html', page_context)
+
+    context_dict = {
+        'cloud': CLOUD,
+        'react_ui_cookie_attrs': REACT_UI_TRIAL_COOKIE_ATTRS,
+        **({'next_page': request.query['next']} if 'next' in request.query else {}),
+    }
 
     return await render_template('auth', request, userdata, 'user.html', context_dict)
 

@@ -931,16 +931,6 @@ function PrPage({ basePath, batchBaseUrl, wbIndex, prNumber }: {
         </div>
       )}
 
-      <div className="mt-1 text-sm">
-        <button
-          type="button"
-          onClick={() => { document.cookie = 'hail_react_ui=; max-age=0; path=/; SameSite=Lax'; location.reload(); }}
-          className="text-sky-600 hover:underline cursor-pointer"
-        >
-          Back to classic layout
-        </button>
-      </div>
-
       <div className="mt-4 text-sm">
         Status:{' '}
         {active ? (

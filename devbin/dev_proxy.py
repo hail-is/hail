@@ -48,6 +48,7 @@ _ALL_STATIC_DIRS: list[tuple[str, str]] = [
     ('/ci/ci/static/compiled-js', 'ci/ci/static/compiled-js'),
     ('/monitoring/monitoring/static/compiled-js', 'monitoring/monitoring/static/compiled-js'),
     ('/auth/auth/static/compiled-js', 'auth/auth/static/compiled-js'),
+    ('/auth/auth/static/js', 'auth/auth/static/js'),
 ]
 for _path, _directory in _ALL_STATIC_DIRS:
     routes.static(_path, _directory)
@@ -131,8 +132,8 @@ _LOCAL_REACT_ROUTES: list[tuple[str, str, str, str, dict]] = [
     ('monitoring', 'GET', '/monitoring/swagger', 'swagger/index.html', {}),
     ('auth', 'GET', '/auth/swagger', 'swagger/index.html', {}),
     # TODO: remove these two once the deployed batch backend has the /batches React branch (and
-    # stop forcing hail_react_ui in _proxy). Until then the backend's `/` redirect lands on the
-    # classic /batches context, which "Try new layout" can't override.
+    # stop forcing hail_react_ui_trial in _proxy). Until then the backend's `/` redirect lands on the
+    # classic /batches context, which the opt-in cookie can't override.
     ('batch', 'GET', '/batch', 'batches_react.html', {}),
     ('batch', 'GET', '/batch/', 'batches_react.html', {}),
     ('batch', 'GET', '/batch/batches', 'batches_react.html', {}),
@@ -236,9 +237,9 @@ async def _proxy(request: web.Request, service: str) -> dict:
     backend_client = request.app[BC]
     backend_route = _backend_url(service, request.raw_path)
     headers = {'x-hail-return-jinja-context': '1'}
-    # TODO: remove once "Try new layout" is no longer a dev-only opt-in; until then the devserver
+    # TODO: remove once the React UI is the default; until then the devserver
     # always asks the backend for the React version of pages that have one.
-    cookies = {**request.cookies, 'hail_react_ui': '1'}
+    cookies = {**request.cookies, 'hail_react_ui_trial': '1'}
     headers['Cookie'] = '; '.join(f'{k}={v}' for k, v in cookies.items())
     try:
         async with await backend_client.request(request.method, backend_route, headers=headers) as resp:

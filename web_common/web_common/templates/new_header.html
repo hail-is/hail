@@ -15,6 +15,7 @@
 
     {% if userdata and (userdata['system_permissions']['read_system_roles'] or userdata['system_permissions']['read_users']) %}
     {% call header_item('Auth', auth_base_url) %}
+    <a class="block hover:bg-slate-100 px-2 py-1" href="{{ auth_base_url }}/user">Me</a>
     {% if userdata['system_permissions']['read_system_roles'] %}
     <a class=" block hover:bg-slate-100 px-2 py-1" href="{{ auth_base_url }}/roles">Roles</a>
     {% endif %}
