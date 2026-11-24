@@ -9,6 +9,7 @@ import is.hail.expr.ir.functions.MatrixToMatrixFunction
 import is.hail.expr.ir.lowering.LowerMatrixIR
 import is.hail.expr.ir.lowering.LowerMatrixIR.{colsFieldName, entriesFieldName}
 import is.hail.io.bgen.MatrixBGENReader
+import is.hail.io.columnar.MatrixColumnarReader
 import is.hail.io.fs.FS
 import is.hail.io.plink.MatrixPLINKReader
 import is.hail.io.vcf.MatrixVCFReader
@@ -112,6 +113,8 @@ object MatrixReader {
       case "MatrixBGENReader" => MatrixBGENReader.fromJValue(ctx, jv)
       case "MatrixPLINKReader" => MatrixPLINKReader.fromJValue(ctx, jv)
       case "MatrixVCFReader" => MatrixVCFReader.fromJValue(ctx, jv)
+      case "MatrixColumnarReader" =>
+        MatrixColumnarReader.fromJValue(ctx.fs, ctx.references, jv)
     }
   }
 

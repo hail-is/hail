@@ -11,7 +11,7 @@ import scala.jdk.CollectionConverters._
 
 import java.util.regex.Pattern
 
-import org.json4s.{JArray, JNull, JObject, JString, JValue}
+import org.json4s.{JArray, JInt, JNull, JObject, JString, JValue}
 import org.json4s.jackson.JsonMethods
 import org.junit.jupiter.api.Test
 
@@ -21,6 +21,13 @@ class ColumnarManifestSuite {
 
   private def fixtureJson(name: String)(implicit ctx: ExecuteContext): JObject =
     using(Source.fromInputStream(ctx.fs.open(s"${fixture(name)}/manifest.json"))) { src =>
+      JsonMethods.parse(src.mkString).asInstanceOf[JObject]
+    }
+
+  private def mtFixture: String = getTestResource("columnar/0.1/matrix_table/missing_entries")
+
+  private def mtFixtureJson(implicit ctx: ExecuteContext): JObject =
+    using(Source.fromInputStream(ctx.fs.open(s"$mtFixture/manifest.json"))) { src =>
       JsonMethods.parse(src.mkString).asInstanceOf[JObject]
     }
 
@@ -99,11 +106,125 @@ class ColumnarManifestSuite {
     assertRejected(edit(fixtureJson("keyed"), "version")(Some(JString("1.0"))), "version '1.0'")
   }
 
-  @Test def testRejectsAMatrixTable(implicit ctx: ExecuteContext): Unit =
+  @Test def testATableHasNoMatrixComponents(implicit ctx: ExecuteContext): Unit =
+    assertEq(ColumnarManifest.read(ctx.fs, fixture("keyed")).matrix, None)
+
+  @Test def testAMatrixTableNeedsColumnsAndEntries(implicit ctx: ExecuteContext): Unit =
     assertRejected(
       edit(fixtureJson("keyed"), "kind")(Some(JString("matrix_table"))),
-      "is a matrix table",
+      "missing field 'cols'",
     )
+
+  @Test def testRejectsMatrixComponentsInATable(implicit ctx: ExecuteContext): Unit =
+    assertRejected(
+      edit(fixtureJson("keyed"), "cols")(mtFixtureJson \ "cols" match {
+        case o: JObject => Some(o)
+        case _ => None
+      }),
+      "unknown field 'cols'",
+    )
+
+  @Test def testReadsAMatrixTable(implicit ctx: ExecuteContext): Unit = {
+    val m = ColumnarManifest.read(ctx.fs, mtFixture)
+    assertEq(m.key, FastSeq("row_idx"))
+    assertEq(m.rowIdField, "__row_id")
+    val mt = m.matrix.get
+    assertEq(mt.colKey, FastSeq("col_idx"))
+    assertEq(mt.colCount, 4)
+    assertEq(mt.colsFile, "cols.parquet")
+    assertEq(mt.colIdxField, "__col_idx")
+    assertEq(mt.entryValidField, "__entry_valid")
+    assertEq(
+      mt.colsSchema.getFields.asScala.map(_.getName).toSeq,
+      Seq("__col_idx", "col_idx", "s"),
+    )
+    assertEq(
+      mt.entriesSchema.getFields.asScala.map(_.getName).toSeq,
+      Seq("__row_id", "__entry_valid", "x", "y"),
+    )
+  }
+
+  @Test def testRejectsUnknownMatrixFields(implicit ctx: ExecuteContext): Unit =
+    for (
+      path <- Seq(
+        Seq("cols", "extra"),
+        Seq("cols", "file", "extra"),
+        Seq("entries", "extra"),
+      )
+    )
+      assertRejected(edit(mtFixtureJson, path: _*)(Some(JNull)), "unknown field 'extra'")
+
+  @Test def testRejectsMissingMatrixFields(implicit ctx: ExecuteContext): Unit =
+    for (
+      path <- Seq(
+        Seq("entries"),
+        Seq("cols", "count"),
+        Seq("entries", "column_blocks"),
+        Seq("internal_fields", "col_idx"),
+        Seq("internal_fields", "entry_valid"),
+      )
+    )
+      assertRejected(edit(mtFixtureJson, path: _*)(None), s"missing field '${path.last}'")
+
+  @Test def testRejectsAnotherColumnsFileContainer(implicit ctx: ExecuteContext): Unit =
+    assertRejected(
+      edit(mtFixtureJson, "cols", "file", "container")(Some(JString("vortex"))),
+      "container 'vortex'",
+    )
+
+  @Test def testRejectsTheLongLayout(implicit ctx: ExecuteContext): Unit =
+    assertRejected(edit(mtFixtureJson, "entries", "layout")(Some(JString("long"))), "layout 'long'")
+
+  @Test def testRejectsANegativeColumnCount(implicit ctx: ExecuteContext): Unit =
+    assertRejected(edit(mtFixtureJson, "cols", "count")(Some(JInt(-1))), "'cols.count'")
+
+  @Test def testRejectsAnUnknownColumnKeyField(implicit ctx: ExecuteContext): Unit =
+    assertRejected(
+      edit(mtFixtureJson, "cols", "key")(Some(JArray(List(JString("nope"))))),
+      "column key field 'nope'",
+    )
+
+  private def columnBlocks(blocks: (Int, Int)*): Option[JValue] =
+    Some(JArray(blocks.map { case (s, e) => JObject("start" -> JInt(s), "end" -> JInt(e)) }.toList))
+
+  @Test def testRejectsColumnBlocksThatDoNotCoverTheColumns(implicit ctx: ExecuteContext): Unit =
+    for (blocks <- Seq(Seq(), Seq(0 -> 3), Seq(1 -> 4), Seq(0 -> 2, 3 -> 4), Seq(0 -> 3, 2 -> 4)))
+      assertRejected(
+        edit(mtFixtureJson, "entries", "column_blocks")(columnBlocks(blocks: _*)),
+        "'entries.column_blocks' must be contiguous ranges that cover the 4 columns",
+      )
+
+  @Test def testRejectsMoreThanOneColumnBlock(implicit ctx: ExecuteContext): Unit =
+    assertRejected(
+      edit(mtFixtureJson, "entries", "column_blocks")(columnBlocks(0 -> 2, 2 -> 4)),
+      "only one column block",
+    )
+
+  @Test def testAMatrixTableWithNoColumnsHasOneEmptyColumnBlock(implicit ctx: ExecuteContext)
+    : Unit = {
+    val jv = edit(
+      edit(mtFixtureJson, "cols", "count")(Some(JInt(0))),
+      "entries",
+      "column_blocks",
+    )(columnBlocks(0 -> 0))
+    assertEq(parse(jv).matrix.get.colCount, 0)
+  }
+
+  @Test def testLooksUpTheMatrixInternalFieldsByTheManifestsNames(implicit ctx: ExecuteContext)
+    : Unit = {
+    assertRejected(
+      edit(mtFixtureJson, "internal_fields", "col_idx")(Some(JString("cidx"))),
+      "column index field 'cidx'",
+    )
+    assertRejected(
+      edit(mtFixtureJson, "internal_fields", "entry_valid")(Some(JString("ev"))),
+      "entry validity field 'ev'",
+    )
+    assertRejected(
+      edit(mtFixtureJson, "internal_fields", "row_id")(Some(JString("rid"))),
+      "row ID field 'rid'",
+    )
+  }
 
   @Test def testRejectsAnUnknownKind(implicit ctx: ExecuteContext): Unit =
     assertRejected(edit(fixtureJson("keyed"), "kind")(Some(JString("tensor"))), "kind 'tensor'")

@@ -8,7 +8,7 @@ import is.hail.expr.ir.functions.{
 }
 import is.hail.io.avro.AvroTableReader
 import is.hail.io.bgen.MatrixBGENReader
-import is.hail.io.columnar.TableColumnarReader
+import is.hail.io.columnar.{MatrixColumnarReader, TableColumnarReader}
 import is.hail.io.plink.MatrixPLINKReader
 import is.hail.io.vcf.MatrixVCFReader
 import is.hail.methods.{ForceCountTable, LocalLDPrune, NPartitionsTable, TableFilterPartitions}
@@ -36,6 +36,7 @@ object CanLowerEfficiently {
         case TableRead(_, _, _: MatrixVCFReader) =>
         case TableRead(_, _, _: AvroTableReader) =>
         case TableRead(_, _, _: TableColumnarReader) =>
+        case TableRead(_, _, _: MatrixColumnarReader) =>
         case TableRead(_, _, _: RVDTableReader) =>
         case TableRead(_, _, _: DistributionSortReader) =>
         case TableRead(_, _, _: MatrixBGENReader) =>

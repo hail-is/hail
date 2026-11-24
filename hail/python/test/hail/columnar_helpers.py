@@ -310,3 +310,36 @@ def assert_same_dataset(actual: str, expected: str) -> None:
         files.append('cols.parquet')
     for file in files:
         assert_same_file(read_parquet_file(f'{actual}/{file}'), read_parquet_file(f'{expected}/{file}'))
+
+
+def local_path(path: str) -> str:
+    """``path``, a file in a local temporary directory, as a path Python's ``open`` takes."""
+    return path.removeprefix('file://')
+
+
+def drop_checksum(file_path: str) -> None:
+    """Removes the checksum file Hadoop's local file system keeps beside ``file_path``, which would fail
+    reads of a file changed outside Hadoop."""
+    directory, name = local_path(file_path).rsplit('/', 1)
+    crc = f'{directory}/.{name}.crc'
+    if hfs.exists(crc):
+        hfs.remove(crc)
+
+
+def corrupt_column_chunks_except(file_path: str, keep: set) -> None:
+    """Overwrites with zeros every column chunk of the Parquet file at ``file_path`` whose leaf column
+    path is not in ``keep``. Reading a zeroed chunk fails."""
+    with hfs.open(file_path, 'rb') as f:
+        data = bytearray(f.read())
+    metadata = pq.ParquetFile(io.BytesIO(data)).metadata
+    for i in range(metadata.num_row_groups):
+        row_group = metadata.row_group(i)
+        for j in range(row_group.num_columns):
+            column = row_group.column(j)
+            if column.path_in_schema in keep:
+                continue
+            start = column.dictionary_page_offset if column.has_dictionary_page else column.data_page_offset
+            data[start : start + column.total_compressed_size] = bytes(column.total_compressed_size)
+    with hfs.open(file_path, 'wb') as f:
+        f.write(data)
+    drop_checksum(file_path)

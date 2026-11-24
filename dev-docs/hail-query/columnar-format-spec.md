@@ -506,11 +506,12 @@ This section is informative. It records where Hail 2's implementation falls shor
 of this spec. Update it as the gaps close.
 
 Hail 2 has a table writer, `TableColumnarWriter`, a matrix table writer,
-`MatrixColumnarWriter`, and a table reader, `TableColumnarReader`
-(`is.hail.io.columnar`). They are a lowered `TableWriter`, a lowered `MatrixWriter`
-and a lowered `TableReader`, so they run on every backend. They are private:
-Python reaches them only through `hail.ir.TableColumnarWriter`,
-`hail.ir.MatrixColumnarWriter` and `hail.ir.TableColumnarReader`, for tests.
+`MatrixColumnarWriter`, a table reader, `TableColumnarReader`, and a matrix table
+reader, `MatrixColumnarReader` (`is.hail.io.columnar`). They are a lowered
+`TableWriter`, a lowered `MatrixWriter`, a lowered `TableReader` and a lowered
+`MatrixReader`, so they run on every backend. They are private: Python reaches them
+only through `hail.ir.TableColumnarWriter`, `hail.ir.MatrixColumnarWriter`,
+`hail.ir.TableColumnarReader` and `hail.ir.MatrixColumnarReader`, for tests.
 
 ### 7.1 Implemented
 
@@ -562,9 +563,9 @@ For writing matrix tables, all of the above, and:
 For reading tables:
 
 - the manifest root, rejecting another format, version, kind or container, and
-  missing or unknown fields (section 3). A directory without `manifest.json` is
-  not a table, and files the manifest doesn't reference are never opened
-  (sections 2 and 2.1);
+  missing or unknown fields (section 3). The table reader rejects a matrix
+  table. A directory without `manifest.json` is not a table, and files the
+  manifest doesn't reference are never opened (sections 2 and 2.1);
 - `reference_genomes`: the Python reader defines each non-builtin reference
   genome in the session, and fails on one that differs from a reference genome
   of the same name already defined (section 3.1);
@@ -582,15 +583,37 @@ For reading tables:
   empty struct stored as `false` (section 5.5);
 - reading every table fixture (section 6).
 
+For reading matrix tables, all of the above, and:
+
+- the manifest root for `"kind": "matrix_table"` (section 3), rejecting the
+  `"long"` layout and column blocks that aren't ascending, contiguous ranges
+  covering every column, and checking the internal fields against the `cols` and
+  `entries` schemas. The matrix table reader rejects a table;
+- `entry_files` in the partitions table (section 4.1);
+- entry files (section 4.3). Each row file is zipped by position with its entry
+  file, and the read fails if the two hold different numbers of rows, if a Row ID
+  differs from the row file's at the same position, or if a list doesn't have one
+  element per column. An entry is missing where the entry validity list is
+  false, so a present entry with a missing field stays distinct from a missing
+  entry. Entry files are opened only when the entries are requested, and then
+  only the entry validity list and the requested entry fields' lists are read;
+- the columns file (section 4.4), checking its row count against `cols.count`.
+  The column's UID is its position in the file, which is its column index, and
+  the column index field itself is never read;
+- reading the matrix table fixture (section 6).
+
 ### 7.2 Gaps
 
 #### 7.2.1 Reading
 
-Tables are read only through the private reader. `hl.read_table` and
-`TableIR.read` still fail on a directory that has a `manifest.json`. Matrix
-tables are not read, so rejecting the `"long"` layout is not implemented. The
-reader doesn't report partition row counts to the optimizer, so counting a
-table iterates over its row files' footers.
+Tables and matrix tables are read only through the private readers.
+`hl.read_table`, `hl.read_matrix_table`, `TableIR.read` and `MatrixIR.read` still
+fail on a directory that has a `manifest.json`. The readers don't report partition
+row counts to the optimizer, so counting rows iterates over the row files'
+footers. The matrix table reader supports one column block, which is all a `0.1`
+writer writes (section 3), and fails on more. It assembles each row's entries from
+the lists it reads, so it holds each requested entry field's list for a row in
+memory alongside the entries built from it.
 
 #### 7.2.2 Row groups
 
@@ -606,6 +629,3 @@ offsets couldn't read such a row group whole (section 6).
 Section 6 lists a fixture that doesn't exist yet: `binary`. Hail's Python API has
 no binary type, so the fixtures, which Hail's tests write from Python, can't
 include it.
-
-Hail 2 can't read matrix tables (section 7.2.1), so its tests don't read the
-matrix table fixture yet. pyarrow tests do.

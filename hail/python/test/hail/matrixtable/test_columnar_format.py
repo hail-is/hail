@@ -4,12 +4,16 @@ These read Hail's output with pyarrow, independently of Hail, and check it again
 format specification (``dev-docs/hail-query/columnar-format-spec.md``).
 """
 
+import secrets
+
 import numpy as np
 import pyarrow as pa
 import pyarrow.compute as pc
+import pyarrow.parquet as pq
 import pytest
 
 import hail as hl
+import hailtop.fs as hfs
 from hail import ir
 from hail.utils import FatalError, new_temp_file
 from hail.utils.java import Env
@@ -21,9 +25,11 @@ from ..columnar_helpers import (
     TYPE_CASES,
     assert_has_type,
     assert_same_dataset,
+    corrupt_column_chunks_except,
     custom_reference_genome,
     data_files,
     decode_schema,
+    drop_checksum,
     field,
     read_manifest,
     read_parquet_file,
@@ -260,6 +266,21 @@ def test_a_row_whose_entries_exceed_a_cap_fails_the_write(n_cols, entry, caps, m
     assert not is_committed(path)
 
 
+@pytest.mark.parametrize(
+    'annotate, message',
+    [
+        (lambda mt: mt.annotate_rows(**{'__row_uid': mt.row_idx}), "row field '__row_uid' can't be stored"),
+        (lambda mt: mt.annotate_cols(**{'__col_uid': mt.col_idx}), "column field '__col_uid' can't be stored"),
+    ],
+)
+def test_a_field_named_like_a_uid_fails_the_write(annotate, message):
+    mt = annotate(hl.utils.range_matrix_table(2, 2, n_partitions=1))
+    path = new_temp_file(extension='mt')
+    with pytest.raises(FatalError, match=message):
+        write_columnar(mt, path)
+    assert not is_committed(path)
+
+
 def hail_entries(mt: hl.MatrixTable) -> list:
     """The present entries of ``mt``, each with its row's and its column's fields, as Hail gives them."""
     return [to_python(e) for e in mt.entries().collect()]
@@ -414,3 +435,231 @@ def test_column_and_entry_fields_have_the_specified_extension_and_encoding(case)
     assert [r['cx'] for r in cols.read().to_pylist()] == c.stored
     ((_, _, (entry_file,)),) = data_files(path)
     assert [e['x'] for e in entry_file.read().to_pylist()] == [c.stored] * 2
+
+
+def read_columnar(path: str) -> hl.MatrixTable:
+    return hl.MatrixTable(ir.MatrixRead(ir.MatrixColumnarReader(path)))
+
+
+def assert_reads_as(path: str, expected: hl.MatrixTable) -> None:
+    """The columnar matrix table at ``path`` reads as ``expected``: the same keys, types and values, with
+    rows and columns in the same order."""
+    actual = read_columnar(path)
+    assert list(actual.row_key) == list(expected.row_key)
+    assert list(actual.col_key) == list(expected.col_key)
+    assert actual._same(expected)
+
+    def keys(mt: hl.MatrixTable) -> tuple:
+        return mt.aggregate_rows(hl.agg.collect(mt.row_key)), mt.aggregate_cols(hl.agg.collect(mt.col_key))
+
+    assert keys(actual) == keys(expected)
+
+
+def test_missing_entries_fixture_reads_as_the_matrix_table_it_holds():
+    assert_reads_as(resource(MISSING_ENTRIES_FIXTURE), matrix_table())
+
+
+def test_round_trip_preserves_values():
+    mt = matrix_table(n_rows=12, n_cols=5, n_partitions=3)
+    path = new_temp_file(extension='mt')
+    # A small leaf cap, so that files have several row groups.
+    write_columnar(mt, path, leaf_cap=10)
+
+    assert_reads_as(path, mt)
+
+
+@pytest.mark.parametrize('case', TYPE_CASES.keys())
+def test_round_trip_of_column_and_entry_fields_preserves_values(case):
+    c = TYPE_CASES[case]()
+    # Column j, and every entry in it, holds c.values[j]. Entry (i, j) is missing when i + j is odd,
+    # and its field x_opt when i + j is a multiple of 3.
+    mt = hl.utils.range_matrix_table(3, len(c.values), n_partitions=2)
+    mt = mt.annotate_cols(cx=required_by_index(mt.col_idx, c.values, c.typ))
+    mt = mt.annotate_entries(
+        x=mt.cx,
+        x_opt=hl.or_missing((mt.row_idx + mt.col_idx) % 3 != 0, mt.cx),
+        x_arr=hl.array([mt.cx, hl.missing(c.typ)]),
+    )
+    mt = mt.filter_entries((mt.row_idx + mt.col_idx) % 2 == 0)
+    path = new_temp_file(extension='mt')
+    write_columnar(mt, path)
+
+    assert_reads_as(path, mt)
+
+
+def localized_entries(mt: hl.MatrixTable) -> list:
+    """Each row's entries, with ``None`` for a missing entry."""
+    return [[None if e is None else dict(e) for e in r.es] for r in mt.localize_entries('es').collect()]
+
+
+def test_missing_entries_stay_distinct_from_present_entries_with_missing_fields():
+    n_rows, n_cols = 6, 4
+    mt = read_columnar(resource(MISSING_ENTRIES_FIXTURE))
+
+    # matrix_table's definition: entry (i, j) is missing when (i + j) % 4 == 1, and its field y is
+    # missing when (i + j) % 3 == 0.
+    assert localized_entries(mt) == [
+        [
+            None if (i + j) % 4 == 1 else {'x': i * 10 + j, 'y': None if (i + j) % 3 == 0 else str(j)}
+            for j in range(n_cols)
+        ]
+        for i in range(n_rows)
+    ]
+
+
+def test_columns_come_from_the_columns_file_and_globals_from_the_globals_file():
+    mt = read_columnar(resource(MISSING_ENTRIES_FIXTURE))
+
+    assert mt.cols().collect() == [hl.Struct(col_idx=j, s=str(j)) for j in range(4)]
+    assert hl.eval(mt.globals) == hl.Struct(g=5)
+    assert mt.count_cols() == 4
+
+
+def entry_file_paths(path: str) -> list:
+    return [f'{path}/{f["path"]}' for p, _, _ in data_files(path) for f in p['entry_files']]
+
+
+def test_entry_files_are_not_opened_when_no_entry_fields_are_requested():
+    mt = matrix_table()
+    path = new_temp_file(extension='mt')
+    write_columnar(mt, path)
+    for file_path in entry_file_paths(path):
+        hfs.remove(file_path)
+        drop_checksum(file_path)
+
+    actual = read_columnar(path)
+    assert actual.rows().collect() == mt.rows().collect()
+    assert actual.cols().collect() == mt.cols().collect()
+    assert actual.count() == (6, 4)
+    with pytest.raises(FatalError):
+        actual.entries().collect()
+
+
+def test_projecting_entry_fields_reads_only_those_fields_lists():
+    mt = matrix_table()
+    path = new_temp_file(extension='mt')
+    write_columnar(mt, path)
+    internal = read_manifest(path)['internal_fields']
+    for file_path in entry_file_paths(path):
+        corrupt_column_chunks_except(
+            file_path, {internal['row_id'], f'{internal["entry_valid"]}.list.element', 'x.list.element'}
+        )
+
+    def project(m: hl.MatrixTable) -> list:
+        return localized_entries(m.select_entries('x'))
+
+    assert project(read_columnar(path)) == project(mt)
+    # Reading any other entry field reads a zeroed chunk.
+    with pytest.raises(FatalError):
+        read_columnar(path).select_entries('y').entries().collect()
+
+
+def test_reading_only_whether_entries_are_missing_reads_only_the_entry_validity_list():
+    mt = matrix_table()
+    path = new_temp_file(extension='mt')
+    write_columnar(mt, path)
+    internal = read_manifest(path)['internal_fields']
+    for file_path in entry_file_paths(path):
+        corrupt_column_chunks_except(file_path, {internal['row_id'], f'{internal["entry_valid"]}.list.element'})
+
+    def project(m: hl.MatrixTable) -> list:
+        return localized_entries(m.select_entries())
+
+    assert project(read_columnar(path)) == project(mt)
+
+
+def test_an_entry_field_named_like_the_row_uid_round_trips():
+    mt = hl.utils.range_matrix_table(3, 2, n_partitions=1)
+    mt = mt.annotate_entries(__row_uid=mt.row_idx * 10 + mt.col_idx)
+    path = new_temp_file(extension='mt')
+    write_columnar(mt, path)
+
+    assert_reads_as(path, mt)
+
+
+def rewrite_entry_file(path: str, f) -> None:
+    """Rewrites the matrix table's first entry file with pyarrow, replacing its table ``t`` with ``f(t)``.
+    The file keeps its Arrow schema."""
+    file_path = entry_file_paths(path)[0]
+    table = read_parquet_file(file_path).read()
+    with hfs.open(file_path, 'wb') as out:
+        pq.write_table(f(table), out, store_schema=True)
+    drop_checksum(file_path)
+
+
+def test_a_row_id_mismatch_fails_the_read():
+    path = new_temp_file(extension='mt')
+    write_columnar(matrix_table(), path)
+    row_id = read_manifest(path)['internal_fields']['row_id']
+
+    def shift_row_ids(t: pa.Table) -> pa.Table:
+        i = t.schema.get_field_index(row_id)
+        return t.set_column(i, t.schema.field(i), pc.add(t[row_id], 1))
+
+    rewrite_entry_file(path, shift_row_ids)
+    with pytest.raises(FatalError, match='Row ID'):
+        read_columnar(path).entries().collect()
+
+
+def test_an_entry_file_with_fewer_rows_than_its_row_file_fails_the_read():
+    path = new_temp_file(extension='mt')
+    write_columnar(matrix_table(), path)
+
+    rewrite_entry_file(path, lambda t: t.slice(0, t.num_rows - 1))
+    with pytest.raises(FatalError, match='length mismatch'):
+        read_columnar(path).entries().collect()
+
+
+def test_an_entry_list_of_the_wrong_length_fails_the_read():
+    path = new_temp_file(extension='mt')
+    write_columnar(matrix_table(), path)
+
+    def drop_last_x(t: pa.Table) -> pa.Table:
+        i = t.schema.get_field_index('x')
+        x = pa.array([v[:-1] for v in t['x'].to_pylist()], t.schema.field(i).type)
+        return t.set_column(i, t.schema.field(i), x)
+
+    rewrite_entry_file(path, drop_last_x)
+    with pytest.raises(FatalError, match='4 columns'):
+        read_columnar(path).entries().collect()
+
+
+def test_round_trip_of_a_matrix_table_with_no_columns():
+    mt = hl.utils.range_matrix_table(3, 0, n_partitions=1)
+    mt = mt.annotate_entries(x=mt.row_idx)
+    path = new_temp_file(extension='mt')
+    write_columnar(mt, path)
+
+    assert_reads_as(path, mt)
+
+
+def test_reading_defines_the_matrix_tables_reference_genomes():
+    name = f'ColumnarMatrixRead{secrets.token_hex(4)}'
+    rg = hl.ReferenceGenome(name, ['b', 'a'], {'b': 100, 'a': 50})
+    mt = hl.utils.range_matrix_table(2, 2, n_partitions=1)
+    mt = mt.annotate_entries(l=hl.locus(hl.literal(['a', 'b'])[mt.col_idx], mt.row_idx + 1, reference_genome=rg))
+    path = new_temp_file(extension='mt')
+    write_columnar(mt, path)
+    Env.backend().remove_reference(name)
+
+    try:
+        actual = read_columnar(path)
+        assert hl.get_reference(name).contigs == ['b', 'a']
+        assert [(e.l.contig, e.l.position) for e in actual.entries().collect()] == [
+            ('a', 1),
+            ('b', 1),
+            ('a', 2),
+            ('b', 2),
+        ]
+    finally:
+        Env.backend().remove_reference(name)
+
+
+def test_a_table_is_not_a_matrix_table():
+    with pytest.raises(FatalError, match='is a table, not a matrix table'):
+        read_columnar(resource('columnar/0.1/table/keyed')).count()
+
+
+def test_a_matrix_table_is_not_a_table():
+    with pytest.raises(FatalError, match='is a matrix table, not a table'):
+        hl.Table(ir.TableRead(ir.TableColumnarReader(resource(MISSING_ENTRIES_FIXTURE)))).count()

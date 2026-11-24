@@ -119,6 +119,12 @@ object RelationalColumnarWriter {
         s"columnar writer: row field '${TableReader.uidFieldName}' can't be stored, " +
           "as table readers reserve that name for row UIDs"
       )
+    // Likewise, matrix table readers add a column UID field under this name.
+    if (matrix.exists(_.colPType.hasField(MatrixReader.colUIDFieldName)))
+      fatal(
+        s"columnar writer: column field '${MatrixReader.colUIDFieldName}' can't be stored, " +
+          "as matrix table readers reserve that name for column UIDs"
+      )
 
     // Only a keyed table needs a strict partitioner and has partition bounds.
     val (ts, bounds) =
