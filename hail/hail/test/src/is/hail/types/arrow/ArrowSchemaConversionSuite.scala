@@ -115,6 +115,19 @@ class ArrowSchemaConversionSuite {
       false,
     ),
     PCanonicalStruct(false),
+    PCanonicalStruct(true),
+    PCanonicalTuple(false),
+    PCanonicalTuple(true),
+    PCanonicalArray(PCanonicalStruct(true), false),
+    PCanonicalSet(PCanonicalTuple(false), true),
+    PCanonicalDict(PCanonicalStruct(true), PCanonicalTuple(false), false),
+    PCanonicalInterval(PCanonicalStruct(true), false),
+    PCanonicalStruct(
+      true,
+      "a" -> PCanonicalStruct(false),
+      "b" -> PCanonicalTuple(true),
+      "c" -> PCanonicalTuple(true, PCanonicalStruct(false)),
+    ),
     PCanonicalStruct(
       true,
       "locus" -> PPackedLocus(small, true),
@@ -163,6 +176,7 @@ class ArrowSchemaConversionSuite {
         "hail.set",
         "hail.interval",
         "hail.tuple",
+        "hail.empty_struct",
         "arrow.variable_shape_tensor",
       )
     )
@@ -293,6 +307,55 @@ class ArrowSchemaConversionSuite {
       ),
     )
 
+  @Test def testEmptyStruct(): Unit = {
+    assertEq(
+      toField(PCanonicalStruct(false)),
+      leaf("x", true, EmptyStructExtensionType.Struct),
+    )
+    assertEq(
+      toField(PCanonicalStruct(true)),
+      leaf("x", false, EmptyStructExtensionType.Struct),
+    )
+    assertEq(EmptyStructExtensionType.Struct.storageType(), ArrowType.Bool.INSTANCE)
+    assertEq(EmptyStructExtensionType.Struct.extensionName(), "hail.empty_struct")
+    assertEq(EmptyStructExtensionType.Struct.serialize(), """{"tuple":false}""")
+  }
+
+  @Test def testEmptyTuple(): Unit = {
+    assertEq(toField(PCanonicalTuple(false)), leaf("x", true, EmptyStructExtensionType.Tuple))
+    assertEq(toField(PCanonicalTuple(true)), leaf("x", false, EmptyStructExtensionType.Tuple))
+    assertEq(EmptyStructExtensionType.Tuple.storageType(), ArrowType.Bool.INSTANCE)
+    assertEq(EmptyStructExtensionType.Tuple.serialize(), """{"tuple":true}""")
+  }
+
+  @Test def testEmptyStructAndTupleAreDistinct(): Unit = {
+    assert(EmptyStructExtensionType.Struct != EmptyStructExtensionType.Tuple)
+    assertEq(fromField(toField(PCanonicalStruct(true))), PCanonicalStruct(true))
+    assertEq(fromField(toField(PCanonicalTuple(true))), PCanonicalTuple(true))
+  }
+
+  @Test def testNestedEmptyStructs(): Unit = {
+    assertEq(
+      toField(PCanonicalArray(PCanonicalStruct(true), false)),
+      node(
+        "x",
+        true,
+        ArrowType.List.INSTANCE,
+        leaf("element", false, EmptyStructExtensionType.Struct),
+      ),
+    )
+    assertEq(
+      toField(PCanonicalStruct(true, "a" -> PCanonicalTuple(false))),
+      node("x", false, ArrowType.Struct.INSTANCE, leaf("a", true, EmptyStructExtensionType.Tuple)),
+    )
+  }
+
+  @Test def testTopLevelEmptyStructIsNotWrapped(): Unit = {
+    val schema = ArrowSchemaConversion.toArrowSchema(PCanonicalStruct(true))
+    assert(schema.getFields.isEmpty)
+    assertEq(ArrowSchemaConversion.fromArrowSchema(schema, references), PCanonicalStruct(true))
+  }
+
   @Test def testCall(): Unit = {
     val f = toField(PCanonicalCall(false))
     assertEq(f, leaf("x", true, CallExtensionType.Current))
@@ -358,6 +421,7 @@ class ArrowSchemaConversionSuite {
     assertEq(SetExtensionType.extensionName(), "hail.set")
     assertEq(IntervalExtensionType.extensionName(), "hail.interval")
     assertEq(TupleExtensionType.extensionName(), "hail.tuple")
+    assertEq(EmptyStructExtensionType.Struct.extensionName(), "hail.empty_struct")
     assertEq(VariableShapeTensorExtensionType.extensionName(), "arrow.variable_shape_tensor")
   }
 
@@ -384,6 +448,12 @@ class ArrowSchemaConversionSuite {
     interceptFatal("call encoding 2")(fromField(leaf("x", false, new CallExtensionType(2))))
 
   def unsupportedArrowFields() = ArraySeq[Field](
+    // empty structs and tuples must use hail.empty_struct
+    node("x", true, ArrowType.Struct.INSTANCE),
+    node("x", true, TupleExtensionType),
+    node("x", true, EmptyStructExtensionType.Struct, leaf("a", true, ArrowType.Bool.INSTANCE)),
+    node("x", true, EmptyStructExtensionType.Tuple, leaf("a", true, ArrowType.Bool.INSTANCE)),
+    node("x", true, ArrowType.List.INSTANCE, node("element", true, ArrowType.Struct.INSTANCE)),
     leaf("x", true, ArrowType.LargeUtf8.INSTANCE),
     leaf("x", true, ArrowType.LargeBinary.INSTANCE),
     leaf("x", true, new ArrowType.Int(8, true)),
@@ -638,6 +708,12 @@ class ArrowSchemaConversionSuite {
     ) ->
       "missing or invalid 'contigs'",
     decoded("x", ArrowType.Utf8.INSTANCE, "hail.set", Some("{}")) -> "expected storage type",
+    decoded(
+      "x",
+      ArrowType.Bool.INSTANCE,
+      "hail.empty_struct",
+      Some("""{"tuple":1}"""),
+    ) -> "missing or invalid 'tuple'",
   )
 
   @Test def testInvalidExtensionFieldsDataProvider(): Unit = invalidExtensionFields(): Unit
