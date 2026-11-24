@@ -3,7 +3,7 @@ package is.hail.types.arrow
 import org.apache.arrow.memory.BufferAllocator
 import org.apache.arrow.vector.FieldVector
 import org.apache.arrow.vector.extension.InvalidExtensionMetadataException
-import org.apache.arrow.vector.types.pojo.{ArrowType, ExtensionTypeRegistry, FieldType}
+import org.apache.arrow.vector.types.pojo.{ArrowType, FieldType}
 import org.json4s._
 import org.json4s.jackson.JsonMethods
 
@@ -12,23 +12,37 @@ import org.json4s.jackson.JsonMethods
   * Extension metadata is a JSON object. Readers ignore keys they do not recognise, so keys can be
   * added without breaking existing readers.
   *
+  * Hail registers none of these types with Arrow's `ExtensionTypeRegistry`. The registry is static,
+  * and the Hail jars that share a Query-on-Batch worker JVM all load Arrow from the same class
+  * loader, so one jar's registration would decide the class, and run the `deserialize`, of every
+  * extension field that any of them decodes. When nothing is registered under a name, Arrow decodes
+  * the field to its storage type, and [[ArrowSchemaConversion.fromArrowField]] rebuilds the
+  * extension type from the field metadata through [[ExtensionTypes.deserialize]]. When something
+  * else has registered a type under the name, Arrow calls its `deserialize` while it decodes the
+  * schema, and a type that rejects the field fails the decode before Hail sees it.
+  *
   * The columnar format is written without Arrow vectors, so none of these types can create one.
   */
 object ExtensionTypes {
-  private lazy val registered: Unit =
-    Seq[ArrowType.ExtensionType](
+  private val prototypes: Map[String, HailExtensionType] =
+    Seq[HailExtensionType](
       CallExtensionType.Current,
       LocusExtensionType.Prototype,
       SetExtensionType,
       IntervalExtensionType,
       TupleExtensionType,
       VariableShapeTensorExtensionType,
-    ).foreach(ExtensionTypeRegistry.register)
+    ).map(t => t.extensionName() -> t).toMap
 
-  /** Registers every extension type with Arrow's global registry, so that schemas read by Arrow
-    * contain extension types rather than their storage types. Idempotent.
+  /** The extension type named `name`, built from its storage type and serialized metadata, or
+    * `None` if Hail defines no extension type named `name`.
+    *
+    * @throws InvalidExtensionMetadataException
+    *   if `storageType` is not the type's storage type or `metadata` is not valid for it
     */
-  def register(): Unit = registered
+  private[arrow] def deserialize(name: String, storageType: ArrowType, metadata: String)
+    : Option[ArrowType] =
+    prototypes.get(name).map(_.deserialize(storageType, metadata))
 }
 
 sealed abstract class HailExtensionType extends ArrowType.ExtensionType {

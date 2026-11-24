@@ -6,6 +6,7 @@ import is.hail.variant.ReferenceGenomeEnv
 
 import scala.jdk.CollectionConverters._
 
+import org.apache.arrow.vector.extension.InvalidExtensionMetadataException
 import org.apache.arrow.vector.types.FloatingPointPrecision
 import org.apache.arrow.vector.types.pojo.{ArrowType, Field, FieldType, Schema}
 
@@ -20,8 +21,6 @@ import org.apache.arrow.vector.types.pojo.{ArrowType, Field, FieldType, Schema}
   * Arrow -> Hail accepts exactly the Arrow types that Hail -> Arrow produces.
   */
 object ArrowSchemaConversion {
-  ExtensionTypes.register()
-
   val ElementFieldName: String = "element"
   val EntriesFieldName: String = "entries"
   val KeyFieldName: String = "key"
@@ -112,11 +111,13 @@ object ArrowSchemaConversion {
     val name = field.getName
     val required = !field.isNullable
     val children = field.getChildren.asScala.toIndexedSeq
+    val extension = extensionName(field)
+    val storage = storageType(field.getType)
 
-    def unsupported(reason: String): Nothing =
-      fatal(
-        s"field '$name' of Arrow type ${field.getType} is not part of the columnar format: $reason"
-      )
+    def unsupported(reason: String): Nothing = {
+      val arrowType = extension.fold(storage.toString)(e => s"ExtensionType($e, $storage)")
+      fatal(s"field '$name' of Arrow type $arrowType is not part of the columnar format: $reason")
+    }
 
     def checkChildren(expected: IndexedSeq[String]): Unit =
       if (children.map(_.getName) != expected)
@@ -141,33 +142,45 @@ object ArrowSchemaConversion {
       t
     }
 
-    // Rejects dictionary encoding and extension metadata on a field whose type is not a
-    // registered extension type. Applies to every field, including structural children that are
-    // not converted through `convert`.
-    def checkPlain(f: Field): Unit = {
-      val where = if (f eq field) "" else s"child field '${f.getName}': "
+    // Checks a child field whose type the format fixes, such as a map's entries, which is not
+    // converted through `convert` and so is not checked there.
+    def checkStructural(f: Field): Unit = {
       if (f.getDictionary != null)
-        unsupported(s"${where}dictionary encoding is not supported")
-      if (
-        !f.getType.isInstanceOf[ArrowType.ExtensionType] &&
-        f.getMetadata.containsKey(ArrowType.ExtensionType.EXTENSION_METADATA_KEY_NAME)
-      )
-        unsupported(
-          s"${where}unregistered extension type " +
-            s"'${f.getMetadata.get(ArrowType.ExtensionType.EXTENSION_METADATA_KEY_NAME)}'"
-        )
+        unsupported(s"child field '${f.getName}': dictionary encoding is not supported")
+      extensionName(f).foreach { e =>
+        unsupported(s"child field '${f.getName}': unexpected extension type '$e'")
+      }
     }
 
-    def requiredChild(f: Field): Field = {
-      checkPlain(f)
+    def requiredChild(f: Field): Field =
       if (f.isNullable) unsupported(s"child field '${f.getName}' must be non-nullable")
       else f
+
+    if (field.getDictionary != null)
+      unsupported("dictionary encoding is not supported")
+
+    // The type comes from the field metadata and the storage type, never from the class of
+    // `field.getType`. That class is Arrow's storage type when nothing is registered under the
+    // extension name, and another Hail jar's class when that jar registered one.
+    val arrowType = extension match {
+      case None => storage
+      case Some(e) =>
+        val metadata =
+          field.getMetadata.getOrDefault(
+            ArrowType.ExtensionType.EXTENSION_METADATA_KEY_METADATA,
+            "",
+          )
+        try
+          ExtensionTypes.deserialize(e, storage, metadata).getOrElse(
+            unsupported(s"unknown extension type '$e'")
+          )
+        catch {
+          case ex: InvalidExtensionMetadataException => unsupported(ex.getMessage)
+        }
     }
 
-    checkPlain(field)
-
-    field.getType match {
-      case _: CallExtensionType if field.getType == CallExtensionType.Current =>
+    arrowType match {
+      case t: CallExtensionType if t == CallExtensionType.Current =>
         scalar(PCanonicalCall(required))
       case t: CallExtensionType =>
         unsupported(s"unknown call encoding ${t.encoding}")
@@ -190,7 +203,7 @@ object ArrowSchemaConversion {
         if (convert(end) != pointType)
           unsupported("interval 'start' and 'end' have different types")
         for (f <- Seq(includesStart, includesEnd)) {
-          checkPlain(f)
+          checkStructural(f)
           if (f.isNullable || f.getType != ArrowType.Bool.INSTANCE || !f.getChildren.isEmpty)
             unsupported(s"interval '${f.getName}' must be a non-nullable bool")
         }
@@ -208,21 +221,21 @@ object ArrowSchemaConversion {
       case VariableShapeTensorExtensionType =>
         checkChildren(TensorFieldNames)
         val IndexedSeq(data, shape) = children
+        checkStructural(shape)
         val nDims = shape.getType match {
           case t: ArrowType.FixedSizeList => t.getListSize
           case t => unsupported(s"tensor 'shape' must be a fixed_size_list, found $t")
         }
-        requiredChild(shape)
+        requiredChild(shape): Unit
         if (shape.getChildren.size != 1 || convert(shape.getChildren.get(0)) != PInt32(true))
           unsupported("tensor 'shape' must contain non-nullable int32")
+        checkStructural(data)
         if (requiredChild(data).getType != ArrowType.List.INSTANCE || data.getChildren.size != 1)
           unsupported("tensor 'data' must be a list")
         val elementType = convert(requiredChild(data.getChildren.get(0)))
         if (elementType.containsPointers || elementType.isInstanceOf[PLocus])
           unsupported(s"tensor element type ${elementType.virtualType} is not supported")
         PCanonicalNDArray(elementType, nDims, required)
-      case t: ArrowType.ExtensionType =>
-        unsupported(s"unknown extension type '${t.extensionName}'")
       case ArrowType.Bool.INSTANCE => scalar(PBoolean(required))
       case Int32 => scalar(PInt32(required))
       case Int64 => scalar(PInt64(required))
@@ -234,6 +247,7 @@ object ArrowSchemaConversion {
       case t: ArrowType.Map =>
         if (!t.getKeysSorted) unsupported("map keys must be sorted")
         val entries = requiredChild(onlyChild())
+        checkStructural(entries)
         if (entries.getType != ArrowType.Struct.INSTANCE || entries.getChildren.size != 2)
           unsupported("map entries must be a struct with two fields")
         val key = requiredChild(entries.getChildren.get(0))
@@ -242,6 +256,14 @@ object ArrowSchemaConversion {
         PCanonicalStruct(structFields(children, references), required)
       case _ => unsupported("unsupported type")
     }
+  }
+
+  private def extensionName(f: Field): Option[String] =
+    Option(f.getMetadata.get(ArrowType.ExtensionType.EXTENSION_METADATA_KEY_NAME))
+
+  private def storageType(t: ArrowType): ArrowType = t match {
+    case t: ArrowType.ExtensionType => t.storageType()
+    case t => t
   }
 
   private def structFields(
