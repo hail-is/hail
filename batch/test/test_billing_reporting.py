@@ -176,7 +176,7 @@ async def test_billing_history_global_bm_sees_all(db, unique_name):
     await _insert_spend(db, _JAN15, bp_hist_all, 'alice', resource_id, 100)
     await _insert_spend(db, _JAN15, bp_hist_all, 'bob', resource_id, 200)
 
-    rows = await query_billing_history(db, _JAN1, _JAN31, user=None, quote_manager_user=None)
+    rows = await query_billing_history(db, _JAN1, _JAN31, user=None)
     users_seen = {r['user'] for r in rows if r['billing_project'] == bp_hist_all}
     assert 'alice' in users_seen
     assert 'bob' in users_seen
@@ -191,8 +191,8 @@ async def test_billing_history_regular_user_sees_only_own_spend(db, unique_name)
     await _insert_spend(db, _JAN15, bp_hist_own, 'alice', resource_id, 100)
     await _insert_spend(db, _JAN15, bp_hist_own, 'bob', resource_id, 200)
 
-    rows = await query_billing_history(db, _JAN1, _JAN31, user='alice', quote_manager_user=None)
-    users_seen = {r['user'] for r in rows}
+    rows = await query_billing_history(db, _JAN1, _JAN31, user='alice')
+    users_seen = {r['user'] for r in rows if r['billing_project'] == bp_hist_own}
     assert 'alice' in users_seen
     assert 'bob' not in users_seen
 
@@ -207,7 +207,7 @@ async def test_billing_history_quote_manager_sees_all_spend_in_managed_quote(db,
     await _insert_spend(db, _JAN15, bp_hist_qm, 'alice', resource_id, 100)
     await _insert_spend(db, _JAN15, bp_hist_qm, 'bob', resource_id, 200)
 
-    rows = await query_billing_history(db, _JAN1, _JAN31, user='manager', quote_manager_user='manager')
+    rows = await query_billing_history(db, _JAN1, _JAN31, user='manager')
     users_seen = {r['user'] for r in rows if r['billing_project'] == bp_hist_qm}
     assert 'alice' in users_seen
     assert 'bob' in users_seen
@@ -221,7 +221,7 @@ async def test_billing_history_quote_manager_also_sees_own_spend_in_other_projec
     resource_id = await _insert_resource(db, cpu_other, 0.01)
     await _insert_spend(db, _JAN15, bp_hist_other, 'manager', resource_id, 50)
 
-    rows = await query_billing_history(db, _JAN1, _JAN31, user='manager', quote_manager_user='manager')
+    rows = await query_billing_history(db, _JAN1, _JAN31, user='manager')
     projects_seen = {r['billing_project'] for r in rows if r['user'] == 'manager'}
     assert bp_hist_other in projects_seen
 
@@ -234,7 +234,7 @@ async def test_billing_history_non_manager_cannot_see_others_spend(db, unique_na
     resource_id = await _insert_resource(db, cpu_excl, 0.01)
     await _insert_spend(db, _JAN15, bp_hist_excl, 'alice', resource_id, 100)
 
-    rows = await query_billing_history(db, _JAN1, _JAN31, user='outsider', quote_manager_user=None)
+    rows = await query_billing_history(db, _JAN1, _JAN31, user='outsider')
     users_seen = {r['user'] for r in rows if r['billing_project'] == bp_hist_excl}
     assert 'alice' not in users_seen
 
@@ -248,7 +248,7 @@ async def test_billing_history_date_filter_applied(db, unique_name):
     await _insert_spend(db, datetime.date(2025, 12, 31), bp_hist_date, 'alice', resource_id, 999)
     await _insert_spend(db, _JAN15, bp_hist_date, 'alice', resource_id, 100)
 
-    rows = await query_billing_history(db, _JAN1, _JAN31, user='alice', quote_manager_user=None)
+    rows = await query_billing_history(db, _JAN1, _JAN31, user='alice')
     total = sum(r['cost'] for r in rows if r['billing_project'] == bp_hist_date)
     assert pytest.approx(total, abs=0.01) == 100 * 0.01
 
@@ -267,8 +267,8 @@ async def test_billing_breakdown_regular_user_sees_only_own(db, unique_name):
     await _insert_spend(db, _JAN15, bp_brkdn_own, 'alice', resource_id, 100)
     await _insert_spend(db, _JAN15, bp_brkdn_own, 'bob', resource_id, 200)
 
-    rows = await query_billing_breakdown(db, _JAN1, _JAN31, user='alice', quote_manager_user=None)
-    users_seen = {r['user'] for r in rows}
+    rows = await query_billing_breakdown(db, _JAN1, _JAN31, user='alice')
+    users_seen = {r['user'] for r in rows if r['billing_project'] == bp_brkdn_own}
     assert 'alice' in users_seen
     assert 'bob' not in users_seen
 
@@ -283,7 +283,7 @@ async def test_billing_breakdown_quote_manager_sees_all_in_quote(db, unique_name
     await _insert_spend(db, _JAN15, bp_brkdn_qm, 'alice', resource_id, 100)
     await _insert_spend(db, _JAN15, bp_brkdn_qm, 'bob', resource_id, 200)
 
-    rows = await query_billing_breakdown(db, _JAN1, _JAN31, user='mgr', quote_manager_user='mgr')
+    rows = await query_billing_breakdown(db, _JAN1, _JAN31, user='mgr')
     users_seen = {r['user'] for r in rows if r['billing_project'] == bp_brkdn_qm}
     assert 'alice' in users_seen
     assert 'bob' in users_seen

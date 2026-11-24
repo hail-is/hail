@@ -135,6 +135,7 @@ async def test_leaving_needs_only_view_but_removing_others_needs_manage(db, uniq
 async def test_require_issues_grant_for_role_permissions(db, unique_name):
     q, quote_id, bp = await _quote_with_bp(db, unique_name)
     await add_quote_manager(db, q, 'mgr', 'manager', 'admin')
+    await add_quote_manager(db, q, 'owner', 'owner', 'admin')
     await add_billing_project_user(db, bp, 'member', 'admin')
 
     grant = await require(db, _userdata('mgr'), P.EDIT_BP_LIMIT, BillingProjectTarget(bp))
@@ -147,6 +148,10 @@ async def test_require_issues_grant_for_role_permissions(db, unique_name):
         (_userdata('mgr'), P.EDIT_QUOTE_AMOUNT, QuoteTarget(quote_id)),
         (_userdata('mgr'), P.SET_UNLIMITED, GlobalTarget()),
         (_userdata('outsider'), P.VIEW_BP, BillingProjectTarget(bp)),
+        # Moving a billing project between quotes moves its spend history too, so only global billing managers can.
+        (_userdata('mgr'), P.CHANGE_BP_QUOTE, BillingProjectTarget(bp)),
+        (_userdata('owner'), P.CHANGE_BP_QUOTE, BillingProjectTarget(bp)),
+        (_userdata('owner'), P.CHANGE_BP_QUOTE, QuoteTarget(quote_id)),
     ]:
         with pytest.raises(web.HTTPForbidden):
             await require(db, userdata, permission, target)
@@ -197,8 +202,12 @@ async def test_decorator_rejects_caller_without_role(db, unique_name):
         await _view_quote_handler(_Request(db, {'name': q}), _userdata('outsider'))  # type: ignore[arg-type]
 
 
-async def test_decorator_only_reveals_unknown_quotes_to_global_billing_managers(db):
-    with pytest.raises(web.HTTPForbidden):
+async def test_decorator_only_reveals_unknown_quotes_to_global_billing_managers(db, unique_name):
+    q, _, _ = await _quote_with_bp(db, unique_name)
+    with pytest.raises(web.HTTPForbidden) as unknown:
         await _view_quote_handler(_Request(db, {'name': 'no-such-quote'}), _userdata('outsider'))  # type: ignore[arg-type]
+    with pytest.raises(web.HTTPForbidden) as inaccessible:
+        await _view_quote_handler(_Request(db, {'name': q}), _userdata('outsider'))  # type: ignore[arg-type]
+    assert unknown.value.reason == inaccessible.value.reason
     with pytest.raises(web.HTTPNotFound):
         await _view_quote_handler(_Request(db, {'name': 'no-such-quote'}), _gbm('gbm'))  # type: ignore[arg-type]

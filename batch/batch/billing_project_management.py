@@ -1,6 +1,7 @@
 import json
+import math
 from contextlib import contextmanager
-from typing import Iterator, Optional, Union
+from typing import Any, Iterator, Optional
 
 import pymysql
 
@@ -11,6 +12,7 @@ from hailtop.utils import time_msecs
 from .billing_grants import BillingGrant, BillingPermission, BillingProjectTarget, GlobalTarget, QuoteTarget, expect
 from .exceptions import (
     BatchOperationAlreadyCompletedError,
+    BillingConflictError,
     BillingValidationError,
     ClosedBillingProjectError,
     InvalidBillingLimitError,
@@ -40,17 +42,19 @@ def _exceeds(total: float, cap: float) -> bool:
     return round(total, 2) > round(cap, 2)
 
 
-def _parse_billing_limit(limit: Optional[Union[str, float, int]]) -> Optional[float]:
-    assert isinstance(limit, (str, float, int)) or limit is None, (limit, type(limit))
-
+def parse_billing_limit(limit: Any) -> Optional[float]:
+    # limit may come straight from a JSON request body, so reject unexpected types as user errors
     if limit == 'None' or limit is None:
         return None
+    if isinstance(limit, bool) or not isinstance(limit, (str, float, int)):
+        raise InvalidBillingLimitError(limit)
     try:
         parsed_limit = float(limit)
-        assert parsed_limit >= 0
-        return parsed_limit
-    except (AssertionError, ValueError) as e:
+    except (ValueError, OverflowError) as e:
         raise InvalidBillingLimitError(limit) from e
+    if not math.isfinite(parsed_limit) or parsed_limit < 0:
+        raise InvalidBillingLimitError(limit)
+    return parsed_limit
 
 
 async def _log_quote_event(
@@ -245,6 +249,18 @@ async def get_quote_id(db: Database, name: str) -> Optional[int]:
     return row['id'] if row else None
 
 
+async def get_billing_project_quote_id(db: Database, bp_name: str) -> Optional[int]:
+    row = await db.select_and_fetchone(
+        "SELECT quote_id FROM billing_projects WHERE name_cs = %s AND `status` != 'deleted';", (bp_name,)
+    )
+    return row['quote_id'] if row else None
+
+
+async def billing_project_ever_existed(db: Database, bp_name: str) -> bool:
+    row = await db.select_and_fetchone('SELECT 1 FROM billing_projects WHERE name_cs = %s;', (bp_name,))
+    return row is not None
+
+
 async def get_billing_role_for_quote(db: Database, username: str, is_global_bm: bool, quote_name: str) -> Optional[str]:
     if is_global_bm:
         return 'global_bm'
@@ -323,7 +339,8 @@ async def create_quote(
 ) -> int:
     """Insert a new quote and log the creation event. Returns the new quote id.
 
-    Raises BatchOperationAlreadyCompletedError if the name already exists.
+    Raises BatchOperationAlreadyCompletedError if an identical open quote already exists, or BillingConflictError if
+    the name is taken by a quote with different details.
     Raises BatchUserError if authorized_amount is missing: only the INTERNAL quote may be unlimited.
     """
     actor = expect(grant, BillingPermission.CREATE_QUOTE, GlobalTarget())
@@ -331,9 +348,28 @@ async def create_quote(
         raise BillingValidationError('Quotes must have an authorized_amount. Only the INTERNAL quote is unlimited.')
 
     async with db.start() as tx:
-        row = await tx.execute_and_fetchone('SELECT id FROM quotes WHERE name = %s FOR UPDATE;', (name,))
+        row = await tx.execute_and_fetchone(
+            """
+SELECT id, name_cs, quote_number, cost_object, authorized_amount, pi_name, pm_designee, description, state
+FROM quotes WHERE name = %s FOR UPDATE;
+""",
+            (name,),
+        )
         if row is not None:
-            raise BatchOperationAlreadyCompletedError(f'Quote {name} already exists.', 'info')
+            existing = (
+                row['name_cs'],
+                row['quote_number'],
+                row['cost_object'],
+                row['authorized_amount'],
+                row['pi_name'],
+                row['pm_designee'],
+                row['description'],
+                row['state'],
+            )
+            requested = (name, quote_number, cost_object, authorized_amount, pi_name, pm_designee, description, 'open')
+            if existing == requested:
+                raise BatchOperationAlreadyCompletedError(f'Quote {name} already exists.', 'info')
+            raise BillingConflictError(f'Quote {row["name_cs"]} already exists with different details.')
 
         now = time_msecs()
         with invariant_violations_as_user_errors():
@@ -504,7 +540,8 @@ async def add_quote_manager(
 ) -> None:
     """Add a user as owner or manager of a quote.
 
-    Raises BatchOperationAlreadyCompletedError if user is already a manager.
+    Raises BatchOperationAlreadyCompletedError if user already has this role, or BillingConflictError if they have
+    the other one.
     """
     async with db.start() as tx:
         quote_row = await tx.execute_and_fetchone('SELECT id FROM quotes WHERE name_cs = %s FOR UPDATE;', (quote_name,))
@@ -523,9 +560,10 @@ async def add_quote_manager(
             (quote_id, target_user),
         )
         if existing:
-            raise BatchOperationAlreadyCompletedError(
-                f'User {target_user} is already a {existing["role"]} of quote {quote_name}.', 'info'
-            )
+            message = f'User {target_user} is already a {existing["role"]} of quote {quote_name}.'
+            if existing['role'] == role:
+                raise BatchOperationAlreadyCompletedError(message, 'info')
+            raise BillingConflictError(message)
 
         with invariant_violations_as_user_errors():
             await tx.execute_insertone(
@@ -623,6 +661,11 @@ async def create_billing_project(
 
         quote_authorized = quote_row['authorized_amount']
 
+        # Before the capacity check, so retrying a create whose response was lost doesn't count its own limit twice.
+        row = await tx.execute_and_fetchone('SELECT name_cs FROM billing_projects WHERE name = %s FOR UPDATE;', (name,))
+        if row is not None:
+            raise BatchOperationAlreadyCompletedError(f'Billing project {row["name_cs"]} already exists.', 'info')
+
         if limit is None:
             # Rule check before grant check: a missing limit on an ordinary quote is a bad request, not a caller bug.
             if quote_id != INTERNAL_QUOTE_ID or quote_authorized is not None:
@@ -636,10 +679,6 @@ async def create_billing_project(
                     f'Creating billing project with limit {limit} would exceed quote authorized amount {quote_authorized} '
                     f'(existing BPs use {existing_sum}).'
                 )
-
-        row = await tx.execute_and_fetchone('SELECT name_cs FROM billing_projects WHERE name = %s FOR UPDATE;', (name,))
-        if row is not None:
-            raise BatchOperationAlreadyCompletedError(f'Billing project {row["name_cs"]} already exists.', 'info')
 
         with invariant_violations_as_user_errors():
             await tx.execute_insertone(
@@ -674,7 +713,7 @@ async def patch_billing_project(
 ) -> None:
     """Patch billing project limit and/or description.
 
-    updates keys: 'limit' (raw value passed to _parse_billing_limit), 'description' (str|None).
+    updates keys: 'limit' (raw value passed to parse_billing_limit), 'description' (str|None).
     Changing the limit needs limit_grant (EDIT_BP_LIMIT); making it unlimited also needs unlimited_grant.
     Raises BatchUserError for capacity violations.
     """
@@ -703,7 +742,7 @@ FOR UPDATE;
         db_updates: dict = {}
 
         if 'limit' in updates:
-            new_limit = _parse_billing_limit(updates['limit'])
+            new_limit = parse_billing_limit(updates['limit'])
             if new_limit is None:
                 # Rule check before grant check: a null limit on an ordinary quote is a bad request, not a caller bug.
                 if row['quote_id'] != INTERNAL_QUOTE_ID or row['authorized_amount'] is not None:
@@ -748,17 +787,18 @@ async def change_billing_project_quote(
     db: Database,
     bp_name: str,
     dest_quote_id: int,
-    grant: BillingGrant,
+    src_grant: BillingGrant,
     dest_grant: BillingGrant,
     comment: Optional[str] = None,
 ) -> None:
     """Move a billing project to a different quote.
 
-    Needs CHANGE_BP_QUOTE on both the billing project (grant) and the destination quote (dest_grant).
+    Needs CHANGE_BP_QUOTE on both the billing project's current quote (src_grant) and the destination quote
+    (dest_grant). Raises BillingConflictError if the billing project is no longer under src_grant's quote, so a grant
+    checked before a concurrent move can't authorize moving it out of a quote the caller doesn't manage.
     Raises BatchUserError for capacity violations or invalid state.
     """
-    actor = expect(grant, BillingPermission.CHANGE_BP_QUOTE, BillingProjectTarget(bp_name))
-    expect(dest_grant, BillingPermission.CHANGE_BP_QUOTE, QuoteTarget(dest_quote_id), actor)
+    actor = expect(dest_grant, BillingPermission.CHANGE_BP_QUOTE, QuoteTarget(dest_quote_id))
     async with db.start() as tx:
         await _lock_quotes_then_billing_project(tx, bp_name, other_quote_id=dest_quote_id)
         row = await tx.execute_and_fetchone(
@@ -780,6 +820,9 @@ FOR UPDATE;
         )
         if not row:
             raise NonExistentBillingProjectError(bp_name)
+        if src_grant.target != QuoteTarget(row['src_quote_id']):
+            raise BillingConflictError(f'Billing project {bp_name} was moved to another quote during this request.')
+        expect(src_grant, BillingPermission.CHANGE_BP_QUOTE, QuoteTarget(row['src_quote_id']), actor)
         if row['src_quote_id'] == dest_quote_id:
             raise BatchOperationAlreadyCompletedError(
                 f'Billing project {bp_name} is already under quote {row["dest_quote_name"]}.', 'info'

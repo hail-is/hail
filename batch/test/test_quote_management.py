@@ -16,7 +16,12 @@ from batch.billing_project_management import (
     get_quote_events,
     list_quotes_for_user,
 )
-from batch.exceptions import BatchOperationAlreadyCompletedError, BatchUserError, BillingValidationError
+from batch.exceptions import (
+    BatchOperationAlreadyCompletedError,
+    BatchUserError,
+    BillingConflictError,
+    BillingValidationError,
+)
 
 # ---------------------------------------------------------------------------
 # create_quote
@@ -63,11 +68,32 @@ async def test_create_quote_logs_creation_event(db, unique_name):
     assert row['comment'] == 'initial'
 
 
-async def test_create_quote_duplicate_raises(db, unique_name):
+async def test_create_quote_identical_repeat_is_noop(db, unique_name):
     q_dup = unique_name('q-dup')
-    await create_quote(db, q_dup, cost_object='CO-004', actor='admin', authorized_amount=1000.0)
+    await create_quote(db, q_dup, cost_object='CO-004', actor='admin', authorized_amount=1000.0, pi_name='pi')
     with pytest.raises(BatchOperationAlreadyCompletedError):
-        await create_quote(db, q_dup, cost_object='CO-004b', actor='admin', authorized_amount=1000.0)
+        await create_quote(db, q_dup, cost_object='CO-004', actor='admin', authorized_amount=1000.0, pi_name='pi')
+
+
+@pytest.mark.parametrize(
+    'changes', [{'cost_object': 'CO-004b'}, {'authorized_amount': 2000.0}, {'pi_name': None}, {'description': 'd'}]
+)
+async def test_create_quote_conflicting_repeat_raises(db, unique_name, changes):
+    q_dup = unique_name('q-dup-conflict')
+    original = {'cost_object': 'CO-004', 'authorized_amount': 1000.0, 'pi_name': 'pi'}
+    await create_quote(db, q_dup, actor='admin', **original)
+    with pytest.raises(BillingConflictError):
+        await create_quote(db, q_dup, actor='admin', **{**original, **changes})
+    row = await db.select_and_fetchone('SELECT cost_object, authorized_amount FROM quotes WHERE name = %s', (q_dup,))
+    assert (row['cost_object'], row['authorized_amount']) == ('CO-004', 1000.0)
+
+
+async def test_create_quote_repeat_of_closed_quote_raises(db, unique_name):
+    q_dup = unique_name('q-dup-closed')
+    await create_quote(db, q_dup, cost_object='CO', actor='admin', authorized_amount=1000.0)
+    await close_quote(db, q_dup, actor='admin')
+    with pytest.raises(BillingConflictError):
+        await create_quote(db, q_dup, cost_object='CO', actor='admin', authorized_amount=1000.0)
 
 
 async def test_create_quote_requires_authorized_amount(db, unique_name):
@@ -427,12 +453,25 @@ async def test_add_quote_manager_role(db, unique_name, role):
     assert row['role'] == role
 
 
-async def test_add_quote_manager_duplicate_raises(db, unique_name):
+async def test_add_quote_manager_same_role_is_noop(db, unique_name):
     q_dup_mgr = unique_name('q-dup-mgr')
     await create_quote(db, q_dup_mgr, cost_object='CO', actor='admin', authorized_amount=1000.0)
     await add_quote_manager(db, q_dup_mgr, 'dave', 'manager', actor='admin')
     with pytest.raises(BatchOperationAlreadyCompletedError):
+        await add_quote_manager(db, q_dup_mgr, 'dave', 'manager', actor='admin')
+
+
+async def test_add_quote_manager_other_role_raises(db, unique_name):
+    q_dup_mgr = unique_name('q-dup-mgr-role')
+    await create_quote(db, q_dup_mgr, cost_object='CO', actor='admin', authorized_amount=1000.0)
+    await add_quote_manager(db, q_dup_mgr, 'dave', 'manager', actor='admin')
+    with pytest.raises(BillingConflictError, match='already a manager'):
         await add_quote_manager(db, q_dup_mgr, 'dave', 'owner', actor='admin')
+    row = await db.select_and_fetchone(
+        'SELECT qm.role FROM quote_managers qm JOIN quotes q ON q.id = qm.quote_id WHERE q.name = %s AND qm.user = %s',
+        (q_dup_mgr, 'dave'),
+    )
+    assert row['role'] == 'manager'
 
 
 @pytest.mark.parametrize('role', ['owner', 'manager'])
