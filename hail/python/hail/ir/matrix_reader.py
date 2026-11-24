@@ -1,8 +1,6 @@
 import abc
 import json
 
-import hail as hl
-
 from ..expr.types import HailType, tfloat32, tfloat64
 from ..genetics.reference_genome import reference_genome_type
 from ..typecheck import anytype, dictof, enumeration, nullable, oneof, sequenceof, sized_tupleof, typecheck_method
@@ -52,9 +50,9 @@ class MatrixNativeReader(MatrixReader):
 class MatrixColumnarReader(MatrixReader):
     """Reads a matrix table in the experimental columnar format.
 
-    Private: not part of Hail's public interface, and the format may change. Defines the matrix
-    table's non-builtin reference genomes, which must be equal to any already defined with the same
-    name.
+    Private: :func:`.read_matrix_table` uses it for a matrix table in the columnar format, and the
+    format may change. As with :class:`.MatrixNativeReader`, the caller defines the matrix table's
+    reference genomes.
 
     With `intervals`, reads only the rows whose row key is in them. Their points are the row key or
     a prefix of it, as structs or as the first row key field's values.
@@ -68,8 +66,6 @@ class MatrixColumnarReader(MatrixReader):
     @typecheck_method(path=str, intervals=nullable(sequenceof(anytype)), filter_intervals=bool)
     def __init__(self, path, intervals=None, filter_intervals=False):
         self.path = path
-        for rg_config in hl.utils.java.Env.backend().load_references_from_dataset(path):
-            hl.ReferenceGenome._from_config(rg_config)
         self.intervals, self._interval_type = impute_type_of_partition_interval_array(intervals)
         self.filter_intervals = filter_intervals
 

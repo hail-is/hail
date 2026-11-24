@@ -440,7 +440,7 @@ def test_column_and_entry_fields_have_the_specified_extension_and_encoding(case)
 
 
 def read_columnar(path: str) -> hl.MatrixTable:
-    return hl.MatrixTable(ir.MatrixRead(ir.MatrixColumnarReader(path)))
+    return hl.read_matrix_table(path)
 
 
 def assert_reads_as(path: str, expected: hl.MatrixTable) -> None:
@@ -671,7 +671,7 @@ def test_a_matrix_table_is_not_a_table():
 
 
 def read_columnar_intervals(path: str, intervals: list, filter_intervals: bool = False) -> hl.MatrixTable:
-    return hl.MatrixTable(ir.MatrixRead(ir.MatrixColumnarReader(path, intervals, filter_intervals)))
+    return hl.read_matrix_table(path, _intervals=intervals, _filter_intervals=filter_intervals)
 
 
 def row_partitions(mt: hl.MatrixTable) -> list:
@@ -810,3 +810,67 @@ def test_an_interval_read_of_one_row_pages_gives_the_rows_whose_row_keys_are_in_
     expected = hl.filter_intervals(mt, intervals)
     assert expected.count_rows() > 0
     assert_same_rows_and_entries(read_columnar_intervals(path, intervals), expected)
+
+
+def test_read_matrix_table_reads_a_matrix_table_written_in_the_columnar_format():
+    mt = matrix_table()
+    path = new_temp_file(extension='mt')
+    mt.write(path, format='columnar')
+
+    assert hfs.exists(f'{path}/manifest.json')
+    actual = hl.read_matrix_table(path)
+    assert list(actual.row_key) == list(mt.row_key)
+    assert list(actual.col_key) == list(mt.col_key)
+    assert actual._same(mt)
+
+
+@pytest.mark.parametrize('format', ['native', 'columnar'])
+def test_checkpoint_writes_the_matrix_table_in_the_format_and_reads_it_back(format):
+    mt = matrix_table()
+    path = new_temp_file(extension='mt')
+    actual = mt.checkpoint(path, format=format)
+
+    assert hfs.exists(f'{path}/manifest.json') == (format == 'columnar')
+    assert actual._same(mt)
+
+
+@pytest.mark.parametrize('format', ['native', 'columnar'])
+def test_checkpoint_reads_committed_output_instead_of_writing_it(format):
+    path = new_temp_file(extension='mt')
+    matrix_table().checkpoint(path, format=format)
+
+    changed = matrix_table()
+    changed = changed.annotate_entries(x=changed.x + 1)
+    actual = changed.checkpoint(path, format=format, _read_if_exists=True)
+    assert actual._same(matrix_table())
+
+
+def write_both_formats(mt: hl.MatrixTable) -> tuple:
+    path = new_temp_file(extension='mt')
+    mt.write(path, format='columnar')
+    native_path = new_temp_file(extension='mt')
+    mt.write(native_path)
+    return path, native_path
+
+
+@pytest.mark.parametrize('filter_intervals', [False, True])
+def test_read_matrix_table_with_intervals_partitions_columnar_rows_as_native_rows(filter_intervals):
+    mt = matrix_table(n_rows=20, n_partitions=4)
+    path, native_path = write_both_formats(mt)
+    intervals = [hl.Interval(0, 8), hl.Interval(10, 15)]
+
+    actual = hl.read_matrix_table(path, _intervals=intervals, _filter_intervals=filter_intervals)
+    expected = hl.read_matrix_table(native_path, _intervals=intervals, _filter_intervals=filter_intervals)
+    assert row_partitions(actual) == row_partitions(expected)
+    assert actual._same(expected)
+
+
+def test_read_matrix_table_with_n_partitions_repartitions_columnar_rows_as_native_rows():
+    mt = matrix_table(n_rows=20, n_partitions=2)
+    path, native_path = write_both_formats(mt)
+
+    actual = hl.read_matrix_table(path, _n_partitions=5)
+    expected = hl.read_matrix_table(native_path, _n_partitions=5)
+    assert actual.n_partitions() == 5
+    assert row_partitions(actual) == row_partitions(expected)
+    assert actual._same(expected)

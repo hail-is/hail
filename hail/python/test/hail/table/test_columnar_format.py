@@ -6,6 +6,7 @@ format specification (``dev-docs/hail-query/columnar-format-spec.md``).
 
 import base64
 import secrets
+import warnings
 from collections.abc import Callable
 from itertools import pairwise
 from typing import Optional
@@ -20,7 +21,7 @@ import hailtop.fs as hfs
 from hail import ir
 from hail.utils import FatalError, HailUserError, new_temp_file
 from hail.utils.java import Env
-from hail.utils.misc import is_committed
+from hail.utils.misc import ColumnarFormatWarning, add_warning_filters, is_committed
 
 from ..columnar_helpers import (
     CUSTOM_REFERENCE_GENOME,
@@ -524,7 +525,7 @@ def test_output_matches_fixture(fixture, table):
 
 
 def read_columnar(path: str) -> hl.Table:
-    return hl.Table(ir.TableRead(ir.TableColumnarReader(path)))
+    return hl.read_table(path)
 
 
 def assert_reads_as(path: str, expected: hl.Table) -> None:
@@ -810,7 +811,7 @@ def test_reading_no_field_of_a_struct_keeps_whether_it_is_missing_and_its_length
 
 
 def read_columnar_intervals(path: str, intervals: list, filter_intervals: bool = False) -> hl.Table:
-    return hl.Table(ir.TableRead(ir.TableColumnarReader(path, intervals, filter_intervals)))
+    return hl.read_table(path, _intervals=intervals, _filter_intervals=filter_intervals)
 
 
 def partitions(ht: hl.Table) -> list:
@@ -1065,3 +1066,84 @@ def test_filter_intervals_on_an_interval_read_keeps_its_partitions_as_on_a_nativ
     actual = hl.filter_intervals(read_columnar_intervals(path, intervals), restriction)
     expected = hl.filter_intervals(hl.read_table(native_path, _intervals=intervals), restriction)
     assert partitions(actual) == partitions(expected)
+
+
+def write_columnar_here(ht: hl.Table) -> None:
+    ht.write(new_temp_file(extension='ht'), format='columnar')
+
+
+def write_columnar_there(ht: hl.Table) -> None:
+    ht.write(new_temp_file(extension='ht'), format='columnar')
+
+
+def test_each_place_that_writes_the_columnar_format_warns_once():
+    ht = hl.utils.range_table(1)
+    with warnings.catch_warnings(record=True) as caught:
+        # Only Hail's filters, which pytest's configuration replaces.
+        warnings.resetwarnings()
+        add_warning_filters()
+        for _ in range(2):
+            write_columnar_here(ht)
+            write_columnar_there(ht)
+
+    warned = [(w.filename, w.lineno) for w in caught if issubclass(w.category, ColumnarFormatWarning)]
+    assert warned == [
+        (__file__, write_columnar_here.__code__.co_firstlineno + 1),
+        (__file__, write_columnar_there.__code__.co_firstlineno + 1),
+    ]
+
+
+def test_read_table_reads_a_table_written_in_the_columnar_format():
+    ht = keyed_table()
+    path = new_temp_file(extension='ht')
+    ht.write(path, format='columnar')
+
+    assert hfs.exists(f'{path}/manifest.json')
+    actual = hl.read_table(path)
+    assert list(actual.key) == list(ht.key)
+    assert actual._same(ht)
+
+
+@pytest.mark.parametrize('format', ['native', 'columnar'])
+def test_checkpoint_writes_the_table_in_the_format_and_reads_it_back(format):
+    ht = keyed_table()
+    path = new_temp_file(extension='ht')
+    actual = ht.checkpoint(path, format=format)
+
+    assert hfs.exists(f'{path}/manifest.json') == (format == 'columnar')
+    assert actual._same(ht)
+
+
+@pytest.mark.parametrize('format', ['native', 'columnar'])
+def test_checkpoint_reads_committed_output_instead_of_writing_it(format):
+    path = new_temp_file(extension='ht')
+    keyed_table().checkpoint(path, format=format)
+
+    actual = keyed_table().annotate(s='changed').checkpoint(path, format=format, _read_if_exists=True)
+    assert actual._same(keyed_table())
+
+
+def write_both_formats(ht: hl.Table) -> tuple:
+    path = new_temp_file(extension='ht')
+    ht.write(path, format='columnar')
+    native_path = new_temp_file(extension='ht')
+    ht.write(native_path)
+    return path, native_path
+
+
+@pytest.mark.parametrize('filter_intervals', [False, True])
+def test_read_table_with_intervals_partitions_columnar_rows_as_native_rows(filter_intervals):
+    path, native_path = write_both_formats(keyed_table(20, 4))
+    intervals = [hl.Interval(0, 8), hl.Interval(10, 15)]
+
+    actual = hl.read_table(path, _intervals=intervals, _filter_intervals=filter_intervals)
+    expected = hl.read_table(native_path, _intervals=intervals, _filter_intervals=filter_intervals)
+    assert partitions(actual) == partitions(expected)
+
+
+def test_read_table_with_n_partitions_repartitions_columnar_rows_as_native_rows():
+    path, native_path = write_both_formats(keyed_table(20, 2))
+
+    actual = hl.read_table(path, _n_partitions=5)
+    assert actual.n_partitions() == 5
+    assert partitions(actual) == partitions(hl.read_table(native_path, _n_partitions=5))

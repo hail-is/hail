@@ -8,6 +8,7 @@ import secrets
 import shutil
 import string
 import tempfile
+import warnings
 from collections import Counter, defaultdict
 from contextlib import contextmanager
 from io import StringIO
@@ -218,8 +219,51 @@ def is_committed(path: str) -> bool:
     The native format commits by writing ``_SUCCESS``. The columnar format writes no ``_SUCCESS``;
     it commits by writing its manifest root last.
     """
-    fs = Env.fs()
-    return fs.is_file(f'{path}/_SUCCESS') or fs.is_file(f'{path}/manifest.json')
+    return Env.fs().is_file(f'{path}/_SUCCESS') or is_columnar(path)
+
+
+COLUMNAR_FORMAT_SPEC = 'https://github.com/hail-is/hail/blob/main/dev-docs/hail-query/columnar-format-spec.md'
+
+storage_format = enumeration('native', 'columnar')
+
+
+def is_columnar(path: str) -> bool:
+    """Whether `path` holds a committed table or matrix table in the columnar format, whose manifest
+    root, ``manifest.json``, is written last."""
+    return Env.fs().is_file(f'{path}/manifest.json')
+
+
+class ColumnarFormatWarning(UserWarning):
+    """The warning that the columnar format is experimental, which :func:`add_warning_filters` shows
+    once for each place user code writes the columnar format."""
+
+
+def add_warning_filters() -> None:
+    """Appends Hail's warning filters, so filters set before importing Hail take precedence. The
+    columnar format's warning is shown once for each place that writes the format, as Python's
+    default filter shows warnings, and every other warning once in all."""
+    warnings.filterwarnings('default', category=ColumnarFormatWarning, append=True)
+    warnings.filterwarnings('once', append=True)
+
+
+def warn_columnar_format_is_experimental() -> None:
+    """Warns at the caller's first frame outside Hail, so the warning is shown once for each place
+    user code writes the columnar format."""
+    import decorator
+
+    import hailtop
+
+    # Frames of Hail's typecheck wrappers lie in hailtop and in the decorator package.
+    packages = (
+        os.path.dirname(os.path.dirname(__file__)),
+        *(os.path.dirname(m.__file__) for m in (hailtop, decorator)),
+    )
+    warnings.warn(
+        'The columnar format is experimental. Its 0.x versions make no compatibility guarantee: '
+        f'a later version of Hail may not read what this one writes. See {COLUMNAR_FORMAT_SPEC}',
+        ColumnarFormatWarning,
+        skip_file_prefixes=tuple(p + os.sep for p in packages),
+    )
 
 
 storage_level = enumeration(
