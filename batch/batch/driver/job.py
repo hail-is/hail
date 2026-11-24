@@ -23,6 +23,7 @@ from ..file_store import FileStore
 from ..globals import STATUS_FORMAT_VERSION, complete_states, tasks
 from ..instance_config import QuantifiedResource
 from ..spec_writer import SpecWriter
+from ..worker_api_auth import worker_api_headers
 from .instance import Instance
 
 if TYPE_CHECKING:
@@ -307,7 +308,7 @@ async def unschedule_job(app, record):
         if instance.state in ('inactive', 'deleted'):
             return
         try:
-            await client_session.delete(url)
+            await client_session.delete(url, headers=worker_api_headers(instance.token))
             await instance.mark_healthy()
         except asyncio.TimeoutError:
             await instance.incr_failed_request_count()
@@ -497,10 +498,15 @@ async def schedule_job(app, record, instance):
         await client_session.post(
             f'http://{instance.ip_address}:5000/api/v1alpha/batches/jobs/create',
             json=body,
+            headers=worker_api_headers(instance.token),
             timeout=aiohttp.ClientTimeout(total=2),
         )
         await instance.mark_healthy()
     except aiohttp.ClientResponseError as e:
+        if e.status == 401:
+            # the worker rejected our instance token; count it so a mis-wired token gets the worker reaped
+            await instance.incr_failed_request_count()
+            raise
         await instance.mark_healthy()
         if e.status == 403:
             log.info(f'attempt {attempt_id} already exists for job {id} on {instance}, aborting')

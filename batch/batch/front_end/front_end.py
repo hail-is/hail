@@ -130,6 +130,7 @@ from ..utils import (
     rewrite_dockerhub_image,
     unavailable_if_frozen,
 )
+from ..worker_api_auth import worker_api_headers
 from .job_list_api import JOB_LIST_CONCURRENCY, job_list_response
 from .job_preemption_costs import get_job_preemption_costs
 from .query import (
@@ -415,7 +416,8 @@ async def _get_job_record(app, batch_id, job_id):
 
     record = await db.select_and_fetchone(
         """
-SELECT jobs.state, jobs.spec, ip_address, format_version, jobs.attempt_id, t.attempt_id AS last_cancelled_attempt_id
+SELECT jobs.state, jobs.spec, ip_address, instances.token AS instance_token, format_version, jobs.attempt_id,
+  t.attempt_id AS last_cancelled_attempt_id
 FROM jobs
 INNER JOIN batches
   ON jobs.batch_id = batches.id
@@ -474,13 +476,16 @@ def attempt_id_from_spec(record) -> Optional[str]:
     return record['attempt_id'] or record['last_cancelled_attempt_id']
 
 
-async def _get_job_container_log_from_worker(client_session, batch_id, job_id, container, ip_address) -> bytes:
+async def _get_job_container_log_from_worker(
+    client_session, batch_id, job_id, container, ip_address, instance_token
+) -> bytes:
     try:
         return await retry_transient_errors(
             client_session.get_read,
             f'http://{ip_address}:5000/api/v1alpha/batches/{batch_id}/jobs/{job_id}/log/{container}',
+            headers=worker_api_headers(instance_token),
         )
-    except aiohttp.ClientResponseError:
+    except Exception:
         log.exception(f'while getting log for {(batch_id, job_id)}')
         return b'ERROR: encountered a problem while fetching the log'
 
@@ -517,7 +522,12 @@ async def _get_job_container_log(
 
     if use_worker:
         return await _get_job_container_log_from_worker(
-            app[CommonAiohttpAppKeys.CLIENT_SESSION], batch_id, job_id, container, job_record['ip_address']
+            app[CommonAiohttpAppKeys.CLIENT_SESSION],
+            batch_id,
+            job_id,
+            container,
+            job_record['ip_address'],
+            job_record['instance_token'],
         )
     else:
         return await _read_job_container_log_from_cloud_storage(
@@ -572,12 +582,13 @@ async def _get_job_resource_usage_from_record(
             data = await retry_transient_errors(
                 client_session.get_read_json,
                 f'http://{record["ip_address"]}:5000/api/v1alpha/batches/{batch_id}/jobs/{job_id}/resource_usage',
+                headers=worker_api_headers(record['instance_token']),
             )
             return {
                 task: ResourceUsageMonitor.decode_to_df(base64.b64decode(encoded_df))
                 for task, encoded_df in data.items()
             }
-        except aiohttp.ClientResponseError:
+        except Exception:
             log.exception(f'while getting resource usage for {(batch_id, job_id)}')
             return {task: None for task in tasks}
     else:
@@ -701,11 +712,15 @@ async def _get_full_job_status(app, record):
         return await retry_transient_errors(
             client_session.get_read_json,
             f'http://{ip_address}:5000/api/v1alpha/batches/{batch_id}/jobs/{job_id}/status',
+            headers=worker_api_headers(record['instance_token']),
         )
     except aiohttp.ClientResponseError as e:
-        if e.status == 404:
-            return None
-        raise
+        if e.status != 404:
+            log.exception(f'while getting status for {(batch_id, job_id)}')
+        return None
+    except Exception:
+        log.exception(f'while getting status for {(batch_id, job_id)}')
+        return None
 
 
 @routes.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/log')
@@ -2483,6 +2498,7 @@ SELECT jobs.*
      , user
      , billing_project
      , ip_address
+     , instances.token AS instance_token
      , format_version
      , t.attempt_id AS last_cancelled_attempt_id
      , attempts.end_time
