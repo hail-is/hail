@@ -739,7 +739,7 @@ object IRParser {
   }
 
   def ir_value_expr_1(ctx: ExecuteContext, env: BindingEnv[Type])(it: TokenIterator)
-    : StackFrame[IR] = {
+    : StackFrame[IR] =
     identifier(it) match {
       case "I32" => done(I32(int32_literal(it)))
       case "I64" => done(I64(int64_literal(it)))
@@ -749,759 +749,1316 @@ object IRParser {
       case "UUID4" => done(UUID4(identifier(it)))
       case "True" => done(True())
       case "False" => done(False())
-      case "Literal" =>
-        val (t, v) = ir_value(ctx.references)(it)
-        done(Literal.coerce(t, v))
-      case "EncodedLiteral" =>
-        val typ = type_expr(ctx.references)(it)
-        val encodedValue = Base64.getDecoder.decode(string_literal(it))
-        val codec = TypedCodecSpec(
-          EType.fromPythonTypeEncoding(typ),
-          typ,
-          BufferSpec.unblockedUncompressed,
-        )
-        done(EncodedLiteral(codec, Array(encodedValue)))
+      case "Literal" => value_ir_Literal(ctx, env)(it)
+      case "EncodedLiteral" => value_ir_EncodedLiteral(ctx, env)(it)
       case "Void" => done(Void())
-      case "Cast" =>
-        val typ = type_expr(ctx.references)(it)
-        ir_value_expr(ctx, env)(it).map(Cast(_, typ))
-      case "CastRename" =>
-        val typ = type_expr(ctx.references)(it)
-        ir_value_expr(ctx, env)(it).map(CastRename(_, typ))
+      case "Cast" => value_ir_Cast(ctx, env)(it)
+      case "CastRename" => value_ir_CastRename(ctx, env)(it)
       case "NA" => done(NA(type_expr(ctx.references)(it)))
       case "IsNA" => ir_value_expr(ctx, env)(it).map(IsNA)
-      case "Coalesce" =>
-        for {
-          children <- ir_value_children(ctx, env)(it)
-          _ = require(children.nonEmpty)
-        } yield Coalesce(children)
-      case "If" =>
-        for {
-          cond <- ir_value_expr(ctx, env)(it)
-          consq <- ir_value_expr(ctx, env)(it)
-          altr <- ir_value_expr(ctx, env)(it)
-        } yield If(cond, consq, altr)
-      case "Switch" =>
-        for {
-          x <- ir_value_expr(ctx, env)(it)
-          default <- ir_value_expr(ctx, env)(it)
-          cases <- ir_value_children(ctx, env)(it)
-        } yield Switch(x, default, cases)
-      case "Let" | "Block" =>
-        val names =
-          repUntilNonStackSafe(it, it => (identifier(it), name(it)), T.Punc("("))
-        val bindings = new Array[Binding](names.length)
-        var e = env
-        for {
-          _ <- names.indices.foldLeft(done(())) { case (update, i) =>
-            val (bindType, name) = names(i)
-            val scope = bindType match {
-              case "eval" => Scope.EVAL
-              case "agg" => Scope.AGG
-              case "scan" => Scope.SCAN
-            }
-            for {
-              _ <- update
-              value <- ir_value_expr(ctx, Binds.aggSeq(e, scope))(it)
-            } yield {
-              bindings(i) = Binding(name, value, scope)
-              e = e.bind(scope, FastSeq(name -> value.typ))
-            }
-          }
-          body <- ir_value_expr(ctx, e)(it)
-        } yield Block(ArraySeq.unsafeWrapArray(bindings), body)
-      case "AggLet" =>
-        val n = name(it)
-        val isScan = boolean_literal(it)
-        val scope = if (isScan) Scope.SCAN else Scope.AGG
-        for {
-          value <- ir_value_expr(ctx, Binds.aggSeq(env, scope))(it)
-          body <- ir_value_expr(ctx, env.bind(scope, FastSeq(n -> value.typ)))(it)
-        } yield AggLet(n, value, body, isScan)
-      case "TailLoop" =>
-        val n = name(it)
-        val paramNames = names(it)
-        val resultType = type_expr(ctx.references)(it)
-        for {
-          paramIRs <- fillArray(paramNames.length)(ir_value_expr(ctx, env)(it))(ArraySeq)
-          params = paramNames.zip(paramIRs)
-          bodyEnv =
-            ChildEnv.tailLoop(env, paramNames.length, n, paramNames, resultType, paramIRs)(snd)
-          body <- ir_value_expr(ctx, bodyEnv)(it)
-        } yield TailLoop(n, params, resultType, body)
-      case "Recur" =>
-        val n = name(it)
-        val TTuple(IndexedSeq(_, TupleField(_, rt))) = env.eval.lookup(n)
-        ir_value_children(ctx, env)(it).map(args => Recur(n, args, rt))
-      case "Ref" =>
-        val id = name(it)
-        done(Ref(id, env.eval(id)))
-      case "ApplyBinaryPrimOp" =>
-        val op = BinaryOp.fromString(identifier(it))
-        for {
-          l <- ir_value_expr(ctx, env)(it)
-          r <- ir_value_expr(ctx, env)(it)
-        } yield ApplyBinaryPrimOp(op, l, r)
-      case "ApplyUnaryPrimOp" =>
-        val op = UnaryOp.fromString(identifier(it))
-        ir_value_expr(ctx, env)(it).map(ApplyUnaryPrimOp(op, _))
-      case "ApplyComparisonOp" =>
-        val opName = identifier(it)
-        for {
-          l <- ir_value_expr(ctx, env)(it)
-          r <- ir_value_expr(ctx, env)(it)
-        } yield ApplyComparisonOp(ComparisonOp.fromString(opName), l, r)
-      case "MakeArray" =>
-        val typ = opt(it, type_expr(ctx.references)).map(_.asInstanceOf[TArray]).orNull
-        ir_value_children(ctx, env)(it).map(args => MakeArray.unify(ctx, args, typ))
-      case "MakeStream" =>
-        val typ = opt(it, type_expr(ctx.references)).map(_.asInstanceOf[TStream]).orNull
-        val requiresMemoryManagementPerElement = boolean_literal(it)
-        ir_value_children(ctx, env)(it).map { args =>
-          MakeStream(args, typ, requiresMemoryManagementPerElement)
-        }
-      case "ArrayRef" =>
-        val errorID = int32_literal(it)
-        for {
-          a <- ir_value_expr(ctx, env)(it)
-          i <- ir_value_expr(ctx, env)(it)
-        } yield ArrayRef(a, i, errorID)
-      case "ArraySlice" =>
-        val errorID = int32_literal(it)
-        ir_value_children(ctx, env)(it).map {
-          case Seq(a, start, step) => ArraySlice(a, start, None, step, errorID)
-          case Seq(a, start, stop, step) => ArraySlice(a, start, Some(stop), step, errorID)
-        }
-      case "RNGStateLiteral" =>
-        done(RNGStateLiteral())
-      case "RNGSplit" =>
-        for {
-          state <- ir_value_expr(ctx, env)(it)
-          dynBitstring <- ir_value_expr(ctx, env)(it)
-        } yield RNGSplit(state, dynBitstring)
-      case "RNGSplitStatic" =>
-        val staticUid = int64_literal(it)
-        ir_value_expr(ctx, env)(it) map { RNGSplitStatic(_, staticUid) }
+      case "Coalesce" => value_ir_Coalesce(ctx, env)(it)
+      case "If" => value_ir_If(ctx, env)(it)
+      case "Switch" => value_ir_Switch(ctx, env)(it)
+      case "Let" | "Block" => value_ir_Block(ctx, env)(it)
+      case "AggLet" => value_ir_AggLet(ctx, env)(it)
+      case "TailLoop" => value_ir_TailLoop(ctx, env)(it)
+      case "Recur" => value_ir_Recur(ctx, env)(it)
+      case "Ref" => value_ir_Ref(ctx, env)(it)
+      case "ApplyBinaryPrimOp" => value_ir_ApplyBinaryPrimOp(ctx, env)(it)
+      case "ApplyUnaryPrimOp" => value_ir_ApplyUnaryPrimOp(ctx, env)(it)
+      case "ApplyComparisonOp" => value_ir_ApplyComparisonOp(ctx, env)(it)
+      case "MakeArray" => value_ir_MakeArray(ctx, env)(it)
+      case "MakeStream" => value_ir_MakeStream(ctx, env)(it)
+      case "ArrayRef" => value_ir_ArrayRef(ctx, env)(it)
+      case "ArraySlice" => value_ir_ArraySlice(ctx, env)(it)
+      case "RNGStateLiteral" => value_ir_RNGStateLiteral(ctx, env)(it)
+      case "RNGSplit" => value_ir_RNGSplit(ctx, env)(it)
+      case "RNGSplitStatic" => value_ir_RNGSplitStatic(ctx, env)(it)
       case "ArrayLen" => ir_value_expr(ctx, env)(it).map(ArrayLen)
       case "StreamLen" => ir_value_expr(ctx, env)(it).map(StreamLen)
-      case "StreamIota" =>
-        val requiresMemoryManagementPerElement = boolean_literal(it)
-        for {
-          start <- ir_value_expr(ctx, env)(it)
-          step <- ir_value_expr(ctx, env)(it)
-        } yield StreamIota(start, step, requiresMemoryManagementPerElement)
-      case "StreamRange" =>
-        val errorID = int32_literal(it)
-        val requiresMemoryManagementPerElement = boolean_literal(it)
-        for {
-          start <- ir_value_expr(ctx, env)(it)
-          stop <- ir_value_expr(ctx, env)(it)
-          step <- ir_value_expr(ctx, env)(it)
-        } yield StreamRange(start, stop, step, requiresMemoryManagementPerElement, errorID)
-      case "StreamGrouped" =>
-        for {
-          s <- ir_value_expr(ctx, env)(it)
-          groupSize <- ir_value_expr(ctx, env)(it)
-        } yield StreamGrouped(s, groupSize)
+      case "StreamIota" => value_ir_StreamIota(ctx, env)(it)
+      case "StreamRange" => value_ir_StreamRange(ctx, env)(it)
+      case "StreamGrouped" => value_ir_StreamGrouped(ctx, env)(it)
       case "ArrayZeros" => ir_value_expr(ctx, env)(it).map(ArrayZeros)
-      case "ArraySort" =>
-        val l = name(it)
-        val r = name(it)
-        for {
-          a <- ir_value_expr(ctx, env)(it)
-          lessThanEnv = ChildEnv.arraySort(env, 1, l, r, FastSeq(a))(snd)
-          lessThan <- ir_value_expr(ctx, lessThanEnv)(it)
-        } yield ArraySort(a, l, r, lessThan)
-      case "ArrayMaximalIndependentSet" =>
-        val hasTieBreaker = boolean_literal(it)
-        val bindings = if (hasTieBreaker) Some(name(it) -> name(it)) else None
-        for {
-          edges <- ir_value_expr(ctx, env)(it)
-          tieBreaker <- if (hasTieBreaker) {
-            val Some((left, right)) = bindings
-            val tieBreakerEnv =
-              ChildEnv.arrayMaximalIndependentSet(env, 1, bindings, FastSeq(edges))(snd)
-            ir_value_expr(ctx, tieBreakerEnv)(it).map(tbf => Some((left, right, tbf)))
-          } else {
-            done(None)
-          }
-        } yield ArrayMaximalIndependentSet(edges, tieBreaker)
-      case "MakeNDArray" =>
-        val errorID = int32_literal(it)
-        for {
-          data <- ir_value_expr(ctx, env)(it)
-          shape <- ir_value_expr(ctx, env)(it)
-          rowMajor <- ir_value_expr(ctx, env)(it)
-        } yield MakeNDArray(data, shape, rowMajor, errorID)
+      case "ArraySort" => value_ir_ArraySort(ctx, env)(it)
+      case "ArrayMaximalIndependentSet" => value_ir_ArrayMaximalIndependentSet(ctx, env)(it)
+      case "MakeNDArray" => value_ir_MakeNDArray(ctx, env)(it)
       case "NDArrayShape" => ir_value_expr(ctx, env)(it).map(NDArrayShape)
-      case "NDArrayReshape" =>
-        val errorID = int32_literal(it)
-        for {
-          nd <- ir_value_expr(ctx, env)(it)
-          shape <- ir_value_expr(ctx, env)(it)
-        } yield NDArrayReshape(nd, shape, errorID)
-      case "NDArrayConcat" =>
-        val axis = int32_literal(it)
-        ir_value_expr(ctx, env)(it).map(nds => NDArrayConcat(nds, axis))
-      case "NDArrayMap" =>
-        val n = name(it)
-        for {
-          nd <- ir_value_expr(ctx, env)(it)
-          bodyEnv = ChildEnv.ndArrayMap(env, 1, n, FastSeq(nd))(snd)
-          body <- ir_value_expr(ctx, bodyEnv)(it)
-        } yield NDArrayMap(nd, n, body)
-      case "NDArrayMap2" =>
-        val errorID = int32_literal(it)
-        val lName = name(it)
-        val rName = name(it)
-        for {
-          l <- ir_value_expr(ctx, env)(it)
-          r <- ir_value_expr(ctx, env)(it)
-          bodyEnv = ChildEnv.ndArrayMap2(env, 2, lName, rName, FastSeq(l, r))(snd)
-          body <- ir_value_expr(ctx, bodyEnv)(it)
-        } yield NDArrayMap2(l, r, lName, rName, body, errorID)
-      case "NDArrayReindex" =>
-        val indexExpr = int32_literals(it)
-        ir_value_expr(ctx, env)(it).map(nd => NDArrayReindex(nd, indexExpr))
-      case "NDArrayAgg" =>
-        val axes = int32_literals(it)
-        ir_value_expr(ctx, env)(it).map(nd => NDArrayAgg(nd, axes))
-      case "NDArrayRef" =>
-        val errorID = int32_literal(it)
-        for {
-          nd <- ir_value_expr(ctx, env)(it)
-          idxs <- ir_value_children(ctx, env)(it)
-        } yield NDArrayRef(nd, idxs, errorID)
-      case "NDArraySlice" =>
-        for {
-          nd <- ir_value_expr(ctx, env)(it)
-          slices <- ir_value_expr(ctx, env)(it)
-        } yield NDArraySlice(nd, slices)
-      case "NDArrayFilter" =>
-        for {
-          nd <- ir_value_expr(ctx, env)(it)
-          filters <- repUntil(it, ir_value_expr(ctx, env), T.Punc(")"))
-        } yield NDArrayFilter(nd, filters)
-      case "NDArrayMatMul" =>
-        val errorID = int32_literal(it)
-        for {
-          l <- ir_value_expr(ctx, env)(it)
-          r <- ir_value_expr(ctx, env)(it)
-        } yield NDArrayMatMul(l, r, errorID)
-      case "NDArrayWrite" =>
-        for {
-          nd <- ir_value_expr(ctx, env)(it)
-          path <- ir_value_expr(ctx, env)(it)
-        } yield NDArrayWrite(nd, path)
-      case "NDArrayQR" =>
-        val errorID = int32_literal(it)
-        val mode = string_literal(it)
-        ir_value_expr(ctx, env)(it).map(nd => NDArrayQR(nd, mode, errorID))
-      case "NDArraySVD" =>
-        val errorID = int32_literal(it)
-        val fullMatrices = boolean_literal(it)
-        val computeUV = boolean_literal(it)
-        ir_value_expr(ctx, env)(it).map(nd => NDArraySVD(nd, fullMatrices, computeUV, errorID))
-      case "NDArrayEigh" =>
-        val errorID = int32_literal(it)
-        val eigvalsOnly = boolean_literal(it)
-        ir_value_expr(ctx, env)(it).map(nd => NDArrayEigh(nd, eigvalsOnly, errorID))
-      case "NDArrayInv" =>
-        val errorID = int32_literal(it)
-        ir_value_expr(ctx, env)(it).map(nd => NDArrayInv(nd, errorID))
+      case "NDArrayReshape" => value_ir_NDArrayReshape(ctx, env)(it)
+      case "NDArrayConcat" => value_ir_NDArrayConcat(ctx, env)(it)
+      case "NDArrayMap" => value_ir_NDArrayMap(ctx, env)(it)
+      case "NDArrayMap2" => value_ir_NDArrayMap2(ctx, env)(it)
+      case "NDArrayReindex" => value_ir_NDArrayReindex(ctx, env)(it)
+      case "NDArrayAgg" => value_ir_NDArrayAgg(ctx, env)(it)
+      case "NDArrayRef" => value_ir_NDArrayRef(ctx, env)(it)
+      case "NDArraySlice" => value_ir_NDArraySlice(ctx, env)(it)
+      case "NDArrayFilter" => value_ir_NDArrayFilter(ctx, env)(it)
+      case "NDArrayMatMul" => value_ir_NDArrayMatMul(ctx, env)(it)
+      case "NDArrayWrite" => value_ir_NDArrayWrite(ctx, env)(it)
+      case "NDArrayQR" => value_ir_NDArrayQR(ctx, env)(it)
+      case "NDArraySVD" => value_ir_NDArraySVD(ctx, env)(it)
+      case "NDArrayEigh" => value_ir_NDArrayEigh(ctx, env)(it)
+      case "NDArrayInv" => value_ir_NDArrayInv(ctx, env)(it)
       case "ToSet" => ir_value_expr(ctx, env)(it).map(ToSet)
       case "ToDict" => ir_value_expr(ctx, env)(it).map(ToDict)
       case "ToArray" => ir_value_expr(ctx, env)(it).map(ToArray)
       case "CastToArray" => ir_value_expr(ctx, env)(it).map(CastToArray)
-      case "ToStream" =>
-        val requiresMemoryManagementPerElement = boolean_literal(it)
-        ir_value_expr(ctx, env)(it).map(a => ToStream(a, requiresMemoryManagementPerElement))
-      case "LowerBoundOnOrderedCollection" =>
-        val onKey = boolean_literal(it)
-        for {
-          col <- ir_value_expr(ctx, env)(it)
-          elem <- ir_value_expr(ctx, env)(it)
-        } yield LowerBoundOnOrderedCollection(col, elem, onKey)
+      case "ToStream" => value_ir_ToStream(ctx, env)(it)
+      case "LowerBoundOnOrderedCollection" => value_ir_LowerBoundOnOrderedCollection(ctx, env)(it)
       case "GroupByKey" => ir_value_expr(ctx, env)(it).map(GroupByKey)
-      case "StreamBufferedAggregate" =>
-        val n = name(it)
-        val aggSigs = p_agg_sigs(ctx)(it)
-        val size = int32_literal(it)
-        def childEnv(i: Int, cs: IndexedSeq[BaseIR]): BindingEnv[Type] =
-          ChildEnv.streamBufferedAggregate(env, i, n, cs)(snd)
-        for {
-          stream <- ir_value_expr(ctx, env)(it)
-          init <- ir_value_expr(ctx, env)(it)
-          key <- ir_value_expr(ctx, childEnv(2, FastSeq(stream, init)))(it)
-          seq <- ir_value_expr(ctx, childEnv(3, FastSeq(stream, init, key)))(it)
-        } yield StreamBufferedAggregate(stream, init, key, seq, n, aggSigs, size)
-      case "StreamMap" =>
-        val n = name(it)
-        for {
-          a <- ir_value_expr(ctx, env)(it)
-          bodyEnv = ChildEnv.streamMap(env, 1, n, FastSeq(a))(snd)
-          body <- ir_value_expr(ctx, bodyEnv)(it)
-        } yield StreamMap(a, n, body)
-      case "StreamTake" =>
-        for {
-          a <- ir_value_expr(ctx, env)(it)
-          num <- ir_value_expr(ctx, env)(it)
-        } yield StreamTake(a, num)
-      case "StreamDrop" =>
-        for {
-          a <- ir_value_expr(ctx, env)(it)
-          num <- ir_value_expr(ctx, env)(it)
-        } yield StreamDrop(a, num)
-      case "StreamZip" =>
-        val errorID = int32_literal(it)
-        val behavior = identifier(it) match {
-          case "AssertSameLength" => ArrayZipBehavior.AssertSameLength
-          case "TakeMinLength" => ArrayZipBehavior.TakeMinLength
-          case "ExtendNA" => ArrayZipBehavior.ExtendNA
-          case "AssumeSameLength" => ArrayZipBehavior.AssumeSameLength
-        }
-        val ns = names(it)
-        for {
-          as <- ns.mapRecur(_ => ir_value_expr(ctx, env)(it))
-          bodyEnv = ChildEnv.streamZip(env, ns.length, ns, as)(snd)
-          body <- ir_value_expr(ctx, bodyEnv)(it)
-        } yield StreamZip(as, ns, body, behavior, errorID)
-      case "StreamZipJoinProducers" =>
-        val key = identifiers(it)
-        val ctxName = name(it)
-        val curKey = name(it)
-        val curVals = name(it)
-        def childEnv(i: Int, cs: IndexedSeq[BaseIR]): BindingEnv[Type] =
-          ChildEnv.streamZipJoinProducers(env, i, ctxName, key, curKey, curVals, cs)(snd)
-        for {
-          ctxs <- ir_value_expr(ctx, env)(it)
-          makeProducer <- ir_value_expr(ctx, childEnv(1, FastSeq(ctxs)))(it)
-          body <- ir_value_expr(ctx, childEnv(2, FastSeq(ctxs, makeProducer)))(it)
-        } yield StreamZipJoinProducers(ctxs, ctxName, makeProducer, key, curKey, curVals, body)
-      case "StreamZipJoin" =>
-        val nStreams = int32_literal(it)
-        val key = identifiers(it)
-        val curKey = name(it)
-        val curVals = name(it)
-        for {
-          streams <- (0 until nStreams).mapRecur(_ => ir_value_expr(ctx, env)(it))
-          bodyEnv =
-            ChildEnv.streamZipJoin(env, nStreams, nStreams, key, curKey, curVals, streams)(snd)
-          body <- ir_value_expr(ctx, bodyEnv)(it)
-        } yield StreamZipJoin(streams, key, curKey, curVals, body)
-      case "StreamMultiMerge" =>
-        val key = identifiers(it)
-        for {
-          streams <- ir_value_exprs(ctx, env)(it)
-        } yield StreamMultiMerge(streams, key)
-      case "StreamFilter" =>
-        val n = name(it)
-        for {
-          a <- ir_value_expr(ctx, env)(it)
-          bodyEnv = ChildEnv.streamFilter(env, 1, n, FastSeq(a))(snd)
-          body <- ir_value_expr(ctx, bodyEnv)(it)
-        } yield StreamFilter(a, n, body)
-      case "StreamTakeWhile" =>
-        val n = name(it)
-        for {
-          a <- ir_value_expr(ctx, env)(it)
-          bodyEnv = ChildEnv.streamTakeWhile(env, 1, n, FastSeq(a))(snd)
-          body <- ir_value_expr(ctx, bodyEnv)(it)
-        } yield StreamTakeWhile(a, n, body)
-      case "StreamDropWhile" =>
-        val n = name(it)
-        for {
-          a <- ir_value_expr(ctx, env)(it)
-          bodyEnv = ChildEnv.streamDropWhile(env, 1, n, FastSeq(a))(snd)
-          body <- ir_value_expr(ctx, bodyEnv)(it)
-        } yield StreamDropWhile(a, n, body)
-      case "StreamFlatMap" =>
-        val n = name(it)
-        for {
-          a <- ir_value_expr(ctx, env)(it)
-          bodyEnv = ChildEnv.streamFlatMap(env, 1, n, FastSeq(a))(snd)
-          body <- ir_value_expr(ctx, bodyEnv)(it)
-        } yield StreamFlatMap(a, n, body)
-      case "StreamFold" =>
-        val accumName = name(it)
-        val valueName = name(it)
-        for {
-          a <- ir_value_expr(ctx, env)(it)
-          zero <- ir_value_expr(ctx, env)(it)
-          bodyEnv = ChildEnv.streamFold(env, 2, accumName, valueName, FastSeq(a, zero))(snd)
-          body <- ir_value_expr(ctx, bodyEnv)(it)
-        } yield StreamFold(a, zero, accumName, valueName, body)
-      case "StreamFold2" =>
-        val accumNames = names(it)
-        val valueName = name(it)
-        val n = accumNames.length
-        def childEnv(i: Int, cs: IndexedSeq[BaseIR]): BindingEnv[Type] =
-          ChildEnv.streamFold2(env, i, accumNames, valueName, cs)(snd)
-        for {
-          a <- ir_value_expr(ctx, env)(it)
-          accIRs <- fillArray(n)(ir_value_expr(ctx, env)(it))(ArraySeq)
-          accs = accumNames.zip(accIRs)
-          seqEnv = childEnv(n + 1, a +: accIRs)
-          seqs <- fillArray[IR, ArraySeq[IR]](n)(ir_value_expr(ctx, seqEnv)(it))(ArraySeq)
-          res <- ir_value_expr(ctx, childEnv(2 * n + 1, a +: accIRs))(it)
-        } yield StreamFold2(a, accs, valueName, seqs, res)
-      case "StreamScan" =>
-        val accumName = name(it)
-        val valueName = name(it)
-        for {
-          a <- ir_value_expr(ctx, env)(it)
-          zero <- ir_value_expr(ctx, env)(it)
-          bodyEnv = ChildEnv.streamScan(env, 2, accumName, valueName, FastSeq(a, zero))(snd)
-          body <- ir_value_expr(ctx, bodyEnv)(it)
-        } yield StreamScan(a, zero, accumName, valueName, body)
-      case "StreamWhiten" =>
-        val newChunk = identifier(it)
-        val prevWindow = identifier(it)
-        val vecSize = int32_literal(it)
-        val windowSize = int32_literal(it)
-        val chunkSize = int32_literal(it)
-        val blockSize = int32_literal(it)
-        val normalizeAfterWhitening = boolean_literal(it)
-        for {
-          stream <- ir_value_expr(ctx, env)(it)
-        } yield StreamWhiten(stream, newChunk, prevWindow, vecSize, windowSize, chunkSize,
-          blockSize, normalizeAfterWhitening)
-      case "StreamJoinRightDistinct" =>
-        val lKey = identifiers(it)
-        val rKey = identifiers(it)
-        val l = name(it)
-        val r = name(it)
-        val joinType = identifier(it)
-        for {
-          left <- ir_value_expr(ctx, env)(it)
-          right <- ir_value_expr(ctx, env)(it)
-          joinEnv =
-            ChildEnv.streamJoinRightDistinct(env, 2, l, r, FastSeq(left, right))(snd)
-          join <- ir_value_expr(ctx, joinEnv)(it)
-        } yield StreamJoinRightDistinct(left, right, lKey, rKey, l, r, join, joinType)
-      case "StreamLeftIntervalJoin" =>
-        val lKeyFieldName = identifier(it)
-        val rIntervalName = identifier(it)
-        val lname = name(it)
-        val rname = name(it)
-        for {
-          left <- ir_value_expr(ctx, env)(it)
-          right <- ir_value_expr(ctx, env)(it)
-          bodyEnv =
-            ChildEnv.streamLeftIntervalJoin(env, 2, lname, rname, FastSeq(left, right))(snd)
-          body <- ir_value_expr(ctx, bodyEnv)(it)
-        } yield StreamLeftIntervalJoin(left, right, lKeyFieldName, rIntervalName, lname, rname,
-          body)
-
-      case "StreamFor" =>
-        val n = name(it)
-        for {
-          a <- ir_value_expr(ctx, env)(it)
-          bodyEnv = ChildEnv.streamFor(env, 1, n, FastSeq(a))(snd)
-          body <- ir_value_expr(ctx, bodyEnv)(it)
-        } yield StreamFor(a, n, body)
-      case "StreamAgg" =>
-        val n = name(it)
-        for {
-          a <- ir_value_expr(ctx, env)(it)
-          queryEnv = ChildEnv.streamAgg(env, 1, n, FastSeq(a))(snd)
-          query <- ir_value_expr(ctx, queryEnv)(it)
-        } yield StreamAgg(a, n, query)
-      case "StreamAggScan" =>
-        val n = name(it)
-        for {
-          a <- ir_value_expr(ctx, env)(it)
-          queryEnv = ChildEnv.streamAggScan(env, 1, n, FastSeq(a))(snd)
-          query <- ir_value_expr(ctx, queryEnv)(it)
-        } yield StreamAggScan(a, n, query)
-      case "RunAgg" =>
-        val signatures = agg_state_signatures(ctx)(it)
-        for {
-          body <- ir_value_expr(ctx, env)(it)
-          result <- ir_value_expr(ctx, env)(it)
-        } yield RunAgg(body, result, signatures)
-      case "RunAggScan" =>
-        val n = name(it)
-        val signatures = agg_state_signatures(ctx)(it)
-        def childEnv(i: Int, cs: IndexedSeq[BaseIR]): BindingEnv[Type] =
-          ChildEnv.runAggScan(env, i, n, cs)(snd)
-        for {
-          array <- ir_value_expr(ctx, env)(it)
-          init <- ir_value_expr(ctx, env)(it)
-          seq <- ir_value_expr(ctx, childEnv(2, FastSeq(array, init)))(it)
-          result <- ir_value_expr(ctx, childEnv(3, FastSeq(array, init, seq)))(it)
-        } yield RunAggScan(array, n, init, seq, result, signatures)
-      case "AggFilter" =>
-        val isScan = boolean_literal(it)
-        val condEnv = ChildEnv.aggFilter(env, 0, isScan)
-        for {
-          cond <- ir_value_expr(ctx, condEnv)(it)
-          aggIR <- ir_value_expr(ctx, env)(it)
-        } yield AggFilter(cond, aggIR, isScan)
-      case "AggExplode" =>
-        val n = name(it)
-        val isScan = boolean_literal(it)
-        def childEnv(i: Int, cs: IndexedSeq[BaseIR]): BindingEnv[Type] =
-          ChildEnv.aggExplode(env, i, n, isScan, cs)(snd)
-        for {
-          a <- ir_value_expr(ctx, childEnv(0, FastSeq()))(it)
-          aggBody <- ir_value_expr(ctx, childEnv(1, FastSeq(a)))(it)
-        } yield AggExplode(a, n, aggBody, isScan)
-      case "AggGroupBy" =>
-        val isScan = boolean_literal(it)
-        val keyEnv = ChildEnv.aggGroupBy(env, 0, isScan)
-        for {
-          key <- ir_value_expr(ctx, keyEnv)(it)
-          aggIR <- ir_value_expr(ctx, env)(it)
-        } yield AggGroupBy(key, aggIR, isScan)
-      case "AggArrayPerElement" =>
-        val elementName = name(it)
-        val indexName = name(it)
-        val isScan = boolean_literal(it)
-        val hasKnownLength = boolean_literal(it)
-        def childEnv(i: Int, cs: IndexedSeq[BaseIR]): BindingEnv[Type] =
-          ChildEnv.aggArrayPerElement(env, i, elementName, indexName, isScan, cs)(snd)
-        for {
-          a <- ir_value_expr(ctx, childEnv(0, FastSeq()))(it)
-          aggBody <- ir_value_expr(ctx, childEnv(1, FastSeq(a)))(it)
-          knownLength <-
-            if (hasKnownLength)
-              ir_value_expr(ctx, childEnv(2, FastSeq(a, aggBody)))(it).map(Some(_))
-            else done(None)
-        } yield AggArrayPerElement(a, elementName, indexName, aggBody, knownLength, isScan)
-      case "ApplyAggOp" =>
-        val aggOp = agg_op(it)
-        for {
-          initOpArgs <- ir_value_exprs(ctx, Binds.aggInit(env, Scope.AGG))(it)
-          seqOpArgs <- ir_value_exprs(ctx, Binds.aggSeq(env, Scope.AGG))(it)
-        } yield ApplyAggOp(initOpArgs, seqOpArgs, aggOp)
-      case "ApplyScanOp" =>
-        val aggOp = agg_op(it)
-        for {
-          initOpArgs <- ir_value_exprs(ctx, Binds.aggInit(env, Scope.SCAN))(it)
-          seqOpArgs <- ir_value_exprs(ctx, Binds.aggSeq(env, Scope.SCAN))(it)
-        } yield ApplyScanOp(initOpArgs, seqOpArgs, aggOp)
-      case "AggFold" =>
-        val accumName = name(it)
-        val otherAccumName = name(it)
-        val isScan = boolean_literal(it)
-        def childEnv(i: Int, cs: IndexedSeq[BaseIR]): BindingEnv[Type] =
-          ChildEnv.aggFold(env, i, accumName, otherAccumName, isScan, cs)(snd)
-        for {
-          zero <- ir_value_expr(ctx, childEnv(0, FastSeq()))(it)
-          seqOp <- ir_value_expr(ctx, childEnv(1, FastSeq(zero)))(it)
-          combOp <- ir_value_expr(ctx, childEnv(2, FastSeq(zero, seqOp)))(it)
-        } yield AggFold(zero, seqOp, combOp, accumName, otherAccumName, isScan)
-      case "InitOp" =>
-        val i = int32_literal(it)
-        val aggSig = p_agg_sig(ctx)(it)
-        ir_value_exprs(ctx, env)(it).map(args => InitOp(i, args, aggSig))
-      case "SeqOp" =>
-        val i = int32_literal(it)
-        val aggSig = p_agg_sig(ctx)(it)
-        ir_value_exprs(ctx, env)(it).map(args => SeqOp(i, args, aggSig))
-      case "CombOp" =>
-        val i1 = int32_literal(it)
-        val i2 = int32_literal(it)
-        val aggSig = p_agg_sig(ctx)(it)
-        done(CombOp(i1, i2, aggSig))
-      case "ResultOp" =>
-        val i = int32_literal(it)
-        val aggSig = p_agg_sig(ctx)(it)
-        done(ResultOp(i, aggSig))
-      case "AggStateValue" =>
-        val i = int32_literal(it)
-        val sig = agg_state_signature(ctx)(it)
-        done(AggStateValue(i, sig))
-      case "InitFromSerializedValue" =>
-        val i = int32_literal(it)
-        val sig = agg_state_signature(ctx)(it)
-        ir_value_expr(ctx, env)(it).map(value => InitFromSerializedValue(i, value, sig))
-      case "CombOpValue" =>
-        val i = int32_literal(it)
-        val sig = p_agg_sig(ctx)(it)
-        ir_value_expr(ctx, env)(it).map(value => CombOpValue(i, value, sig))
-      case "SerializeAggs" =>
-        val i = int32_literal(it)
-        val i2 = int32_literal(it)
-        val spec = BufferSpec.parse(string_literal(it))
-        val aggSigs = agg_state_signatures(ctx)(it)
-        done(SerializeAggs(i, i2, spec, aggSigs))
-      case "DeserializeAggs" =>
-        val i = int32_literal(it)
-        val i2 = int32_literal(it)
-        val spec = BufferSpec.parse(string_literal(it))
-        val aggSigs = agg_state_signatures(ctx)(it)
-        done(DeserializeAggs(i, i2, spec, aggSigs))
+      case "StreamBufferedAggregate" => value_ir_StreamBufferedAggregate(ctx, env)(it)
+      case "StreamMap" => value_ir_StreamMap(ctx, env)(it)
+      case "StreamTake" => value_ir_StreamTake(ctx, env)(it)
+      case "StreamDrop" => value_ir_StreamDrop(ctx, env)(it)
+      case "StreamZip" => value_ir_StreamZip(ctx, env)(it)
+      case "StreamZipJoinProducers" => value_ir_StreamZipJoinProducers(ctx, env)(it)
+      case "StreamZipJoin" => value_ir_StreamZipJoin(ctx, env)(it)
+      case "StreamMultiMerge" => value_ir_StreamMultiMerge(ctx, env)(it)
+      case "StreamFilter" => value_ir_StreamFilter(ctx, env)(it)
+      case "StreamTakeWhile" => value_ir_StreamTakeWhile(ctx, env)(it)
+      case "StreamDropWhile" => value_ir_StreamDropWhile(ctx, env)(it)
+      case "StreamFlatMap" => value_ir_StreamFlatMap(ctx, env)(it)
+      case "StreamFold" => value_ir_StreamFold(ctx, env)(it)
+      case "StreamFold2" => value_ir_StreamFold2(ctx, env)(it)
+      case "StreamScan" => value_ir_StreamScan(ctx, env)(it)
+      case "StreamWhiten" => value_ir_StreamWhiten(ctx, env)(it)
+      case "StreamJoinRightDistinct" => value_ir_StreamJoinRightDistinct(ctx, env)(it)
+      case "StreamLeftIntervalJoin" => value_ir_StreamLeftIntervalJoin(ctx, env)(it)
+      case "StreamFor" => value_ir_StreamFor(ctx, env)(it)
+      case "StreamAgg" => value_ir_StreamAgg(ctx, env)(it)
+      case "StreamAggScan" => value_ir_StreamAggScan(ctx, env)(it)
+      case "RunAgg" => value_ir_RunAgg(ctx, env)(it)
+      case "RunAggScan" => value_ir_RunAggScan(ctx, env)(it)
+      case "AggFilter" => value_ir_AggFilter(ctx, env)(it)
+      case "AggExplode" => value_ir_AggExplode(ctx, env)(it)
+      case "AggGroupBy" => value_ir_AggGroupBy(ctx, env)(it)
+      case "AggArrayPerElement" => value_ir_AggArrayPerElement(ctx, env)(it)
+      case "ApplyAggOp" => value_ir_ApplyAggOp(ctx, env)(it)
+      case "ApplyScanOp" => value_ir_ApplyScanOp(ctx, env)(it)
+      case "AggFold" => value_ir_AggFold(ctx, env)(it)
+      case "InitOp" => value_ir_InitOp(ctx, env)(it)
+      case "SeqOp" => value_ir_SeqOp(ctx, env)(it)
+      case "CombOp" => value_ir_CombOp(ctx, env)(it)
+      case "ResultOp" => value_ir_ResultOp(ctx, env)(it)
+      case "AggStateValue" => value_ir_AggStateValue(ctx, env)(it)
+      case "InitFromSerializedValue" => value_ir_InitFromSerializedValue(ctx, env)(it)
+      case "CombOpValue" => value_ir_CombOpValue(ctx, env)(it)
+      case "SerializeAggs" => value_ir_SerializeAggs(ctx, env)(it)
+      case "DeserializeAggs" => value_ir_DeserializeAggs(ctx, env)(it)
       case "Begin" => ir_value_children(ctx, env)(it).map(Begin(_))
       case "MakeStruct" => named_value_irs(ctx, env)(it).map(MakeStruct(_))
-      case "SelectFields" =>
-        val fields = identifiers(it)
-        ir_value_expr(ctx, env)(it).map(old => SelectFields(old, fields))
-      case "InsertFields" =>
+      case "SelectFields" => value_ir_SelectFields(ctx, env)(it)
+      case "InsertFields" => value_ir_InsertFields(ctx, env)(it)
+      case "GetField" => value_ir_GetField(ctx, env)(it)
+      case "MakeTuple" => value_ir_MakeTuple(ctx, env)(it)
+      case "GetTupleElement" => value_ir_GetTupleElement(ctx, env)(it)
+      case "Die" => value_ir_Die(ctx, env)(it)
+      case "ConsoleLog" => value_ir_ConsoleLog(ctx, env)(it)
+      case "ApplyIR" => value_ir_ApplyIR(ctx, env)(it)
+      case "ApplySpecial" => value_ir_ApplySpecial(ctx, env)(it)
+      case "Apply" => value_ir_Apply(ctx, env)(it)
+      case "MatrixCount" => value_ir_MatrixCount(ctx, env)(it)
+      case "TableCount" => value_ir_TableCount(ctx, env)(it)
+      case "TableGetGlobals" => value_ir_TableGetGlobals(ctx, env)(it)
+      case "TableCollect" => value_ir_TableCollect(ctx, env)(it)
+      case "TableAggregate" => value_ir_TableAggregate(ctx, env)(it)
+      case "TableToValueApply" => value_ir_TableToValueApply(ctx, env)(it)
+      case "MatrixToValueApply" => value_ir_MatrixToValueApply(ctx, env)(it)
+      case "BlockMatrixToValueApply" => value_ir_BlockMatrixToValueApply(ctx, env)(it)
+      case "BlockMatrixCollect" => value_ir_BlockMatrixCollect(ctx, env)(it)
+      case "TableWrite" => value_ir_TableWrite(ctx, env)(it)
+      case "TableMultiWrite" => value_ir_TableMultiWrite(ctx, env)(it)
+      case "MatrixAggregate" => value_ir_MatrixAggregate(ctx, env)(it)
+      case "MatrixWrite" => value_ir_MatrixWrite(ctx, env)(it)
+      case "MatrixMultiWrite" => value_ir_MatrixMultiWrite(ctx, env)(it)
+      case "BlockMatrixWrite" => value_ir_BlockMatrixWrite(ctx, env)(it)
+      case "BlockMatrixMultiWrite" => value_ir_BlockMatrixMultiWrite(ctx, env)(it)
+      case "CollectDistributedArray" => value_ir_CollectDistributedArray(ctx, env)(it)
+      case "JavaIR" => value_ir_JavaIR(ctx, env)(it)
+      case "ReadPartition" => value_ir_ReadPartition(ctx, env)(it)
+      case "WritePartition" => value_ir_WritePartition(ctx, env)(it)
+      case "WriteMetadata" => value_ir_WriteMetadata(ctx, env)(it)
+      case "ReadValue" => value_ir_ReadValue(ctx, env)(it)
+      case "WriteValue" => value_ir_WriteValue(ctx, env)(it)
+    }
+
+  private def value_ir_Literal(ctx: ExecuteContext, env: BindingEnv[Type])(it: TokenIterator)
+    : StackFrame[IR] = {
+    val (t, v) = ir_value(ctx.references)(it)
+    done(Literal.coerce(t, v))
+  }
+
+  private def value_ir_EncodedLiteral(ctx: ExecuteContext, env: BindingEnv[Type])(it: TokenIterator)
+    : StackFrame[IR] = {
+    val typ = type_expr(ctx.references)(it)
+    val encodedValue = Base64.getDecoder.decode(string_literal(it))
+    val codec = TypedCodecSpec(
+      EType.fromPythonTypeEncoding(typ),
+      typ,
+      BufferSpec.unblockedUncompressed,
+    )
+    done(EncodedLiteral(codec, Array(encodedValue)))
+  }
+
+  private def value_ir_Cast(ctx: ExecuteContext, env: BindingEnv[Type])(it: TokenIterator)
+    : StackFrame[IR] = {
+    val typ = type_expr(ctx.references)(it)
+    ir_value_expr(ctx, env)(it).map(Cast(_, typ))
+  }
+
+  private def value_ir_CastRename(ctx: ExecuteContext, env: BindingEnv[Type])(it: TokenIterator)
+    : StackFrame[IR] = {
+    val typ = type_expr(ctx.references)(it)
+    ir_value_expr(ctx, env)(it).map(CastRename(_, typ))
+  }
+
+  private def value_ir_Coalesce(ctx: ExecuteContext, env: BindingEnv[Type])(it: TokenIterator)
+    : StackFrame[IR] =
+    for {
+      children <- ir_value_children(ctx, env)(it)
+      _ = require(children.nonEmpty)
+    } yield Coalesce(children)
+
+  private def value_ir_If(ctx: ExecuteContext, env: BindingEnv[Type])(it: TokenIterator)
+    : StackFrame[IR] =
+    for {
+      cond <- ir_value_expr(ctx, env)(it)
+      consq <- ir_value_expr(ctx, env)(it)
+      altr <- ir_value_expr(ctx, env)(it)
+    } yield If(cond, consq, altr)
+
+  private def value_ir_Switch(ctx: ExecuteContext, env: BindingEnv[Type])(it: TokenIterator)
+    : StackFrame[IR] =
+    for {
+      x <- ir_value_expr(ctx, env)(it)
+      default <- ir_value_expr(ctx, env)(it)
+      cases <- ir_value_children(ctx, env)(it)
+    } yield Switch(x, default, cases)
+
+  private def value_ir_Block(ctx: ExecuteContext, env: BindingEnv[Type])(it: TokenIterator)
+    : StackFrame[IR] = {
+    val names =
+      repUntilNonStackSafe(it, it => (identifier(it), name(it)), T.Punc("("))
+    val bindings = new Array[Binding](names.length)
+    var e = env
+    for {
+      _ <- names.indices.foldLeft(done(())) { case (update, i) =>
+        val (bindType, name) = names(i)
+        val scope = bindType match {
+          case "eval" => Scope.EVAL
+          case "agg" => Scope.AGG
+          case "scan" => Scope.SCAN
+        }
         for {
-          old <- ir_value_expr(ctx, env)(it)
-          fieldOrder = opt(it, string_literals)
-          fields <- named_value_irs(ctx, env)(it)
-        } yield InsertFields(old, fields, fieldOrder)
-      case "GetField" =>
-        val name = identifier(it)
-        ir_value_expr(ctx, env)(it).map(s => GetField(s, name))
-      case "MakeTuple" =>
-        val indices = int32_literals(it)
-        ir_value_children(ctx, env)(it).map(args => MakeTuple(indices.zip(args)))
-      case "GetTupleElement" =>
-        val idx = int32_literal(it)
-        ir_value_expr(ctx, env)(it).map(tuple => GetTupleElement(tuple, idx))
-      case "Die" =>
-        val typ = type_expr(ctx.references)(it)
-        val errorID = int32_literal(it)
-        ir_value_expr(ctx, env)(it).map(msg => Die(msg, typ, errorID))
-      case "ConsoleLog" =>
-        for {
-          msg <- ir_value_expr(ctx, env)(it)
-          result <- ir_value_expr(ctx, env)(it)
-        } yield ConsoleLog(msg, result)
-      case "ApplyIR" =>
-        apply_like(ctx, env, ApplyIR.apply)(it)
-      case "ApplySpecial" =>
-        apply_like(ctx, env, ApplySpecial)(it)
-      case "Apply" =>
-        apply_like(
-          ctx,
-          env,
-          (function, typeArgs, args, rt, errorID) =>
-            invoke(function, rt, typeArgs, errorID, args: _*),
-        )(it)
-      case "MatrixCount" =>
-        matrix_ir(ctx)(it).map(MatrixCount)
-      case "TableCount" =>
-        table_ir(ctx)(it).map(TableCount)
-      case "TableGetGlobals" =>
-        table_ir(ctx)(it).map(TableGetGlobals)
-      case "TableCollect" =>
-        table_ir(ctx)(it).map(TableCollect)
-      case "TableAggregate" =>
-        for {
-          child <- table_ir(ctx)(it)
-          queryEnv = ChildEnv.tableAggregate(env, 1, FastSeq(child))(snd)
-          query <- ir_value_expr(ctx, queryEnv)(it)
-        } yield TableAggregate(child, query)
-      case "TableToValueApply" =>
-        val config = string_literal(it)
-        table_ir(ctx)(it).map { child =>
-          TableToValueApply(child, RelationalFunctions.lookupTableToValue(ctx, config))
+          _ <- update
+          value <- ir_value_expr(ctx, Binds.aggSeq(e, scope))(it)
+        } yield {
+          bindings(i) = Binding(name, value, scope)
+          e = e.bind(scope, FastSeq(name -> value.typ))
         }
-      case "MatrixToValueApply" =>
-        val config = string_literal(it)
-        matrix_ir(ctx)(it).map { child =>
-          MatrixToValueApply(child, RelationalFunctions.lookupMatrixToValue(ctx, config))
-        }
-      case "BlockMatrixToValueApply" =>
-        val config = string_literal(it)
-        blockmatrix_ir(ctx)(it).map { child =>
-          BlockMatrixToValueApply(
-            child,
-            RelationalFunctions.lookupBlockMatrixToValue(ctx, config),
-          )
-        }
-      case "BlockMatrixCollect" =>
-        blockmatrix_ir(ctx)(it).map(BlockMatrixCollect)
-      case "TableWrite" =>
-        implicit val formats = TableWriter.formats
-        val writerStr = string_literal(it)
-        table_ir(ctx)(it).map(child => TableWrite(child, deserialize[TableWriter](writerStr)))
-      case "TableMultiWrite" =>
-        implicit val formats = WrappedMatrixNativeMultiWriter.formats
-        val writerStr = string_literal(it)
-        table_ir_children(ctx)(it).map { children =>
-          TableMultiWrite(children, deserialize[WrappedMatrixNativeMultiWriter](writerStr))
-        }
-      case "MatrixAggregate" =>
-        for {
-          child <- matrix_ir(ctx)(it)
-          queryEnv = ChildEnv.matrixAggregate(env, 1, FastSeq(child))(snd)
-          query <- ir_value_expr(ctx, queryEnv)(it)
-        } yield MatrixAggregate(child, query)
-      case "MatrixWrite" =>
-        val writerStr = string_literal(it)
-        implicit val formats: Formats = MatrixWriter.formats
-        val writer = deserialize[MatrixWriter](writerStr)
-        matrix_ir(ctx)(it).map(child => MatrixWrite(child, writer))
-      case "MatrixMultiWrite" =>
-        val writerStr = string_literal(it)
-        implicit val formats = MatrixNativeMultiWriter.formats
-        val writer = deserialize[MatrixNativeMultiWriter](writerStr)
-        matrix_ir_children(ctx)(it).map(children => MatrixMultiWrite(children, writer))
-      case "BlockMatrixWrite" =>
-        val writerStr = string_literal(it)
-        implicit val formats: Formats = BlockMatrixWriter.formats
-        val writer = deserialize[BlockMatrixWriter](writerStr)
-        blockmatrix_ir(ctx)(it).map(child => BlockMatrixWrite(child, writer))
-      case "BlockMatrixMultiWrite" =>
-        val writerStr = string_literal(it)
-        implicit val formats: Formats = BlockMatrixWriter.formats
-        val writer = deserialize[BlockMatrixMultiWriter](writerStr)
-        repUntil(it, blockmatrix_ir(ctx), T.Punc(")")).map { blockMatrices =>
-          BlockMatrixMultiWrite(blockMatrices, writer)
-        }
-      case "CollectDistributedArray" =>
-        val staticID = identifier(it)
-        val cname = name(it)
-        val gname = name(it)
-        for {
-          ctxs <- ir_value_expr(ctx, env)(it)
-          globals <- ir_value_expr(ctx, env)(it)
-          bodyEnv =
-            ChildEnv.collectDistributedArray(env, 2, cname, gname, FastSeq(ctxs, globals))(snd)
-          body <- ir_value_expr(ctx, bodyEnv)(it)
-          dynamicID <- ir_value_expr(ctx, env)(it)
-        } yield CollectDistributedArray(ctxs, globals, cname, gname, body, dynamicID, staticID)
-      case "JavaIR" =>
-        val id = int32_literal(it)
-        done(ctx.PersistedIrCache(id).deepCopy.asInstanceOf[IR])
-      case "ReadPartition" =>
-        val requestedTypeRaw = it.head match {
-          case T.Ident(v @ ("None" | "DropRowUIDs")) =>
-            it.next(): Unit
-            Left(v)
-          case _ =>
-            Right(type_expr(ctx.references)(it))
-        }
-        val reader = PartitionReader.extract(ctx, JsonMethods.parse(string_literal(it)))
-        ir_value_expr(ctx, env)(it).map { context =>
-          ReadPartition(
-            context,
-            requestedTypeRaw match {
-              case Left("None") => reader.fullRowType
-              case Left("DropRowUIDs") => reader.fullRowType.deleteKey(reader.uidFieldName)
-              case Right(t) => t.asInstanceOf[TStruct]
-            },
-            reader,
-          )
-        }
-      case "WritePartition" =>
-        implicit val formats: Formats = PartitionWriter.formats(ctx.references)
-        val writer = JsonMethods.parse(string_literal(it)).extract[PartitionWriter]
-        for {
-          stream <- ir_value_expr(ctx, env)(it)
-          ctx <- ir_value_expr(ctx, env)(it)
-        } yield WritePartition(stream, ctx, writer)
-      case "WriteMetadata" =>
-        implicit val formats: Formats = MetadataWriter.formats(ctx.references)
-        val writer = JsonMethods.parse(string_literal(it)).extract[MetadataWriter]
-        ir_value_expr(ctx, env)(it).map(ctx => WriteMetadata(ctx, writer))
-      case "ReadValue" =>
-        implicit val formats: Formats = ValueReader.formats(ctx.references)
-        val reader = JsonMethods.parse(string_literal(it)).extract[ValueReader]
-        val typ = type_expr(ctx.references)(it)
-        ir_value_expr(ctx, env)(it).map(path => ReadValue(path, reader, typ))
-      case "WriteValue" =>
-        implicit val formats: Formats = ValueWriter.formats(ctx.references)
-        val writer = JsonMethods.parse(string_literal(it)).extract[ValueWriter]
-        ir_value_children(ctx, env)(it).map { case Seq(value, path) =>
-          WriteValue(value, path, writer)
-        }
+      }
+      body <- ir_value_expr(ctx, e)(it)
+    } yield Block(ArraySeq.unsafeWrapArray(bindings), body)
+  }
+
+  private def value_ir_AggLet(ctx: ExecuteContext, env: BindingEnv[Type])(it: TokenIterator)
+    : StackFrame[IR] = {
+    val n = name(it)
+    val isScan = boolean_literal(it)
+    val scope = if (isScan) Scope.SCAN else Scope.AGG
+    for {
+      value <- ir_value_expr(ctx, Binds.aggSeq(env, scope))(it)
+      body <- ir_value_expr(ctx, env.bind(scope, FastSeq(n -> value.typ)))(it)
+    } yield AggLet(n, value, body, isScan)
+  }
+
+  private def value_ir_TailLoop(ctx: ExecuteContext, env: BindingEnv[Type])(it: TokenIterator)
+    : StackFrame[IR] = {
+    val n = name(it)
+    val paramNames = names(it)
+    val resultType = type_expr(ctx.references)(it)
+    for {
+      paramIRs <- fillArray(paramNames.length)(ir_value_expr(ctx, env)(it))(ArraySeq)
+      params = paramNames.zip(paramIRs)
+      bodyEnv =
+        ChildEnv.tailLoop(env, paramNames.length, n, paramNames, resultType, paramIRs)(snd)
+      body <- ir_value_expr(ctx, bodyEnv)(it)
+    } yield TailLoop(n, params, resultType, body)
+  }
+
+  private def value_ir_Recur(ctx: ExecuteContext, env: BindingEnv[Type])(it: TokenIterator)
+    : StackFrame[IR] = {
+    val n = name(it)
+    val TTuple(IndexedSeq(_, TupleField(_, rt))) = env.eval.lookup(n)
+    ir_value_children(ctx, env)(it).map(args => Recur(n, args, rt))
+  }
+
+  private def value_ir_Ref(ctx: ExecuteContext, env: BindingEnv[Type])(it: TokenIterator)
+    : StackFrame[IR] = {
+    val id = name(it)
+    done(Ref(id, env.eval(id)))
+  }
+
+  private def value_ir_ApplyBinaryPrimOp(
+    ctx: ExecuteContext,
+    env: BindingEnv[Type],
+  )(
+    it: TokenIterator
+  ): StackFrame[IR] = {
+    val op = BinaryOp.fromString(identifier(it))
+    for {
+      l <- ir_value_expr(ctx, env)(it)
+      r <- ir_value_expr(ctx, env)(it)
+    } yield ApplyBinaryPrimOp(op, l, r)
+  }
+
+  private def value_ir_ApplyUnaryPrimOp(
+    ctx: ExecuteContext,
+    env: BindingEnv[Type],
+  )(
+    it: TokenIterator
+  ): StackFrame[IR] = {
+    val op = UnaryOp.fromString(identifier(it))
+    ir_value_expr(ctx, env)(it).map(ApplyUnaryPrimOp(op, _))
+  }
+
+  private def value_ir_ApplyComparisonOp(
+    ctx: ExecuteContext,
+    env: BindingEnv[Type],
+  )(
+    it: TokenIterator
+  ): StackFrame[IR] = {
+    val opName = identifier(it)
+    for {
+      l <- ir_value_expr(ctx, env)(it)
+      r <- ir_value_expr(ctx, env)(it)
+    } yield ApplyComparisonOp(ComparisonOp.fromString(opName), l, r)
+  }
+
+  private def value_ir_MakeArray(ctx: ExecuteContext, env: BindingEnv[Type])(it: TokenIterator)
+    : StackFrame[IR] = {
+    val typ = opt(it, type_expr(ctx.references)).map(_.asInstanceOf[TArray]).orNull
+    ir_value_children(ctx, env)(it).map(args => MakeArray.unify(ctx, args, typ))
+  }
+
+  private def value_ir_MakeStream(ctx: ExecuteContext, env: BindingEnv[Type])(it: TokenIterator)
+    : StackFrame[IR] = {
+    val typ = opt(it, type_expr(ctx.references)).map(_.asInstanceOf[TStream]).orNull
+    val requiresMemoryManagementPerElement = boolean_literal(it)
+    ir_value_children(ctx, env)(it).map { args =>
+      MakeStream(args, typ, requiresMemoryManagementPerElement)
+    }
+  }
+
+  private def value_ir_ArrayRef(ctx: ExecuteContext, env: BindingEnv[Type])(it: TokenIterator)
+    : StackFrame[IR] = {
+    val errorID = int32_literal(it)
+    for {
+      a <- ir_value_expr(ctx, env)(it)
+      i <- ir_value_expr(ctx, env)(it)
+    } yield ArrayRef(a, i, errorID)
+  }
+
+  private def value_ir_ArraySlice(ctx: ExecuteContext, env: BindingEnv[Type])(it: TokenIterator)
+    : StackFrame[IR] = {
+    val errorID = int32_literal(it)
+    ir_value_children(ctx, env)(it).map {
+      case Seq(a, start, step) => ArraySlice(a, start, None, step, errorID)
+      case Seq(a, start, stop, step) => ArraySlice(a, start, Some(stop), step, errorID)
+    }
+  }
+
+  private def value_ir_RNGStateLiteral(
+    ctx: ExecuteContext,
+    env: BindingEnv[Type],
+  )(
+    it: TokenIterator
+  ): StackFrame[IR] =
+    done(RNGStateLiteral())
+
+  private def value_ir_RNGSplit(ctx: ExecuteContext, env: BindingEnv[Type])(it: TokenIterator)
+    : StackFrame[IR] =
+    for {
+      state <- ir_value_expr(ctx, env)(it)
+      dynBitstring <- ir_value_expr(ctx, env)(it)
+    } yield RNGSplit(state, dynBitstring)
+
+  private def value_ir_RNGSplitStatic(ctx: ExecuteContext, env: BindingEnv[Type])(it: TokenIterator)
+    : StackFrame[IR] = {
+    val staticUid = int64_literal(it)
+    ir_value_expr(ctx, env)(it) map { RNGSplitStatic(_, staticUid) }
+  }
+
+  private def value_ir_StreamIota(ctx: ExecuteContext, env: BindingEnv[Type])(it: TokenIterator)
+    : StackFrame[IR] = {
+    val requiresMemoryManagementPerElement = boolean_literal(it)
+    for {
+      start <- ir_value_expr(ctx, env)(it)
+      step <- ir_value_expr(ctx, env)(it)
+    } yield StreamIota(start, step, requiresMemoryManagementPerElement)
+  }
+
+  private def value_ir_StreamRange(ctx: ExecuteContext, env: BindingEnv[Type])(it: TokenIterator)
+    : StackFrame[IR] = {
+    val errorID = int32_literal(it)
+    val requiresMemoryManagementPerElement = boolean_literal(it)
+    for {
+      start <- ir_value_expr(ctx, env)(it)
+      stop <- ir_value_expr(ctx, env)(it)
+      step <- ir_value_expr(ctx, env)(it)
+    } yield StreamRange(start, stop, step, requiresMemoryManagementPerElement, errorID)
+  }
+
+  private def value_ir_StreamGrouped(ctx: ExecuteContext, env: BindingEnv[Type])(it: TokenIterator)
+    : StackFrame[IR] =
+    for {
+      s <- ir_value_expr(ctx, env)(it)
+      groupSize <- ir_value_expr(ctx, env)(it)
+    } yield StreamGrouped(s, groupSize)
+
+  private def value_ir_ArraySort(ctx: ExecuteContext, env: BindingEnv[Type])(it: TokenIterator)
+    : StackFrame[IR] = {
+    val l = name(it)
+    val r = name(it)
+    for {
+      a <- ir_value_expr(ctx, env)(it)
+      lessThanEnv = ChildEnv.arraySort(env, 1, l, r, FastSeq(a))(snd)
+      lessThan <- ir_value_expr(ctx, lessThanEnv)(it)
+    } yield ArraySort(a, l, r, lessThan)
+  }
+
+  private def value_ir_ArrayMaximalIndependentSet(
+    ctx: ExecuteContext,
+    env: BindingEnv[Type],
+  )(
+    it: TokenIterator
+  ): StackFrame[IR] = {
+    val hasTieBreaker = boolean_literal(it)
+    val bindings = if (hasTieBreaker) Some(name(it) -> name(it)) else None
+    for {
+      edges <- ir_value_expr(ctx, env)(it)
+      tieBreaker <- if (hasTieBreaker) {
+        val Some((left, right)) = bindings
+        val tieBreakerEnv =
+          ChildEnv.arrayMaximalIndependentSet(env, 1, bindings, FastSeq(edges))(snd)
+        ir_value_expr(ctx, tieBreakerEnv)(it).map(tbf => Some((left, right, tbf)))
+      } else {
+        done(None)
+      }
+    } yield ArrayMaximalIndependentSet(edges, tieBreaker)
+  }
+
+  private def value_ir_MakeNDArray(ctx: ExecuteContext, env: BindingEnv[Type])(it: TokenIterator)
+    : StackFrame[IR] = {
+    val errorID = int32_literal(it)
+    for {
+      data <- ir_value_expr(ctx, env)(it)
+      shape <- ir_value_expr(ctx, env)(it)
+      rowMajor <- ir_value_expr(ctx, env)(it)
+    } yield MakeNDArray(data, shape, rowMajor, errorID)
+  }
+
+  private def value_ir_NDArrayReshape(ctx: ExecuteContext, env: BindingEnv[Type])(it: TokenIterator)
+    : StackFrame[IR] = {
+    val errorID = int32_literal(it)
+    for {
+      nd <- ir_value_expr(ctx, env)(it)
+      shape <- ir_value_expr(ctx, env)(it)
+    } yield NDArrayReshape(nd, shape, errorID)
+  }
+
+  private def value_ir_NDArrayConcat(ctx: ExecuteContext, env: BindingEnv[Type])(it: TokenIterator)
+    : StackFrame[IR] = {
+    val axis = int32_literal(it)
+    ir_value_expr(ctx, env)(it).map(nds => NDArrayConcat(nds, axis))
+  }
+
+  private def value_ir_NDArrayMap(ctx: ExecuteContext, env: BindingEnv[Type])(it: TokenIterator)
+    : StackFrame[IR] = {
+    val n = name(it)
+    for {
+      nd <- ir_value_expr(ctx, env)(it)
+      bodyEnv = ChildEnv.ndArrayMap(env, 1, n, FastSeq(nd))(snd)
+      body <- ir_value_expr(ctx, bodyEnv)(it)
+    } yield NDArrayMap(nd, n, body)
+  }
+
+  private def value_ir_NDArrayMap2(ctx: ExecuteContext, env: BindingEnv[Type])(it: TokenIterator)
+    : StackFrame[IR] = {
+    val errorID = int32_literal(it)
+    val lName = name(it)
+    val rName = name(it)
+    for {
+      l <- ir_value_expr(ctx, env)(it)
+      r <- ir_value_expr(ctx, env)(it)
+      bodyEnv = ChildEnv.ndArrayMap2(env, 2, lName, rName, FastSeq(l, r))(snd)
+      body <- ir_value_expr(ctx, bodyEnv)(it)
+    } yield NDArrayMap2(l, r, lName, rName, body, errorID)
+  }
+
+  private def value_ir_NDArrayReindex(ctx: ExecuteContext, env: BindingEnv[Type])(it: TokenIterator)
+    : StackFrame[IR] = {
+    val indexExpr = int32_literals(it)
+    ir_value_expr(ctx, env)(it).map(nd => NDArrayReindex(nd, indexExpr))
+  }
+
+  private def value_ir_NDArrayAgg(ctx: ExecuteContext, env: BindingEnv[Type])(it: TokenIterator)
+    : StackFrame[IR] = {
+    val axes = int32_literals(it)
+    ir_value_expr(ctx, env)(it).map(nd => NDArrayAgg(nd, axes))
+  }
+
+  private def value_ir_NDArrayRef(ctx: ExecuteContext, env: BindingEnv[Type])(it: TokenIterator)
+    : StackFrame[IR] = {
+    val errorID = int32_literal(it)
+    for {
+      nd <- ir_value_expr(ctx, env)(it)
+      idxs <- ir_value_children(ctx, env)(it)
+    } yield NDArrayRef(nd, idxs, errorID)
+  }
+
+  private def value_ir_NDArraySlice(ctx: ExecuteContext, env: BindingEnv[Type])(it: TokenIterator)
+    : StackFrame[IR] =
+    for {
+      nd <- ir_value_expr(ctx, env)(it)
+      slices <- ir_value_expr(ctx, env)(it)
+    } yield NDArraySlice(nd, slices)
+
+  private def value_ir_NDArrayFilter(ctx: ExecuteContext, env: BindingEnv[Type])(it: TokenIterator)
+    : StackFrame[IR] =
+    for {
+      nd <- ir_value_expr(ctx, env)(it)
+      filters <- repUntil(it, ir_value_expr(ctx, env), T.Punc(")"))
+    } yield NDArrayFilter(nd, filters)
+
+  private def value_ir_NDArrayMatMul(ctx: ExecuteContext, env: BindingEnv[Type])(it: TokenIterator)
+    : StackFrame[IR] = {
+    val errorID = int32_literal(it)
+    for {
+      l <- ir_value_expr(ctx, env)(it)
+      r <- ir_value_expr(ctx, env)(it)
+    } yield NDArrayMatMul(l, r, errorID)
+  }
+
+  private def value_ir_NDArrayWrite(ctx: ExecuteContext, env: BindingEnv[Type])(it: TokenIterator)
+    : StackFrame[IR] =
+    for {
+      nd <- ir_value_expr(ctx, env)(it)
+      path <- ir_value_expr(ctx, env)(it)
+    } yield NDArrayWrite(nd, path)
+
+  private def value_ir_NDArrayQR(ctx: ExecuteContext, env: BindingEnv[Type])(it: TokenIterator)
+    : StackFrame[IR] = {
+    val errorID = int32_literal(it)
+    val mode = string_literal(it)
+    ir_value_expr(ctx, env)(it).map(nd => NDArrayQR(nd, mode, errorID))
+  }
+
+  private def value_ir_NDArraySVD(ctx: ExecuteContext, env: BindingEnv[Type])(it: TokenIterator)
+    : StackFrame[IR] = {
+    val errorID = int32_literal(it)
+    val fullMatrices = boolean_literal(it)
+    val computeUV = boolean_literal(it)
+    ir_value_expr(ctx, env)(it).map(nd => NDArraySVD(nd, fullMatrices, computeUV, errorID))
+  }
+
+  private def value_ir_NDArrayEigh(ctx: ExecuteContext, env: BindingEnv[Type])(it: TokenIterator)
+    : StackFrame[IR] = {
+    val errorID = int32_literal(it)
+    val eigvalsOnly = boolean_literal(it)
+    ir_value_expr(ctx, env)(it).map(nd => NDArrayEigh(nd, eigvalsOnly, errorID))
+  }
+
+  private def value_ir_NDArrayInv(ctx: ExecuteContext, env: BindingEnv[Type])(it: TokenIterator)
+    : StackFrame[IR] = {
+    val errorID = int32_literal(it)
+    ir_value_expr(ctx, env)(it).map(nd => NDArrayInv(nd, errorID))
+  }
+
+  private def value_ir_ToStream(ctx: ExecuteContext, env: BindingEnv[Type])(it: TokenIterator)
+    : StackFrame[IR] = {
+    val requiresMemoryManagementPerElement = boolean_literal(it)
+    ir_value_expr(ctx, env)(it).map(a => ToStream(a, requiresMemoryManagementPerElement))
+  }
+
+  private def value_ir_LowerBoundOnOrderedCollection(
+    ctx: ExecuteContext,
+    env: BindingEnv[Type],
+  )(
+    it: TokenIterator
+  ): StackFrame[IR] = {
+    val onKey = boolean_literal(it)
+    for {
+      col <- ir_value_expr(ctx, env)(it)
+      elem <- ir_value_expr(ctx, env)(it)
+    } yield LowerBoundOnOrderedCollection(col, elem, onKey)
+  }
+
+  private def value_ir_StreamBufferedAggregate(
+    ctx: ExecuteContext,
+    env: BindingEnv[Type],
+  )(
+    it: TokenIterator
+  ): StackFrame[IR] = {
+    val n = name(it)
+    val aggSigs = p_agg_sigs(ctx)(it)
+    val size = int32_literal(it)
+    def childEnv(i: Int, cs: IndexedSeq[BaseIR]): BindingEnv[Type] =
+      ChildEnv.streamBufferedAggregate(env, i, n, cs)(snd)
+    for {
+      stream <- ir_value_expr(ctx, env)(it)
+      init <- ir_value_expr(ctx, env)(it)
+      key <- ir_value_expr(ctx, childEnv(2, FastSeq(stream, init)))(it)
+      seq <- ir_value_expr(ctx, childEnv(3, FastSeq(stream, init, key)))(it)
+    } yield StreamBufferedAggregate(stream, init, key, seq, n, aggSigs, size)
+  }
+
+  private def value_ir_StreamMap(ctx: ExecuteContext, env: BindingEnv[Type])(it: TokenIterator)
+    : StackFrame[IR] = {
+    val n = name(it)
+    for {
+      a <- ir_value_expr(ctx, env)(it)
+      bodyEnv = ChildEnv.streamMap(env, 1, n, FastSeq(a))(snd)
+      body <- ir_value_expr(ctx, bodyEnv)(it)
+    } yield StreamMap(a, n, body)
+  }
+
+  private def value_ir_StreamTake(ctx: ExecuteContext, env: BindingEnv[Type])(it: TokenIterator)
+    : StackFrame[IR] =
+    for {
+      a <- ir_value_expr(ctx, env)(it)
+      num <- ir_value_expr(ctx, env)(it)
+    } yield StreamTake(a, num)
+
+  private def value_ir_StreamDrop(ctx: ExecuteContext, env: BindingEnv[Type])(it: TokenIterator)
+    : StackFrame[IR] =
+    for {
+      a <- ir_value_expr(ctx, env)(it)
+      num <- ir_value_expr(ctx, env)(it)
+    } yield StreamDrop(a, num)
+
+  private def value_ir_StreamZip(ctx: ExecuteContext, env: BindingEnv[Type])(it: TokenIterator)
+    : StackFrame[IR] = {
+    val errorID = int32_literal(it)
+    val behavior = identifier(it) match {
+      case "AssertSameLength" => ArrayZipBehavior.AssertSameLength
+      case "TakeMinLength" => ArrayZipBehavior.TakeMinLength
+      case "ExtendNA" => ArrayZipBehavior.ExtendNA
+      case "AssumeSameLength" => ArrayZipBehavior.AssumeSameLength
+    }
+    val ns = names(it)
+    for {
+      as <- ns.mapRecur(_ => ir_value_expr(ctx, env)(it))
+      bodyEnv = ChildEnv.streamZip(env, ns.length, ns, as)(snd)
+      body <- ir_value_expr(ctx, bodyEnv)(it)
+    } yield StreamZip(as, ns, body, behavior, errorID)
+  }
+
+  private def value_ir_StreamZipJoinProducers(
+    ctx: ExecuteContext,
+    env: BindingEnv[Type],
+  )(
+    it: TokenIterator
+  ): StackFrame[IR] = {
+    val key = identifiers(it)
+    val ctxName = name(it)
+    val curKey = name(it)
+    val curVals = name(it)
+    def childEnv(i: Int, cs: IndexedSeq[BaseIR]): BindingEnv[Type] =
+      ChildEnv.streamZipJoinProducers(env, i, ctxName, key, curKey, curVals, cs)(snd)
+    for {
+      ctxs <- ir_value_expr(ctx, env)(it)
+      makeProducer <- ir_value_expr(ctx, childEnv(1, FastSeq(ctxs)))(it)
+      body <- ir_value_expr(ctx, childEnv(2, FastSeq(ctxs, makeProducer)))(it)
+    } yield StreamZipJoinProducers(ctxs, ctxName, makeProducer, key, curKey, curVals, body)
+  }
+
+  private def value_ir_StreamZipJoin(ctx: ExecuteContext, env: BindingEnv[Type])(it: TokenIterator)
+    : StackFrame[IR] = {
+    val nStreams = int32_literal(it)
+    val key = identifiers(it)
+    val curKey = name(it)
+    val curVals = name(it)
+    for {
+      streams <- (0 until nStreams).mapRecur(_ => ir_value_expr(ctx, env)(it))
+      bodyEnv =
+        ChildEnv.streamZipJoin(env, nStreams, nStreams, key, curKey, curVals, streams)(snd)
+      body <- ir_value_expr(ctx, bodyEnv)(it)
+    } yield StreamZipJoin(streams, key, curKey, curVals, body)
+  }
+
+  private def value_ir_StreamMultiMerge(
+    ctx: ExecuteContext,
+    env: BindingEnv[Type],
+  )(
+    it: TokenIterator
+  ): StackFrame[IR] = {
+    val key = identifiers(it)
+    for {
+      streams <- ir_value_exprs(ctx, env)(it)
+    } yield StreamMultiMerge(streams, key)
+  }
+
+  private def value_ir_StreamFilter(ctx: ExecuteContext, env: BindingEnv[Type])(it: TokenIterator)
+    : StackFrame[IR] = {
+    val n = name(it)
+    for {
+      a <- ir_value_expr(ctx, env)(it)
+      bodyEnv = ChildEnv.streamFilter(env, 1, n, FastSeq(a))(snd)
+      body <- ir_value_expr(ctx, bodyEnv)(it)
+    } yield StreamFilter(a, n, body)
+  }
+
+  private def value_ir_StreamTakeWhile(
+    ctx: ExecuteContext,
+    env: BindingEnv[Type],
+  )(
+    it: TokenIterator
+  ): StackFrame[IR] = {
+    val n = name(it)
+    for {
+      a <- ir_value_expr(ctx, env)(it)
+      bodyEnv = ChildEnv.streamTakeWhile(env, 1, n, FastSeq(a))(snd)
+      body <- ir_value_expr(ctx, bodyEnv)(it)
+    } yield StreamTakeWhile(a, n, body)
+  }
+
+  private def value_ir_StreamDropWhile(
+    ctx: ExecuteContext,
+    env: BindingEnv[Type],
+  )(
+    it: TokenIterator
+  ): StackFrame[IR] = {
+    val n = name(it)
+    for {
+      a <- ir_value_expr(ctx, env)(it)
+      bodyEnv = ChildEnv.streamDropWhile(env, 1, n, FastSeq(a))(snd)
+      body <- ir_value_expr(ctx, bodyEnv)(it)
+    } yield StreamDropWhile(a, n, body)
+  }
+
+  private def value_ir_StreamFlatMap(ctx: ExecuteContext, env: BindingEnv[Type])(it: TokenIterator)
+    : StackFrame[IR] = {
+    val n = name(it)
+    for {
+      a <- ir_value_expr(ctx, env)(it)
+      bodyEnv = ChildEnv.streamFlatMap(env, 1, n, FastSeq(a))(snd)
+      body <- ir_value_expr(ctx, bodyEnv)(it)
+    } yield StreamFlatMap(a, n, body)
+  }
+
+  private def value_ir_StreamFold(ctx: ExecuteContext, env: BindingEnv[Type])(it: TokenIterator)
+    : StackFrame[IR] = {
+    val accumName = name(it)
+    val valueName = name(it)
+    for {
+      a <- ir_value_expr(ctx, env)(it)
+      zero <- ir_value_expr(ctx, env)(it)
+      bodyEnv = ChildEnv.streamFold(env, 2, accumName, valueName, FastSeq(a, zero))(snd)
+      body <- ir_value_expr(ctx, bodyEnv)(it)
+    } yield StreamFold(a, zero, accumName, valueName, body)
+  }
+
+  private def value_ir_StreamFold2(ctx: ExecuteContext, env: BindingEnv[Type])(it: TokenIterator)
+    : StackFrame[IR] = {
+    val accumNames = names(it)
+    val valueName = name(it)
+    val n = accumNames.length
+    def childEnv(i: Int, cs: IndexedSeq[BaseIR]): BindingEnv[Type] =
+      ChildEnv.streamFold2(env, i, accumNames, valueName, cs)(snd)
+    for {
+      a <- ir_value_expr(ctx, env)(it)
+      accIRs <- fillArray(n)(ir_value_expr(ctx, env)(it))(ArraySeq)
+      accs = accumNames.zip(accIRs)
+      seqEnv = childEnv(n + 1, a +: accIRs)
+      seqs <- fillArray[IR, ArraySeq[IR]](n)(ir_value_expr(ctx, seqEnv)(it))(ArraySeq)
+      res <- ir_value_expr(ctx, childEnv(2 * n + 1, a +: accIRs))(it)
+    } yield StreamFold2(a, accs, valueName, seqs, res)
+  }
+
+  private def value_ir_StreamScan(ctx: ExecuteContext, env: BindingEnv[Type])(it: TokenIterator)
+    : StackFrame[IR] = {
+    val accumName = name(it)
+    val valueName = name(it)
+    for {
+      a <- ir_value_expr(ctx, env)(it)
+      zero <- ir_value_expr(ctx, env)(it)
+      bodyEnv = ChildEnv.streamScan(env, 2, accumName, valueName, FastSeq(a, zero))(snd)
+      body <- ir_value_expr(ctx, bodyEnv)(it)
+    } yield StreamScan(a, zero, accumName, valueName, body)
+  }
+
+  private def value_ir_StreamWhiten(ctx: ExecuteContext, env: BindingEnv[Type])(it: TokenIterator)
+    : StackFrame[IR] = {
+    val newChunk = identifier(it)
+    val prevWindow = identifier(it)
+    val vecSize = int32_literal(it)
+    val windowSize = int32_literal(it)
+    val chunkSize = int32_literal(it)
+    val blockSize = int32_literal(it)
+    val normalizeAfterWhitening = boolean_literal(it)
+    for {
+      stream <- ir_value_expr(ctx, env)(it)
+    } yield StreamWhiten(stream, newChunk, prevWindow, vecSize, windowSize, chunkSize,
+      blockSize, normalizeAfterWhitening)
+  }
+
+  private def value_ir_StreamJoinRightDistinct(
+    ctx: ExecuteContext,
+    env: BindingEnv[Type],
+  )(
+    it: TokenIterator
+  ): StackFrame[IR] = {
+    val lKey = identifiers(it)
+    val rKey = identifiers(it)
+    val l = name(it)
+    val r = name(it)
+    val joinType = identifier(it)
+    for {
+      left <- ir_value_expr(ctx, env)(it)
+      right <- ir_value_expr(ctx, env)(it)
+      joinEnv =
+        ChildEnv.streamJoinRightDistinct(env, 2, l, r, FastSeq(left, right))(snd)
+      join <- ir_value_expr(ctx, joinEnv)(it)
+    } yield StreamJoinRightDistinct(left, right, lKey, rKey, l, r, join, joinType)
+  }
+
+  private def value_ir_StreamLeftIntervalJoin(
+    ctx: ExecuteContext,
+    env: BindingEnv[Type],
+  )(
+    it: TokenIterator
+  ): StackFrame[IR] = {
+    val lKeyFieldName = identifier(it)
+    val rIntervalName = identifier(it)
+    val lname = name(it)
+    val rname = name(it)
+    for {
+      left <- ir_value_expr(ctx, env)(it)
+      right <- ir_value_expr(ctx, env)(it)
+      bodyEnv =
+        ChildEnv.streamLeftIntervalJoin(env, 2, lname, rname, FastSeq(left, right))(snd)
+      body <- ir_value_expr(ctx, bodyEnv)(it)
+    } yield StreamLeftIntervalJoin(left, right, lKeyFieldName, rIntervalName, lname, rname,
+      body)
+
+  }
+
+  private def value_ir_StreamFor(ctx: ExecuteContext, env: BindingEnv[Type])(it: TokenIterator)
+    : StackFrame[IR] = {
+    val n = name(it)
+    for {
+      a <- ir_value_expr(ctx, env)(it)
+      bodyEnv = ChildEnv.streamFor(env, 1, n, FastSeq(a))(snd)
+      body <- ir_value_expr(ctx, bodyEnv)(it)
+    } yield StreamFor(a, n, body)
+  }
+
+  private def value_ir_StreamAgg(ctx: ExecuteContext, env: BindingEnv[Type])(it: TokenIterator)
+    : StackFrame[IR] = {
+    val n = name(it)
+    for {
+      a <- ir_value_expr(ctx, env)(it)
+      queryEnv = ChildEnv.streamAgg(env, 1, n, FastSeq(a))(snd)
+      query <- ir_value_expr(ctx, queryEnv)(it)
+    } yield StreamAgg(a, n, query)
+  }
+
+  private def value_ir_StreamAggScan(ctx: ExecuteContext, env: BindingEnv[Type])(it: TokenIterator)
+    : StackFrame[IR] = {
+    val n = name(it)
+    for {
+      a <- ir_value_expr(ctx, env)(it)
+      queryEnv = ChildEnv.streamAggScan(env, 1, n, FastSeq(a))(snd)
+      query <- ir_value_expr(ctx, queryEnv)(it)
+    } yield StreamAggScan(a, n, query)
+  }
+
+  private def value_ir_RunAgg(ctx: ExecuteContext, env: BindingEnv[Type])(it: TokenIterator)
+    : StackFrame[IR] = {
+    val signatures = agg_state_signatures(ctx)(it)
+    for {
+      body <- ir_value_expr(ctx, env)(it)
+      result <- ir_value_expr(ctx, env)(it)
+    } yield RunAgg(body, result, signatures)
+  }
+
+  private def value_ir_RunAggScan(ctx: ExecuteContext, env: BindingEnv[Type])(it: TokenIterator)
+    : StackFrame[IR] = {
+    val n = name(it)
+    val signatures = agg_state_signatures(ctx)(it)
+    def childEnv(i: Int, cs: IndexedSeq[BaseIR]): BindingEnv[Type] =
+      ChildEnv.runAggScan(env, i, n, cs)(snd)
+    for {
+      array <- ir_value_expr(ctx, env)(it)
+      init <- ir_value_expr(ctx, env)(it)
+      seq <- ir_value_expr(ctx, childEnv(2, FastSeq(array, init)))(it)
+      result <- ir_value_expr(ctx, childEnv(3, FastSeq(array, init, seq)))(it)
+    } yield RunAggScan(array, n, init, seq, result, signatures)
+  }
+
+  private def value_ir_AggFilter(ctx: ExecuteContext, env: BindingEnv[Type])(it: TokenIterator)
+    : StackFrame[IR] = {
+    val isScan = boolean_literal(it)
+    val condEnv = ChildEnv.aggFilter(env, 0, isScan)
+    for {
+      cond <- ir_value_expr(ctx, condEnv)(it)
+      aggIR <- ir_value_expr(ctx, env)(it)
+    } yield AggFilter(cond, aggIR, isScan)
+  }
+
+  private def value_ir_AggExplode(ctx: ExecuteContext, env: BindingEnv[Type])(it: TokenIterator)
+    : StackFrame[IR] = {
+    val n = name(it)
+    val isScan = boolean_literal(it)
+    def childEnv(i: Int, cs: IndexedSeq[BaseIR]): BindingEnv[Type] =
+      ChildEnv.aggExplode(env, i, n, isScan, cs)(snd)
+    for {
+      a <- ir_value_expr(ctx, childEnv(0, FastSeq()))(it)
+      aggBody <- ir_value_expr(ctx, childEnv(1, FastSeq(a)))(it)
+    } yield AggExplode(a, n, aggBody, isScan)
+  }
+
+  private def value_ir_AggGroupBy(ctx: ExecuteContext, env: BindingEnv[Type])(it: TokenIterator)
+    : StackFrame[IR] = {
+    val isScan = boolean_literal(it)
+    val keyEnv = ChildEnv.aggGroupBy(env, 0, isScan)
+    for {
+      key <- ir_value_expr(ctx, keyEnv)(it)
+      aggIR <- ir_value_expr(ctx, env)(it)
+    } yield AggGroupBy(key, aggIR, isScan)
+  }
+
+  private def value_ir_AggArrayPerElement(
+    ctx: ExecuteContext,
+    env: BindingEnv[Type],
+  )(
+    it: TokenIterator
+  ): StackFrame[IR] = {
+    val elementName = name(it)
+    val indexName = name(it)
+    val isScan = boolean_literal(it)
+    val hasKnownLength = boolean_literal(it)
+    def childEnv(i: Int, cs: IndexedSeq[BaseIR]): BindingEnv[Type] =
+      ChildEnv.aggArrayPerElement(env, i, elementName, indexName, isScan, cs)(snd)
+    for {
+      a <- ir_value_expr(ctx, childEnv(0, FastSeq()))(it)
+      aggBody <- ir_value_expr(ctx, childEnv(1, FastSeq(a)))(it)
+      knownLength <-
+        if (hasKnownLength)
+          ir_value_expr(ctx, childEnv(2, FastSeq(a, aggBody)))(it).map(Some(_))
+        else done(None)
+    } yield AggArrayPerElement(a, elementName, indexName, aggBody, knownLength, isScan)
+  }
+
+  private def value_ir_ApplyAggOp(ctx: ExecuteContext, env: BindingEnv[Type])(it: TokenIterator)
+    : StackFrame[IR] = {
+    val aggOp = agg_op(it)
+    for {
+      initOpArgs <- ir_value_exprs(ctx, Binds.aggInit(env, Scope.AGG))(it)
+      seqOpArgs <- ir_value_exprs(ctx, Binds.aggSeq(env, Scope.AGG))(it)
+    } yield ApplyAggOp(initOpArgs, seqOpArgs, aggOp)
+  }
+
+  private def value_ir_ApplyScanOp(ctx: ExecuteContext, env: BindingEnv[Type])(it: TokenIterator)
+    : StackFrame[IR] = {
+    val aggOp = agg_op(it)
+    for {
+      initOpArgs <- ir_value_exprs(ctx, Binds.aggInit(env, Scope.SCAN))(it)
+      seqOpArgs <- ir_value_exprs(ctx, Binds.aggSeq(env, Scope.SCAN))(it)
+    } yield ApplyScanOp(initOpArgs, seqOpArgs, aggOp)
+  }
+
+  private def value_ir_AggFold(ctx: ExecuteContext, env: BindingEnv[Type])(it: TokenIterator)
+    : StackFrame[IR] = {
+    val accumName = name(it)
+    val otherAccumName = name(it)
+    val isScan = boolean_literal(it)
+    def childEnv(i: Int, cs: IndexedSeq[BaseIR]): BindingEnv[Type] =
+      ChildEnv.aggFold(env, i, accumName, otherAccumName, isScan, cs)(snd)
+    for {
+      zero <- ir_value_expr(ctx, childEnv(0, FastSeq()))(it)
+      seqOp <- ir_value_expr(ctx, childEnv(1, FastSeq(zero)))(it)
+      combOp <- ir_value_expr(ctx, childEnv(2, FastSeq(zero, seqOp)))(it)
+    } yield AggFold(zero, seqOp, combOp, accumName, otherAccumName, isScan)
+  }
+
+  private def value_ir_InitOp(ctx: ExecuteContext, env: BindingEnv[Type])(it: TokenIterator)
+    : StackFrame[IR] = {
+    val i = int32_literal(it)
+    val aggSig = p_agg_sig(ctx)(it)
+    ir_value_exprs(ctx, env)(it).map(args => InitOp(i, args, aggSig))
+  }
+
+  private def value_ir_SeqOp(ctx: ExecuteContext, env: BindingEnv[Type])(it: TokenIterator)
+    : StackFrame[IR] = {
+    val i = int32_literal(it)
+    val aggSig = p_agg_sig(ctx)(it)
+    ir_value_exprs(ctx, env)(it).map(args => SeqOp(i, args, aggSig))
+  }
+
+  private def value_ir_CombOp(ctx: ExecuteContext, env: BindingEnv[Type])(it: TokenIterator)
+    : StackFrame[IR] = {
+    val i1 = int32_literal(it)
+    val i2 = int32_literal(it)
+    val aggSig = p_agg_sig(ctx)(it)
+    done(CombOp(i1, i2, aggSig))
+  }
+
+  private def value_ir_ResultOp(ctx: ExecuteContext, env: BindingEnv[Type])(it: TokenIterator)
+    : StackFrame[IR] = {
+    val i = int32_literal(it)
+    val aggSig = p_agg_sig(ctx)(it)
+    done(ResultOp(i, aggSig))
+  }
+
+  private def value_ir_AggStateValue(ctx: ExecuteContext, env: BindingEnv[Type])(it: TokenIterator)
+    : StackFrame[IR] = {
+    val i = int32_literal(it)
+    val sig = agg_state_signature(ctx)(it)
+    done(AggStateValue(i, sig))
+  }
+
+  private def value_ir_InitFromSerializedValue(
+    ctx: ExecuteContext,
+    env: BindingEnv[Type],
+  )(
+    it: TokenIterator
+  ): StackFrame[IR] = {
+    val i = int32_literal(it)
+    val sig = agg_state_signature(ctx)(it)
+    ir_value_expr(ctx, env)(it).map(value => InitFromSerializedValue(i, value, sig))
+  }
+
+  private def value_ir_CombOpValue(ctx: ExecuteContext, env: BindingEnv[Type])(it: TokenIterator)
+    : StackFrame[IR] = {
+    val i = int32_literal(it)
+    val sig = p_agg_sig(ctx)(it)
+    ir_value_expr(ctx, env)(it).map(value => CombOpValue(i, value, sig))
+  }
+
+  private def value_ir_SerializeAggs(ctx: ExecuteContext, env: BindingEnv[Type])(it: TokenIterator)
+    : StackFrame[IR] = {
+    val i = int32_literal(it)
+    val i2 = int32_literal(it)
+    val spec = BufferSpec.parse(string_literal(it))
+    val aggSigs = agg_state_signatures(ctx)(it)
+    done(SerializeAggs(i, i2, spec, aggSigs))
+  }
+
+  private def value_ir_DeserializeAggs(
+    ctx: ExecuteContext,
+    env: BindingEnv[Type],
+  )(
+    it: TokenIterator
+  ): StackFrame[IR] = {
+    val i = int32_literal(it)
+    val i2 = int32_literal(it)
+    val spec = BufferSpec.parse(string_literal(it))
+    val aggSigs = agg_state_signatures(ctx)(it)
+    done(DeserializeAggs(i, i2, spec, aggSigs))
+  }
+
+  private def value_ir_SelectFields(ctx: ExecuteContext, env: BindingEnv[Type])(it: TokenIterator)
+    : StackFrame[IR] = {
+    val fields = identifiers(it)
+    ir_value_expr(ctx, env)(it).map(old => SelectFields(old, fields))
+  }
+
+  private def value_ir_InsertFields(ctx: ExecuteContext, env: BindingEnv[Type])(it: TokenIterator)
+    : StackFrame[IR] =
+    for {
+      old <- ir_value_expr(ctx, env)(it)
+      fieldOrder = opt(it, string_literals)
+      fields <- named_value_irs(ctx, env)(it)
+    } yield InsertFields(old, fields, fieldOrder)
+
+  private def value_ir_GetField(ctx: ExecuteContext, env: BindingEnv[Type])(it: TokenIterator)
+    : StackFrame[IR] = {
+    val name = identifier(it)
+    ir_value_expr(ctx, env)(it).map(s => GetField(s, name))
+  }
+
+  private def value_ir_MakeTuple(ctx: ExecuteContext, env: BindingEnv[Type])(it: TokenIterator)
+    : StackFrame[IR] = {
+    val indices = int32_literals(it)
+    ir_value_children(ctx, env)(it).map(args => MakeTuple(indices.zip(args)))
+  }
+
+  private def value_ir_GetTupleElement(
+    ctx: ExecuteContext,
+    env: BindingEnv[Type],
+  )(
+    it: TokenIterator
+  ): StackFrame[IR] = {
+    val idx = int32_literal(it)
+    ir_value_expr(ctx, env)(it).map(tuple => GetTupleElement(tuple, idx))
+  }
+
+  private def value_ir_Die(ctx: ExecuteContext, env: BindingEnv[Type])(it: TokenIterator)
+    : StackFrame[IR] = {
+    val typ = type_expr(ctx.references)(it)
+    val errorID = int32_literal(it)
+    ir_value_expr(ctx, env)(it).map(msg => Die(msg, typ, errorID))
+  }
+
+  private def value_ir_ConsoleLog(ctx: ExecuteContext, env: BindingEnv[Type])(it: TokenIterator)
+    : StackFrame[IR] =
+    for {
+      msg <- ir_value_expr(ctx, env)(it)
+      result <- ir_value_expr(ctx, env)(it)
+    } yield ConsoleLog(msg, result)
+
+  private def value_ir_ApplyIR(ctx: ExecuteContext, env: BindingEnv[Type])(it: TokenIterator)
+    : StackFrame[IR] =
+    apply_like(ctx, env, ApplyIR.apply)(it)
+
+  private def value_ir_ApplySpecial(ctx: ExecuteContext, env: BindingEnv[Type])(it: TokenIterator)
+    : StackFrame[IR] =
+    apply_like(ctx, env, ApplySpecial)(it)
+
+  private def value_ir_Apply(ctx: ExecuteContext, env: BindingEnv[Type])(it: TokenIterator)
+    : StackFrame[IR] = {
+    apply_like(
+      ctx,
+      env,
+      (function, typeArgs, args, rt, errorID) =>
+        invoke(function, rt, typeArgs, errorID, args: _*),
+    )(it)
+  }
+
+  private def value_ir_MatrixCount(ctx: ExecuteContext, env: BindingEnv[Type])(it: TokenIterator)
+    : StackFrame[IR] =
+    matrix_ir(ctx)(it).map(MatrixCount)
+
+  private def value_ir_TableCount(ctx: ExecuteContext, env: BindingEnv[Type])(it: TokenIterator)
+    : StackFrame[IR] =
+    table_ir(ctx)(it).map(TableCount)
+
+  private def value_ir_TableGetGlobals(
+    ctx: ExecuteContext,
+    env: BindingEnv[Type],
+  )(
+    it: TokenIterator
+  ): StackFrame[IR] =
+    table_ir(ctx)(it).map(TableGetGlobals)
+
+  private def value_ir_TableCollect(ctx: ExecuteContext, env: BindingEnv[Type])(it: TokenIterator)
+    : StackFrame[IR] =
+    table_ir(ctx)(it).map(TableCollect)
+
+  private def value_ir_TableAggregate(ctx: ExecuteContext, env: BindingEnv[Type])(it: TokenIterator)
+    : StackFrame[IR] =
+    for {
+      child <- table_ir(ctx)(it)
+      queryEnv = ChildEnv.tableAggregate(env, 1, FastSeq(child))(snd)
+      query <- ir_value_expr(ctx, queryEnv)(it)
+    } yield TableAggregate(child, query)
+
+  private def value_ir_TableToValueApply(
+    ctx: ExecuteContext,
+    env: BindingEnv[Type],
+  )(
+    it: TokenIterator
+  ): StackFrame[IR] = {
+    val config = string_literal(it)
+    table_ir(ctx)(it).map { child =>
+      TableToValueApply(child, RelationalFunctions.lookupTableToValue(ctx, config))
+    }
+  }
+
+  private def value_ir_MatrixToValueApply(
+    ctx: ExecuteContext,
+    env: BindingEnv[Type],
+  )(
+    it: TokenIterator
+  ): StackFrame[IR] = {
+    val config = string_literal(it)
+    matrix_ir(ctx)(it).map { child =>
+      MatrixToValueApply(child, RelationalFunctions.lookupMatrixToValue(ctx, config))
+    }
+  }
+
+  private def value_ir_BlockMatrixToValueApply(
+    ctx: ExecuteContext,
+    env: BindingEnv[Type],
+  )(
+    it: TokenIterator
+  ): StackFrame[IR] = {
+    val config = string_literal(it)
+    blockmatrix_ir(ctx)(it).map { child =>
+      BlockMatrixToValueApply(
+        child,
+        RelationalFunctions.lookupBlockMatrixToValue(ctx, config),
+      )
+    }
+  }
+
+  private def value_ir_BlockMatrixCollect(
+    ctx: ExecuteContext,
+    env: BindingEnv[Type],
+  )(
+    it: TokenIterator
+  ): StackFrame[IR] =
+    blockmatrix_ir(ctx)(it).map(BlockMatrixCollect)
+
+  private def value_ir_TableWrite(ctx: ExecuteContext, env: BindingEnv[Type])(it: TokenIterator)
+    : StackFrame[IR] = {
+    implicit val formats = TableWriter.formats
+    val writerStr = string_literal(it)
+    table_ir(ctx)(it).map(child => TableWrite(child, deserialize[TableWriter](writerStr)))
+  }
+
+  private def value_ir_TableMultiWrite(
+    ctx: ExecuteContext,
+    env: BindingEnv[Type],
+  )(
+    it: TokenIterator
+  ): StackFrame[IR] = {
+    implicit val formats = WrappedMatrixNativeMultiWriter.formats
+    val writerStr = string_literal(it)
+    table_ir_children(ctx)(it).map { children =>
+      TableMultiWrite(children, deserialize[WrappedMatrixNativeMultiWriter](writerStr))
+    }
+  }
+
+  private def value_ir_MatrixAggregate(
+    ctx: ExecuteContext,
+    env: BindingEnv[Type],
+  )(
+    it: TokenIterator
+  ): StackFrame[IR] =
+    for {
+      child <- matrix_ir(ctx)(it)
+      queryEnv = ChildEnv.matrixAggregate(env, 1, FastSeq(child))(snd)
+      query <- ir_value_expr(ctx, queryEnv)(it)
+    } yield MatrixAggregate(child, query)
+
+  private def value_ir_MatrixWrite(ctx: ExecuteContext, env: BindingEnv[Type])(it: TokenIterator)
+    : StackFrame[IR] = {
+    val writerStr = string_literal(it)
+    implicit val formats: Formats = MatrixWriter.formats
+    val writer = deserialize[MatrixWriter](writerStr)
+    matrix_ir(ctx)(it).map(child => MatrixWrite(child, writer))
+  }
+
+  private def value_ir_MatrixMultiWrite(
+    ctx: ExecuteContext,
+    env: BindingEnv[Type],
+  )(
+    it: TokenIterator
+  ): StackFrame[IR] = {
+    val writerStr = string_literal(it)
+    implicit val formats = MatrixNativeMultiWriter.formats
+    val writer = deserialize[MatrixNativeMultiWriter](writerStr)
+    matrix_ir_children(ctx)(it).map(children => MatrixMultiWrite(children, writer))
+  }
+
+  private def value_ir_BlockMatrixWrite(
+    ctx: ExecuteContext,
+    env: BindingEnv[Type],
+  )(
+    it: TokenIterator
+  ): StackFrame[IR] = {
+    val writerStr = string_literal(it)
+    implicit val formats: Formats = BlockMatrixWriter.formats
+    val writer = deserialize[BlockMatrixWriter](writerStr)
+    blockmatrix_ir(ctx)(it).map(child => BlockMatrixWrite(child, writer))
+  }
+
+  private def value_ir_BlockMatrixMultiWrite(
+    ctx: ExecuteContext,
+    env: BindingEnv[Type],
+  )(
+    it: TokenIterator
+  ): StackFrame[IR] = {
+    val writerStr = string_literal(it)
+    implicit val formats: Formats = BlockMatrixWriter.formats
+    val writer = deserialize[BlockMatrixMultiWriter](writerStr)
+    repUntil(it, blockmatrix_ir(ctx), T.Punc(")")).map { blockMatrices =>
+      BlockMatrixMultiWrite(blockMatrices, writer)
+    }
+  }
+
+  private def value_ir_CollectDistributedArray(
+    ctx: ExecuteContext,
+    env: BindingEnv[Type],
+  )(
+    it: TokenIterator
+  ): StackFrame[IR] = {
+    val staticID = identifier(it)
+    val cname = name(it)
+    val gname = name(it)
+    for {
+      ctxs <- ir_value_expr(ctx, env)(it)
+      globals <- ir_value_expr(ctx, env)(it)
+      bodyEnv =
+        ChildEnv.collectDistributedArray(env, 2, cname, gname, FastSeq(ctxs, globals))(snd)
+      body <- ir_value_expr(ctx, bodyEnv)(it)
+      dynamicID <- ir_value_expr(ctx, env)(it)
+    } yield CollectDistributedArray(ctxs, globals, cname, gname, body, dynamicID, staticID)
+  }
+
+  private def value_ir_JavaIR(ctx: ExecuteContext, env: BindingEnv[Type])(it: TokenIterator)
+    : StackFrame[IR] = {
+    val id = int32_literal(it)
+    done(ctx.PersistedIrCache(id).deepCopy.asInstanceOf[IR])
+  }
+
+  private def value_ir_ReadPartition(ctx: ExecuteContext, env: BindingEnv[Type])(it: TokenIterator)
+    : StackFrame[IR] = {
+    val requestedTypeRaw = it.head match {
+      case T.Ident(v @ ("None" | "DropRowUIDs")) =>
+        it.next(): Unit
+        Left(v)
+      case _ =>
+        Right(type_expr(ctx.references)(it))
+    }
+    val reader = PartitionReader.extract(ctx, JsonMethods.parse(string_literal(it)))
+    ir_value_expr(ctx, env)(it).map { context =>
+      ReadPartition(
+        context,
+        requestedTypeRaw match {
+          case Left("None") => reader.fullRowType
+          case Left("DropRowUIDs") => reader.fullRowType.deleteKey(reader.uidFieldName)
+          case Right(t) => t.asInstanceOf[TStruct]
+        },
+        reader,
+      )
+    }
+  }
+
+  private def value_ir_WritePartition(ctx: ExecuteContext, env: BindingEnv[Type])(it: TokenIterator)
+    : StackFrame[IR] = {
+    implicit val formats: Formats = PartitionWriter.formats(ctx.references)
+    val writer = JsonMethods.parse(string_literal(it)).extract[PartitionWriter]
+    for {
+      stream <- ir_value_expr(ctx, env)(it)
+      ctx <- ir_value_expr(ctx, env)(it)
+    } yield WritePartition(stream, ctx, writer)
+  }
+
+  private def value_ir_WriteMetadata(ctx: ExecuteContext, env: BindingEnv[Type])(it: TokenIterator)
+    : StackFrame[IR] = {
+    implicit val formats: Formats = MetadataWriter.formats(ctx.references)
+    val writer = JsonMethods.parse(string_literal(it)).extract[MetadataWriter]
+    ir_value_expr(ctx, env)(it).map(ctx => WriteMetadata(ctx, writer))
+  }
+
+  private def value_ir_ReadValue(ctx: ExecuteContext, env: BindingEnv[Type])(it: TokenIterator)
+    : StackFrame[IR] = {
+    implicit val formats: Formats = ValueReader.formats(ctx.references)
+    val reader = JsonMethods.parse(string_literal(it)).extract[ValueReader]
+    val typ = type_expr(ctx.references)(it)
+    ir_value_expr(ctx, env)(it).map(path => ReadValue(path, reader, typ))
+  }
+
+  private def value_ir_WriteValue(ctx: ExecuteContext, env: BindingEnv[Type])(it: TokenIterator)
+    : StackFrame[IR] = {
+    implicit val formats: Formats = ValueWriter.formats(ctx.references)
+    val writer = JsonMethods.parse(string_literal(it)).extract[ValueWriter]
+    ir_value_children(ctx, env)(it).map { case Seq(value, path) =>
+      WriteValue(value, path, writer)
     }
   }
 
