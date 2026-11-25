@@ -97,6 +97,12 @@ class TypeParsingSuite {
     assertEq(Serialization.read[RVDType](Serialization.write(rvdType)), rvdType)
   }
 
+  @Test def testPTypeSerializerKeepsLocusRepresentation(): Unit =
+    LocusRepresentations.forEachCanonicalLocus { _ =>
+      implicit val formats: Formats = typeFormats(inScope)
+      assertEq(Serialization.read[PType](Serialization.write[PType](rowPType)), rowPType)
+    }
+
   @Test def testWriteOnlyFormatsWriteWhatPerRegistryFormatsRead(): Unit = {
     val written = Serialization.write(rvdType)(AbstractRVDSpec.formats)
     assertEq(
