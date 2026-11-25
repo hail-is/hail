@@ -11,6 +11,8 @@ import is.hail.types.physical.stypes.interfaces.SLocusValue
 import is.hail.types.virtual.{TInterval, TLocus, TStruct}
 import is.hail.variant.{Locus, ReferenceGenome}
 
+import java.util.regex.Pattern
+
 import org.junit.jupiter.api.Test
 import org.scalacheck.Prop.forAll
 
@@ -77,6 +79,84 @@ class PLocusSuite {
       val packed = constructFromContigAndPosition(ctx, PPackedLocus(rg, required = true))
       interceptFatal("Contig 'not_a_contig' is not in the reference genome") {
         ctx.r.pool.scopedRegion(r => packed(r, unknown))
+      }
+    }
+
+  /** Matches the error for packing `l`, whose position is negative. */
+  private def negativePositionError(l: Locus): String =
+    Pattern.quote(s"Invalid locus '${l.contig}:${l.position}'") + ".*cannot be negative"
+
+  /** The last contig of `rg`, whose index is not 0, so a pack that overwrote it would show. */
+  private def lastContig(rg: ReferenceGenome): (String, Int) =
+    (rg.contigs.last, rg.contigs.length - 1)
+
+  @Test def testPackChecksPosition(): Unit =
+    for (rg <- references) {
+      val (contig, idx) = lastContig(rg)
+      assertEq(PLocus.pack(rg, idx, 0), idx.toLong << 32)
+      assertEq(PLocus.pack(rg, idx, Int.MaxValue), (idx.toLong << 32) | Int.MaxValue.toLong)
+      for (position <- Seq(-1, Int.MinValue))
+        interceptFatal(negativePositionError(Locus(contig, position))) {
+          PLocus.pack(rg, idx, position)
+        }
+    }
+
+  // A struct locus holds a negative position; a packed locus can't.
+  @Test def testConstructChecksPosition(implicit ctx: ExecuteContext): Unit =
+    for (rg <- references) {
+      val (contig, _) = lastContig(rg)
+      val struct = constructFromContigAndPosition(ctx, PCanonicalLocus(rg, required = true))
+      val packed = constructFromContigAndPosition(ctx, PPackedLocus(rg, required = true))
+
+      for (position <- Seq(0, Int.MaxValue)) {
+        val l = Locus(contig, position)
+        ctx.r.pool.scopedRegion(r => assertEq(packed(r, l), l))
+      }
+
+      for (position <- Seq(-1, Int.MinValue)) {
+        val l = Locus(contig, position)
+        ctx.r.pool.scopedRegion(r => assertEq(struct(r, l), l))
+        interceptFatal(negativePositionError(l))(ctx.r.pool.scopedRegion(r => packed(r, l)))
+      }
+    }
+
+  // Packing a struct locus checks the position on every path: the staged packed value, which
+  // storing, encoding and comparing against a packed locus use, and the unstaged copy, store and
+  // comparison.
+  @Test def testPackingStructLocusChecksPosition(implicit ctx: ExecuteContext): Unit =
+    for (rg <- references) {
+      val structType = PCanonicalLocus(rg, required = true)
+      val packedType = PPackedLocus(rg, required = true)
+
+      val stagedPacked: (Region, Long) => Long = {
+        val fb = EmitFunctionBuilder[Region, Long, Long](ctx, "pack_struct_locus")
+        fb.emitWithBuilder { cb =>
+          structType.loadCheapSCode(cb, fb.getCodeParam[Long](2)).packed(cb)
+        }
+        val f = fb.resultWithIndex()(ctx.theHailClassLoader, ctx.fs, ctx.taskContext, ctx.r)
+        f(_, _)
+      }
+
+      val (contig, idx) = lastContig(rg)
+      val good = Locus(contig, 0)
+      val bad = Locus(contig, -1)
+
+      ctx.r.pool.scopedRegion { r =>
+        val goodAddr = structType.unstagedStoreJavaObject(good, r)
+        val badAddr = structType.unstagedStoreJavaObject(bad, r)
+        val packedGoodAddr = packedType.unstagedStoreJavaObject(good, r)
+
+        assertEq(stagedPacked(r, goodAddr), idx.toLong << 32)
+        assertEq(structType.packed(goodAddr), idx.toLong << 32)
+
+        val error = negativePositionError(bad)
+        interceptFatal(error)(stagedPacked(r, badAddr))
+        interceptFatal(error)(structType.packed(badAddr))
+        interceptFatal(error)(packedType.copyFromAddress(r, structType, badAddr, deepCopy = false))
+        interceptFatal(error)(packedType.unstagedStoreJavaObject(bad, r))
+        interceptFatal(error) {
+          structType.unsafeOrdering(packedType).compare(badAddr, packedGoodAddr)
+        }
       }
     }
 
