@@ -509,9 +509,11 @@ object Simplify {
           case (ApplyUnaryPrimOp(Bang, c), _, _) =>
             Some(If(c, altr, cnsq))
 
-          case _ if cnsq == altr && cnsq.typ != TVoid =>
-            if (isDefinitelyDefined(pred)) Some(cnsq)
-            else Some(If(IsNA(pred), NA(cnsq.typ), cnsq))
+          // When `pred` may be missing, don't rewrite to `If(IsNA(pred), NA, cnsq)`:
+          // Requiredness can't tell that `IsNA(pred)` is false when `pred` is
+          // required, so that rewrite would make a required `If` optional.
+          case _ if cnsq == altr && cnsq.typ != TVoid && isDefinitelyDefined(pred) =>
+            Some(cnsq)
 
           case (_, True(), False()) =>
             Some(pred)
