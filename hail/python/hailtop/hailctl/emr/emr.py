@@ -152,7 +152,14 @@ def check_release_label(region: Optional[str], expected_release, client=None) ->
     print(f'Using EMR release {actual_label} with Spark {spark_version}.')
 
 
-def check_private_subnet(region: str, subnet_id: str, service_access_security_group: str, ec2=None) -> None:
+def check_private_subnet(
+    region: str,
+    subnet_id: str,
+    service_access_security_group: str,
+    primary_security_group: str,
+    core_security_group: str,
+    ec2=None,
+) -> None:
     if ec2 is None:
         import boto3  # pylint: disable=import-outside-toplevel
 
@@ -225,15 +232,19 @@ def check_private_subnet(region: str, subnet_id: str, service_access_security_gr
     if len(vpcs) != 1:
         raise ValueError(f'could not resolve VPC {vpc_id}')
     vpc_cidr = vpcs[0]['CidrBlock']
-    security_groups = ec2.describe_security_groups(GroupIds=[service_access_security_group]).get('SecurityGroups', [])
-    if len(security_groups) != 1 or security_groups[0].get('VpcId') != vpc_id:
-        raise ValueError(f'service access security group {service_access_security_group} is not in VPC {vpc_id}')
+    required_security_groups = [service_access_security_group, primary_security_group, core_security_group]
+    security_groups = ec2.describe_security_groups(GroupIds=required_security_groups).get('SecurityGroups', [])
+    groups_by_id = {group.get('GroupId'): group for group in security_groups}
+    for group_id in required_security_groups:
+        if groups_by_id.get(group_id, {}).get('VpcId') != vpc_id:
+            raise ValueError(f'security group {group_id} is not in VPC {vpc_id}')
+    service_group = groups_by_id[service_access_security_group]
     https_from_vpc = any(
         permission.get('IpProtocol') == 'tcp'
         and permission.get('FromPort') == 443
         and permission.get('ToPort') == 443
         and any(ip_range.get('CidrIp') == vpc_cidr for ip_range in permission.get('IpRanges', []))
-        for permission in security_groups[0].get('IpPermissions', [])
+        for permission in service_group.get('IpPermissions', [])
     )
     if not https_from_vpc:
         raise ValueError(

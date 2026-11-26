@@ -16,6 +16,10 @@ class ArtifactManifestCliRunner(CliRunner):
                 args.extend(['--subnet-id', 'subnet-test-private'])
             if '--service-access-security-group' not in args:
                 args.extend(['--service-access-security-group', 'sg-service-test'])
+            if '--primary-security-group' not in args:
+                args.extend(['--primary-security-group', 'sg-primary-test'])
+            if '--core-security-group' not in args:
+                args.extend(['--core-security-group', 'sg-core-test'])
         return super().invoke(cli, args, **kwargs)
 
 

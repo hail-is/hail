@@ -245,7 +245,9 @@ def _private_subnet_ec2():
                         'IpRanges': [{'CidrIp': '10.77.0.0/16'}],
                     }
                 ],
-            }
+            },
+            {'GroupId': 'sg-primary', 'VpcId': 'vpc-1', 'IpPermissions': []},
+            {'GroupId': 'sg-core', 'VpcId': 'vpc-1', 'IpPermissions': []},
         ]
     }
     return ec2
@@ -253,7 +255,7 @@ def _private_subnet_ec2():
 
 def test_check_private_subnet_accepts_nat_and_required_endpoints(capsys):
     ec2 = _private_subnet_ec2()
-    emr.check_private_subnet('us-east-1', 'subnet-1', 'sg-service', ec2=ec2)
+    emr.check_private_subnet('us-east-1', 'subnet-1', 'sg-service', 'sg-primary', 'sg-core', ec2=ec2)
     assert 'private subnet subnet-1' in capsys.readouterr().out
 
 
@@ -263,7 +265,7 @@ def test_check_private_subnet_rejects_public_subnet():
     ec2 = _private_subnet_ec2()
     ec2.describe_subnets.return_value['Subnets'][0]['MapPublicIpOnLaunch'] = True
     with pytest.raises(ValueError, match='maps public IP'):
-        emr.check_private_subnet('us-east-1', 'subnet-1', 'sg-service', ec2=ec2)
+        emr.check_private_subnet('us-east-1', 'subnet-1', 'sg-service', 'sg-primary', 'sg-core', ec2=ec2)
 
 
 def test_check_private_subnet_rejects_missing_nat():
@@ -272,7 +274,7 @@ def test_check_private_subnet_rejects_missing_nat():
     ec2 = _private_subnet_ec2()
     ec2.describe_route_tables.return_value['RouteTables'][0]['Routes'] = []
     with pytest.raises(ValueError, match='NAT default route'):
-        emr.check_private_subnet('us-east-1', 'subnet-1', 'sg-service', ec2=ec2)
+        emr.check_private_subnet('us-east-1', 'subnet-1', 'sg-service', 'sg-primary', 'sg-core', ec2=ec2)
 
 
 def test_check_private_subnet_rejects_missing_emr_or_s3_endpoint():
@@ -287,7 +289,7 @@ def test_check_private_subnet_rejects_missing_emr_or_s3_endpoint():
         }
     ]
     with pytest.raises(ValueError, match='EMR service endpoint'):
-        emr.check_private_subnet('us-east-1', 'subnet-1', 'sg-service', ec2=ec2)
+        emr.check_private_subnet('us-east-1', 'subnet-1', 'sg-service', 'sg-primary', 'sg-core', ec2=ec2)
 
     ec2 = _private_subnet_ec2()
     ec2.describe_vpc_endpoints.return_value['VpcEndpoints'] = [
@@ -299,7 +301,7 @@ def test_check_private_subnet_rejects_missing_emr_or_s3_endpoint():
         }
     ]
     with pytest.raises(ValueError, match='S3 gateway endpoint'):
-        emr.check_private_subnet('us-east-1', 'subnet-1', 'sg-service', ec2=ec2)
+        emr.check_private_subnet('us-east-1', 'subnet-1', 'sg-service', 'sg-primary', 'sg-core', ec2=ec2)
 
 
 def test_check_private_subnet_rejects_endpoint_security_group_misconfiguration():
@@ -308,12 +310,12 @@ def test_check_private_subnet_rejects_endpoint_security_group_misconfiguration()
     ec2 = _private_subnet_ec2()
     ec2.describe_vpc_endpoints.return_value['VpcEndpoints'][0]['Groups'] = [{'GroupId': 'sg-other'}]
     with pytest.raises(ValueError, match='is not attached to security group'):
-        emr.check_private_subnet('us-east-1', 'subnet-1', 'sg-service', ec2=ec2)
+        emr.check_private_subnet('us-east-1', 'subnet-1', 'sg-service', 'sg-primary', 'sg-core', ec2=ec2)
 
     ec2 = _private_subnet_ec2()
     ec2.describe_security_groups.return_value['SecurityGroups'][0]['IpPermissions'] = []
     with pytest.raises(ValueError, match='must allow TCP 443'):
-        emr.check_private_subnet('us-east-1', 'subnet-1', 'sg-service', ec2=ec2)
+        emr.check_private_subnet('us-east-1', 'subnet-1', 'sg-service', 'sg-primary', 'sg-core', ec2=ec2)
 
 
 def test_check_custom_roles_accepts_service_role_and_profile(capsys):
