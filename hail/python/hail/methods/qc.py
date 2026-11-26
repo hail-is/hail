@@ -1843,8 +1843,8 @@ def compute_charr(
     -----
     It is possible to use gnomAD reference allele frequencies with the following:
 
-    >>> gnomad_sites = hl.experimental.load_dataset('gnomad_genome_sites', version='3.1.2') # doctest: +SKIP
-    >>> charr_result = hl.compute_charr(mt, ref_af=(1 - gnomad_sites[mt.row_key].freq[0].AF)) # doctest: +SKIP
+    >>> gnomad_sites = hl.experimental.load_dataset('gnomad_genome_sites', version='3.1.2', reference_genome='GRCh38') # doctest: +SKIP
+    >>> charr_result = hl.compute_charr(mt, ref_AF=(1 - gnomad_sites[mt.row_key].freq[0].AF)) # doctest: +SKIP
 
     If the dataset is loaded from a gvcf and has NON_REF alleles, drop the last allele with the following or load it with the hail vcf combiner:
 
@@ -1894,9 +1894,7 @@ def compute_charr(
     if ref_AF is None:
         n_samples = mt.count_cols()
         if n_samples < 10000:
-            raise ValueError(
-                "'compute_charr': with fewer than 10,000 samples, require a reference AF in 'reference_data_source'."
-            )
+            raise ValueError("'compute_charr': with fewer than 10,000 samples, require a reference AF in 'ref_AF'.")
 
         n_alleles = 2 * n_samples
         mt = mt.annotate_rows(**{ref_af_field: 1 - hl.agg.sum(mt[gt_field].n_alt_alleles()) / n_alleles})
