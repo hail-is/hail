@@ -1,92 +1,35 @@
 import copy
-from dataclasses import dataclass
+import hashlib
+import importlib.resources as ir
+import json
+import os
 from typing import Optional
+from urllib.parse import urlparse
 
-from .artifact import HailArtifactManifest, major_minor
+import typer
 
+from . import emr
 
-@dataclass(frozen=True)
-class EMRReleaseConfig:
-    release_label: str
-    spark_version: str
-    scala_version: str
-    python_executable: str
-    storage_connector: str
-
-
-EMR_RELEASE_CONFIGS = {
-    'emr-spark-8.1.0': EMRReleaseConfig(
-        release_label='emr-spark-8.1.0',
-        spark_version='4.1.1',
-        scala_version='2.13.17',
-        python_executable='/usr/bin/python3.12',
-        storage_connector='s3a',
-    )
-}
+# v1 supports exactly one EMR release.
+EMR_RELEASE_LABEL = 'emr-spark-8.1.0'
+EMR_PYTHON = '/usr/bin/python3.12'
+HAIL_JAR_PATH = '/usr/lib/hail/hail-all-spark.jar'
+OFF_HEAP_MEMORY_PER_CORE_MB = 1024
 
 S3A_FILESYSTEM_CLASS = 'org.apache.hadoop.fs.s3a.S3AFileSystem'
-S3A_COMMITTER_FACTORY = 'org.apache.hadoop.fs.s3a.commit.S3ACommitterFactory'
 S3A_CORE_SITE_PROPERTIES = {
     'fs.s3.impl': S3A_FILESYSTEM_CLASS,
     'fs.s3n.impl': S3A_FILESYSTEM_CLASS,
     'fs.s3a.impl': S3A_FILESYSTEM_CLASS,
-    'mapreduce.outputcommitter.factory.scheme.s3a': S3A_COMMITTER_FACTORY,
+    'mapreduce.outputcommitter.factory.scheme.s3a': 'org.apache.hadoop.fs.s3a.commit.S3ACommitterFactory',
     'fs.s3a.committer.magic.enabled': 'true',
     'fs.s3a.committer.name': 'magicv2',
     'fs.s3a.committer.magic.track.commits.in.memory.enabled': 'true',
     'fs.s3a.committer.magic.overwrite.and.commit': 'true',
 }
-DEFAULT_EMR_RELEASE = 'emr-spark-8.1.0'
-HAIL_JAR_PATH = '/usr/lib/hail/hail-all-spark.jar'
-EMR_PYSPARK_PYTHON = '/usr/bin/python3.12'
 
 
-def release_config(release_label: str) -> EMRReleaseConfig:
-    config = EMR_RELEASE_CONFIGS.get(release_label)
-    if config is None:
-        supported = ', '.join(sorted(EMR_RELEASE_CONFIGS))
-        raise ValueError(f'unsupported EMR release {release_label!r}; supported release(s): {supported}')
-    return config
-
-
-def check_release_spark_compatibility(release_label: str, hail_spark_version: str) -> EMRReleaseConfig:
-    config = release_config(release_label)
-    if major_minor(config.spark_version) != major_minor(hail_spark_version):
-        raise ValueError(
-            f'EMR release {release_label!r} ships Spark {config.spark_version}, but this Hail artifact '
-            f'was built for Spark {hail_spark_version}; the Spark major and minor versions must agree.'
-        )
-    return config
-
-
-def validate_artifact_compatibility(
-    artifact: HailArtifactManifest,
-    release: EMRReleaseConfig,
-    hail_spark_version: str,
-) -> None:
-    if major_minor(artifact.spark_version) != major_minor(hail_spark_version):
-        raise ValueError(
-            f'artifact was built for Spark {artifact.spark_version}, but hailctl was built for Spark '
-            f'{hail_spark_version}'
-        )
-    if major_minor(artifact.spark_version) != major_minor(release.spark_version):
-        raise ValueError(
-            f'artifact was built for Spark {artifact.spark_version}, but EMR release {release.release_label!r} '
-            f'ships Spark {release.spark_version}'
-        )
-    if major_minor(artifact.scala_version) != major_minor(release.scala_version):
-        raise ValueError(
-            f'artifact was built for Scala {artifact.scala_version}, but EMR release {release.release_label!r} '
-            f'ships Scala {release.scala_version}'
-        )
-    if major_minor(artifact.python_version) != major_minor(EMR_PYSPARK_PYTHON.rsplit('python', 1)[1]):
-        raise ValueError(
-            f'artifact requires Python {artifact.python_version}, but EMR bootstrap is configured for '
-            f'{EMR_PYSPARK_PYTHON}'
-        )
-
-
-def hail_configurations(off_heap_memory_per_core_mb: Optional[int]) -> list[dict]:
+def hail_configurations() -> list[dict]:
     spark_defaults = {
         'spark.jars': f'local://{HAIL_JAR_PATH}',
         'spark.driver.extraClassPath': HAIL_JAR_PATH,
@@ -100,10 +43,9 @@ def hail_configurations(off_heap_memory_per_core_mb: Optional[int]) -> list[dict
         'spark.yarn.appMasterEnv.PYTHONHASHSEED': '0',
         'spark.executorEnv.HAIL_CLOUD': 'aws',
         'spark.yarn.appMasterEnv.HAIL_CLOUD': 'aws',
-        'spark.pyspark.python': EMR_PYSPARK_PYTHON,
+        'spark.executorEnv.HAIL_WORKER_OFF_HEAP_MEMORY_PER_CORE_MB': str(OFF_HEAP_MEMORY_PER_CORE_MB),
+        'spark.pyspark.python': EMR_PYTHON,
     }
-    if off_heap_memory_per_core_mb is not None:
-        spark_defaults['spark.executorEnv.HAIL_WORKER_OFF_HEAP_MEMORY_PER_CORE_MB'] = str(off_heap_memory_per_core_mb)
     return [
         {'Classification': 'core-site', 'Properties': copy.deepcopy(S3A_CORE_SITE_PROPERTIES)},
         {'Classification': 'spark-defaults', 'Properties': spark_defaults},
@@ -115,7 +57,7 @@ def hail_configurations(off_heap_memory_per_core_mb: Optional[int]) -> list[dict
                     'Classification': 'export',
                     'Properties': {
                         'HAIL_CLOUD': 'aws',
-                        'PYSPARK_PYTHON': EMR_PYSPARK_PYTHON,
+                        'PYSPARK_PYTHON': EMR_PYTHON,
                         'SPARK_DIST_CLASSPATH': '$(hadoop classpath)',
                     },
                 }
@@ -125,125 +67,111 @@ def hail_configurations(off_heap_memory_per_core_mb: Optional[int]) -> list[dict
     ]
 
 
-def validate_s3a_configurations(configurations: object) -> None:
-    if not isinstance(configurations, list):
-        raise ValueError('The final RunJobFlow Configurations value must be a list.')
-    core_site_properties: dict = {}
-    for configuration in configurations:
-        if isinstance(configuration, dict) and configuration.get('Classification') == 'core-site':
-            properties = configuration.get('Properties')
-            if isinstance(properties, dict):
-                core_site_properties.update(properties)
-    for name, expected in S3A_CORE_SITE_PROPERTIES.items():
-        actual = core_site_properties.get(name)
-        if actual != expected:
-            raise ValueError(f'The final core-site configuration must set {name}={expected}.')
+def check_wheel_uri(wheel: str) -> None:
+    parsed = urlparse(wheel)
+    filename = os.path.basename(parsed.path)
+    if parsed.scheme != 's3' or not parsed.netloc or not (filename.startswith('hail-') and filename.endswith('.whl')):
+        raise typer.BadParameter(
+            '--wheel must be an S3 URI of a Hail wheel, e.g. s3://my-bucket/hail-0.2.140-py3-none-any.whl'
+        )
 
 
-def deep_merge(base: dict, overlay: dict) -> dict:
-    result = copy.deepcopy(base)
-    for key, value in overlay.items():
-        if key in result and isinstance(result[key], dict) and isinstance(value, dict):
-            result[key] = deep_merge(result[key], value)
-        else:
-            result[key] = copy.deepcopy(value)
-    return result
+def bootstrap_script() -> bytes:
+    return ir.files('hailtop.hailctl.emr').joinpath('resources/install-hail-emr.sh').read_bytes()
 
 
-def merge_run_job_flow_overlay(base: dict, overlay: dict) -> dict:
-    result = deep_merge(base, overlay)
-    instances_overlay = overlay.get('Instances')
-    if (
-        isinstance(instances_overlay, dict)
-        and 'InstanceFleets' in instances_overlay
-        and 'InstanceGroups' not in instances_overlay
-    ):
-        instances = result.get('Instances')
-        if isinstance(instances, dict):
-            instances.pop('InstanceGroups', None)
-    return result
+def bootstrap_uri(wheel: str, script: bytes) -> str:
+    """Content-addressed location next to the wheel, so the bootstrap needs no extra bucket."""
+    return f"{wheel.rsplit('/', 1)[0]}/bootstrap/install-hail-emr-{hashlib.sha256(script).hexdigest()}.sh"
 
 
 def build_run_job_flow_kwargs(
     *,
     cluster_name: str,
-    release_label: str,
+    bootstrap_s3_uri: str,
+    wheel: str,
+    num_workers: int,
     master_instance_type: str,
-    core_instance_type: str,
-    core_instance_count: int,
-    ec2_key_name: Optional[str],
+    worker_instance_type: str,
     subnet_id: Optional[str],
     service_access_security_group: Optional[str],
-    primary_security_group: Optional[str],
-    core_security_group: Optional[str],
     log_uri: Optional[str],
-    bootstrap_s3_uri: str,
-    artifact: HailArtifactManifest,
-    off_heap_memory_per_core_mb: Optional[int],
-    use_default_roles: bool,
-    service_role: Optional[str],
-    instance_profile: Optional[str],
     idle_timeout: int,
 ) -> dict:
+    instances: dict = {
+        'InstanceGroups': [
+            {'Name': 'Primary', 'InstanceRole': 'MASTER', 'InstanceType': master_instance_type, 'InstanceCount': 1},
+            {
+                'Name': 'Core',
+                'InstanceRole': 'CORE',
+                'InstanceType': worker_instance_type,
+                'InstanceCount': num_workers,
+            },
+        ],
+        'KeepJobFlowAliveWhenNoSteps': True,
+        'TerminationProtected': False,
+    }
+    if subnet_id is not None:
+        instances['Ec2SubnetId'] = subnet_id
+    if service_access_security_group is not None:
+        instances['ServiceAccessSecurityGroup'] = service_access_security_group
     kwargs: dict = {
         'Name': cluster_name,
-        'ReleaseLabel': release_label,
+        'ReleaseLabel': EMR_RELEASE_LABEL,
         'Applications': [{'Name': 'Spark'}],
-        'Configurations': hail_configurations(off_heap_memory_per_core_mb),
+        'Configurations': hail_configurations(),
         'BootstrapActions': [
-            {
-                'Name': 'install-hail',
-                'ScriptBootstrapAction': {'Path': bootstrap_s3_uri, 'Args': artifact.bootstrap_args()},
-            }
+            {'Name': 'install-hail', 'ScriptBootstrapAction': {'Path': bootstrap_s3_uri, 'Args': [wheel]}}
         ],
-        'Instances': {
-            'InstanceGroups': [
-                {
-                    'Name': 'Primary',
-                    'InstanceRole': 'MASTER',
-                    'InstanceType': master_instance_type,
-                    'InstanceCount': 1,
-                },
-                {
-                    'Name': 'Core',
-                    'InstanceRole': 'CORE',
-                    'InstanceType': core_instance_type,
-                    'InstanceCount': core_instance_count,
-                },
-            ],
-            'KeepJobFlowAliveWhenNoSteps': True,
-            'TerminationProtected': False,
-        },
+        'Instances': instances,
         'AutoTerminationPolicy': {'IdleTimeout': idle_timeout},
+        'ServiceRole': 'EMR_DefaultRole',
+        'JobFlowRole': 'EMR_EC2_DefaultRole',
         'VisibleToAllUsers': True,
         'Tags': [
             {'Key': 'for-use-with-amazon-emr-managed-policies', 'Value': 'true'},
             {'Key': 'hailctl', 'Value': 'emr'},
-            {'Key': 'hail-version', 'Value': artifact.hail_pip_version},
-            {'Key': 'hail-revision', 'Value': artifact.hail_git_revision},
-            {'Key': 'hail-spark-version', 'Value': artifact.spark_version},
         ],
     }
     if log_uri is not None:
         kwargs['LogUri'] = log_uri
-    if ec2_key_name is not None:
-        kwargs['Instances']['Ec2KeyName'] = ec2_key_name
-    if subnet_id is not None:
-        kwargs['Instances']['Ec2SubnetId'] = subnet_id
-    if service_access_security_group is not None:
-        kwargs['Instances']['ServiceAccessSecurityGroup'] = service_access_security_group
-    if primary_security_group is not None:
-        kwargs['Instances']['EmrManagedMasterSecurityGroup'] = primary_security_group
-    if core_security_group is not None:
-        kwargs['Instances']['EmrManagedSlaveSecurityGroup'] = core_security_group
-
-    if use_default_roles:
-        kwargs['ServiceRole'] = 'EMR_DefaultRole'
-        kwargs['JobFlowRole'] = 'EMR_EC2_DefaultRole'
-    else:
-        if service_role is None or instance_profile is None:
-            raise ValueError('Either pass --use-default-roles, or provide both --service-role and --instance-profile.')
-        kwargs['ServiceRole'] = service_role
-        kwargs['JobFlowRole'] = instance_profile
-
     return kwargs
+
+
+def start(
+    cluster_name: str,
+    wheel: str,
+    region: Optional[str],
+    subnet_id: Optional[str],
+    service_access_security_group: Optional[str],
+    num_workers: int,
+    master_instance_type: str,
+    worker_instance_type: str,
+    log_uri: Optional[str],
+    idle_timeout: int,
+    dry_run: bool,
+) -> None:
+    check_wheel_uri(wheel)
+    if idle_timeout < 60 or idle_timeout > 604800:
+        raise typer.BadParameter('--idle-timeout must be between 60 and 604800 seconds.')
+    script = bootstrap_script()
+    bootstrap_s3_uri = bootstrap_uri(wheel, script)
+    kwargs = build_run_job_flow_kwargs(
+        cluster_name=cluster_name,
+        bootstrap_s3_uri=bootstrap_s3_uri,
+        wheel=wheel,
+        num_workers=num_workers,
+        master_instance_type=master_instance_type,
+        worker_instance_type=worker_instance_type,
+        subnet_id=subnet_id,
+        service_access_security_group=service_access_security_group,
+        log_uri=log_uri,
+        idle_timeout=idle_timeout,
+    )
+    if dry_run:
+        print(json.dumps(kwargs, indent=2))
+        return
+    client = emr.emr_client(region)
+    emr.upload_to_s3(bootstrap_s3_uri, script)
+    resp = client.run_job_flow(**kwargs)
+    print(f"Started cluster {resp['JobFlowId']}.")

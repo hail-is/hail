@@ -2,6 +2,8 @@ import os
 import sys
 from typing import List, Optional
 
+import typer
+
 from . import emr
 
 
@@ -9,31 +11,37 @@ def spark_submit_step_args(script_s3_uri: str, pass_through_args: List[str]) -> 
     return ['spark-submit', '--deploy-mode', 'client', script_s3_uri, *pass_through_args]
 
 
+def resolve_script_uri(script: str, upload_uri: Optional[str]) -> str:
+    """Return the S3 URI of the script, uploading a local file to `upload_uri` first."""
+    if script.startswith('s3://'):
+        return script
+    if upload_uri is None:
+        raise typer.BadParameter('EMR can only run scripts from S3. Pass an s3:// SCRIPT, or use --upload-to.')
+    if not upload_uri.startswith('s3://'):
+        raise typer.BadParameter('--upload-to must be an S3 URI such as s3://my-bucket/hail-scripts/.')
+    script_s3_uri = f'{upload_uri.rstrip("/")}/{os.path.basename(script)}'
+    print(f'Uploading {script} to {script_s3_uri}')
+    with open(script, 'rb') as f:
+        emr.upload_to_s3(script_s3_uri, f.read())
+    return script_s3_uri
+
+
 def submit(
     cluster_id: str,
     script: str,
-    remote_tmpdir: str,
+    upload_uri: Optional[str],
     region: Optional[str],
     pass_through_args: List[str],
     wait: bool = True,
 ) -> str:
-    from hailtop.utils import secret_alnum_string  # pylint: disable=import-outside-toplevel
-
-    resolved_region = emr.resolve_region(region)
-    client = emr.emr_client(resolved_region)
-
-    prefix = remote_tmpdir.rstrip('/') + '/' + secret_alnum_string(8)
-    script_s3_uri = f'{prefix}/{os.path.basename(script)}'
-
-    print(f'Uploading {script} to {script_s3_uri}')
-    with open(script, 'rb') as f:
-        emr.upload_to_s3(script_s3_uri, f.read())
+    client = emr.emr_client(region)
+    script_s3_uri = resolve_script_uri(script, upload_uri)
 
     resp = client.add_job_flow_steps(
         JobFlowId=cluster_id,
         Steps=[
             {
-                'Name': f'hail-{os.path.basename(script)}',
+                'Name': f'hail-{os.path.basename(script_s3_uri)}',
                 'ActionOnFailure': 'CONTINUE',
                 'HadoopJarStep': {
                     'Jar': 'command-runner.jar',
@@ -51,19 +59,10 @@ def submit(
     print('Waiting for step to complete ...')
     waiter = client.get_waiter('step_complete')
     try:
-        # botocore's default caps the wait at 30 minutes (30s x 60), which is far
-        # too short for a Hail job. Poll for up to a week instead.
+        # botocore's default caps the wait at 30 minutes, which is too short for a Hail job.
         waiter.wait(ClusterId=cluster_id, StepId=step_id, WaiterConfig={'Delay': 30, 'MaxAttempts': 20160})
-    except Exception as e:  # surface the failure to the user
-        # The waiter's own message carries the state change reason AWS reported, so
-        # print it whether or not the follow-up describe_step succeeds.
+    except Exception as e:
         print(f'Step {step_id} did not complete successfully: {e}', file=sys.stderr)
-        try:
-            desc = client.describe_step(ClusterId=cluster_id, StepId=step_id)
-            state = desc['Step']['Status']['State']
-            print(f'Step {step_id} state is {state}.', file=sys.stderr)
-        except Exception:
-            print(f'Could not describe step {step_id} to report its state.', file=sys.stderr)
         raise SystemExit(1) from e
 
     print(f'Step {step_id} completed.')
