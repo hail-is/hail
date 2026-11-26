@@ -67,6 +67,7 @@ def test_hail_configurations_sets_hail_cloud_and_jar():
     export = next(c for c in spark_env['Configurations'] if c['Classification'] == 'export')
     assert export['Properties']['HAIL_CLOUD'] == 'aws'
     assert export['Properties']['PYSPARK_PYTHON'] == start.EMR_PYSPARK_PYTHON
+    assert export['Properties']['SPARK_DIST_CLASSPATH'] == '$(hadoop classpath)'
 
 
 def test_hail_configurations_off_heap_overlay():

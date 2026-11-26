@@ -99,7 +99,11 @@ def hail_configurations(off_heap_memory_per_core_mb: Optional[int]) -> list[dict
             'Configurations': [
                 {
                     'Classification': 'export',
-                    'Properties': {'HAIL_CLOUD': 'aws', 'PYSPARK_PYTHON': EMR_PYSPARK_PYTHON},
+                    'Properties': {
+                        'HAIL_CLOUD': 'aws',
+                        'PYSPARK_PYTHON': EMR_PYSPARK_PYTHON,
+                        'SPARK_DIST_CLASSPATH': '$(hadoop classpath)',
+                    },
                 }
             ],
             'Properties': {},
