@@ -262,7 +262,7 @@ def extract_refs_by_indices(exprs, indices):
 
     Parameters
     ----------
-    expr : Expression
+    exprs : Expression
     indices : Indices
 
     Returns
