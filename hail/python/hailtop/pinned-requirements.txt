@@ -175,9 +175,9 @@ aiosignal==1.4.0 \
     --hash=sha256:053243f8b92b990551949e63930a839ff0cf0b0ebbe0597b0f3fb19e1a0fe82e \
     --hash=sha256:f47eecd9468083c2029cc99945502cb7708b082c232f9aca65da147157b251c7
     # via aiohttp
-annotated-doc==0.0.6 \
-    --hash=sha256:361ca0950cc7082f53fa69e9328409f40a62c61e57e0a47e1825a08078a58a53 \
-    --hash=sha256:7969bb69912085b2285849c0dcac0b4b374fd180c13cf10a87f284ffcf347bbf
+annotated-doc==0.0.7 \
+    --hash=sha256:0a30ef8f5322a4173720ae6712dc9a5e58f5a19868f3f167b4b5778db066c2b5 \
+    --hash=sha256:6bc31bbbec6dfaaedc1676dbc11dbda96fe22a2b5c400e9ebad113fec44a9dc6
     # via typer
 attrs==26.1.0 \
     --hash=sha256:c647aa4a12dfbad9333ca4e71fe62ddc36f4e63b2d260a37a8b83d2f043ac309 \
@@ -211,13 +211,13 @@ azure-storage-blob==12.31.1 \
     --hash=sha256:0d6e5b860a1357efc602db04cfa7c9950ac86126edcf7db89320cde281555fe5 \
     --hash=sha256:9e012d5f4ab658b7cb8a4581329d7a7aa2bf5f39b4d63baeefaae7f9e90fe6f0
     # via -r hail/python/hailtop/requirements.txt
-boto3==1.44.2 \
-    --hash=sha256:70c02826640da17c15067033af01667059dde5e86057c2d1227cd8523c2f24dd \
-    --hash=sha256:d62ff8a9eb06cab9f0b4242d7a2907a8fff9cca630e27ef736660f9d53e5b18e
+boto3==1.44.7 \
+    --hash=sha256:15fac273416d37cd5e3f0c02b33fd8d7f27d3e64c5f64b911f8b953772302609 \
+    --hash=sha256:cc19922a2db90ac98f259b5290e08fcf7143a314eb6b2e430afec26a5d1f4e10
     # via -r hail/python/hailtop/requirements.txt
-botocore==1.44.2 \
-    --hash=sha256:39da314d7bab66e9da9af5531445d237beaeeab1fce0ed034bb6315d480b85ce \
-    --hash=sha256:f255849e8adc413812162e100cf53c4d096d07d9fd6f1773d90fa6034f7d8980
+botocore==1.44.7 \
+    --hash=sha256:3cbf1d9f50b5f1f95b715e570bc03b8c7c94b86777f96dd647321134f57290b2 \
+    --hash=sha256:56ec7cf3a7c0012c7e105c8f498c67077afa722df916dbdbe667b584fe7e5f99
     # via
     #   -r hail/python/hailtop/requirements.txt
     #   boto3
